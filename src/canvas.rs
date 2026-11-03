@@ -348,6 +348,15 @@ impl App {
                     }
                 }
             }
+            Some(Drag::Move { changed: true, .. }) => {
+                // the prospective container, else the current one (diagram-editor.js:429-474)
+                let current = self.container_group().and_then(|g| g.1);
+                if let Some(cv) = self.hover.or(current) {
+                    let b = node_rect(&self.repo, cv);
+                    let r = Rect::from_two_pos(c.pos(P { x: b.x, y: b.y }), c.pos(P { x: b.x + b.w, y: b.y + b.h }));
+                    c.painter.rect_stroke(r, 0.0, Stroke::new(2.0, sel), egui::StrokeKind::Middle);
+                }
+            }
             Some(Drag::Reconnect { edge, tail, now }) => {
                 // rubber line from the end that stays, and the drop target outlined
                 let pts = points_of(&self.repo, *edge);
@@ -650,6 +659,28 @@ impl App {
         }
     }
 
+    /// The selected boxes that may change container, if they all can and share one (the current one).
+    fn container_group(&self) -> Option<(Vec<Eid>, Option<Eid>)> {
+        let vs: Vec<Eid> = self.selection.iter().copied().filter(|v| self.repo.alive(*v) && is_node(&self.repo, *v)).collect();
+        if vs.is_empty() || !vs.iter().all(|v| self.repo.bool(*v, "containerChangeable")) {
+            return None;
+        }
+        let current = self.repo.refd(vs[0], "containerView");
+        vs.iter().all(|v| self.repo.refd(*v, "containerView") == current).then_some((vs, current))
+    }
+
+    /// The topmost package or subject under `p` that can hold the selected boxes, other than the moved ones.
+    fn container_at(&self, p: P, moved: &[Eid]) -> Option<Eid> {
+        let (vs, _) = self.container_group()?;
+        let d = self.diagram?;
+        self.repo.list(d, "ownedViews").into_iter().rev().find(|c| {
+            !moved.contains(c)
+                && !matches!(self.repo.raw(*c, "visible"), Some(serde_json::Value::Bool(false)))
+                && in_rect(p, &node_rect(&self.repo, *c))
+                && vs.iter().all(|v| self.can_contain_view(*c, *v))
+        })
+    }
+
     fn start_move(&mut self, p: P) {
         let Some(d) = self.diagram else { return };
         let mut nodes: Vec<Eid> = vec![];
@@ -663,13 +694,18 @@ impl App {
                 continue;
             }
             push(&mut nodes, v);
-            if let Some(serde_json::Value::Array(cs)) = self.repo.raw(v, "containedViews") {
-                for c in cs.clone() {
+        }
+        // contained views follow their container, recursively (engine.js:633-654)
+        let mut i = 0;
+        while i < nodes.len() {
+            if let Some(serde_json::Value::Array(cs)) = self.repo.raw(nodes[i], "containedViews").cloned() {
+                for c in cs {
                     if let Some(cv) = self.repo.by_ref(&c) {
                         push(&mut nodes, cv);
                     }
                 }
             }
+            i += 1;
         }
         // things drawn inside a package or subject move with it
         for v in nodes.clone() {
@@ -762,6 +798,8 @@ impl App {
                     self.repo.set(*n, "left", crate::model::num(o.x + dx));
                     self.repo.set(*n, "top", crate::model::num(o.y + dy));
                 }
+                let moved: Vec<Eid> = orig.iter().map(|(n, _)| *n).collect();
+                self.hover = self.container_at(p, &moved);
                 for (e, pts) in edges.iter() {
                     if pts.len() > 2 {
                         let moved: Vec<P> = pts.iter().map(|q| P { x: q.x + dx, y: q.y + dy }).collect();
@@ -907,6 +945,17 @@ impl App {
                 if !self.tool_sticky {
                     self.tool = None;
                 }
+            }
+            Drag::Move { changed: true, orig, .. } => {
+                // drop into a container, or out of one (diagram-editor.js:1640-1657, 476-493)
+                let moved: Vec<Eid> = orig.iter().map(|(n, _)| *n).collect();
+                if let Some((vs, current)) = self.container_group() {
+                    let target = self.container_at(p, &moved);
+                    if target != current && vs.iter().all(|v| target.map(|t| self.can_contain_view(t, *v)).unwrap_or(true)) {
+                        self.set_container(&vs, target);
+                    }
+                }
+                self.done();
             }
             Drag::Move { changed: false, collapse: Some(v), .. } => {
                 // a click on a member of a group, without moving, keeps only that view (diagram-editor.js:901-912)

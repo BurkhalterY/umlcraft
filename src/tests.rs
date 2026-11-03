@@ -999,3 +999,47 @@ fn dropping_models_brings_their_relationships() {
     assert!(a.repo.bool(v, "showNamespace"));
     assert!(!a.repo.bool(c2, "showNamespace"));
 }
+
+#[test]
+fn dropping_boxes_into_a_package_moves_view_and_model() {
+    use egui::{Modifiers, Pos2};
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let d = a.diagram.unwrap();
+    let owner = a.repo.parent(d).unwrap();
+    let pk = a.change(|a| a.create_node("UMLPackage", rect(300.0, 40.0, 300.0, 300.0))).unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let (pm, cm) = (a.repo.refd(pk, "model").unwrap(), a.repo.refd(c, "model").unwrap());
+    let drag = |a: &mut App, from: (f32, f32), to: (f32, f32)| {
+        a.on_press(canvas, Pos2::new(from.0, from.1), Modifiers::NONE);
+        a.on_move(canvas, Pos2::new(to.0, to.1));
+        a.on_release(canvas.min, Pos2::new(to.0, to.1));
+    };
+    // into the package: the class model is now owned by the package, the view contained and in front
+    drag(&mut a, (60.0, 60.0), (400.0, 160.0));
+    assert_eq!(a.repo.refd(c, "containerView"), Some(pk));
+    assert_eq!(a.repo.parent(cm), Some(pm));
+    let list = a.repo.list(d, "ownedViews");
+    assert!(list.iter().position(|x| *x == c) > list.iter().position(|x| *x == pk));
+    // moving the package moves the contained class too
+    let (cx, px) = (a.repo.f(c, "left"), a.repo.f(pk, "left"));
+    a.select(vec![pk]);
+    drag(&mut a, (590.0, 330.0), (630.0, 330.0));
+    assert_eq!(a.repo.f(c, "left") - cx, a.repo.f(pk, "left") - px);
+    assert!(a.repo.f(pk, "left") > px);
+    // a package cannot go into what it contains
+    a.select(vec![]);
+    let inner = a.change(|a| a.create_node("UMLPackage", rect(700.0, 400.0, 100.0, 100.0))).unwrap();
+    a.change(|a| a.set_container(&[inner], Some(pk)));
+    assert!(!a.can_contain_view(inner, pk));
+    // out onto empty canvas: back to the diagram's owner
+    let at = (a.repo.f(c, "left") as f32 + 10.0, a.repo.f(c, "top") as f32 + 10.0);
+    a.select(vec![]);
+    drag(&mut a, at, (100.0, 500.0));
+    assert_eq!(a.repo.refd(c, "containerView"), None);
+    assert_eq!(a.repo.parent(cm), Some(owner));
+    assert!(!a.repo.raw(pk, "containedViews").map(|v| v.to_string().contains(&a.repo.id(c))).unwrap_or(false));
+    a.do_undo();
+    assert_eq!(a.repo.parent(cm), Some(pm), "one undo step");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

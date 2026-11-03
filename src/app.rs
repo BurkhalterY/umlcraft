@@ -426,6 +426,74 @@ impl App {
         views::create_node_view(&mut self.repo, d, model, rect)
     }
 
+    /// Whether a box can hold another box (canContainView, core.js:1961-1986): packages and subjects
+    /// hold boxes, and never themselves or a box that contains them.
+    pub fn can_contain_view(&self, container: Eid, v: Eid) -> bool {
+        let ct = self.repo.ty(container);
+        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLUseCaseSubjectView") || !views::is_node(&self.repo, v) {
+            return false;
+        }
+        // not the view itself or anything inside it
+        let mut c = Some(container);
+        while let Some(x) = c {
+            if x == v {
+                return false;
+            }
+            c = self.repo.refd(x, "containerView");
+        }
+        if ct == "UMLUseCaseSubjectView" {
+            return true;
+        }
+        match (self.repo.refd(container, "model"), self.repo.refd(v, "model")) {
+            (Some(cm), Some(vm)) => cm != vm && !self.repo.path(cm).contains(&vm),
+            (_, None) => true,
+            _ => false,
+        }
+    }
+
+    /// Put views in a new container (or none), moving their models too: into a package's model, or
+    /// to the diagram's owner when released (engine.js:1036-1185, uml/main.js:24-41). Subjects only
+    /// hold the views. The moved views come to the front so they draw above the container.
+    pub fn set_container(&mut self, vs: &[Eid], to: Option<Eid>) {
+        let Some(d) = self.diagram else { return };
+        for &v in vs {
+            if let Some(old) = self.repo.refd(v, "containerView") {
+                let id = self.repo.id(v);
+                if let Some(serde_json::Value::Array(a)) = self.repo.raw(old, "containedViews").cloned() {
+                    let kept: Vec<serde_json::Value> = a.into_iter().filter(|r| r.get("$ref").and_then(|x| x.as_str()) != Some(id.as_str())).collect();
+                    if kept.is_empty() {
+                        self.repo.remove(old, "containedViews");
+                    } else {
+                        self.repo.set_raw(old, "containedViews", json!(kept));
+                    }
+                }
+            }
+            self.repo.set_ref(v, "containerView", to);
+            if let Some(c) = to {
+                let mut a = match self.repo.raw(c, "containedViews") {
+                    Some(serde_json::Value::Array(a)) => a.clone(),
+                    _ => vec![],
+                };
+                a.push(self.repo.ref_to(v));
+                self.repo.set_raw(c, "containedViews", json!(a));
+            }
+            let target = match to {
+                Some(c) if self.repo.ty(c) == "UMLUseCaseSubjectView" => None,
+                Some(c) => self.repo.refd(c, "model"),
+                None => Some(self.package_for(Some(d))),
+            };
+            if let (Some(tm), Some(vm)) = (target, self.repo.refd(v, "model")) {
+                if self.repo.parent(vm) != Some(tm) && self.repo.field_of(vm).as_deref() == Some("ownedElements") {
+                    self.repo.relocate(vm, tm, "ownedElements");
+                }
+            }
+        }
+        let mut list = self.repo.list(d, "ownedViews");
+        list.retain(|x| !vs.contains(x));
+        list.extend(vs.iter().copied());
+        self.repo.set_list(d, "ownedViews", list);
+    }
+
     /// The two ends of a relationship model: (tail, head) = (source, target) or (end1, end2) references.
     pub fn rel_ends(&self, m: Eid) -> Option<(Eid, Eid)> {
         let r = &self.repo;

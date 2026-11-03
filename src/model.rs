@@ -359,8 +359,14 @@ impl Repo {
         }
     }
 
-    /// Remove an element (and everything inside it) from its owner.
-    pub fn detach(&mut self, eid: Eid) {
+    /// Move an element (with everything inside it) to parent[field], keeping its id.
+    pub fn relocate(&mut self, eid: Eid, parent: Eid, field: &str) {
+        self.unlink(eid);
+        self.attach(eid, parent, field, None);
+    }
+
+    /// Take an element out of its owner's field without removing it.
+    fn unlink(&mut self, eid: Eid) {
         if let Some(p) = self.parent(eid) {
             if self.alive(p) {
                 let mut empty = None;
@@ -387,6 +393,11 @@ impl Repo {
                 }
             }
         }
+    }
+
+    /// Remove an element (and everything inside it) from its owner.
+    pub fn detach(&mut self, eid: Eid) {
+        self.unlink(eid);
         let mut all = vec![];
         self.descendants(eid, &mut all);
         for x in all {
