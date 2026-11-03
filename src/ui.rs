@@ -918,6 +918,7 @@ impl App {
                 }
                 self.color_menus(ui);
                 self.line_style_menu(ui);
+                self.stereotype_display_menu(ui);
                 self.format_toggles(ui);
                 ui.separator();
                 self.alignment_menu(ui);
@@ -1018,6 +1019,18 @@ impl App {
                 ui.add_space(6.0);
             }
         });
+        if !self.flag_views("stereotypeDisplay").is_empty() {
+            // the stereotype display dropdown, empty when mixed (style-editor-view.js)
+            let cur = self.stereotype_display_state();
+            let shown = crate::style::STEREOTYPE_DISPLAYS.iter().find(|d| Some(d.0) == cur.as_deref()).map(|d| d.1).unwrap_or("");
+            egui::ComboBox::from_id_salt("style-stereotype").selected_text(egui::RichText::new(shown).size(12.0)).width(150.0).show_ui(ui, |ui| {
+                for (value, label) in crate::style::STEREOTYPE_DISPLAYS {
+                    if ui.selectable_label(cur.as_deref() == Some(value), label).clicked() {
+                        self.set_stereotype_display(value);
+                    }
+                }
+            });
+        }
         if self.selection.iter().any(|v| self.repo.alive(*v) && views::is_edge(&self.repo, *v)) {
             ui.horizontal(|ui| {
                 let cur = self.line_style_state();
@@ -1161,6 +1174,22 @@ impl App {
 
     /// The Format menu's on/off items, checked when every selected view that has the flag is on,
     /// and enabled only when a selected view has it (uml.json order; default-commands.js:1319-1350).
+    /// Format > Stereotype Display, checked on the value the selected views share.
+    pub(crate) fn stereotype_display_menu(&mut self, ui: &mut egui::Ui) {
+        ui.add_enabled_ui(!self.flag_views("stereotypeDisplay").is_empty(), |ui| {
+            ui.menu_button("Stereotype Display", |ui| {
+                let cur = self.stereotype_display_state();
+                for (i, (value, label)) in crate::style::STEREOTYPE_DISPLAYS.into_iter().enumerate() {
+                    let mut on = cur.as_deref() == Some(value);
+                    if ui.checkbox(&mut on, format!("{label:<24}Ctrl+Shift+{i}")).clicked() {
+                        self.set_stereotype_display(value);
+                        ui.close();
+                    }
+                }
+            });
+        });
+    }
+
     pub(crate) fn format_toggles(&mut self, ui: &mut egui::Ui) {
         for (i, (field, label)) in FORMAT_TOGGLES.into_iter().enumerate() {
             if i == 2 || i == 6 {
@@ -1211,6 +1240,12 @@ impl App {
         if !typing {
             if hit(sc(cs, Key::F)) {
                 self.open_font_dialog();
+            }
+            // Ctrl+Shift+0…5 before Ctrl+0 (Actual Size), which also matches with Shift held
+            for (i, key) in [Key::Num0, Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5].into_iter().enumerate() {
+                if hit(sc(cs, key)) {
+                    self.set_stereotype_display(crate::style::STEREOTYPE_DISPLAYS[i].0);
+                }
             }
             for (key, field) in [(Key::I, "fillColor"), (Key::L, "lineColor")] {
                 if hit(sc(cs, key)) && !self.color_views(field).is_empty() {

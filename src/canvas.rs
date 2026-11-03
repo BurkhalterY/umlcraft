@@ -1459,6 +1459,7 @@ impl App {
                 ui.close();
             }
             self.color_menus(ui);
+            self.stereotype_display_menu(ui);
             ui.separator();
             self.format_toggles(ui);
             ui.separator();

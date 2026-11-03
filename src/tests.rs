@@ -1283,3 +1283,30 @@ fn auto_resize_fits_the_content() {
     a.on_press(canvas, Pos2::new(x2 as f32, y2 as f32), Modifiers::NONE);
     assert!(!matches!(a.drag, Some(crate::app::Drag::Resize { .. })));
 }
+
+#[test]
+fn stereotype_display_commands() {
+    use egui::{Key, Modifiers};
+    let ms = measure();
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    a.change(|a| a.repo.set(m, "stereotype", json!("entity")));
+    a.select(vec![c]);
+    assert_eq!(a.stereotype_display_state().as_deref(), Some("label"));
+    let ev = egui::Event::Key { key: Key::Num0, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND | Modifiers::SHIFT };
+    let zoom = a.zoom;
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+    out.textures_delta.clear();
+    assert_eq!(a.repo.str(c, "stereotypeDisplay"), "none", "Ctrl+Shift+0");
+    assert_eq!(a.zoom, zoom, "not Actual Size");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let st = a.repo.refd(a.repo.refd(c, "nameCompartment").unwrap(), "stereotypeLabel").unwrap();
+    assert!(matches!(a.repo.raw(st, "visible"), Some(serde_json::Value::Bool(false))), "the stereotype is hidden");
+    a.set_stereotype_display("label");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.repo.raw(st, "visible").is_none());
+}

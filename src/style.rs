@@ -87,3 +87,35 @@ impl App {
         });
     }
 }
+
+/// Format > Stereotype Display values, labels and shortcut digits (uml.json, keymaps/uml.json).
+pub const STEREOTYPE_DISPLAYS: [(&str, &str); 6] = [
+    ("none", "None"),
+    ("label", "Label"),
+    ("decoration", "Decoration"),
+    ("decoration-label", "Decoration with Label"),
+    ("icon", "Icon"),
+    ("icon-label", "Icon with Label"),
+];
+
+impl App {
+    /// The stereotype display the selected views share, if they agree.
+    pub fn stereotype_display_state(&self) -> Option<String> {
+        let vs = self.flag_views("stereotypeDisplay");
+        let first = self.repo.str(*vs.first()?, "stereotypeDisplay");
+        vs.iter().all(|v| self.repo.str(*v, "stereotypeDisplay") == first).then_some(first)
+    }
+
+    /// Set stereotypeDisplay on every selected view that has it (uml-commands.js:266-269, 4565-4595).
+    pub fn set_stereotype_display(&mut self, value: &str) {
+        let vs = self.flag_views("stereotypeDisplay");
+        if vs.is_empty() {
+            return;
+        }
+        self.change(|a| {
+            for v in vs {
+                a.repo.set(v, "stereotypeDisplay", json!(value));
+            }
+        });
+    }
+}
