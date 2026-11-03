@@ -173,3 +173,91 @@ fn ctrl_z_undoes_while_the_canvas_has_focus() {
     frame(&mut a, egui::RawInput { events: vec![press], ..Default::default() }, false);
     assert_eq!(a.repo.all_of("UMLClass").len(), 0, "Ctrl+Z should undo the new class");
 }
+
+/// Writes the example model used for the README pictures:
+/// `EXAMPLE_OUT=examples/library.mdj cargo test --release write_example -- --ignored`
+#[test]
+#[ignore]
+fn write_example() {
+    let Ok(out) = std::env::var("EXAMPLE_OUT") else { return };
+    let ms = measure();
+    let mut a = App::new(None);
+    let model = a.repo.children(a.repo.root)[0].1;
+    a.repo.set(a.repo.root, "name", json!("Library"));
+    let main = a.diagram.unwrap();
+    a.repo.set(main, "name", json!("Domain"));
+    let class = |a: &mut App, kind: &str, name: &str, r: R| {
+        let v = a.create_node(kind, r).unwrap();
+        let m = a.repo.refd(v, "model").unwrap();
+        a.repo.set(m, "name", json!(name));
+        (v, m)
+    };
+    let attr = |a: &mut App, m, text: &str| {
+        let x = a.add_feature(m, "UMLAttribute").unwrap();
+        crate::parse::apply_attribute(&mut a.repo, x, text);
+    };
+    let op = |a: &mut App, m, text: &str| {
+        let x = a.add_feature(m, "UMLOperation").unwrap();
+        crate::parse::apply_operation(&mut a.repo, x, text);
+    };
+    let (item_v, item) = class(&mut a, "UMLClass", "LibraryItem", rect(24.0, 24.0, 200.0, 120.0));
+    a.repo.set(item, "isAbstract", json!(true));
+    attr(&mut a, item, "#title: String");
+    attr(&mut a, item, "#year: int");
+    op(&mut a, item, "+isAvailable(): boolean");
+    let (book_v, book) = class(&mut a, "UMLClass", "Book", rect(8.0, 232.0, 150.0, 90.0));
+    attr(&mut a, book, "-isbn: String");
+    attr(&mut a, book, "-pages: int");
+    let (dvd_v, dvd) = class(&mut a, "UMLClass", "DVD", rect(176.0, 232.0, 130.0, 90.0));
+    attr(&mut a, dvd, "-minutes: int");
+    let (loan_v, loan) = class(&mut a, "UMLClass", "Loan", rect(400.0, 24.0, 220.0, 120.0));
+    attr(&mut a, loan, "-due: Date");
+    attr(&mut a, loan, "-status: LoanStatus = ACTIVE");
+    op(&mut a, loan, "+extend(days: int)");
+    op(&mut a, loan, "+isOverdue(today: Date): boolean");
+    let (member_v, member) = class(&mut a, "UMLClass", "Member", rect(400.0, 232.0, 220.0, 100.0));
+    attr(&mut a, member, "-name: String");
+    attr(&mut a, member, "-cardNumber: String");
+    op(&mut a, member, "+borrow(item: LibraryItem): Loan");
+    let (lend_v, _) = class(&mut a, "UMLInterface", "Lendable", rect(181.0, 400.0, 120.0, 80.0));
+    let (status_v, status) = class(&mut a, "UMLEnumeration", "LoanStatus", rect(400.0, 400.0, 150.0, 110.0));
+    for l in ["ACTIVE", "RETURNED", "OVERDUE"] {
+        let x = a.add_feature(status, "UMLEnumerationLiteral").unwrap();
+        a.repo.set(x, "name", json!(l));
+    }
+    let gen = tool("UMLGeneralization", AssocInit::Plain);
+    a.create_edge(&gen, book_v, item_v);
+    a.create_edge(&gen, dvd_v, item_v);
+    let e = a.create_edge(&tool("UMLAssociation", AssocInit::Directed), loan_v, item_v).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    let end2 = a.repo.child(m, "end2").unwrap();
+    a.repo.set(end2, "multiplicity", json!("1"));
+    let e = a.create_edge(&tool("UMLAssociation", AssocInit::Composite), loan_v, member_v).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    a.repo.set(m, "name", json!("borrows"));
+    let end1 = a.repo.child(m, "end1").unwrap();
+    a.repo.set(end1, "multiplicity", json!("0..*"));
+    a.create_edge(&tool("UMLInterfaceRealization", AssocInit::Plain), dvd_v, lend_v);
+    let _ = status_v;
+    let note = a.create_node("Note", rect(240.0, 160.0, 140.0, 50.0)).unwrap();
+    a.repo.set(note, "text", json!("Overdue after the due date."));
+    a.create_edge(&tool("NoteLink", AssocInit::Plain), note, loan_v);
+
+    let uc = a.add_diagram(Some(model), "UMLUseCaseDiagram");
+    a.repo.set(uc, "name", json!("Use Cases"));
+    let subject = a.create_node("UMLUseCaseSubject", rect(200.0, 24.0, 300.0, 380.0)).unwrap();
+    let sm = a.repo.refd(subject, "model").unwrap();
+    a.repo.set(sm, "name", json!("Library System"));
+    let (reader, _) = class(&mut a, "UMLActor", "Member", rect(56.0, 150.0, 50.0, 80.0));
+    let (lib, _) = class(&mut a, "UMLActor", "Librarian", rect(580.0, 280.0, 60.0, 80.0));
+    let (borrow, _) = class(&mut a, "UMLUseCase", "Borrow an item", rect(270.0, 70.0, 160.0, 50.0));
+    let (ret, _) = class(&mut a, "UMLUseCase", "Return an item", rect(270.0, 300.0, 160.0, 50.0));
+    let (card, _) = class(&mut a, "UMLUseCase", "Check the card", rect(270.0, 180.0, 160.0, 50.0));
+    let assoc = tool("UMLAssociation", AssocInit::Plain);
+    a.create_edge(&assoc, reader, borrow);
+    a.create_edge(&assoc, reader, ret);
+    a.create_edge(&assoc, lib, ret);
+    a.create_edge(&tool("UMLInclude", AssocInit::Plain), borrow, card);
+    a.open_diagram(main);
+    assert!(a.save_to(std::path::PathBuf::from(out), &ms));
+}

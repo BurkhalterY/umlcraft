@@ -1,60 +1,196 @@
-# UMLCraft — source code guide
+<p align="center">
+  <img src="packaging/icons/umlcraft-256.png" width="128" height="128" alt="UMLCraft icon: two class boxes under a generalization arrow on a blue tile">
+</p>
 
-UMLCraft is written in **Rust**, like the other CraftApps. The window and widgets use **egui** (through
-eframe, with an OpenGL renderer), and .mdj files are read and written with **serde_json**, keeping every
-field in the original order. File dialogs come from **rfd** and PNG pictures are saved with **image**.
+<h1 align="center">UMLCraft</h1>
 
-All of the source code is in this folder (`app/`):
+<p align="center">
+  <b>UML modeling; an open-source, clean-room reimplementation of StarUML, rebuilt in pure Rust.</b><br>
+  Class and use case diagrams, a model explorer, a property editor and real <code>.mdj</code> files,<br>
+  in a native app written entirely in Rust. Open source, offline, and yours.
+</p>
+
+<p align="center">
+  <img alt="100% Rust" src="https://img.shields.io/badge/100%25-Rust-b7410e?style=flat-square&logo=rust">
+  <img alt="macOS · Windows · Linux · FreeBSD" src="https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux%20%C2%B7%20FreeBSD-native-2f7bf5?style=flat-square">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-3a3a3a?style=flat-square">
+  <img alt="Status: early alpha" src="https://img.shields.io/badge/status-early%20alpha-d69e2e?style=flat-square">
+  <br>
+  <a href="https://github.com/BurkhalterY/umlcraft/actions/workflows/release.yml"><img alt="Release build" src="https://img.shields.io/github/actions/workflow/status/BurkhalterY/umlcraft/release.yml?style=flat-square&label=installers"></a>
+  <a href="https://github.com/BurkhalterY/umlcraft/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/BurkhalterY/umlcraft?style=flat-square&include_prereleases&label=download"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/BurkhalterY/umlcraft/releases"><b>Download UMLCraft</b></a> ·
+  <a href="https://getartcraft.com/apps">All Crafting Apps</a> ·
+  <a href="https://github.com/storytold/craft-anything">Made with Craft Anything</a>
+</p>
+
+<br>
+
+<p align="center">
+  <img src="docs/images/class-diagram.png" alt="UMLCraft with a library class diagram open: an abstract LibraryItem with Book and DVD subclasses, a Loan with a note, a Member that owns its loans, a Lendable interface and a LoanStatus enumeration; the Loan class is selected and its properties are shown on the right" width="100%">
+  <br>
+  <sub>A library domain model: inheritance, a composition with multiplicities, an interface shown as a ball, an enumeration and a note,<br>with the Loan class selected in the diagram, the Model Explorer and the property editor.</sub>
+</p>
+
+<p align="center">
+  <a href="#features">Features</a> ·
+  <a href="#everything-in-the-box">Everything in the box</a> ·
+  <a href="#mdj-without-compromise">.mdj</a> ·
+  <a href="#under-the-hood">Under the hood</a> ·
+  <a href="#get-started">Get started</a> ·
+  <a href="#downloads">Downloads</a> ·
+  <a href="#the-crafting-apps">Crafting Apps</a>
+</p>
+
+<br>
+
+<table>
+  <tr>
+    <td width="25%" valign="top">
+      <h3>🎛️ Familiar by design</h3>
+      Working Diagrams and the Toolbox on the left, the Model Explorer and Editors on the right, the same dark theme and the same shortcuts. If you know StarUML, you already know UMLCraft.
+    </td>
+    <td width="25%" valign="top">
+      <h3>⚡ Native and fast</h3>
+      One small binary on egui and OpenGL that starts in a blink. No Electron, no web view, no waiting.
+    </td>
+    <td width="25%" valign="top">
+      <h3>🗂️ Real .mdj files</h3>
+      Open and save StarUML projects. Files come back with the same structure and key order, and anything UMLCraft does not edit is written back untouched.
+    </td>
+    <td width="25%" valign="top">
+      <h3>📦 Installs everywhere</h3>
+      MSI, DMG, AppImage, deb, rpm and FreeBSD pkg, for x64 and ARM, built on every release by one GitHub workflow.
+    </td>
+  </tr>
+</table>
+
+<br>
+
+## Features
+
+Every screenshot here is the real app, rendered with its <code>--screenshot</code> option from <a href="examples/library.mdj"><code>examples/library.mdj</code></a>.
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/class-diagram.png" alt="The library class diagram with the Loan class selected" width="100%">
+      <br>
+      <sub>Classes, an abstract class, an interface, an enumeration and a note, joined by every kind of line.</sub>
+      <h3>Class diagrams</h3>
+      Classes, interfaces, enumerations, data types, signals, packages, notes and text, with associations, directed associations, aggregations, compositions, dependencies, generalizations and interface realizations.
+      <br><br>
+      <b>Type right on the diagram:</b> double-click an attribute and write <code>-id: int[1] = 0</code>, or an operation and write <code>+placeOrder(item: Order, qty: int): boolean</code>. Visibility, types, multiplicities, defaults and parameters are read from what you type.
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/usecase-diagram.png" alt="A use case diagram: Member and Librarian actors around a Library System subject with Borrow an item, Check the card and Return an item, and an include arrow" width="100%">
+      <br>
+      <sub>Actors, a system boundary and use cases, with an «include» relationship.</sub>
+      <h3>Use case diagrams</h3>
+      Actors, use cases, use case subjects and packages, with associations, generalizations, dependencies, includes and extends. Boundaries stay behind what they contain and carry it along when you move them.
+      <br><br>
+      Every other diagram kind in a StarUML file (sequence, state, activity, flowchart and more) opens, is drawn from its saved shapes, and is saved back exactly as it was.
+    </td>
+  </tr>
+</table>
+
+## Everything in the box
+
+| Area | What you get |
+|---|---|
+| **Editing** | Rubber-band and Shift/Ctrl selection, moving with snap to grid, eight resize handles, bend points on lines, rectilinear and oblique lines, shadows on or off, arrow-key nudging |
+| **Model Explorer** | The whole model as a tree in the original's order, search, sort by name, right-click to add elements, diagrams, attributes, operations, literals and parameters, drag onto a diagram to show an element again |
+| **Editors** | Every property of classes, attributes, operations, parameters, literals, relationships and both association ends, plus documentation |
+| **Views** | Working Diagrams, zoom from 10% to 300%, fit to window, a live mini-map, show or hide the grid and the panels |
+| **History** | Undo and redo for every change (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) |
+| **Export** | PNG of the diagram and SVG of the whole diagram |
+| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj` |
+
+## .mdj without compromise
+
+UMLCraft keeps a project as the very JSON objects the file contains, so it understands what it edits and carries everything else along unchanged:
+
+- Saved files use the same tab indentation, key order and left-out defaults as StarUML, and new ids have the same 14-byte form.
+- Files saved by StarUML open and save again with an identical structure; files saved by UMLCraft open in StarUML without errors.
+- The rules behind this (field order, defaults, sizes, arrow shapes, colours) are written down with their sources in [`MECHANICS.md`](MECHANICS.md) and checked by the tests.
+
+## Under the hood
+
+| Part | Built with |
+|---|---|
+| Window, widgets and drawing | [egui](https://github.com/emilk/egui) through eframe, rendered with OpenGL (glow) |
+| `.mdj` reading and writing | [serde_json](https://github.com/serde-rs/json) with preserved key order |
+| File dialogs | [rfd](https://github.com/PolyMeilex/rfd) (GTK on Linux and FreeBSD, native elsewhere) |
+| PNG pictures | [image](https://github.com/image-rs/image) |
+| Diagram text | the system's Arial, or Liberation Sans, which has the same metrics |
 
 | File | What it does |
 |---|---|
-| `Cargo.toml` | The project and its libraries |
-| `src/main.rs` | Start-up: window, fonts, dark theme, a file to open, `--screenshot <file.png>` and `--resave <in> <out>` |
-| `src/meta.rs` | The element kinds and fields of the .mdj file format, in file order, with defaults |
-| `src/model.rs` | Reading, editing and writing .mdj project files (anything unknown is kept as it was) |
-| `src/views.rs` | Building and sizing boxes, compartments, labels and lines |
-| `src/render.rs` | Drawing diagrams (shapes, arrows, shadows) on screen and into SVG files |
-| `src/canvas.rs` | The diagram canvas: select, move, resize, create, inline editing, zoom, mini-map |
-| `src/parse.rs` | Reading typed lines such as `-id: int[1]` or `+pay(amount: int): boolean` |
-| `src/app.rs` | Project state, undo/redo, open/save and model operations |
-| `src/ui.rs` | Menus, Working Diagrams, Toolbox, Model Explorer, Editors, status bar |
-| `src/icons.rs` | The small icons |
-| `packaging/` | Installer scripts and files for Windows, macOS, Linux and FreeBSD, and the app icon |
-| `.github/workflows/release.yml` | Builds every installer on GitHub |
-| `MECHANICS.md`, `mechanics.json` | The rules and numbers taken from the original, with their sources |
+| `src/model.rs`, `src/meta.rs` | The project and the `.mdj` element kinds, fields and defaults |
+| `src/views.rs`, `src/render.rs` | Laying out and drawing boxes, labels and lines, on screen and into SVG |
+| `src/canvas.rs`, `src/parse.rs` | The diagram canvas and the typed attribute and operation lines |
+| `src/app.rs`, `src/ui.rs`, `src/icons.rs` | Project state, undo, open and save, and the panels, menus and icons |
+| `src/tests.rs` | Round-trips of StarUML files, editing, saving and keyboard shortcuts |
+| `packaging/`, `.github/workflows/release.yml` | Installers for every system and the workflow that builds them |
 
-Build with `cargo build --release`; run with `cargo run --release -- [file.mdj]`.
+## Get started
 
-## Installers
+Download an installer from the [releases page](https://github.com/BurkhalterY/umlcraft/releases), or build it yourself with a recent [Rust](https://rustup.rs) toolchain:
 
-`.github/workflows/release.yml` builds every installer on GitHub:
+```sh
+git clone https://github.com/BurkhalterY/umlcraft
+cd umlcraft
+cargo run --release -- examples/library.mdj
+cargo test --release
+```
 
-| System | Files |
+On Linux, install the GTK 3, xkbcommon and OpenGL development packages first (on Debian and Ubuntu: `libgtk-3-dev libxkbcommon-dev libgl1-mesa-dev`).
+
+> [!IMPORTANT]
+> **Status:** UMLCraft is in early alpha. Class and use case diagrams are fully editable; other diagram kinds open, show and save but cannot be edited yet. There is no copy and paste, no font or colour dialog and no PDF export. On macOS, double-clicking a `.mdj` file starts UMLCraft but does not open the file yet; use File › Open. Please file issues with your system and a screenshot.
+
+## Downloads
+
+Every release on the [releases page](https://github.com/BurkhalterY/umlcraft/releases) carries these files and a `SHA256SUMS.txt`.
+
+### Windows
+
+| Build | Installer | Portable |
+|---|---|---|
+| x64 (64-bit Intel/AMD) | `UMLCraft-<ver>-windows-x64.msi` | `UMLCraft-<ver>-windows-x64-portable.zip` |
+| arm64 (Snapdragon and other ARM PCs) | `UMLCraft-<ver>-windows-arm64.msi` | `UMLCraft-<ver>-windows-arm64-portable.zip` |
+
+### macOS
+
+| Build | File | Notes |
+|---|---|---|
+| App, universal (Apple silicon + Intel) | `UMLCraft-<ver>-macos-universal.dmg` | Also as a `.zip`; signed and notarized when the release has the Apple certificates |
+
+### Linux
+
+| Format | x86_64 | aarch64 (ARM64) | Notes |
+|---|---|---|---|
+| AppImage | `UMLCraft-<ver>-x86_64.AppImage` | `UMLCraft-<ver>-aarch64.AppImage` | Runs anywhere |
+| Debian/Ubuntu | `umlcraft_<ver>_amd64.deb` | `umlcraft_<ver>_arm64.deb` | |
+| Fedora/RHEL/openSUSE | `umlcraft-<ver>-1.x86_64.rpm` | `umlcraft-<ver>-1.aarch64.rpm` | |
+| Tarball | `umlcraft-<ver>-linux-x86_64.tar.gz` | `umlcraft-<ver>-linux-aarch64.tar.gz` | Unpack anywhere |
+
+### FreeBSD
+
+| Build | File |
 |---|---|
-| Windows x64 and ARM64 | `.msi` installer (Start menu entry, opens `.mdj` files) and a portable `.zip` |
-| macOS (Apple Silicon and Intel) | universal `.dmg` and `.zip` |
-| Linux x86_64 and aarch64 | `.AppImage`, `.deb`, `.rpm` and a portable `.tar.gz` |
-| FreeBSD x86_64 | `.pkg` (`pkg add`) and a portable `.tar.gz` |
+| x86_64 | `umlcraft-<ver>.pkg` (`pkg add`) and `umlcraft-<ver>-freebsd-x86_64.tar.gz` |
 
-Run it from the Actions tab ("Release", Run workflow) to build them as downloadable artifacts, or push
-to the `release` branch or a `v1.2.3` tag to also publish them as a GitHub Release with a SHA256SUMS
-file. The scripts in `packaging/` can also be run by hand on each system.
+The [release workflow](.github/workflows/release.yml) builds all of them. Run it from the Actions tab to get them as artifacts, or push to the `release` branch or a `v1.2.3` tag to publish a release. Signing turns on when the repository has the secrets `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `KEYCHAIN_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD`; without them Windows warns about an unknown publisher and macOS asks you to confirm the first start.
 
-Signing is optional and turns on when these repository secrets exist: `APPLE_CERTIFICATE`,
-`APPLE_CERTIFICATE_PASSWORD`, `KEYCHAIN_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`
-(macOS signing and notarization) and `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` (Windows).
-Without them, Windows shows an "unknown publisher" warning and macOS asks to confirm the first start
-(right-click, Open). On macOS, double-clicking a `.mdj` file starts UMLCraft but does not open that file
-yet; use File > Open.
+## The Crafting Apps
 
-## Was StarUML's code copied?
+UMLCraft was made with [Craft Anything](https://github.com/storytold/craft-anything), which looks at how a program works and helps rebuild it in Rust. It is a community app in the spirit of the [Crafting Apps](https://getartcraft.com/apps), such as [PhotoCraft](https://github.com/storytold/photocraft), [CADCraft](https://github.com/storytold/cadcraft) and [WordCraft](https://github.com/storytold/wordcraft), and is not made by or affiliated with the ArtCraft team or with StarUML's makers.
 
-No. StarUML's JavaScript was read to learn its rules: the .mdj file layout, field names and defaults,
-sizes such as the 5-pixel compartment padding, arrow shapes, colours and window layout. Those rules are
-written down with their sources in `MECHANICS.md`, and every file here was written from scratch from that
-sheet; no StarUML source file, function, icon or logo was pasted in. The icons are simple drawings made
-for UMLCraft, and the fonts are the ones installed on the computer (Liberation Sans for diagrams).
+## License and credits
 
-## Version history
+UMLCraft is released under the [MIT license](LICENSE).
 
-This folder is a git repository. Build output (`target/`) and test pictures (`shots/`) are not tracked.
+It is a clean-room reimplementation: StarUML's code was read to learn its rules (the `.mdj` layout, field names and defaults, sizes, arrow shapes, colours and window layout), those rules were written down with their sources in [`MECHANICS.md`](MECHANICS.md), and every file here was written from scratch from that sheet. No StarUML source, icon or logo is included. StarUML is a trademark of its owners and is named here only to describe file compatibility. The icons are simple drawings made for UMLCraft, and diagram text uses the fonts installed on your computer.

@@ -558,7 +558,7 @@ impl App {
                     }
                     if !buttons.is_empty() {
                         ui.add_space(6.0);
-                        ui.horizontal_wrapped(|ui| {
+                        ui.horizontal(|ui| {
                             ui.add_space(116.0);
                             for (label, ty) in buttons {
                                 if ui.add(egui::Button::new(egui::RichText::new(label).size(12.0)).fill(HOVER_ROW).stroke(Stroke::new(1.0, INPUT_BORDER))).clicked() {

@@ -662,6 +662,21 @@ impl App {
         self.zoom = (z.clamp(ZOOM_MIN, ZOOM_MAX) * 10.0).round() / 10.0;
     }
 
+    /// Open the diagram and select the element with these names (start-up options).
+    pub fn show_by_name(&mut self, diagram: Option<&str>, element: Option<&str>) {
+        if let Some(name) = diagram {
+            if let Some(d) = self.repo.all_of("Diagram").into_iter().find(|d| self.repo.name(*d) == name) {
+                self.open_diagram(d);
+            }
+        }
+        if let (Some(name), Some(d)) = (element, self.diagram) {
+            let view = self.repo.list(d, "ownedViews").into_iter().find(|v| self.repo.refd(*v, "model").map(|m| self.repo.name(m) == name).unwrap_or(false));
+            if let Some(v) = view {
+                self.select(vec![v]);
+            }
+        }
+    }
+
     pub fn is_diagram(&self, e: Eid) -> bool {
         self.repo.kind_of(e, "Diagram") || self.repo.ty(e).ends_with("Diagram")
     }

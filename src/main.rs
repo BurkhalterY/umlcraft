@@ -129,9 +129,16 @@ fn main() -> eframe::Result {
     }
     let mut screenshot: Option<PathBuf> = None;
     let mut file: Option<PathBuf> = None;
+    let mut diagram: Option<String> = None;
+    let mut select: Option<String> = None;
     let mut i = 0;
     while i < args.len() {
-        if args[i] == "--screenshot" {
+        if args[i] == "--diagram" || args[i] == "--select" {
+            // `--diagram <name>` opens that diagram, `--select <name>` selects that element in it
+            let v = args.get(i + 1).cloned();
+            if args[i] == "--diagram" { diagram = v } else { select = v }
+            i += 1;
+        } else if args[i] == "--screenshot" {
             screenshot = Some(PathBuf::from(args.get(i + 1).cloned().unwrap_or_else(|| "screenshot.png".into())));
             i += 1;
         } else if args[i].ends_with(".mdj") && std::path::Path::new(&args[i]).exists() {
@@ -166,6 +173,7 @@ fn main() -> eframe::Result {
             if let Some(f) = file {
                 a.open_path(f);
             }
+            a.show_by_name(diagram.as_deref(), select.as_deref());
             Ok(Box::new(a))
         }),
     )
