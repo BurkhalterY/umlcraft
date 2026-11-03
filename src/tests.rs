@@ -1739,3 +1739,33 @@ fn inline_edit_closes_on_diagram_switch() {
     assert!(a.refocus_canvas);
     let _ = (d1, d2);
 }
+
+#[test]
+fn auto_backup_and_recovery() {
+    let dir = std::env::temp_dir().join(format!("umlcraft-backup-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut a = App::new(None);
+    a.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
+    a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0)));
+    let t0 = a.last_backup;
+    a.auto_backup(t0 + std::time::Duration::from_secs(5));
+    assert!(!dir.join("__backup.mdj").exists(), "not before 10 minutes");
+    a.auto_backup(t0 + crate::prefs::BACKUP_EVERY);
+    assert!(dir.join("__backup.mdj").exists());
+    // the app "crashes": a new one recovers the backup as an untitled, modified project
+    let mut b = App::new(None);
+    b.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
+    assert!(b.recover_backup());
+    assert!(b.modified && b.filename.is_none());
+    assert_eq!(b.repo.all_of("UMLClass").len(), 1);
+    assert!(!dir.join("__backup.mdj").exists(), "the backup is deleted once loaded");
+    assert!(!b.recover_backup(), "and offered once");
+    // a clean exit clears it
+    a.auto_backup(t0 + crate::prefs::BACKUP_EVERY * 2);
+    a.clear_backup();
+    let mut c = App::new(None);
+    c.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
+    assert!(!c.recover_backup());
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -1936,6 +1936,9 @@ impl App {
                 self.quit_after_save = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
+        } else if ctx.input(|i| i.viewport().close_requested()) && self.screenshot.is_none() {
+            // a clean exit: no backup to recover at the next launch (app-context.js:809-811)
+            self.clear_backup();
         }
     }
 }
@@ -2075,6 +2078,8 @@ impl eframe::App for App {
         self.toasts_ui(&ctx);
         if self.screenshot.is_none() {
             self.store_prefs();
+            self.auto_backup(std::time::Instant::now());
+            ctx.request_repaint_after(crate::prefs::BACKUP_EVERY);
         }
         self.screenshots(&ctx);
         let _ = R::default();

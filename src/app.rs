@@ -186,6 +186,8 @@ pub struct App {
     pub show_validation: bool,
     /// Give the keyboard back to the canvas on the next frame (after an inline edit closes).
     pub refocus_canvas: bool,
+    /// When the last auto-backup was written.
+    pub last_backup: std::time::Instant,
 }
 
 impl App {
@@ -265,6 +267,7 @@ impl App {
             validated: false,
             show_validation: false,
             refocus_canvas: false,
+            last_backup: std::time::Instant::now(),
         };
         a.set_project(Repo::blank(), None);
         a

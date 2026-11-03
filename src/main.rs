@@ -199,8 +199,17 @@ fn main() -> eframe::Result {
                 a.prefs = prefs::Prefs::load(prefs::default_path());
                 a.apply_prefs();
             }
-            if let Some(f) = file {
-                a.open_path(f);
+            match file {
+                Some(f) => {
+                    a.open_path(f);
+                }
+                // with no file given: the backup after a crash, else the last file when asked to
+                None if !shot => {
+                    if !a.recover_backup() {
+                        a.auto_load_working_file();
+                    }
+                }
+                None => {}
             }
             a.show_by_name(diagram.as_deref(), select.as_deref());
             Ok(Box::new(a))

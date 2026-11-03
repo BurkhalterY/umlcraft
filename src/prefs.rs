@@ -186,6 +186,9 @@ pub enum Kind {
 /// (resources/default/preferences/default.json, extensions/essential/uml/preferences/uml.json).
 pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
     let mut v = vec![
+        ("General", "", "General", Kind::Header, Value::Null),
+        ("General", "general.working-file", "Auto load working file", Kind::Check, json!(false)),
+        ("General", "general.auto-backup", "Auto backup", Kind::Check, json!(true)),
         ("General", "", "View", Kind::Header, Value::Null),
         ("General", "view.font", "Font Face", Kind::Text, json!("Arial")),
         ("General", "view.fontSize", "Font Size", Kind::Number, json!(13)),
@@ -414,5 +417,68 @@ fn pref_widget(ui: &mut egui::Ui, key: &str, kind: Kind, cur: &Value) -> Option<
             (s != before).then(|| json!(s))
         }
         Kind::Header => None,
+    }
+}
+
+/// Auto-backup every 10 minutes and crash recovery (app-context.js:91, 697-708, 809-811, 1533-1553).
+pub const BACKUP_EVERY: std::time::Duration = std::time::Duration::from_secs(600);
+
+impl App {
+    fn backup_path(&self) -> Option<PathBuf> {
+        self.prefs.path.as_ref().and_then(|p| p.parent()).map(|d| d.join("__backup.mdj"))
+    }
+
+    /// Write the backup when it is due and the preference is on, and remember where it is.
+    pub fn auto_backup(&mut self, now: std::time::Instant) {
+        if now.duration_since(self.last_backup) < BACKUP_EVERY {
+            return;
+        }
+        self.last_backup = now;
+        if !self.pref("general.auto-backup").as_bool().unwrap_or(true) {
+            return;
+        }
+        let Some(p) = self.backup_path() else { return };
+        if let Some(dir) = p.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        if std::fs::write(&p, self.repo.serialize()).is_ok() {
+            self.prefs.set("__backup_filename", json!(p.display().to_string()));
+            self.prefs.flush();
+        }
+    }
+
+    /// A clean exit: the backup is not offered at the next launch.
+    pub fn clear_backup(&mut self) {
+        if let Some(p) = self.prefs.get("__backup_filename").and_then(|v| v.as_str()).map(PathBuf::from) {
+            let _ = std::fs::remove_file(p);
+        }
+        self.prefs.values.remove("__backup_filename");
+        self.prefs.flush();
+    }
+
+    /// At launch: after an abnormal exit the backup is loaded as a modified, untitled project and then
+    /// deleted, with the toast "App was unexpectedly terminated. Auto backup file has loaded.". Returns
+    /// true when it was loaded.
+    pub fn recover_backup(&mut self) -> bool {
+        let Some(p) = self.prefs.get("__backup_filename").and_then(|v| v.as_str()).map(PathBuf::from) else { return false };
+        let loaded = std::fs::read_to_string(&p).ok().and_then(|t| crate::model::Repo::parse(&t).ok());
+        let _ = std::fs::remove_file(&p);
+        self.prefs.values.remove("__backup_filename");
+        self.prefs.flush();
+        let Some(repo) = loaded else { return false };
+        self.set_project(repo, None);
+        self.modified = true;
+        self.toast("App was unexpectedly terminated. Auto backup file has loaded.");
+        true
+    }
+
+    /// "Auto load working file": with no file given, the most recent file opens at launch.
+    pub fn auto_load_working_file(&mut self) {
+        if !self.pref("general.working-file").as_bool().unwrap_or(false) {
+            return;
+        }
+        if let Some(f) = self.recent_files().into_iter().find(|f| f.exists()) {
+            self.open_path(f);
+        }
     }
 }
