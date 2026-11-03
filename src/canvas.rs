@@ -1030,6 +1030,11 @@ impl App {
                 self.select_in_diagram();
                 ui.close();
             }
+            if ui.button("Open Sub-Diagram").clicked() {
+                self.focus = Some(m);
+                self.open_sub_diagram();
+                ui.close();
+            }
         }
         if ui.button("Delete").clicked() {
             self.delete_selection(false);

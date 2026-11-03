@@ -110,7 +110,7 @@ const OTHER_GROUPS: &[Group] = &[ANNOTATIONS];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
 /// priorities from the UML metamodel; kinds without one, such as diagrams, come first).
-fn order_rank(t: &str) -> u32 {
+pub(crate) fn order_rank(t: &str) -> u32 {
     match t {
         "UMLModel" => 1000, "UMLPackage" => 1001, "UMLSubsystem" => 1002, "UMLUseCaseSubject" => 1003,
         "UMLTemplateParameter" => 1101, "UMLParameter" => 1102, "UMLEnumerationLiteral" => 1103, "UMLPort" => 1104,
@@ -293,6 +293,7 @@ impl App {
         ui.separator();
         self.last_area = Area::Explorer;
         self.clipboard_items(ui);
+        self.move_items(ui);
         if ui.add_enabled(t != "Project", egui::Button::new("Delete from Model")).clicked() {
             self.change(|a| a.delete_models(&[e]));
             ui.close();
@@ -841,6 +842,12 @@ impl App {
                     self.select_in_diagram();
                     ui.close();
                 }
+                if ui.add_enabled(self.focus.is_some(), egui::Button::new("Open Sub-Diagram    Ctrl+Shift+D")).clicked() {
+                    self.open_sub_diagram();
+                    ui.close();
+                }
+                ui.separator();
+                self.move_items(ui);
             });
             ui.menu_button("Format", |ui| {
                 ui.menu_button("Line Style", |ui| {
@@ -921,6 +928,19 @@ impl App {
                 }
             });
         });
+    }
+
+    /// Move Up and Move Down (Edit menu and explorer menu).
+    pub(crate) fn move_items(&mut self, ui: &mut egui::Ui) {
+        let e = self.focus.filter(|f| self.repo.alive(*f) && self.repo.ty(*f) != "Project" && !self.is_view(*f));
+        if ui.add_enabled(e.is_some(), egui::Button::new("Move Up             Ctrl+Shift+Up")).clicked() {
+            self.move_element(e.unwrap(), true);
+            ui.close();
+        }
+        if ui.add_enabled(e.is_some(), egui::Button::new("Move Down           Ctrl+Shift+Down")).clicked() {
+            self.move_element(e.unwrap(), false);
+            ui.close();
+        }
     }
 
     /// Cut, Copy and Paste (Edit menu, canvas menu and explorer menu).
@@ -1084,8 +1104,19 @@ impl App {
                 self.reveal(f);
             }
         }
+        // Ctrl+Shift+D first: Ctrl+D also matches when Shift is held
+        if hit(sc(cs, Key::D)) {
+            self.open_sub_diagram();
+        }
         if hit(sc(Modifiers::COMMAND, Key::D)) {
             self.select_in_diagram();
+        }
+        for (key, up) in [(Key::ArrowUp, true), (Key::ArrowDown, false)] {
+            if hit(sc(cs, key)) {
+                if let Some(f) = self.focus.filter(|f| self.repo.alive(*f) && self.repo.ty(*f) != "Project") {
+                    self.move_element(f, up);
+                }
+            }
         }
         if hit(sc(Modifiers::COMMAND, Key::L)) {
             self.set_line_style(0);

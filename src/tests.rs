@@ -694,3 +694,32 @@ fn copy_diagram_as_image_deselects_first() {
     a.copy_diagram_image(Err("The diagram is empty.".into()));
     assert!(a.message.is_some());
 }
+
+#[test]
+fn move_up_down_and_open_sub_diagram() {
+    let mut a = App::new(None);
+    let model = a.repo.children(a.repo.root)[0].1;
+    let c1 = a.change(|a| a.add_model(model, "UMLClass"));
+    let p1 = a.change(|a| a.add_model(model, "UMLPackage"));
+    let c2 = a.change(|a| a.add_model(model, "UMLClass"));
+    let kids = |a: &App| a.repo.list(model, "ownedElements");
+    let before = kids(&a);
+    a.move_element(c2, true);
+    let after = kids(&a);
+    // c2 swaps with c1, skipping the package in between (another explorer group)
+    assert_eq!(after.iter().position(|x| *x == c2), before.iter().position(|x| *x == c1));
+    assert_eq!(after.iter().position(|x| *x == p1), before.iter().position(|x| *x == p1));
+    a.move_element(c2, true);
+    assert_eq!(kids(&a), after, "already first of its group");
+    a.do_undo();
+    assert_eq!(kids(&a), before);
+
+    a.focus = Some(c1);
+    a.open_sub_diagram();
+    assert_eq!(a.toasts.last().map(|t| t.0.as_str()), Some("No sub-diagram in the selected element"));
+    let d = a.change(|a| a.add_diagram(Some(c1), "UMLClassDiagram"));
+    a.open_diagram(a.repo.all_of("Diagram")[0]);
+    a.focus = Some(c1);
+    a.open_sub_diagram();
+    assert_eq!(a.diagram, Some(d));
+}

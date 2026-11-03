@@ -684,6 +684,41 @@ impl App {
         self.selection = views;
     }
 
+    /// Edit > Move Up / Move Down (Ctrl+Shift+Up/Down): swap the element with the previous or next
+    /// sibling of the same explorer group in its owner's field (default-commands.js:843-857, engine.js:504-583).
+    pub fn move_element(&mut self, e: Eid, up: bool) {
+        let (Some(p), Some(field)) = (self.repo.parent(e), self.repo.field_of(e)) else { return };
+        if self.is_view(e) {
+            return;
+        }
+        let mut list = self.repo.list(p, &field);
+        let Some(i) = list.iter().position(|x| *x == e) else { return };
+        let rank = crate::ui::order_rank(self.repo.ty(e));
+        let same = |x: &Eid| crate::ui::order_rank(self.repo.ty(*x)) == rank;
+        let j = if up { list[..i].iter().rposition(same) } else { list[i + 1..].iter().position(same).map(|k| i + 1 + k) };
+        let Some(j) = j else { return };
+        list.swap(i, j);
+        self.change(|a| a.repo.set_list(p, &field, list));
+        self.focus = Some(e);
+    }
+
+    /// Edit > Open Sub-Diagram (Ctrl+Shift+D): open the first diagram the element owns, or toast
+    /// "No sub-diagram in the selected element" (default-commands.js:909-934).
+    pub fn open_sub_diagram(&mut self) {
+        let Some(e) = self.focus.filter(|f| self.repo.alive(*f)) else { return };
+        let mut owner = e;
+        for key in ["subactivity", "submachine"] {
+            if let Some(x) = self.repo.refd(e, key) {
+                owner = x;
+            }
+        }
+        let sub = self.repo.list(owner, "ownedElements").into_iter().find(|c| self.is_diagram(*c));
+        match sub {
+            Some(d) => self.open_diagram(d),
+            None => self.toast("No sub-diagram in the selected element"),
+        }
+    }
+
     pub fn toast(&mut self, text: &str) {
         self.toasts.push((text.to_string(), std::time::Instant::now()));
     }
