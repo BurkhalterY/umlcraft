@@ -180,6 +180,10 @@ pub struct App {
     pub find_dialog: Option<crate::find::FindDialog>,
     pub find_last: crate::find::FindDialog,
     pub find_results: Option<(String, Vec<Eid>)>,
+    /// Validation: the problems found, whether the model was validated, and the results panel.
+    pub problems: Vec<crate::validate::Problem>,
+    pub validated: bool,
+    pub show_validation: bool,
 }
 
 impl App {
@@ -255,6 +259,9 @@ impl App {
             find_dialog: None,
             find_last: Default::default(),
             find_results: None,
+            problems: vec![],
+            validated: false,
+            show_validation: false,
         };
         a.set_project(Repo::blank(), None);
         a
@@ -281,6 +288,9 @@ impl App {
         self.zoom = 1.0;
         self.scroll = P::default();
         self.scrolls.clear();
+        // closing a project clears the validation errors (validation-panel.js:136-142)
+        self.problems.clear();
+        self.validated = false;
         self.centre_pending = None;
         self.diagram_picker = None;
         self.expanded.clear();
@@ -308,6 +318,7 @@ impl App {
                 self.add_recent(&p);
                 self.set_project(repo, Some(p));
                 self.restore_working_diagrams();
+                self.auto_validate();
             }
             Err(e) => self.message = Some(("Failed to open the file.".into(), e)),
         }
@@ -334,6 +345,7 @@ impl App {
                 self.filename = Some(p);
                 self.modified = false;
                 self.save_working_diagrams();
+                self.auto_validate();
                 true
             }
             Err(e) => {

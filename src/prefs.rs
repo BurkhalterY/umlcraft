@@ -200,6 +200,8 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("General", "diagramEditor.gridSize", "Grid Size", Kind::Number, json!(8)),
         ("General", "diagramEditor.backgroundColor", "Background Color", Kind::Color, json!("#ffffff")),
         ("General", "diagramEditor.gridColor", "Grid Color", Kind::Color, json!("#e0e0e0")),
+        ("General", "", "Validation", Kind::Header, Value::Null),
+        ("General", "validation.validateModel", "Validate Model", Kind::Check, json!(true)),
     ];
     // per element kind: fill colour (null = the general one), stereotype display and compartments
     let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 12] = [

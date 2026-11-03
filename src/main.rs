@@ -20,6 +20,7 @@ mod render;
 mod style;
 mod tags;
 mod ui;
+mod validate;
 mod views;
 #[cfg(test)]
 mod tests;

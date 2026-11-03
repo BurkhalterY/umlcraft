@@ -957,9 +957,23 @@ impl App {
         p.text(zr.center(), Align2::CENTER_CENTER, format!("{}%", (self.zoom * 100.0).round()), FontId::proportional(13.0), TEXT);
         let vr = Rect::from_min_max(Pos2::new(zr.left() - 33.0, rect.top()), Pos2::new(zr.left(), rect.bottom()));
         p.vline(vr.left(), rect.y_range(), Stroke::new(1.0, BORDER));
-        p.circle_filled(vr.center(), 7.5, OK_GREEN);
+        // validation indicator: green OK, or red when the last validation found errors; a click toggles
+        // the Validation Results panel (statusbar-view.js:62-70)
         let c = vr.center();
-        p.add(egui::Shape::line(vec![c + Vec2::new(-3.5, 0.0), c + Vec2::new(-1.0, 2.5), c + Vec2::new(3.5, -2.5)], Stroke::new(2.0, LAYER0)));
+        let errors = self.problems.iter().any(|q| self.repo.alive(q.elem));
+        if errors {
+            p.circle_filled(c, 7.5, Color32::from_rgb(0xe5, 0x48, 0x4d));
+            let st = Stroke::new(2.0, LAYER0);
+            p.line_segment([c + Vec2::new(-3.0, -3.0), c + Vec2::new(3.0, 3.0)], st);
+            p.line_segment([c + Vec2::new(-3.0, 3.0), c + Vec2::new(3.0, -3.0)], st);
+        } else {
+            p.circle_filled(c, 7.5, OK_GREEN);
+            p.add(egui::Shape::line(vec![c + Vec2::new(-3.5, 0.0), c + Vec2::new(-1.0, 2.5), c + Vec2::new(3.5, -2.5)], Stroke::new(2.0, LAYER0)));
+        }
+        let tip = if errors { "Validation errors" } else { "Validation OK" };
+        if ui.interact(vr, egui::Id::new("validation-indicator"), Sense::click()).on_hover_text(tip).clicked() {
+            self.show_validation = !self.show_validation;
+        }
         // left side: where the focused element sits
         let Some(f) = self.focus.filter(|f| self.repo.alive(*f)) else { return };
         let mut chain = self.repo.path(f);
@@ -2040,6 +2054,9 @@ impl eframe::App for App {
         }
         if self.show_toolbar {
             Panel::right("toolbar").exact_size(TOOLBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(TOOLBAR)).show(ui, |ui| self.toolbar_ui(ui));
+        }
+        if self.show_validation {
+            Panel::bottom("validation").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.validation_ui(ui));
         }
         // the Find Results panel sits under the diagram, above the status bar
         if self.find_results.is_some() {

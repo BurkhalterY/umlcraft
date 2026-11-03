@@ -1604,3 +1604,59 @@ fn model_find() {
     assert_eq!(a.find("zebra", false, true), vec![m], "in documentation");
     assert!(a.path_name(m).contains("::"));
 }
+
+#[test]
+fn validation_rules() {
+    use crate::validate::validate;
+    let mut a = App::new(None);
+    let model = a.repo.children(a.repo.root)[0].1;
+    let rules = |a: &App| -> Vec<&'static str> { validate(&a.repo).into_iter().map(|p| p.rule).collect() };
+    let ex = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj");
+    let mut lib = App::new(None);
+    lib.open_path(ex);
+    assert!(lib.validated);
+    // the example has a class and an actor both named Member in one package, which StarUML also reports
+    assert!(lib.problems.iter().all(|p| p.rule == "UML002" && lib.repo.name(p.elem) == "Member"), "{:?}", lib.problems);
+    assert_eq!(lib.problems.len(), 2);
+
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(240.0, 40.0, 100.0, 60.0))).unwrap();
+    let (m1, m2) = (a.repo.refd(c1, "model").unwrap(), a.repo.refd(c2, "model").unwrap());
+    assert!(rules(&a).is_empty());
+    a.repo.set(m2, "name", a.repo.raw(m1, "name").cloned().unwrap());
+    assert!(rules(&a).contains(&"UML002"));
+    a.repo.set(m2, "name", serde_json::json!(""));
+    assert!(rules(&a).contains(&"UML001"));
+    a.repo.set(m2, "name", serde_json::json!("Child"));
+    let g = tool("UMLGeneralization", AssocInit::Plain);
+    a.create_edge(&g, c2, c1);
+    let at1 = a.add_feature(m1, "UMLAttribute").unwrap();
+    let at2 = a.add_feature(m2, "UMLAttribute").unwrap();
+    a.repo.set(at2, "name", a.repo.raw(at1, "name").cloned().unwrap());
+    assert!(rules(&a).contains(&"UML003"));
+    a.repo.set(m1, "isLeaf", serde_json::json!(true));
+    assert!(rules(&a).contains(&"UML006"));
+    a.create_edge(&g, c2, c1);
+    assert!(rules(&a).contains(&"UML007"));
+    a.create_edge(&g, c1, c2);
+    assert!(rules(&a).contains(&"UML008"));
+    let o1 = a.add_feature(m1, "UMLOperation").unwrap();
+    let o2 = a.add_feature(m1, "UMLOperation").unwrap();
+    crate::parse::apply_operation(&mut a.repo, o1, "+f(x: int)");
+    crate::parse::apply_operation(&mut a.repo, o2, "-f(y: int)");
+    assert!(!rules(&a).contains(&"UML004"), "different parameter names");
+    crate::parse::apply_operation(&mut a.repo, o2, "-f(x: int)");
+    assert!(rules(&a).contains(&"UML004"));
+    let i = a.change(|a| a.create_node("UMLInterface", rect(40.0, 240.0, 100.0, 60.0))).unwrap();
+    let im = a.repo.refd(i, "model").unwrap();
+    let iop = a.add_feature(im, "UMLOperation").unwrap();
+    a.repo.set(iop, "visibility", serde_json::json!("private"));
+    assert!(rules(&a).contains(&"UML011"));
+    let e = a.create_edge(&tool("UMLAssociation", AssocInit::Composite), c1, c2).unwrap();
+    let am = a.repo.refd(e, "model").unwrap();
+    a.repo.set(a.repo.child(am, "end1").unwrap(), "aggregation", serde_json::json!("shared"));
+    assert!(rules(&a).contains(&"UML012"));
+    let st = a.add_model(model, "UMLStereotype");
+    assert!(rules(&a).contains(&"UML018"));
+    let _ = st;
+}
