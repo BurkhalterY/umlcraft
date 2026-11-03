@@ -431,3 +431,43 @@ fn diagram_navigation_shortcuts() {
     press(&mut a, Key::F4, Modifiers::SHIFT);
     assert!(a.open.is_empty(), "Shift+F4 closes all");
 }
+
+#[test]
+fn select_in_diagram_and_scroll_per_diagram() {
+    let mut a = App::new(None);
+    a.canvas_rect = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0)));
+    let d1 = a.diagram.unwrap();
+    let v1 = a.change(|a| a.create_node("UMLClass", rect(2000.0, 1500.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(v1, "model").unwrap();
+    a.scroll = crate::views::P { x: 40.0, y: 80.0 };
+    let d2 = a.add_diagram(None, "UMLClassDiagram");
+    assert_eq!((a.scroll.x, a.scroll.y), (0.0, 0.0), "a new diagram starts at the origin");
+    a.scroll = crate::views::P { x: 8.0, y: 16.0 };
+    a.open_diagram(d1);
+    assert_eq!((a.scroll.x, a.scroll.y), (40.0, 80.0), "the scroll position is remembered per diagram");
+    a.open_diagram(d2);
+    assert_eq!((a.scroll.x, a.scroll.y), (8.0, 16.0));
+
+    // shown in one diagram: that diagram opens and the view is selected and centred
+    a.focus = Some(m);
+    a.select_in_diagram();
+    assert_eq!(a.diagram, Some(d1));
+    assert_eq!(a.selection, vec![v1]);
+    assert_eq!(a.centre_pending, Some(v1));
+    a.centre_on(crate::views::P { x: 2050.0, y: 1530.0 });
+    assert_eq!((a.scroll.x, a.scroll.y), (1650.0, 1230.0));
+
+    // shown in two diagrams: a picker
+    a.open_diagram(d2);
+    let v2 = a.change(|a| a.create_view_of(m, rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    a.focus = Some(m);
+    a.select_in_diagram();
+    assert_eq!(a.diagram_picker.as_ref().map(|p| p.0.clone()), Some(vec![v1, v2]));
+
+    // shown nowhere: a toast
+    a.diagram_picker = None;
+    let other = a.change(|a| a.add_model(a.repo.root, "UMLClass"));
+    a.focus = Some(other);
+    a.select_in_diagram();
+    assert_eq!(a.toasts.last().map(|t| t.0.as_str()), Some("No diagrams to show"));
+}

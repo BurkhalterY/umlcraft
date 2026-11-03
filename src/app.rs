@@ -128,6 +128,14 @@ pub struct App {
     pub quit_after_save: bool,
     pub pending_edit: Option<Eid>,
     pub reveal_pending: Option<Eid>,
+    /// Scroll origin of each diagram, kept while the project is open (the original's `_originX/Y`).
+    pub scrolls: HashMap<Eid, P>,
+    /// A view to centre on once the canvas size is known.
+    pub centre_pending: Option<Eid>,
+    /// Short notices shown at the bottom of the diagram area, with the time they appeared.
+    pub toasts: Vec<(String, std::time::Instant)>,
+    /// Select In Diagram with several diagrams: the views to choose from and the chosen row.
+    pub diagram_picker: Option<(Vec<Eid>, Option<usize>)>,
 }
 
 impl App {
@@ -177,6 +185,10 @@ impl App {
             quit_after_save: false,
             pending_edit: None,
             reveal_pending: None,
+            scrolls: HashMap::new(),
+            centre_pending: None,
+            toasts: vec![],
+            diagram_picker: None,
         };
         a.set_project(Repo::blank(), None);
         a
@@ -201,6 +213,9 @@ impl App {
         self.focus = None;
         self.zoom = 1.0;
         self.scroll = P::default();
+        self.scrolls.clear();
+        self.centre_pending = None;
+        self.diagram_picker = None;
         self.expanded.clear();
         let root = self.repo.root;
         self.expanded.insert(root);
@@ -594,9 +609,13 @@ impl App {
             self.open.push(d);
         }
         if self.diagram != Some(d) {
+            // each diagram keeps its own scroll position (diagram-manager.js:218-228, 243)
+            if let Some(old) = self.diagram {
+                self.scrolls.insert(old, self.scroll);
+            }
             self.diagram = Some(d);
             self.selection.clear();
-            self.scroll = P::default();
+            self.scroll = self.scrolls.get(&d).copied().unwrap_or_default();
         }
         self.tool = None;
     }
@@ -611,6 +630,7 @@ impl App {
             self.selection.clear();
             self.editing = None;
             if self.diagram == Some(d) {
+                self.scrolls.insert(d, self.scroll);
                 let next = self.open.get(i).or(self.open.first()).copied();
                 self.diagram = None;
                 if let Some(n) = next {
@@ -654,6 +674,56 @@ impl App {
             self.focus = None;
         }
         self.selection = views;
+    }
+
+    pub fn toast(&mut self, text: &str) {
+        self.toasts.push((text.to_string(), std::time::Instant::now()));
+    }
+
+    /// Edit > Select In Diagram (Ctrl+D): the views of the focused model that sit directly in a
+    /// diagram. One view is shown at once; several diagrams open a picker; none shows a toast
+    /// (default-commands.js:877-907).
+    pub fn select_in_diagram(&mut self) {
+        let Some(m) = self.focus.filter(|f| self.repo.alive(*f)) else { return };
+        let mut views: Vec<Eid> = vec![];
+        for d in self.repo.all_of("Diagram") {
+            if let Some(v) = self.repo.list(d, "ownedViews").into_iter().find(|v| self.repo.refd(*v, "model") == Some(m)) {
+                views.push(v);
+            }
+        }
+        match views.len() {
+            0 => self.toast("No diagrams to show"),
+            1 => self.show_view(views[0]),
+            _ => self.diagram_picker = Some((views, None)),
+        }
+    }
+
+    /// Open the view's diagram, select the view and centre the canvas on it (diagram-manager.js:340-348, 484-490).
+    pub fn show_view(&mut self, v: Eid) {
+        let Some(d) = self.repo.parent(v).filter(|d| self.is_diagram(*d)) else { return };
+        self.open_diagram(d);
+        self.select(vec![v]);
+        self.centre_pending = Some(v);
+    }
+
+    /// Bounding box of a view: its box, or the box around a line's points.
+    pub fn view_bounds(&self, v: Eid) -> R {
+        if views::is_edge(&self.repo, v) {
+            let pts = views::points_of(&self.repo, v);
+            let (mut x1, mut y1, mut x2, mut y2) = (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
+            for p in &pts {
+                x1 = x1.min(p.x);
+                y1 = y1.min(p.y);
+                x2 = x2.max(p.x);
+                y2 = y2.max(p.y);
+            }
+            if pts.is_empty() {
+                return R::default();
+            }
+            R { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }
+        } else {
+            views::node_rect(&self.repo, v)
+        }
     }
 
     pub fn focus_element(&mut self, e: Eid) {
@@ -706,6 +776,7 @@ impl App {
             let view = self.repo.list(d, "ownedViews").into_iter().find(|v| self.repo.refd(*v, "model").map(|m| self.repo.name(m) == name).unwrap_or(false));
             if let Some(v) = view {
                 self.select(vec![v]);
+                self.centre_pending = Some(v);
             }
         }
     }

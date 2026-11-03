@@ -129,6 +129,10 @@ Read from the StarUML source through the feature inventory (`docs/features/`), w
 | Fit to Window: zoom = min(view w / box w, view h / box h) of the diagram bounding box, at most 1.0, then centre on the box (UMLCraft rounds down to a tenth) | `src/engine/default-commands.js:1086-1101` |
 | Closing the current diagram: the one that slid into its index becomes current, else the first; closing any diagram clears the selection | `src/ui/diagram-manager.js:106-138`, `src/app-context.js:1310-1317` |
 | Next/Previous Diagram wrap around the working diagrams (open order); Close Others keeps only the current one | `src/ui/diagram-manager.js:201-216, 271-292` |
+| Select In Diagram: the model's views directly in diagrams; one → open, select, centre; several → picker "Select Diagram to show"; none → toast "No diagrams to show" | `src/engine/default-commands.js:877-907` |
+| Scroll-to-view: centre on the view's bounding box, at the current zoom, clamped at 0 | `src/ui/diagram-manager.js:340-348, 484-490` |
+| Each diagram keeps its scroll origin (`_originX/Y`, not saved in the file); a new one starts at (0,0) | `src/ui/diagram-editor.js:2384-2387`, `src/ui/diagram-manager.js:218-228` |
+| Toasts stack upward inside the content area and hide after 5 s | `src/ui/toast-manager.js:36-72` |
 | Bring to Front / Send to Back: move the selected top-level views to the end / start of `diagram.ownedViews` (drawing and hit order) | `extensions/default/alignment/main.js:36-73` |
 
 ## Estimated / not taken over

@@ -209,6 +209,12 @@ impl App {
             return;
         };
 
+        if let Some(v) = self.centre_pending.take() {
+            if self.repo.alive(v) && self.repo.parent(v) == Some(d) {
+                let b = self.view_bounds(v);
+                self.centre_on(P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 });
+            }
+        }
         self.handle_input(ui, &resp, rect, d);
         if !self.repo.alive(d) || self.diagram != Some(d) {
             return;
@@ -976,6 +982,11 @@ impl App {
         if let Some(m) = m {
             if ui.button("Select In Explorer").clicked() {
                 self.reveal(m);
+                ui.close();
+            }
+            if ui.button("Select In Diagram").clicked() {
+                self.focus = Some(m);
+                self.select_in_diagram();
                 ui.close();
             }
         }

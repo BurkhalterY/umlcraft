@@ -285,6 +285,11 @@ impl App {
             self.open_diagram(e);
             ui.close();
         }
+        if !self.is_diagram(e) && t != "Project" && ui.button("Select In Diagram").clicked() {
+            self.focus = Some(e);
+            self.select_in_diagram();
+            ui.close();
+        }
         ui.separator();
         if ui.add_enabled(t != "Project", egui::Button::new("Delete from Model")).clicked() {
             self.change(|a| a.delete_models(&[e]));
@@ -829,6 +834,10 @@ impl App {
                     }
                     ui.close();
                 }
+                if ui.add_enabled(self.focus.is_some(), egui::Button::new("Select In Diagram   Ctrl+D")).clicked() {
+                    self.select_in_diagram();
+                    ui.close();
+                }
             });
             ui.menu_button("Format", |ui| {
                 ui.menu_button("Line Style", |ui| {
@@ -998,6 +1007,9 @@ impl App {
                 self.reveal(f);
             }
         }
+        if hit(sc(Modifiers::COMMAND, Key::D)) {
+            self.select_in_diagram();
+        }
         if hit(sc(Modifiers::COMMAND, Key::L)) {
             self.set_line_style(0);
         }
@@ -1096,6 +1108,7 @@ impl App {
                 }
             });
         }
+        self.diagram_picker_ui(ctx);
         if let Some((title, detail)) = self.message.clone() {
             egui::Window::new(title).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
                 ui.label(detail);
@@ -1103,6 +1116,78 @@ impl App {
                     self.message = None;
                 }
             });
+        }
+    }
+
+    /// The Element List Picker as Select In Diagram uses it: "Select Diagram to show", one row per
+    /// diagram with its icon, name and (path); "Do not specify" until a row is picked; double-click is OK
+    /// (element-list-picker-dialog.js:73-131).
+    fn diagram_picker_ui(&mut self, ctx: &egui::Context) {
+        let Some((views, mut chosen)) = self.diagram_picker.clone() else { return };
+        let mut close = false;
+        let mut ok = false;
+        egui::Window::new("Select Diagram to show").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            ui.set_min_width(320.0);
+            for (i, v) in views.iter().enumerate() {
+                let Some(d) = self.repo.parent(*v).filter(|d| self.repo.alive(*d)) else { continue };
+                let mut owners = self.repo.path(d);
+                owners.pop();
+                let path: Vec<String> = owners.into_iter().map(|p| self.repo.name(p)).filter(|n| !n.is_empty()).collect();
+                let text = format!("{}  ({})", self.repo.name(d), path.join("::"));
+                ui.horizontal(|ui| {
+                    let (r, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                    icons::draw(ui.painter(), r, icons::key_for(&self.repo, d));
+                    let resp = ui.selectable_label(chosen == Some(i), text);
+                    if resp.clicked() {
+                        chosen = Some(i);
+                    }
+                    if resp.double_clicked() {
+                        chosen = Some(i);
+                        ok = true;
+                    }
+                });
+            }
+            let mut none = chosen.is_none();
+            if ui.checkbox(&mut none, "Do not specify").changed() && none {
+                chosen = None;
+            }
+            ui.horizontal(|ui| {
+                if ui.button("OK").clicked() {
+                    ok = true;
+                }
+                if ui.button("Cancel").clicked() {
+                    close = true;
+                }
+            });
+        });
+        if ok {
+            self.diagram_picker = None;
+            if let Some(v) = chosen.and_then(|i| views.get(i)).copied().filter(|v| self.repo.alive(*v)) {
+                self.show_view(v);
+            }
+        } else if close {
+            self.diagram_picker = None;
+        } else {
+            self.diagram_picker = Some((views, chosen));
+        }
+    }
+
+    /// Toasts stack upward inside the diagram area and hide after 5 s (toast-manager.js:36-72).
+    fn toasts_ui(&mut self, ctx: &egui::Context) {
+        self.toasts.retain(|(_, t)| t.elapsed().as_secs_f32() < 5.0);
+        let Some(area) = self.canvas_rect else { return };
+        let mut y = area.bottom() - 16.0;
+        for (i, (text, _)) in self.toasts.iter().enumerate().rev() {
+            let pos = Pos2::new(area.left() + 16.0, y);
+            let r = egui::Area::new(egui::Id::new(("toast", i))).order(egui::Order::Foreground).pivot(Align2::LEFT_BOTTOM).fixed_pos(pos).show(ctx, |ui| {
+                Frame::NONE.fill(LAYER1).stroke(Stroke::new(1.0, BORDER)).corner_radius(CornerRadius::same(3)).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
+                    ui.label(egui::RichText::new(text).color(TEXT).size(13.0));
+                });
+            });
+            y -= r.response.rect.height() + 6.0;
+        }
+        if !self.toasts.is_empty() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(250));
         }
     }
 
@@ -1214,6 +1299,7 @@ impl eframe::App for App {
             }
         }
         self.dialogs(&ctx);
+        self.toasts_ui(&ctx);
         self.screenshots(&ctx);
         let _ = R::default();
     }
