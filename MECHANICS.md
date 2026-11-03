@@ -104,6 +104,11 @@ returned nothing).
 | Native side | `toPNG` 0xec2c6e/0x101d688 and `image/png` are Electron API table entries only; no function to follow | native_strings_find ev_b82b90eb… |
 | UMLCraft | draws the SVG off-screen with resvg for PNG export, so scrolled-out parts and the grid do not matter; trial watermarks of the original are not copied | `src/render.rs` to_png, to_svg_sized |
 
+## Element Picker and type names
+
+* A name typed into a `type` or `stereotype` property is looked up among elements of the field's type (UMLClassifier or UMLStereotype): first the owner's namespace, then each enclosing namespace, then the whole project; a match is stored as a reference, otherwise the text (`views/property-editor-view.js:604-622`, `core/repository.js:2353-2361`).
+* The Element Picker ("Select Element") opens with the current value selected and its owners expanded, or "Do not specify" checked; a choice of the wrong type gives "Selected element (X) is not an instance of T" (`dialogs/element-picker-dialog.js:289-346`).
+
 ## Layout
 
 | Rule | Value | Source |
