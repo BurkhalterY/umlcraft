@@ -11,6 +11,49 @@ cargo test --release
 
 On Linux, install the GTK 3, xkbcommon and OpenGL development packages first. On Debian and Ubuntu these are `libgtk-3-dev libxkbcommon-dev libgl1-mesa-dev`.
 
+## Commits
+
+Always use [Conventional Commits](https://www.conventionalcommits.org). The version of every release is computed from the commit messages, so a wrong type gives a wrong version.
+
+```
+<type>(<optional scope>)<optional !>: <description>
+
+<optional body>
+
+<optional footers>
+```
+
+- **Types:**
+  - `feat`: a new user-visible feature or behaviour
+  - `fix`: a bug fix
+  - `docs`: documentation only, including `docs/features/` status updates made on their own
+  - `test`, `refactor`, `perf`, `build` (packaging and dependencies), `ci` (workflows), `chore`: everything else
+- **Scopes** name the area: `canvas`, `explorer`, `editors`, `toolbox`, `menus`, `export`, `mdj`, `cli`, `packaging`, `release` and so on. A scope is optional, so leave it out rather than invent a vague one.
+- **Description:** imperative, lower case, no final period. For example, `feat(canvas): drag a label to move it`.
+- **Breaking change:** add `!` after the type or scope (`feat(mdj)!: …`) and explain it in a `BREAKING CHANGE: …` footer. UMLCraft is an application, so a change is breaking when one of these is true:
+  - files saved by the new version no longer open in an older one, or in StarUML;
+  - a command-line option is removed or its behaviour changes;
+  - a feature, shortcut or menu command is removed, or changed so that existing habits break.
+
+  A change that only adds something is never breaking.
+- **One commit, one type.** If a change mixes a feature and an unrelated fix, make two commits.
+
+## Releases
+
+The release workflow (`.github/workflows/release.yml`) runs every night at 03:00 UTC. If `main` has commits since the last `vX.Y.Z` tag, it builds every installer, runs the tests and publishes the next version. `packaging/next-version.sh` computes that version from the commit messages:
+
+| Commits since the last release | While 0.x | From 1.0 on |
+|---|---|---|
+| any breaking change | `0.1.4` → `0.2.0` | major |
+| `feat` | `0.1.4` → `0.1.5` | minor |
+| anything else | `0.1.4` → `0.1.5` | patch |
+
+- **Never** create `v*` tags or GitHub releases by hand, and don't edit the version in `Cargo.toml` for a normal release. The workflow writes the computed version into `Cargo.toml` for the build only.
+- A higher version written in `Cargo.toml` wins, so going to 1.0 means setting `version = "1.0.0"` there. That decision belongs to the project owner.
+- A published release is never overwritten. A run that would reuse an existing version fails instead.
+- To release right away, or to test the builds without publishing (the "dry run" box), use "Run workflow" on the Actions tab. Only do that when asked.
+- To preview the next version and its notes: `packaging/next-version.sh --notes /tmp/notes.md`.
+
 ## The StarUML reference
 
 On the development machine, StarUML 7.1.1 is installed in `/opt/StarUML`. Its JavaScript is the reference for every behaviour. To read it, extract it outside the repo:

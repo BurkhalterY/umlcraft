@@ -2,25 +2,28 @@ name: Release
 
 # Builds every installer: Windows (MSI + portable zip, x64 and arm64), macOS (universal DMG + zip),
 # Linux (AppImage, deb, rpm, tar.gz, x86_64 and aarch64) and FreeBSD (pkg + tar.gz).
-# A push to the `release` branch or a `v*` tag also publishes them as a GitHub Release;
-# a manual run only builds them and keeps them as workflow artifacts.
+#
+# Every night, when `main` has commits since the last `vX.Y.Z` tag, it publishes the next release.
+# The version comes from the Conventional Commits since that tag (packaging/next-version.sh):
+# a breaking change bumps the minor number while UMLCraft is 0.x, anything else the patch number.
+# A manual run publishes the same way right away; with "dry run" it only builds and keeps the
+# installers as workflow artifacts. A release that already exists is never overwritten.
 
 on:
-  push:
-    branches: [release]
-    tags: ["v*"]
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC
   workflow_dispatch:
     inputs:
-      version:
-        description: "Version override for a test run, e.g. 0.2.0-rc.1 (empty: Cargo.toml)"
-        type: string
-        default: ""
+      dry_run:
+        description: "Dry run: build only, publish nothing"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release
   cancel-in-progress: false
 
 env:
@@ -32,22 +35,39 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
+      publish: ${{ steps.v.outputs.publish }}
     steps:
       - uses: actions/checkout@v7
-      - name: Resolve version
+        with:
+          fetch-depth: 0 # tags and history, to compute the version
+      - name: Next version
         id: v
         env:
-          OVERRIDE: ${{ inputs.version }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          if [ -n "$OVERRIDE" ]; then v="$OVERRIDE"
-          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF#refs/tags/v}"
-          else v="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"; fi
+          if [ "$DRY_RUN" = "true" ]; then
+            v="$(packaging/next-version.sh --always)"
+            publish=false
+          elif [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Releases are published from main only; use a dry run on other branches."
+            exit 1
+          else
+            v="$(packaging/next-version.sh)"
+            publish=true
+          fi
+          if [ -z "$v" ]; then
+            echo "No commit since the last release: nothing to publish." | tee -a "$GITHUB_STEP_SUMMARY"
+            publish=false
+          else
+            echo "Version: $v (publish: $publish)" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "Version: $v"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
 
   linux:
     name: Linux ${{ matrix.arch }}
     needs: version
+    if: needs.version.outputs.version != ''
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -59,6 +79,8 @@ jobs:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
+      - name: Set the version
+        run: packaging/set-version.sh
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -101,6 +123,7 @@ jobs:
   macos:
     name: macOS universal
     needs: version
+    if: needs.version.outputs.version != ''
     runs-on: macos-14
     env:
       VERSION: ${{ needs.version.outputs.version }}
@@ -112,6 +135,8 @@ jobs:
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v7
+      - name: Set the version
+        run: packaging/set-version.sh
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
@@ -135,6 +160,7 @@ jobs:
   windows:
     name: Windows ${{ matrix.arch }}
     needs: version
+    if: needs.version.outputs.version != ''
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -148,6 +174,14 @@ jobs:
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
     steps:
       - uses: actions/checkout@v7
+      - name: Set the version
+        shell: pwsh
+        run: |
+          # the same as packaging/set-version.sh: the first `version = "..."` line of Cargo.toml
+          $toml = Get-Content Cargo.toml -Raw
+          $toml = [regex]::new('(?m)^version = ".*"').Replace($toml, "version = `"$env:VERSION`"", 1)
+          Set-Content -Path Cargo.toml -Value $toml -NoNewline
+          Select-String -Path Cargo.toml -Pattern '^version = ' | Select-Object -First 1
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -169,11 +203,14 @@ jobs:
   freebsd:
     name: FreeBSD x86_64
     needs: version
+    if: needs.version.outputs.version != ''
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
+      - name: Set the version
+        run: packaging/set-version.sh # before the VM step, which copies the workspace
       - name: Build and package in a FreeBSD VM (pkg, tar.gz)
         uses: vmactions/freebsd-vm@v1
         with:
@@ -190,12 +227,23 @@ jobs:
   publish:
     name: Publish GitHub Release
     needs: [version, linux, macos, windows, freebsd]
-    if: github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/v')
+    if: needs.version.outputs.publish == 'true'
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.version.outputs.version }}
       GH_TOKEN: ${{ github.token }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # the commits since the last tag, for the release notes
+      - name: Release notes
+        run: |
+          v="$(packaging/next-version.sh --notes "$RUNNER_TEMP/notes.md")"
+          if [ "$v" != "$VERSION" ]; then
+            echo "::error::Version changed during the run ($VERSION, now $v)."
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/notes.md"
       - uses: actions/download-artifact@v8
         with:
           pattern: release-*
@@ -209,9 +257,11 @@ jobs:
       - name: Create the release
         run: |
           tag="v$VERSION"
+          # a published release is never changed: stop instead of overwriting its files
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" dist/* --clobber --repo "$GITHUB_REPOSITORY"
-          else
-            gh release create "$tag" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "UMLCraft $VERSION" --generate-notes
+            echo "::error::Release $tag already exists; it is left unchanged."
+            exit 1
           fi
+          # creates the tag on the built commit; a tag pushed with this token starts no workflow
+          gh release create "$tag" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "UMLCraft $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --latest

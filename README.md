@@ -183,7 +183,7 @@ Every release on the [releases page](https://github.com/BurkhalterY/umlcraft/rel
 |---|---|
 | x86_64 | `umlcraft-<ver>.pkg` (`pkg add`) and `umlcraft-<ver>-freebsd-x86_64.tar.gz` |
 
-The [release workflow](.github/workflows/release.yml) builds all of them. Run it from the Actions tab to get them as artifacts, or push to the `release` branch or a `v1.2.3` tag to publish a release. Signing turns on when the repository has the secrets `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `KEYCHAIN_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD`; without them Windows warns about an unknown publisher and macOS asks you to confirm the first start.
+The [release workflow](.github/workflows/release.yml) builds all of them and publishes a new release every night when `main` has changed, so the download is never more than a day behind. The version comes from the [Conventional Commits](https://www.conventionalcommits.org) since the last release: while UMLCraft is 0.x, a breaking change raises the middle number and anything else the last one. Run the workflow from the Actions tab to release right away, or as a dry run to get the installers as artifacts only. Signing turns on when the repository has the secrets `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `KEYCHAIN_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `WINDOWS_CERTIFICATE` and `WINDOWS_CERTIFICATE_PASSWORD`; without them Windows warns about an unknown publisher and macOS asks you to confirm the first start.
 
 ## The Crafting Apps
 
