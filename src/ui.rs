@@ -1473,7 +1473,7 @@ impl App {
                     self.color_dialog = Some(field);
                 }
             }
-            for (key, field) in [(Key::R, "autoResize"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::T, "suppressLiterals")] {
+            for (key, field) in [(Key::R, "autoResize"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::T, "suppressLiterals")] {
                 if hit(sc(cs, key)) {
                     self.toggle_flag(field);
                 }
@@ -1965,9 +1965,10 @@ impl App {
 }
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 11] = [
+const FORMAT_TOGGLES: [(&str, &str); 12] = [
     ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
     ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
+    ("wordWrap", "Word Wrap                         Ctrl+Shift+W"),
     ("showVisibility", "Show Visibility                 Ctrl+Shift+V"),
     ("showNamespace", "Show Namespace                  Ctrl+Shift+N"),
     ("showProperty", "Show Property                    Ctrl+Shift+B"),

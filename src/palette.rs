@@ -65,6 +65,7 @@ pub const COMMANDS: &[Command] = &[
     c("format:linestyle-curve", "Line Style: Curve", "Ctrl+Alt+B"),
     c("format:auto-resize", "Auto Resize", "Ctrl+Shift+R"),
     c("format:show-shadow", "Show Shadow", "Ctrl+Shift+H"),
+    c("format:word-wrap", "Word Wrap", "Ctrl+Shift+W"),
     c("format:show-visibility", "Show Visibility", "Ctrl+Shift+V"),
     c("format:show-namespace", "Show Namespace", "Ctrl+Shift+N"),
     c("format:show-property", "Show Property", "Ctrl+Shift+B"),
@@ -173,7 +174,7 @@ impl App {
         use crate::align::Align;
         let ms = crate::canvas::EguiMeasure { ctx: ctx.clone() };
         let toggles = [
-            ("format:auto-resize", "autoResize"), ("format:show-shadow", "showShadow"), ("format:show-visibility", "showVisibility"),
+            ("format:auto-resize", "autoResize"), ("format:show-shadow", "showShadow"), ("format:word-wrap", "wordWrap"), ("format:show-visibility", "showVisibility"),
             ("format:show-namespace", "showNamespace"), ("format:show-property", "showProperty"), ("format:show-type", "showType"), ("format:show-multiplicity", "showMultiplicity"), ("format:show-operation-signature", "showOperationSignature"),
             ("format:suppress-attributes", "suppressAttributes"), ("format:suppress-operations", "suppressOperations"), ("format:suppress-literals", "suppressLiterals"),
         ];

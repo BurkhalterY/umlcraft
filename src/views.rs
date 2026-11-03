@@ -73,6 +73,40 @@ fn font_style_of(r: &Repo, v: Eid) -> i64 {
     r.str(v, "font").split(';').nth(2).and_then(|x| x.parse().ok()).unwrap_or(0)
 }
 
+/// Break a text into lines no wider than `width`, between words; a word wider than the line keeps a
+/// line of its own. Newlines always break.
+pub fn wrap_text(ms: &dyn Measure, text: &str, width: f64, style: u8) -> Vec<String> {
+    let mut out = vec![];
+    for para in text.split('\n') {
+        let mut line = String::new();
+        for word in para.split(' ') {
+            let test = if line.is_empty() { word.to_string() } else { format!("{line} {word}") };
+            if ms.width(&test, style) > width && !line.is_empty() {
+                out.push(std::mem::take(&mut line));
+                line = word.to_string();
+            } else {
+                line = test;
+            }
+        }
+        out.push(line);
+    }
+    out
+}
+
+/// The width of the widest word: the narrowest a word-wrapped label can be (core.js:3769-3790).
+pub fn widest_word(ms: &dyn Measure, text: &str, style: u8) -> f64 {
+    text.split([' ', '\n']).map(|w| ms.width(w, style)).fold(0.0, f64::max)
+}
+
+/// How many lines a label takes at this width: one, or as many as its words need with word wrap.
+fn label_lines(r: &Repo, ms: &dyn Measure, lv: Eid, width: f64) -> usize {
+    if r.bool(lv, "wordWrap") {
+        wrap_text(ms, &r.str(lv, "text"), width, font_style_of(r, lv) as u8).len().max(1)
+    } else {
+        1
+    }
+}
+
 /// Give a label the face and size of the layout, keeping its own style.
 fn set_label_font(r: &mut Repo, ms: &dyn Measure, lv: Eid, style: Option<i64>) {
     let st = style.unwrap_or_else(|| font_style_of(r, lv));
@@ -578,6 +612,7 @@ fn name_style(r: &Repo, m: Eid) -> u8 {
 fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w: f64, keyword: Option<&str>, hide_st: bool) -> f64 {
     let Some(p) = name_parts(r, v, m, keyword, hide_st) else { return NAME_MIN_H };
     let style = name_style(r, m);
+    let wrap = r.bool(v, "wordWrap");
     let mut items: Vec<Eid> = vec![];
     let lh = ms.size();
     if let Some(st) = p.st {
@@ -606,11 +641,15 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
             r.set_raw(ns, "visible", json!(false));
         }
     }
+    for lv in &items {
+        r.set(*lv, "wordWrap", json!(wrap));
+    }
+    let heights: Vec<f64> = items.iter().map(|lv| label_lines(r, ms, *lv, w - 2.0 * PAD) as f64 * lh).collect();
     let n = items.len() as f64;
-    let content = n * lh + ITEM_GAP * (n - 1.0).max(0.0);
+    let content = heights.iter().sum::<f64>() + ITEM_GAP * (n - 1.0).max(0.0);
     let h = NAME_MIN_H.max(content + 2.0 * PAD);
     let mut cy = y + ((h - content) / 2.0).ceil();
-    for lv in items {
+    for (lv, lh) in items.into_iter().zip(heights) {
         set_box(r, lv, x + PAD, cy, w - 2.0 * PAD, lh);
         cy += lh + ITEM_GAP;
     }
@@ -619,17 +658,19 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
 }
 
 fn name_min_width(r: &Repo, ms: &dyn Measure, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) -> f64 {
-    let mut w = ms.width(&r.name(m), name_style(r, m));
+    let wrap = r.bool(v, "wordWrap");
+    let width = |t: &str, style: u8| if wrap { widest_word(ms, t, style) } else { ms.width(t, style) };
+    let mut w = width(&r.name(m), name_style(r, m));
     if let Some(p) = name_parts(r, v, m, keyword, hide_st) {
         if p.show_st {
-            w = w.max(ms.width(&p.st_text, 0));
+            w = w.max(width(&p.st_text, 0));
         }
     }
     w.ceil() + 2.0 * PAD
 }
 
 /// Keep a list compartment's item views in step with the model list; returns (min width, height, rows).
-fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid], item_ty: &str, texts: &[String]) -> (f64, f64, Vec<Row>) {
+fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid], item_ty: &str, texts: &[String], wrap: bool) -> (f64, f64, Vec<Row>) {
     let existing = r.list(comp, "subViews");
     let mut keep = vec![];
     for it in items {
@@ -660,17 +701,29 @@ fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid], item_ty: 
         r.set(*iv, "underline", json!(st));
         let italic = if r.bool(items[i], "isAbstract") { 2 } else { 0 };
         set_label_font(r, ms, *iv, None);
-        min_w = min_w.max(ms.width(t, italic).ceil() + 2.0 * PAD);
+        r.set(*iv, "wordWrap", json!(wrap));
+        let tw = if wrap { widest_word(ms, t, italic) } else { ms.width(t, italic) };
+        min_w = min_w.max(tw.ceil() + 2.0 * PAD);
     }
-    let n = keep.len() as f64;
-    let h = if keep.is_empty() { EMPTY_H } else { 2.0 * PAD + n * ms.size() + ITEM_GAP * (n - 1.0) };
-    (min_w, h, keep.into_iter().map(|iv| Row { iv }).collect())
+    let rows: Vec<Row> = keep.into_iter().map(|iv| Row { iv }).collect();
+    let h = list_height(r, ms, &rows, f64::INFINITY);
+    (min_w, h, rows)
 }
 
-fn place_list(r: &mut Repo, lh: f64, comp: Eid, x: f64, y: f64, w: f64, h: f64, rows: &[Row]) {
+/// The height of a list compartment `w` wide: its rows, with word-wrapped rows on several lines.
+fn list_height(r: &Repo, ms: &dyn Measure, rows: &[Row], w: f64) -> f64 {
+    if rows.is_empty() {
+        return EMPTY_H;
+    }
+    let lines: usize = rows.iter().map(|row| label_lines(r, ms, row.iv, w - 2.0 * PAD + 1.0)).sum();
+    2.0 * PAD + lines as f64 * ms.size() + ITEM_GAP * (rows.len() as f64 - 1.0)
+}
+
+fn place_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, x: f64, y: f64, w: f64, h: f64, rows: &[Row]) {
     set_box(r, comp, x, y, w + 1.0, h);
     let mut cy = y + PAD;
     for row in rows {
+        let lh = label_lines(r, ms, row.iv, w - 2.0 * PAD + 1.0) as f64 * ms.size();
         set_box(r, row.iv, x + PAD, cy, w - 2.0 * PAD + 1.0, lh);
         cy += lh + ITEM_GAP;
     }
@@ -753,6 +806,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
 
     // box form: name, [literals], attributes, operations
     let show = Show::of(r, v);
+    let wrap = r.bool(v, "wordWrap");
     let mut comps: Vec<(Eid, f64, f64, Vec<Row>)> = vec![];
     if let Some(lc) = r.refd(v, "enumerationLiteralCompartment") {
         if r.bool(v, "suppressLiterals") {
@@ -767,7 +821,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
                     if st.is_empty() { r.name(*l) } else { format!("{st} {}", r.name(*l)) }
                 })
                 .collect();
-            let (w, h, rows) = sync_list(r, ms, lc, &items, "UMLEnumerationLiteralView", &texts);
+            let (w, h, rows) = sync_list(r, ms, lc, &items, "UMLEnumerationLiteralView", &texts, wrap);
             comps.push((lc, w, h, rows));
         }
     }
@@ -781,7 +835,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
                 .iter()
                 .map(|a| attribute_text(r, *a, show))
                 .collect();
-            let (w, h, rows) = sync_list(r, ms, ac, &items, "UMLAttributeView", &texts);
+            let (w, h, rows) = sync_list(r, ms, ac, &items, "UMLAttributeView", &texts, wrap);
             comps.push((ac, w, h, rows));
         }
     }
@@ -792,7 +846,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
             r.remove(oc, "visible");
             let items = r.list(m, "operations");
             let texts: Vec<String> = items.iter().map(|o| operation_text(r, *o, show)).collect();
-            let (w, h, rows) = sync_list(r, ms, oc, &items, "UMLOperationView", &texts);
+            let (w, h, rows) = sync_list(r, ms, oc, &items, "UMLOperationView", &texts, wrap);
             comps.push((oc, w, h, rows));
         }
     }
@@ -805,7 +859,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         } else {
             r.remove(tc, "visible");
             let texts: Vec<String> = items.iter().map(|t| template_parameter_text(r, *t)).collect();
-            templ = Some((tc, sync_list(r, ms, tc, &items, "UMLTemplateParameterView", &texts)));
+            templ = Some((tc, sync_list(r, ms, tc, &items, "UMLTemplateParameterView", &texts, false)));
         }
     }
     let mut min_w = name_min_width(r, ms, v, m, keyword, false);
@@ -815,19 +869,24 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     let (x, y) = (r.f(v, "left"), r.f(v, "top"));
     let w0 = if r.bool(v, "autoResize") { min_w } else { r.f(v, "width").max(min_w) };
     let name_h = layout_name(r, ms, v, m, x, y, w0, keyword, false);
+    if wrap {
+        for c in comps.iter_mut() {
+            c.2 = list_height(r, ms, &c.3, w0);
+        }
+    }
     let min_h = name_h + comps.iter().map(|c| c.2).sum::<f64>();
     grow(r, v, min_w, min_h);
     let w = r.f(v, "width");
     let mut cy = y + name_h;
     let mut out = vec![];
     for (c, _, h, rows) in comps {
-        place_list(r, ms.size(), c, x, cy, w, h, &rows);
+        place_list(r, ms, c, x, cy, w, h, &rows);
         out.push(Comp { y: cy, rows });
         cy += h;
     }
     let templ = templ.map(|(tc, (tw, th, rows))| {
         let (tx, ty) = (x + w - tw + TEMPLATE_OUT, y - th + TEMPLATE_OUT);
-        place_list(r, ms.size(), tc, tx, ty, tw, th, &rows);
+        place_list(r, ms, tc, tx, ty, tw, th, &rows);
         Comp { y: ty, rows }
     });
     Info { shape: "", compartments: out, is_active: r.bool(m, "isActive"), templ }

@@ -72,7 +72,17 @@ fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
     let font = r.str(lv, "font");
     let b = R { x: r.f(lv, "left"), y: r.f(lv, "top"), w: r.f(lv, "width"), h: r.f(lv, "height").max(13.0) };
     let align = r.val(lv, "horizontalAlignment").and_then(|v| v.as_i64()).unwrap_or(2);
-    c.text(&t, b, align, font_style(&font), font_size(&font), fc, r.bool(lv, "underline"));
+    let (style, size) = (font_style(&font), font_size(&font));
+    if r.bool(lv, "wordWrap") {
+        // one line per row of the label, broken where the layout broke it
+        let face = font.split(';').next().filter(|f| !f.is_empty()).unwrap_or("Arial").to_string();
+        let lines = views::wrap_text(&views::Scaled { ms: &*c, face, size }, &t, b.w, style);
+        for (i, l) in lines.iter().enumerate() {
+            c.text(l, R { y: b.y + i as f64 * size, h: size, ..b }, align, style, size, fc, r.bool(lv, "underline"));
+        }
+        return;
+    }
+    c.text(&t, b, align, style, size, fc, r.bool(lv, "underline"));
 }
 
 fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid) {
@@ -99,28 +109,14 @@ fn shadow_ellipse(c: &mut dyn Canvas, r: &Repo, v: Eid, ctr: P, rx: f64, ry: f64
 }
 
 pub fn wrap_lines(c: &dyn Measure, text: &str, width: f64) -> Vec<String> {
-    let mut out = vec![];
-    for para in text.split('\n') {
-        let mut line = String::new();
-        for word in para.split(' ') {
-            let test = if line.is_empty() { word.to_string() } else { format!("{line} {word}") };
-            if c.width(&test, 0) > width && !line.is_empty() {
-                out.push(std::mem::take(&mut line));
-                line = word.to_string();
-            } else {
-                line = test;
-            }
-        }
-        out.push(line);
-    }
-    out
+    views::wrap_text(c, text, width, 0)
 }
 
-/// Word-wrapped note or text in the view's font size.
-fn draw_wrapped(c: &mut dyn Canvas, text: &str, b: R, fc: Rgba, size: f64) {
+/// A note or text in the view's font size, word-wrapped unless its wordWrap is off.
+fn draw_wrapped(c: &mut dyn Canvas, text: &str, b: R, fc: Rgba, size: f64, wrap: bool) {
     let lh = (size * 1.15).round();
     let scaled = views::Scaled { ms: &*c, face: "Arial".into(), size };
-    let lines = wrap_lines(&scaled, text, b.w);
+    let lines = wrap_lines(&scaled, text, if wrap { b.w } else { f64::INFINITY });
     let mut y = b.y;
     for l in lines {
         if y + lh > b.y + b.h + 1.0 {
@@ -193,11 +189,11 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         }
         c.polygon(&pts, Some(fill), Some(line));
         c.polyline(&[P { x: b.x + b.w - f, y: b.y }, P { x: b.x + b.w - f, y: b.y + f }, P { x: b.x + b.w, y: b.y + f }], line, false);
-        draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc, views::view_font(r, v).1);
+        draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"));
         return;
     }
     if ty == "UMLTextView" || ty == "UMLCustomTextView" || ty == "UMLTextBoxView" {
-        draw_wrapped(c, &r.str(v, "text"), R { x: b.x, y: b.y, w: b.w.max(10.0), h: b.h.max(15.0) + 100.0 }, fc, views::view_font(r, v).1);
+        draw_wrapped(c, &r.str(v, "text"), R { x: b.x, y: b.y, w: b.w.max(10.0), h: b.h.max(15.0) + 100.0 }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"));
         return;
     }
     // a box: classifier, subject, or any kind UMLCraft does not draw itself

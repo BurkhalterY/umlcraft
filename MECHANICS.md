@@ -89,6 +89,8 @@ returned nothing).
 | Zoom | 1.0, from 0.1 to 3, step 0.1 | `src/ui/diagram-editor.js:2396` |
 | Selection colour / handle size | #4f99ff / 8 | `src/core/graphics.js:2723` |
 
+* Word wrap: a view with `wordWrap` on breaks its labels between words to the label width, and its minimum width is the widest single word plus padding (`src/core/core.js:3705-3727, 3769-3790`). UMLCraft applies this to the name and the attribute, operation and literal rows of class-like boxes; notes and text wrap only while their `wordWrap` is on (default on).
+
 ## Exporting pictures
 
 * JPEG is the PNG flattened on white; Export All writes `<folder>/<png|jpg|svg>/<filenamify(path)>_<index>.<ext>`, the path joining owner names with "::" and filenamify turning `<>:"/\|?*` and control characters into "!" (`src/engine/default-commands.js:452-535`, `src/engine/diagram-export.js:130-134, 275-298`).

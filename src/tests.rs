@@ -1861,3 +1861,34 @@ fn print_to_pdf() {
     assert!(!text.contains(" Tj "));
     assert!(a.pdf_of(&[], &o, &ms).is_err());
 }
+
+#[test]
+fn word_wrap() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 80.0, 60.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    a.repo.set(m, "name", json!("A Rather Long Class Name"));
+    let at = a.change(|a| a.add_feature(m, "UMLAttribute")).unwrap();
+    crate::parse::apply_attribute(&mut a.repo, at, "+firstAttribute: String = some default text");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let wide = crate::views::node_rect(&a.repo, c);
+    let row = a.repo.list(a.repo.refd(c, "attributeCompartment").unwrap(), "subViews")[0];
+    let line = a.repo.f(row, "height");
+    // Ctrl+Shift+W: the box may be as narrow as the widest word, and the rows grow to several lines
+    a.select(vec![c]);
+    a.toggle_flag("wordWrap");
+    assert!(a.repo.bool(c, "wordWrap"));
+    a.change(|a| a.repo.set(c, "width", json!(80)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let narrow = crate::views::node_rect(&a.repo, c);
+    assert!(narrow.w < wide.w, "{narrow:?} {wide:?}");
+    assert!(a.repo.bool(row, "wordWrap"));
+    assert!(a.repo.f(row, "height") >= 2.0 * line, "the attribute takes several lines");
+    assert!(narrow.h > wide.h);
+    let nl = a.repo.refd(a.repo.refd(c, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert!(a.repo.f(nl, "height") >= 2.0 * line);
+    // the picture still draws
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap();
+}
