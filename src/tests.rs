@@ -261,3 +261,30 @@ fn write_example() {
     a.open_diagram(main);
     assert!(a.save_to(std::path::PathBuf::from(out), &ms));
 }
+
+#[test]
+fn png_export_follows_the_originals_size_rules() {
+    let ms = measure();
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let d = a.diagram.unwrap();
+    let info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let b = crate::render::bounds(&a.repo, d).unwrap();
+    let png = crate::render::to_png(&a.repo, d, &info, &ms, 1.0).unwrap();
+    let img = image::load_from_memory(&png).unwrap().to_rgba8();
+    // bounds grown by 10 on every side, plus 30 (diagram-export.js:113-117)
+    assert_eq!(img.width(), (b.w + 2.0 * 10.0 + 30.0).ceil() as u32);
+    assert_eq!(img.height(), (b.h + 2.0 * 10.0 + 30.0).ceil() as u32);
+    // transparent background, no grid
+    assert_eq!(img.get_pixel(0, 0).0[3], 0);
+    assert_eq!(img.get_pixel(img.width() - 1, img.height() - 1).0[3], 0);
+    let dark = img.pixels().filter(|p| p.0[3] > 200 && p.0[0] < 60 && p.0[1] < 60 && p.0[2] < 60).count();
+    assert!(dark > 1000, "the drawing is in the picture ({dark} dark pixels)");
+    if let Ok(out) = std::env::var("PNG_OUT") {
+        std::fs::write(out, &png).unwrap();
+    }
+    // SVG export: bounds grown by 10, no background (diagram-export.js:178-182)
+    let svg = crate::render::to_svg(&a.repo, d, &info, &ms).unwrap();
+    assert!(svg.contains(&format!("width=\"{:.0}\"", b.w + 20.0)));
+    assert!(!svg.contains("fill=\"#ffffff\"/>\n<"), "no background rectangle");
+}

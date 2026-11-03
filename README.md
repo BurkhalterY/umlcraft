@@ -105,7 +105,7 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
 | **Editors** | Every property of classes, attributes, operations, parameters, literals, relationships and both association ends, plus documentation |
 | **Views** | Working Diagrams, zoom from 10% to 300%, fit to window, a live mini-map, show or hide the grid and the panels |
 | **History** | Undo and redo for every change (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) |
-| **Export** | PNG of the diagram and SVG of the whole diagram |
+| **Export** | PNG and SVG of the whole diagram, drawn off-screen with a transparent background and the original's 10-pixel margin |
 | **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj` |
 
 ## .mdj without compromise

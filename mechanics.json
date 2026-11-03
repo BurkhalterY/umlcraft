@@ -258,6 +258,26 @@
       "group": "drawing",
       "value": "single elbow",
       "estimated": true
+    },
+    {
+      "name": "export margin",
+      "group": "export",
+      "value": 10,
+      "unit": "px",
+      "source": "src/engine/diagram-export.js:33 BOUNDING_BOX_EXPAND"
+    },
+    {
+      "name": "png extra size",
+      "group": "export",
+      "value": 30,
+      "unit": "px",
+      "source": "src/engine/diagram-export.js:116 getImageData"
+    },
+    {
+      "name": "png background",
+      "group": "export",
+      "value": "transparent",
+      "source": "src/engine/diagram-export.js:130"
     }
   ]
 }

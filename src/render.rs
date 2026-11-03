@@ -415,7 +415,7 @@ impl Canvas for Svg<'_> {
         let italic = if style & 2 != 0 { " font-style=\"italic\"" } else { "" };
         let deco = if underline { " text-decoration=\"underline\"" } else { "" };
         self.out += &format!(
-            "<text x=\"{x:.2}\" y=\"{:.2}\" font-family=\"Arial, sans-serif\" font-size=\"{size}\" text-anchor=\"{anchor}\" dominant-baseline=\"central\"{weight}{italic}{deco}{}>{}</text>\n",
+            "<text x=\"{x:.2}\" y=\"{:.2}\" font-family=\"Arial, Liberation Sans, Arimo, sans-serif\" font-size=\"{size}\" text-anchor=\"{anchor}\" dominant-baseline=\"central\"{weight}{italic}{deco}{}>{}</text>\n",
             b.y + b.h / 2.0,
             paint("fill", Some(color)),
             esc(t)
@@ -423,14 +423,42 @@ impl Canvas for Svg<'_> {
     }
 }
 
-pub fn to_svg(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure) -> Option<String> {
+/// Margin around the drawing in exported pictures (diagram-export.js:33 BOUNDING_BOX_EXPAND).
+pub const BOUNDING_BOX_EXPAND: f64 = 10.0;
+/// Extra width and height of exported PNG pictures (diagram-export.js:116-117 getImageData).
+pub const PNG_EXTRA: f64 = 30.0;
+
+/// The diagram as SVG: its bounds grown by BOUNDING_BOX_EXPAND on every side, no background, at
+/// zoom 1, with `extra` more width and height (0 for SVG export, PNG_EXTRA for PNG; diagram-export.js:178).
+pub fn to_svg_sized(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure, extra: f64) -> Option<String> {
     let b = bounds(r, d)?;
-    let m = 10.0;
-    let (w, h) = (b.w + 2.0 * m + SHADOW_OFFSET, b.h + 2.0 * m + SHADOW_OFFSET);
+    let m = BOUNDING_BOX_EXPAND;
+    let (x, y) = (b.x - m, b.y - m);
+    let (w, h) = (b.w + 2.0 * m + extra, b.h + 2.0 * m + extra);
     let mut svg = Svg { out: String::new(), measure };
     draw_diagram(&mut svg, r, d, info);
     Some(format!(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w:.0}\" height=\"{h:.0}\" viewBox=\"{:.2} {:.2} {w:.2} {h:.2}\">\n<rect x=\"{:.2}\" y=\"{:.2}\" width=\"{w:.2}\" height=\"{h:.2}\" fill=\"#ffffff\"/>\n{}</svg>\n",
-        b.x - m, b.y - m, b.x - m, b.y - m, svg.out
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w:.0}\" height=\"{h:.0}\" viewBox=\"{x:.2} {y:.2} {w:.2} {h:.2}\">\n{}</svg>\n",
+        svg.out
     ))
+}
+
+pub fn to_svg(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure) -> Option<String> {
+    to_svg_sized(r, d, info, measure, 0.0)
+}
+
+/// The diagram as a PNG with a transparent background, `scale` pixels per point (the original
+/// scales by the screen's devicePixelRatio; diagram-export.js:120-127). Drawn off-screen, so the
+/// grid and whatever is scrolled out of view do not matter.
+pub fn to_png(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure, scale: f32) -> Result<Vec<u8>, String> {
+    use resvg::{tiny_skia, usvg};
+    let svg = to_svg_sized(r, d, info, measure, PNG_EXTRA).ok_or("The diagram is empty.")?;
+    let mut opt = usvg::Options::default();
+    opt.fontdb_mut().load_system_fonts();
+    let tree = usvg::Tree::from_str(&svg, &opt).map_err(|e| e.to_string())?;
+    let size = tree.size();
+    let (w, h) = ((size.width() * scale).ceil() as u32, (size.height() * scale).ceil() as u32);
+    let mut pixmap = tiny_skia::Pixmap::new(w.max(1), h.max(1)).ok_or("The picture is too large.")?;
+    resvg::render(&tree, tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
+    pixmap.encode_png().map_err(|e| e.to_string())
 }

@@ -89,6 +89,17 @@ returned nothing).
 | Zoom | 1.0, from 0.1 to 3, step 0.1 | `src/ui/diagram-editor.js:2396` |
 | Selection colour / handle size | #4f99ff / 8 | `src/core/graphics.js:2723` |
 
+## Exporting pictures
+
+| Rule | Value | Source |
+|---|---|---|
+| Margin around the drawing | the diagram's bounds grown by 10 on every side | `src/engine/diagram-export.js:33` BOUNDING_BOX_EXPAND, `src/core/graphics.js:381` expand |
+| PNG size | grown bounds + 30 in width and height, at zoom 1, times the screen's pixel ratio | `diagram-export.js:113-127` getImageData |
+| PNG background | transparent (white only for JPEG); no grid | `diagram-export.js:130-134` |
+| SVG size and background | grown bounds, no extra, no background | `diagram-export.js:178-189` getSVGImageData |
+| Native side | `toPNG` 0xec2c6e/0x101d688 and `image/png` are Electron API table entries only; no function to follow | native_strings_find ev_b82b90eb… |
+| UMLCraft | draws the SVG off-screen with resvg for PNG export, so scrolled-out parts and the grid do not matter; trial watermarks of the original are not copied | `src/render.rs` to_png, to_svg_sized |
+
 ## Window (dark theme, the default)
 
 | Name | Value | Source |

@@ -717,7 +717,7 @@ impl App {
                         "zoomOut" => self.set_zoom(self.zoom - crate::app::ZOOM_STEP),
                         "fit" => self.fit(),
                         "grid" => self.show_grid = !self.show_grid,
-                        _ => self.export_png(),
+                        _ => self.export_png(&ui.ctx().clone()),
                     }
                 }
             }
@@ -785,7 +785,7 @@ impl App {
                 }
                 ui.separator();
                 if ui.button("Export Diagram As PNG...").clicked() {
-                    self.export_png();
+                    self.export_png(&ui.ctx().clone());
                     ui.close();
                 }
                 if ui.button("Export Diagram As SVG...").clicked() {
@@ -992,13 +992,17 @@ impl App {
         }
     }
 
-    fn export_png(&mut self) {
-        if self.diagram.is_none() {
+    fn export_png(&mut self, ctx: &egui::Context) {
+        let Some(d) = self.diagram else { return };
+        let ms = EguiMeasure { ctx: ctx.clone() };
+        let name = self.repo.name(d);
+        let Some(p) = rfd::FileDialog::new().set_title("Export Diagram as PNG").set_file_name(format!("{name}.png")).add_filter("PNG", &["png"]).save_file() else {
             return;
-        }
-        let name = self.diagram.map(|d| self.repo.name(d)).unwrap_or_else(|| "diagram".into());
-        if let Some(p) = rfd::FileDialog::new().set_title("Export Diagram as PNG").set_file_name(format!("{name}.png")).add_filter("PNG", &["png"]).save_file() {
-            self.pending_png = Some(p);
+        };
+        let info = views::layout_diagram(&mut self.repo, &ms, d);
+        let result = render::to_png(&self.repo, d, &info, &ms, ctx.pixels_per_point()).and_then(|png| std::fs::write(&p, png).map_err(|e| e.to_string()));
+        if let Err(e) = result {
+            self.message = Some(("Failed to export the diagram.".into(), e));
         }
     }
 
@@ -1043,27 +1047,10 @@ impl App {
             })
         });
         if let Some(img) = shot {
-            if let Some(path) = self.pending_png.take() {
-                // export: the canvas area of the window, cropped to the diagram
-                if let (Some(rect), Some(d)) = (self.canvas_rect, self.diagram) {
-                    let ppp = ctx.pixels_per_point();
-                    let mut crop = rect;
-                    if let Some(b) = render::bounds(&self.repo, d) {
-                        let to = |x: f64, y: f64| Pos2::new(rect.min.x + ((x - self.scroll.x) * self.zoom) as f32, rect.min.y + ((y - self.scroll.y) * self.zoom) as f32);
-                        let m = 10.0;
-                        let br = Rect::from_two_pos(to(b.x - m, b.y - m), to(b.x + b.w + m + render::SHADOW_OFFSET, b.y + b.h + m + render::SHADOW_OFFSET));
-                        crop = br.intersect(rect);
-                    }
-                    let region = img.region(&crop, Some(ppp));
-                    save_png(&path, &region);
-                }
-            } else if let Some(path) = self.screenshot.clone() {
+            if let Some(path) = self.screenshot.clone() {
                 save_png(&path, &img);
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
-        }
-        if self.pending_png.is_some() && !self.shot_requested {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
         }
         if self.screenshot.is_some() {
             self.frames += 1;
