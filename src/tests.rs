@@ -471,3 +471,45 @@ fn select_in_diagram_and_scroll_per_diagram() {
     a.select_in_diagram();
     assert_eq!(a.toasts.last().map(|t| t.0.as_str()), Some("No diagrams to show"));
 }
+
+#[test]
+fn selection_clicks_follow_the_original() {
+    use egui::{Modifiers, Pos2};
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(800.0, 600.0));
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(240.0, 40.0, 100.0, 60.0))).unwrap();
+    let c3 = a.change(|a| a.create_node("UMLClass", rect(440.0, 40.0, 100.0, 60.0))).unwrap();
+    let click = |a: &mut App, x: f32, y: f32, m: Modifiers| {
+        a.on_press(canvas, Pos2::new(x, y), m);
+        a.on_release(canvas.min, Pos2::new(x, y));
+    };
+    click(&mut a, 50.0, 50.0, Modifiers::NONE);
+    assert_eq!(a.selection, vec![c1]);
+    click(&mut a, 250.0, 50.0, Modifiers::SHIFT);
+    assert_eq!(a.selection, vec![c1, c2], "Shift+click adds");
+    // Shift+drag never moves anything
+    a.on_press(canvas, Pos2::new(450.0, 50.0), Modifiers::SHIFT);
+    a.on_move(canvas, Pos2::new(480.0, 90.0));
+    a.on_release(canvas.min, Pos2::new(480.0, 90.0));
+    assert_eq!(a.selection, vec![c1, c2, c3]);
+    assert_eq!(a.repo.f(c3, "left"), 440.0, "a Shift press does not drag");
+    // a plain click on a member, without moving, collapses the group to it
+    click(&mut a, 250.0, 50.0, Modifiers::NONE);
+    assert_eq!(a.selection, vec![c2]);
+    // Ctrl+press pans and never selects or moves
+    a.on_press(canvas, Pos2::new(450.0, 50.0), Modifiers::COMMAND);
+    a.on_move(canvas, Pos2::new(400.0, 20.0));
+    a.on_release(canvas.min, Pos2::new(400.0, 20.0));
+    assert_eq!(a.selection, vec![c2]);
+    assert_eq!(a.repo.f(c3, "left"), 440.0);
+    assert_eq!((a.scroll.x, a.scroll.y), (50.0, 30.0));
+    // Tab cycles through the top-level views and wraps
+    a.select_next_view();
+    assert_eq!(a.selection, vec![c3]);
+    a.select_next_view();
+    assert_eq!(a.selection, vec![c1]);
+    a.select(vec![]);
+    a.select_next_view();
+    assert_eq!(a.selection, vec![c1]);
+}

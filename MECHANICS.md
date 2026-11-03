@@ -120,6 +120,11 @@ Read from the StarUML source through the feature inventory (`docs/features/`), w
 
 | Rule | Source |
 |---|---|
+| Ctrl/Cmd + left-drag pans (move cursor) and blocks every tool, so Ctrl+click never selects; middle-drag pans the same way | `src/ui/diagram-editor.js:2178-2193, 2236-2251` |
+| Shift+click toggles a view and never starts a drag; a click without moving on a member of a group keeps only that view | `src/ui/diagram-editor.js:645-660, 901-912` |
+| Right-click on empty canvas deselects everything | `src/ui/diagram-editor.js:701-704` |
+| Tab selects the next top-level view in `ownedViews`, wrapping; none selected → the first; no reverse | `src/ui/diagram-manager.js:726-754` |
+| Shift+arrow nudges by the grid size, or 1 with snap off | `src/ui/diagram-manager.js:761-810` |
 | Alignment and sizing act on selected node views only; lines and labels are skipped; each command is one undo step | `extensions/default/alignment/main.js:26-34, 370-376` |
 | Align Right/Bottom: right = left + width − 1, new left = max right − width + 1, so right edges meet (UMLCraft: right = left + width, same edge) | `extensions/default/alignment/main.js:96-115` |
 | Align Center/Middle: centre on the midpoint of the selection's overall extent | `extensions/default/alignment/main.js:117-142` |

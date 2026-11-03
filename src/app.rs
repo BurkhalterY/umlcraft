@@ -46,7 +46,9 @@ pub enum Drag {
     Rubber { start: P, now: P, add: bool, base: Vec<Eid> },
     CreateNode { start: P, now: P },
     CreateEdge { start: P, now: P, tail: Eid },
-    Move { start: P, orig: Vec<(Eid, P)>, edges: Vec<(Eid, Vec<P>)>, lead: Option<Eid>, changed: bool },
+    /// `collapse`: the pressed member of a multi-selection, which alone stays selected if the mouse
+    /// is released without moving.
+    Move { start: P, orig: Vec<(Eid, P)>, edges: Vec<(Eid, Vec<P>)>, lead: Option<Eid>, changed: bool, collapse: Option<Eid> },
     Resize { handle: usize, start: P, orig: R, view: Eid, changed: bool },
     Point { edge: Eid, index: usize, insert: Option<P>, changed: bool },
 }

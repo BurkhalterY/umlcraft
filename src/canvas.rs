@@ -392,6 +392,9 @@ impl App {
             let pos = latest.unwrap_or(rect.center());
             self.on_release(origin, pos);
         }
+        if matches!(self.drag, Some(Drag::Pan { .. })) {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Move);
+        }
         if !matches!(self.drag, Some(_)) {
             if let Some(pos) = resp.hover_pos() {
                 let p = self.to_diagram(origin, pos);
@@ -424,10 +427,11 @@ impl App {
                 let p = self.to_diagram(origin, pos);
                 self.ctx_pos = p;
                 self.ctx_target = self.hit_view(p, false);
-                if let Some(v) = self.ctx_target {
-                    if !self.selection.contains(&v) {
-                        self.select(vec![v]);
-                    }
+                match self.ctx_target {
+                    Some(v) if !self.selection.contains(&v) => self.select(vec![v]),
+                    Some(_) => {}
+                    // a right-click on empty canvas deselects everything (diagram-editor.js:701-704)
+                    None => self.select(vec![]),
                 }
             }
         }
@@ -435,6 +439,12 @@ impl App {
 
         // keyboard on the canvas
         if resp.has_focus() && self.editing.is_none() {
+            // keep Tab and the arrows on the canvas instead of moving the keyboard focus
+            ui.memory_mut(|m| m.set_focus_lock_filter(resp.id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true }));
+            let tab = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Tab));
+            if tab {
+                self.select_next_view();
+            }
             let (del, esc, enter, arrows) = ui.input(|i| {
                 (
                     i.key_pressed(egui::Key::Delete) && !i.modifiers.command,
@@ -462,7 +472,8 @@ impl App {
             }
             let (l, r, u, dn, shift) = arrows;
             if (l || r || u || dn) && !self.selection.is_empty() {
-                let step = if shift { render::GRID_SIZE } else { 1.0 };
+                // Shift moves by the grid factor: the grid size, or 1 with snap off (diagram-manager.js:761-765)
+                let step = if shift && self.snap { render::GRID_SIZE } else { 1.0 };
                 let dx = if l { -step } else if r { step } else { 0.0 };
                 let dy = if u { -step } else if dn { step } else { 0.0 };
                 let sel = self.selection.clone();
@@ -480,11 +491,17 @@ impl App {
         let _ = d;
     }
 
-    fn on_press(&mut self, rect: Rect, pos: Pos2, mods: egui::Modifiers) {
+    pub(crate) fn on_press(&mut self, rect: Rect, pos: Pos2, mods: egui::Modifiers) {
         let p = self.to_diagram(rect.min, pos);
         if Self::mini_rect(rect).contains(pos) && rect.width() > MINI_W + 40.0 {
             self.drag = Some(Drag::Mini);
             self.mini_scroll(rect, pos);
+            return;
+        }
+        // Ctrl/Cmd + left-drag pans, and while Ctrl/Cmd is held nothing is edited or selected
+        // (diagram-editor.js:2178-2193, 2236-2244)
+        if mods.command {
+            self.drag = Some(Drag::Pan { start: crate::app::egui_pos::Pos { x: pos.x, y: pos.y }, scroll: self.scroll });
             return;
         }
         if let Some(tool) = self.tool {
@@ -517,7 +534,7 @@ impl App {
                 }
             }
         }
-        let add = mods.shift || mods.command;
+        let add = mods.shift;
         match self.hit_view(p, false) {
             None => {
                 if !add {
@@ -527,6 +544,7 @@ impl App {
             }
             Some(v) => {
                 if add {
+                    // Shift+click toggles, and a Shift press never drags (diagram-editor.js:645-660)
                     let mut sel = self.selection.clone();
                     if let Some(i) = sel.iter().position(|x| *x == v) {
                         sel.remove(i);
@@ -534,12 +552,18 @@ impl App {
                         sel.push(v);
                     }
                     self.select(sel);
-                } else if !self.selection.contains(&v) {
+                    return;
+                }
+                let group = self.selection.len() > 1 && self.selection.contains(&v);
+                if !self.selection.contains(&v) {
                     self.select(vec![v]);
                 } else {
                     self.focus = Some(self.repo.refd(v, "model").unwrap_or(v));
                 }
                 self.start_move(p);
+                if let Some(Drag::Move { collapse, .. }) = &mut self.drag {
+                    *collapse = group.then_some(v);
+                }
             }
         }
     }
@@ -589,10 +613,10 @@ impl App {
                 }
             }
         }
-        self.drag = Some(Drag::Move { start: p, orig, edges, lead: nodes.first().copied(), changed: false });
+        self.drag = Some(Drag::Move { start: p, orig, edges, lead: nodes.first().copied(), changed: false, collapse: None });
     }
 
-    fn on_move(&mut self, rect: Rect, pos: Pos2) {
+    pub(crate) fn on_move(&mut self, rect: Rect, pos: Pos2) {
         let p = self.to_diagram(rect.min, pos);
         let Some(mut drag) = self.drag.take() else { return };
         match &mut drag {
@@ -636,7 +660,7 @@ impl App {
                 let nodes_only = self.tool.map(|t| t.kind != "NoteLink").unwrap_or(true);
                 self.hover = self.hit_view(p, nodes_only);
             }
-            Drag::Move { start, orig, edges, lead, changed } => {
+            Drag::Move { start, orig, edges, lead, changed, .. } => {
                 let (mut dx, mut dy) = (p.x - start.x, p.y - start.y);
                 if !*changed && (dx * dx + dy * dy).sqrt() * self.zoom < 3.0 {
                     self.drag = Some(drag);
@@ -717,7 +741,7 @@ impl App {
         self.drag = Some(drag);
     }
 
-    fn on_release(&mut self, origin: Pos2, pos: Pos2) {
+    pub(crate) fn on_release(&mut self, origin: Pos2, pos: Pos2) {
         let Some(drag) = self.drag.take() else { return };
         self.hover = None;
         let p = self.to_diagram(origin, pos);
@@ -767,6 +791,12 @@ impl App {
                 }
                 if !self.tool_sticky {
                     self.tool = None;
+                }
+            }
+            Drag::Move { changed: false, collapse: Some(v), .. } => {
+                // a click on a member of a group, without moving, keeps only that view (diagram-editor.js:901-912)
+                if self.repo.alive(v) {
+                    self.select(vec![v]);
                 }
             }
             Drag::Move { changed, .. } | Drag::Resize { changed, .. } | Drag::Point { changed, .. } => {
@@ -998,6 +1028,21 @@ impl App {
             self.delete_selection(true);
             ui.close();
         }
+    }
+
+    /// Tab: select the top-level view after the first selected one in ownedViews order, wrapping
+    /// around, or the first view when nothing is selected (diagram-manager.js:726-754).
+    pub fn select_next_view(&mut self) {
+        let Some(d) = self.diagram else { return };
+        let list = self.repo.list(d, "ownedViews");
+        if list.is_empty() {
+            return;
+        }
+        let next = match self.selection.first().and_then(|v| list.iter().position(|x| x == v)) {
+            Some(i) => list[(i + 1) % list.len()],
+            None => list[0],
+        };
+        self.select(vec![next]);
     }
 
     pub fn select_all(&mut self) {
