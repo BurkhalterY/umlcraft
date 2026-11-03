@@ -16,6 +16,7 @@ mod model;
 mod palette;
 mod parse;
 mod prefs;
+mod related;
 mod render;
 mod style;
 mod tags;

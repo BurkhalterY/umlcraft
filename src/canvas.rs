@@ -126,6 +126,11 @@ fn contains(outer: &R, inner: &R) -> bool {
     inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.w <= outer.x + outer.w && inner.y + inner.h <= outer.y + outer.h
 }
 
+/// A short button text for an "add related element" action: "Add Sub-Class" → "+ Sub-Class".
+fn short_label(l: &str) -> String {
+    format!("+ {}", l.trim_start_matches("Add "))
+}
+
 /// Keys of the inline edit on a class name or a compartment item.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ItemKey {
@@ -1306,6 +1311,7 @@ impl App {
         let h = ((ed.rect.h * self.zoom) as f32).max(if ed.multiline { 40.0 } else { 20.0 });
         let mut commit = None;
         let mut key: Option<ItemKey> = None;
+        let mut related: Option<crate::related::Related> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
             egui::Frame::NONE.fill(Color32::WHITE).stroke(Stroke::new(1.0, c32(render::SELECT_COLOR))).show(ui, |ui| {
                 ui.visuals_mut().override_text_color = Some(Color32::BLACK);
@@ -1368,8 +1374,24 @@ impl App {
                     }
                     ed.fresh = false;
                 }
+                // the "add related element" buttons of a box's name edit (quickedits/uml.json)
+                if let (Some(h), EditKind::Name(m)) = (ed.host, &ed.kind) {
+                    let acts = crate::related::actions(self.repo.ty(*m));
+                    if self.repo.refd(h, "model") == Some(*m) && !acts.is_empty() {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.set_max_width(w.max(220.0));
+                            for a in acts {
+                                let b = ui.add(egui::Button::new(egui::RichText::new(short_label(a.label)).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(a.label);
+                                // taken on press: the text field loses focus (and the edit closes) before a release
+                                if b.is_pointer_button_down_on() {
+                                    related = Some(a);
+                                }
+                            }
+                        });
+                    }
+                }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if key.is_some() {
+                if key.is_some() || related.is_some() {
                     commit = Some(true);
                 } else if esc {
                     commit = Some(false);
@@ -1387,6 +1409,9 @@ impl App {
         }
         if let (Some(k), Some(h)) = (key, host) {
             self.item_key(h, kind, k);
+        }
+        if let (Some(a), Some(h)) = (related, host) {
+            self.add_related(h, a);
         }
     }
 

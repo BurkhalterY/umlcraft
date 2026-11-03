@@ -1660,3 +1660,40 @@ fn validation_rules() {
     assert!(rules(&a).contains(&"UML018"));
     let _ = st;
 }
+
+#[test]
+fn add_related_elements() {
+    use crate::related::actions;
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(200.0, 200.0, 100.0, 60.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    let acts = actions("UMLClass");
+    let sub = acts.iter().find(|x| x.label == "Add Sub-Class").copied().unwrap();
+    let s1 = a.add_related(c, sub).unwrap();
+    let r1 = crate::views::node_rect(&a.repo, s1);
+    assert_eq!(r1.y, 200.0 + 60.0 + 70.0, "70 px below");
+    let gens: Vec<_> = a.repo.all_of("UMLGeneralization");
+    assert_eq!(gens.len(), 1);
+    assert_eq!(a.repo.refd(gens[0], "target"), Some(cm), "the new class generalizes the edited one");
+    assert_eq!(a.pending_edit, Some(s1), "its name edit opens");
+    // a second sub-class goes 10 px right of the first
+    let s2 = a.add_related(c, sub).unwrap();
+    let r2 = crate::views::node_rect(&a.repo, s2);
+    assert_eq!((r2.x, r2.y), (r1.x + r1.w + 10.0, r1.y));
+    let sup = acts.iter().find(|x| x.label == "Add Super-Class").copied().unwrap();
+    let p = a.add_related(c, sup).unwrap();
+    assert_eq!(crate::views::node_rect(&a.repo, p).y, (200.0f64 - 100.0 - crate::views::default_size("UMLClass").1).max(0.0));
+    let agg = acts.iter().find(|x| x.label == "Add Aggregated Class").copied().unwrap();
+    let part = a.add_related(c, agg).unwrap();
+    assert!(crate::views::node_rect(&a.repo, part).x >= 300.0 + 70.0, "to the right");
+    let assoc = a.repo.all_of("UMLAssociation")[0];
+    let end2 = a.repo.child(assoc, "end2").unwrap();
+    assert_eq!(a.repo.refd(end2, "reference"), Some(cm));
+    assert_eq!(a.repo.str(end2, "aggregation"), "shared", "the edited class is the whole");
+    let n = a.add_related(c, *acts.last().unwrap()).unwrap();
+    assert_eq!(a.repo.ty(n), "UMLNoteView");
+    let undo = a.undo.len();
+    a.add_related(c, sub);
+    assert_eq!(a.undo.len(), undo + 1, "one undo step");
+    assert!(!actions("UMLUseCase").is_empty() && !actions("UMLActor").is_empty() && !actions("UMLPackage").is_empty());
+}
