@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- UMLCraft installer (WiX Toolset v5). Built by packaging/windows/package.ps1. -->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="UMLCraft" Manufacturer="UMLCraft" Version="$(var.Version)" UpgradeCode="{9D6D659E-A9E6-4E7C-9492-28E8385935E6}" Scope="perMachine" Language="1033">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of UMLCraft is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Icon Id="AppIcon" SourceFile="$(var.IconFile)" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/BurkhalterY/umlcraft" />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="UMLCraft" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Component Id="MainExecutable">
+        <File Id="UmlcraftExe" Source="$(var.ExePath)" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="UMLCraft" Description="UML modeler" Icon="AppIcon" WorkingDirectory="INSTALLFOLDER" Advertise="yes" />
+        </File>
+        <ProgId Id="UMLCraft.mdj" Description="UML Model" Icon="AppIcon" Advertise="yes">
+          <Extension Id="mdj" ContentType="application/json">
+            <Verb Id="open" Command="Open" Argument="&quot;%1&quot;" />
+          </Extension>
+        </ProgId>
+      </Component>
+      <Component Id="Readme">
+        <File Id="ReadmeFile" Source="$(var.ReadmePath)" Name="README.md" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="UMLCraft" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+    </Feature>
+  </Package>
+</Wix>
