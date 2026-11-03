@@ -431,6 +431,9 @@ impl App {
             "UMLParameter" => "Parameter",
             "UMLClassDiagram" => "ClassDiagram",
             "UMLUseCaseDiagram" => "UseCaseDiagram",
+            "UMLPackageDiagram" => "PackageDiagram",
+            "UMLProfile" => "Profile",
+            "UMLStereotype" => "Stereotype",
             other => other.trim_start_matches("UML"),
         };
         let names: HashSet<String> = self.repo.children(parent).into_iter().map(|(_, c)| self.repo.name(c)).collect();

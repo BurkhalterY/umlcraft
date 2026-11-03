@@ -1486,3 +1486,24 @@ fn recent_files() {
     assert_eq!(a.recent_files().len(), 10);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn package_diagrams_and_more_kinds() {
+    let mut a = App::new(None);
+    let model = a.repo.children(a.repo.root)[0].1;
+    let d = a.change(|a| a.add_diagram(Some(model), "UMLPackageDiagram"));
+    assert_eq!(a.repo.name(d), "PackageDiagram1");
+    let p1 = a.change(|a| a.create_node("UMLPackage", rect(40.0, 40.0, 140.0, 100.0))).unwrap();
+    let p2 = a.change(|a| a.create_node("UMLPackage", rect(300.0, 40.0, 140.0, 100.0))).unwrap();
+    let dep = a.change(|a| a.create_edge(&tool("UMLDependency", AssocInit::Plain), p1, p2));
+    assert!(dep.is_some());
+    let prof = a.add_model(model, "UMLProfile");
+    assert_eq!(a.repo.name(prof), "Profile1");
+    let st = a.add_model(prof, "UMLStereotype");
+    assert_eq!(a.repo.name(st), "Stereotype1");
+    // a stereotype of the profile is linked by name in inline expressions
+    let c = a.add_model(model, "UMLClass");
+    crate::parse::apply_name(&mut a.repo, c, "<<Stereotype1>> C");
+    assert_eq!(a.repo.refd(c, "stereotype"), Some(st));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

@@ -69,7 +69,9 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLConstraint", Some("UMLModelElement"), vec![("specification", d(json!(""))), ("constrainedElements", n())]);
     def("UMLPackage", Some("UMLModelElement"), vec![("importedElements", n())]);
     def("UMLModel", Some("UMLPackage"), vec![("viewpoint", d(json!("")))]);
+    def("UMLProfile", Some("UMLPackage"), vec![]);
     def("UMLClass", Some("UMLClassifier"), vec![("isActive", d(json!(false)))]);
+    def("UMLStereotype", Some("UMLClass"), vec![("icon", n())]);
     def("UMLInterface", Some("UMLClassifier"), vec![]);
     def("UMLSignal", Some("UMLClassifier"), vec![]);
     def("UMLDataType", Some("UMLClassifier"), vec![]);
@@ -94,6 +96,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLDiagram", Some("Diagram"), vec![]);
     def("UMLClassDiagram", Some("UMLDiagram"), vec![]);
     def("UMLUseCaseDiagram", Some("UMLDiagram"), vec![]);
+    def("UMLPackageDiagram", Some("UMLDiagram"), vec![]);
 
     // UML views
     def("UMLCompartmentView", Some("NodeView"), vec![]);

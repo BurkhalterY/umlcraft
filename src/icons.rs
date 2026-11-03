@@ -26,7 +26,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLUseCase" => "usecase",
         "UMLActor" => "actor",
         "UMLUseCaseSubject" => "subject",
-        "UMLClassDiagram" => "diagram-class",
+        "UMLClassDiagram" | "UMLPackageDiagram" => "diagram-class",
         "UMLUseCaseDiagram" => "diagram-usecase",
         "UMLAssociation" => "association",
         "UMLAssociationEnd" => "end",

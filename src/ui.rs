@@ -42,6 +42,7 @@ const fn line(label: &'static str, kind: &'static str, icon: &'static str, init:
     Tool { label, kind, icon, line: true, init }
 }
 
+#[derive(Clone, Copy)]
 pub struct Group {
     pub id: &'static str,
     pub label: &'static str,
@@ -108,6 +109,11 @@ const USECASE_GROUPS: &[Group] = &[
     ANNOTATIONS,
 ];
 const OTHER_GROUPS: &[Group] = &[ANNOTATIONS];
+// a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
+const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
+
+/// Model › Add Diagram, for the diagram kinds UMLCraft edits.
+const DIAGRAM_KINDS: [(&str, &str); 3] = [("Class Diagram", "UMLClassDiagram"), ("Package Diagram", "UMLPackageDiagram"), ("Use Case Diagram", "UMLUseCaseDiagram")];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
 /// priorities from the UML metamodel; kinds without one, such as diagrams, come first).
@@ -269,16 +275,19 @@ impl App {
         }
     }
 
-    fn model_menu(&mut self, ui: &mut egui::Ui, e: Eid) {
-        let t = self.repo.ty(e).to_string();
-        let is_pkg = self.repo.kind_of(e, "UMLPackage") || t == "Project";
-        let is_classifier = self.repo.kind_of(e, "UMLClassifier");
-        let mut adds: Vec<(&str, &str, bool)> = vec![];
-        if is_pkg {
+    /// What Model › Add offers under an element: (label, type, is a feature).
+    fn add_kinds(&self, e: Eid) -> Vec<(&'static str, &'static str, bool)> {
+        let t = self.repo.ty(e);
+        let mut adds = vec![];
+        if self.repo.kind_of(e, "UMLPackage") || t == "Project" {
             if t == "Project" {
                 adds.push(("Model", "UMLModel", false));
             }
-            for (l, k) in [("Package", "UMLPackage"), ("Class", "UMLClass"), ("Interface", "UMLInterface"), ("Enumeration", "UMLEnumeration"), ("DataType", "UMLDataType"), ("Actor", "UMLActor"), ("Use Case", "UMLUseCase")] {
+            for (l, k) in [
+                ("Package", "UMLPackage"), ("Profile", "UMLProfile"), ("Class", "UMLClass"), ("Interface", "UMLInterface"), ("Signal", "UMLSignal"),
+                ("DataType", "UMLDataType"), ("PrimitiveType", "UMLPrimitiveType"), ("Enumeration", "UMLEnumeration"), ("Stereotype", "UMLStereotype"),
+                ("Actor", "UMLActor"), ("Use Case", "UMLUseCase"),
+            ] {
                 adds.push((l, k, false));
             }
         }
@@ -287,21 +296,35 @@ impl App {
                 adds.push((l, k, true));
             }
         }
-        if !adds.is_empty() {
-            ui.menu_button("Add", |ui| {
-                for (l, k, feature) in adds {
-                    if ui.button(l).clicked() {
-                        let created = self.change(|a| if feature { a.add_feature(e, k) } else { Some(a.add_model(e, k)) });
-                        self.expanded.insert(e);
-                        self.focus = created;
-                        ui.close();
-                    }
+        adds
+    }
+
+    /// The items of an Add submenu for an element.
+    fn add_items(&mut self, ui: &mut egui::Ui, e: Eid) {
+        for (l, k, feature) in self.add_kinds(e) {
+            if ui.button(l).clicked() {
+                let created = self.change(|a| if feature { a.add_feature(e, k) } else { Some(a.add_model(e, k)) });
+                self.expanded.insert(e);
+                self.focus = created;
+                if let Some(c) = created {
+                    self.reveal(c);
                 }
-            });
+                ui.close();
+            }
+        }
+    }
+
+    fn model_menu(&mut self, ui: &mut egui::Ui, e: Eid) {
+        let t = self.repo.ty(e).to_string();
+        let is_pkg = self.repo.kind_of(e, "UMLPackage") || t == "Project";
+        let is_classifier = self.repo.kind_of(e, "UMLClassifier");
+        let adds = self.add_kinds(e);
+        if !adds.is_empty() {
+            ui.menu_button("Add", |ui| self.add_items(ui, e));
         }
         if is_pkg || is_classifier {
             ui.menu_button("Add Diagram", |ui| {
-                for (l, k) in [("Class Diagram", "UMLClassDiagram"), ("Use Case Diagram", "UMLUseCaseDiagram")] {
+                for (l, k) in DIAGRAM_KINDS {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
                         self.expanded.insert(e);
@@ -799,6 +822,7 @@ impl App {
             match dty.as_deref() {
                 Some("UMLClassDiagram") => self.open_groups.insert("class"),
                 Some("UMLUseCaseDiagram") => self.open_groups.insert("usecase"),
+                Some("UMLPackageDiagram") => self.open_groups.insert("package"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -818,6 +842,7 @@ impl App {
         let groups: &[Group] = match self.diagram.map(|d| self.repo.ty(d).to_string()).as_deref() {
             Some("UMLClassDiagram") => CLASS_GROUPS,
             Some("UMLUseCaseDiagram") => USECASE_GROUPS,
+            Some("UMLPackageDiagram") => PACKAGE_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],
         };
@@ -1060,16 +1085,20 @@ impl App {
                 self.alignment_menu(ui);
             });
             ui.menu_button("Model", |ui| {
-                if ui.button("Add Class Diagram").clicked() {
-                    let f = self.focus;
-                    self.change(|a| a.add_diagram(f, "UMLClassDiagram"));
-                    ui.close();
-                }
-                if ui.button("Add Use Case Diagram").clicked() {
-                    let f = self.focus;
-                    self.change(|a| a.add_diagram(f, "UMLUseCaseDiagram"));
-                    ui.close();
-                }
+                // Model › Add and Add Diagram act on the focused element (or the project)
+                let target = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f)).unwrap_or(self.repo.root);
+                ui.add_enabled_ui(!self.add_kinds(target).is_empty(), |ui| {
+                    ui.menu_button("Add", |ui| self.add_items(ui, target));
+                });
+                ui.menu_button("Add Diagram", |ui| {
+                    for (l, k) in DIAGRAM_KINDS {
+                        if ui.button(l).clicked() {
+                            let f = self.focus;
+                            self.change(|a| a.add_diagram(f, k));
+                            ui.close();
+                        }
+                    }
+                });
                 ui.separator();
                 for (label, ty) in [("Add Attribute", "UMLAttribute"), ("Add Operation", "UMLOperation"), ("Add Literal", "UMLEnumerationLiteral")] {
                     let ok = self.focus.map(|f| self.can_add_feature(f, ty)).unwrap_or(false);
