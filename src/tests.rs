@@ -1207,3 +1207,32 @@ fn realization_lines() {
     let m = a.repo.refd(e, "model").unwrap();
     assert_eq!(a.repo.refd(m, "source"), a.repo.refd(c1, "model"));
 }
+
+#[test]
+fn colours_apply_to_the_selected_views() {
+    use crate::render::Rgba;
+    let mut a = App::new(None);
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(240.0, 40.0, 100.0, 60.0))).unwrap();
+    a.select(vec![c1, c2]);
+    assert_eq!(a.color_state("fillColor"), Some(Rgba(255, 255, 255, 255)));
+    let undo = a.undo.len();
+    a.set_color("fillColor", Rgba(255, 0, 0, 255));
+    a.set_color("fillColor", Rgba(250, 10, 0, 255));
+    assert_eq!(a.undo.len(), undo + 1, "a picker drag is one undo step");
+    assert_eq!(a.repo.str(c1, "fillColor"), "#fa0a00");
+    a.select(vec![c1]);
+    a.style_edit = None;
+    a.set_color("fillColor", Rgba(0, 0, 255, 255));
+    a.select(vec![c1, c2]);
+    assert_eq!(a.color_state("fillColor"), None, "mixed");
+    a.do_undo();
+    assert_eq!(a.repo.str(c1, "fillColor"), "#fa0a00");
+    // Ctrl+Shift+L opens the line colour window, and is not taken as Ctrl+L
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let ev = egui::Event::Key { key: egui::Key::L, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::COMMAND | egui::Modifiers::SHIFT };
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+    out.textures_delta.clear();
+    assert_eq!(a.color_dialog, Some("lineColor"));
+}

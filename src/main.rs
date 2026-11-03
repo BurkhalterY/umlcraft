@@ -13,6 +13,7 @@ mod meta;
 mod model;
 mod parse;
 mod render;
+mod style;
 mod ui;
 mod views;
 #[cfg(test)]

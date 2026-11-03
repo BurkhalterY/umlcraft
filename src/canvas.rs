@@ -1453,6 +1453,8 @@ impl App {
             self.line_style_menu(ui);
         }
         ui.menu_button("Format", |ui| {
+            self.color_menus(ui);
+            ui.separator();
             self.format_toggles(ui);
             ui.separator();
             self.alignment_menu(ui);

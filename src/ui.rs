@@ -559,6 +559,18 @@ impl App {
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             Frame::NONE.inner_margin(Margin { left: 13, right: 13, top: 0, bottom: 10 }).show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
+                // Styles comes first and only shows for a view selection (style-editor-view.js:666-668)
+                let views_selected = self.selection.iter().any(|v| self.repo.alive(*v));
+                if views_selected {
+                    if section_header(ui, "Styles", self.style_open) {
+                        self.style_open = !self.style_open;
+                    }
+                    if self.style_open {
+                        self.style_ui(ui);
+                        ui.add_space(6.0);
+                    }
+                    ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER));
+                }
                 if section_header(ui, "Properties", focus.is_some() && self.props_open) && focus.is_some() {
                     self.props_open = !self.props_open;
                 }
@@ -900,6 +912,7 @@ impl App {
                 self.move_items(ui);
             });
             ui.menu_button("Format", |ui| {
+                self.color_menus(ui);
                 self.line_style_menu(ui);
                 self.format_toggles(ui);
                 ui.separator();
@@ -969,6 +982,92 @@ impl App {
                 }
             });
         });
+    }
+
+    /// The Style editor: colour swatches, line style, the show and suppress toggles, z-order and alignment.
+    fn style_ui(&mut self, ui: &mut egui::Ui) {
+        ui.spacing_mut().item_spacing.y = 4.0;
+        ui.horizontal(|ui| {
+            for (field, label) in crate::style::COLORS {
+                if self.color_views(field).is_empty() {
+                    continue;
+                }
+                self.color_swatch(ui, field, label);
+                ui.label(egui::RichText::new(label.trim_end_matches(" Color")).size(12.0).color(DIM));
+                ui.add_space(6.0);
+            }
+        });
+        if self.selection.iter().any(|v| self.repo.alive(*v) && views::is_edge(&self.repo, *v)) {
+            ui.horizontal(|ui| {
+                let cur = self.line_style_state();
+                for (style, label) in [(0, "Rectilinear"), (1, "Oblique"), (2, "Rounded"), (3, "Curve")] {
+                    if ui.radio(cur == Some(style), egui::RichText::new(label).size(12.0)).clicked() {
+                        self.set_line_style(style);
+                    }
+                }
+            });
+        }
+        for (field, label) in FORMAT_TOGGLES {
+            if self.flag_views(field).is_empty() {
+                continue;
+            }
+            let mut on = self.flag_state(field) == Some(true);
+            let short = label.split("  ").next().unwrap_or(label).trim();
+            if ui.checkbox(&mut on, egui::RichText::new(short).size(12.0)).clicked() {
+                self.toggle_flag(field);
+            }
+        }
+        ui.horizontal_wrapped(|ui| {
+            let small = |t: &str| egui::Button::new(egui::RichText::new(t).size(11.0)).fill(HOVER_ROW).stroke(Stroke::new(1.0, INPUT_BORDER));
+            if ui.add(small("Back")).on_hover_text("Send To Back").clicked() {
+                self.reorder(false);
+            }
+            if ui.add(small("Front")).on_hover_text("Bring To Front").clicked() {
+                self.reorder(true);
+            }
+            for (how, label, short) in [
+                (crate::align::Align::Left, "Align Left", "L"),
+                (crate::align::Align::Center, "Align Center", "C"),
+                (crate::align::Align::Right, "Align Right", "R"),
+                (crate::align::Align::Top, "Align Top", "T"),
+                (crate::align::Align::Middle, "Align Middle", "M"),
+                (crate::align::Align::Bottom, "Align Bottom", "B"),
+                (crate::align::Align::SpaceH, "Space Equally, Horizontally", "↔"),
+                (crate::align::Align::SpaceV, "Space Equally, Vertically", "↕"),
+                (crate::align::Align::Width, "Set Width Equally", "W"),
+                (crate::align::Align::Height, "Set Height Equally", "H"),
+                (crate::align::Align::Size, "Set Size Equally", "S"),
+            ] {
+                if ui.add(small(short)).on_hover_text(label).clicked() {
+                    self.align(how);
+                }
+            }
+        });
+    }
+
+    /// A colour swatch that opens a colour picker; a mixed selection shows a transparent swatch.
+    fn color_swatch(&mut self, ui: &mut egui::Ui, field: &str, label: &str) {
+        let cur = self.color_state(field);
+        let mut c = cur.map(|c| Color32::from_rgb(c.0, c.1, c.2)).unwrap_or(Color32::TRANSPARENT);
+        let r = egui::color_picker::color_edit_button_srgba(ui, &mut c, egui::color_picker::Alpha::Opaque).on_hover_text(label);
+        if r.changed() {
+            self.set_color(field, crate::render::Rgba(c.r(), c.g(), c.b(), 255));
+        }
+    }
+
+    /// Format > Fill Color and Line Color: a colour picker on the selected views (default-commands.js:966-991).
+    pub(crate) fn color_menus(&mut self, ui: &mut egui::Ui) {
+        for (field, label) in crate::style::COLORS.into_iter().take(2) {
+            ui.add_enabled_ui(!self.color_views(field).is_empty(), |ui| {
+                ui.menu_button(label, |ui| {
+                    let cur = self.color_state(field).unwrap_or(crate::render::Rgba(255, 255, 255, 255));
+                    let mut c = Color32::from_rgb(cur.0, cur.1, cur.2);
+                    if egui::color_picker::color_picker_color32(ui, &mut c, egui::color_picker::Alpha::Opaque) {
+                        self.set_color(field, crate::render::Rgba(c.r(), c.g(), c.b(), 255));
+                    }
+                });
+            });
+        }
     }
 
     /// Format > Line Style, with a check on the style the selected lines share (default-commands.js:993-1011, 1337-1342).
@@ -1089,6 +1188,11 @@ impl App {
         let hit = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
         // Ctrl+Shift toggles first: a Ctrl shortcut also matches when Shift is held (Ctrl+N, Ctrl+A…)
         if !typing {
+            for (key, field) in [(Key::I, "fillColor"), (Key::L, "lineColor")] {
+                if hit(sc(cs, key)) && !self.color_views(field).is_empty() {
+                    self.color_dialog = Some(field);
+                }
+            }
             for (key, field) in [(Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::T, "suppressLiterals")] {
                 if hit(sc(cs, key)) {
                     self.toggle_flag(field);
@@ -1297,6 +1401,7 @@ impl App {
             });
         }
         self.diagram_picker_ui(ctx);
+        self.color_dialog_ui(ctx);
         if let Some((title, detail)) = self.message.clone() {
             egui::Window::new(title).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
                 ui.label(detail);
@@ -1357,6 +1462,27 @@ impl App {
             self.diagram_picker = None;
         } else {
             self.diagram_picker = Some((views, chosen));
+        }
+    }
+
+    /// The colour window of Format > Fill Color (Ctrl+Shift+I) and Line Color (Ctrl+Shift+L): the merged
+    /// colour of the selection, applied as it changes (default-commands.js:966-991).
+    fn color_dialog_ui(&mut self, ctx: &egui::Context) {
+        let Some(field) = self.color_dialog else { return };
+        let label = crate::style::COLORS.iter().find(|c| c.0 == field).map(|c| c.1).unwrap_or("Color");
+        let mut close = false;
+        egui::Window::new(label).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            let cur = self.color_state(field).unwrap_or(crate::render::Rgba(255, 255, 255, 255));
+            let mut c = Color32::from_rgb(cur.0, cur.1, cur.2);
+            if egui::color_picker::color_picker_color32(ui, &mut c, egui::color_picker::Alpha::Opaque) {
+                self.set_color(field, crate::render::Rgba(c.r(), c.g(), c.b(), 255));
+            }
+            if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
+                close = true;
+            }
+        });
+        if close || self.color_views(field).is_empty() {
+            self.color_dialog = None;
         }
     }
 

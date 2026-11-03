@@ -123,6 +123,7 @@ pub struct App {
     pub prop_for: Option<Eid>,
     pub doc_buf: String,
     pub props_open: bool,
+    pub style_open: bool,
     pub doc_open: bool,
     pub last_area: Area,
     pub ctx_target: Option<Eid>,
@@ -154,6 +155,10 @@ pub struct App {
     pub clipboard: Option<String>,
     /// The system clipboard, kept open: on Linux an image copied to it is served while it lives.
     pub sys_clipboard: Option<arboard::Clipboard>,
+    /// The colour field last changed and when, so a picker drag is one undo step.
+    pub style_edit: Option<(String, std::time::Instant)>,
+    /// The colour window opened by Ctrl+Shift+I or Ctrl+Shift+L: the field it edits.
+    pub color_dialog: Option<&'static str>,
 }
 
 impl App {
@@ -187,6 +192,7 @@ impl App {
             prop_for: None,
             doc_buf: String::new(),
             props_open: true,
+            style_open: true,
             doc_open: true,
             last_area: Area::Other,
             ctx_target: None,
@@ -211,6 +217,8 @@ impl App {
             diagram_picker: None,
             clipboard: None,
             sys_clipboard: None,
+            style_edit: None,
+            color_dialog: None,
         };
         a.set_project(Repo::blank(), None);
         a
