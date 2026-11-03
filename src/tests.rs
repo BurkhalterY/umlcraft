@@ -1340,3 +1340,53 @@ fn explorer_keys_and_settings() {
     a.tree_keys((false, true, false, false));
     assert_eq!(a.focus, Some(model), "Down");
 }
+
+#[test]
+fn preferences_and_working_diagrams_survive_a_restart() {
+    let ms = measure();
+    let dir = std::env::temp_dir().join(format!("umlcraft-prefs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let prefs_path = dir.join("preferences.json");
+    let file = dir.join("model.mdj");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    let mut a = App::new(None);
+    a.prefs = crate::prefs::Prefs::load(Some(prefs_path.clone()));
+    a.apply_prefs();
+    assert!(a.show_grid && a.snap && a.show_stereotype);
+    a.show_grid = false;
+    a.sort_by_name = true;
+    a.show_navigator = false;
+    a.store_prefs();
+    assert!(prefs_path.exists());
+    let d1 = a.diagram.unwrap();
+    let d2 = a.add_diagram(None, "UMLClassDiagram");
+    let d3 = a.add_diagram(None, "UMLUseCaseDiagram");
+    a.close_diagram(Some(d1));
+    a.open_diagram(d2);
+    assert!(a.save_to(file.clone(), &ms));
+    let (id2, id3) = (a.repo.id(d2), a.repo.id(d3));
+
+    let mut b = App::new(None);
+    b.prefs = crate::prefs::Prefs::load(Some(prefs_path.clone()));
+    b.apply_prefs();
+    assert!(!b.show_grid && b.sort_by_name && !b.show_navigator);
+    b.open_path(file.clone());
+    let ids: Vec<String> = b.open.iter().map(|d| b.repo.id(*d)).collect();
+    assert!(ids.starts_with(&[id2.clone(), id3]), "the working diagrams come back in order: {ids:?}");
+    assert_eq!(b.diagram.map(|d| b.repo.id(d)), Some(id2), "and the current one");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn every_default_diagram_opens() {
+    let mut a = App::new(None);
+    let d1 = a.diagram.unwrap();
+    let d2 = a.add_diagram(None, "UMLUseCaseDiagram");
+    a.repo.set(d2, "defaultDiagram", json!(true));
+    let text = a.repo.serialize();
+    let mut b = App::new(None);
+    b.set_project(Repo::parse(&text).unwrap(), None);
+    assert_eq!(b.open.len(), 2);
+    assert_eq!(b.diagram.map(|d| b.repo.id(d)), Some(a.repo.id(d1)), "the first default is current");
+}

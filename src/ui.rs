@@ -1513,6 +1513,7 @@ impl App {
 
     fn cmd_new(&mut self, ms: &EguiMeasure) {
         if self.confirm_discard(ms) {
+            self.save_working_diagrams();
             self.set_project(crate::model::Repo::blank(), None);
         }
     }
@@ -1766,6 +1767,9 @@ impl App {
     }
 
     fn handle_close(&mut self, ctx: &egui::Context) {
+        if ctx.input(|i| i.viewport().close_requested()) {
+            self.save_working_diagrams();
+        }
         if ctx.input(|i| i.viewport().close_requested()) && self.modified && self.screenshot.is_none() && !self.quit_after_save {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             let ms = EguiMeasure { ctx: ctx.clone() };
@@ -1876,6 +1880,9 @@ impl eframe::App for App {
         self.take_pending_item();
         self.dialogs(&ctx);
         self.toasts_ui(&ctx);
+        if self.screenshot.is_none() {
+            self.store_prefs();
+        }
         self.screenshots(&ctx);
         let _ = R::default();
     }

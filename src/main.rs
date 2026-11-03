@@ -12,6 +12,7 @@ mod icons;
 mod meta;
 mod model;
 mod parse;
+mod prefs;
 mod render;
 mod style;
 mod ui;
@@ -172,7 +173,13 @@ fn main() -> eframe::Result {
         Box::new(move |cc| {
             setup_fonts(&cc.egui_ctx);
             setup_style(&cc.egui_ctx);
+            let shot = screenshot.is_some();
             let mut a = app::App::new(screenshot);
+            // screenshots start from the defaults, so they do not depend on this machine's settings
+            if !shot {
+                a.prefs = prefs::Prefs::load(prefs::default_path());
+                a.apply_prefs();
+            }
             if let Some(f) = file {
                 a.open_path(f);
             }

@@ -163,6 +163,7 @@ pub struct App {
     pub color_dialog: Option<&'static str>,
     /// The Font window (Ctrl+Shift+F): face and size as typed, and the text colour.
     pub font_dialog: Option<(String, String, Option<crate::render::Rgba>)>,
+    pub prefs: crate::prefs::Prefs,
 }
 
 impl App {
@@ -225,6 +226,7 @@ impl App {
             style_edit: None,
             color_dialog: None,
             font_dialog: None,
+            prefs: crate::prefs::Prefs::default(),
         };
         a.set_project(Repo::blank(), None);
         a
@@ -242,10 +244,11 @@ impl App {
         self.drag = None;
         self.editing = None;
         self.info.clear();
+        // every default diagram opens and the first becomes current; with none, the first diagram (app-context.js:987-999)
         let diagrams = self.repo.all_of("Diagram");
-        let d = diagrams.iter().copied().find(|d| self.repo.bool(*d, "defaultDiagram")).or(diagrams.first().copied());
-        self.diagram = d;
-        self.open = d.into_iter().collect();
+        let defaults: Vec<Eid> = diagrams.iter().copied().filter(|d| self.repo.bool(*d, "defaultDiagram")).collect();
+        self.open = if defaults.is_empty() { diagrams.first().copied().into_iter().collect() } else { defaults };
+        self.diagram = self.open.first().copied();
         self.focus = None;
         self.zoom = 1.0;
         self.scroll = P::default();
@@ -272,7 +275,11 @@ impl App {
 
     pub fn open_path(&mut self, p: PathBuf) {
         match std::fs::read_to_string(&p).map_err(|e| e.to_string()).and_then(|t| Repo::parse(&t)) {
-            Ok(repo) => self.set_project(repo, Some(p)),
+            Ok(repo) => {
+                self.save_working_diagrams();
+                self.set_project(repo, Some(p));
+                self.restore_working_diagrams();
+            }
             Err(e) => self.message = Some(("Failed to open the file.".into(), e)),
         }
     }
@@ -296,6 +303,7 @@ impl App {
             Ok(_) => {
                 self.filename = Some(p);
                 self.modified = false;
+                self.save_working_diagrams();
                 true
             }
             Err(e) => {
