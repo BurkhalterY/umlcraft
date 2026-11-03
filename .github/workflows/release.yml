@@ -1,0 +1,217 @@
+name: Release
+
+# Builds every installer: Windows (MSI + portable zip, x64 and arm64), macOS (universal DMG + zip),
+# Linux (AppImage, deb, rpm, tar.gz, x86_64 and aarch64) and FreeBSD (pkg + tar.gz).
+# A push to the `release` branch or a `v*` tag also publishes them as a GitHub Release;
+# a manual run only builds them and keeps them as workflow artifacts.
+
+on:
+  push:
+    branches: [release]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version override for a test run, e.g. 0.2.0-rc.1 (empty: Cargo.toml)"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve version
+        id: v
+        env:
+          OVERRIDE: ${{ inputs.version }}
+        run: |
+          if [ -n "$OVERRIDE" ]; then v="$OVERRIDE"
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF#refs/tags/v}"
+          else v="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Version: $v"
+
+  linux:
+    name: Linux ${{ matrix.arch }}
+    needs: version
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x86_64, runner: ubuntu-22.04 }
+          - { arch: aarch64, runner: ubuntu-22.04-arm }
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux-${{ matrix.arch }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libgtk-3-dev libxkbcommon-dev libwayland-dev \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libgl1-mesa-dev fonts-liberation \
+            desktop-file-utils file
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/appimagetool.AppImage" \
+            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${{ matrix.arch }}.AppImage"
+          chmod +x "$HOME/.local/bin/appimagetool.AppImage"
+          printf '#!/bin/sh\nexec "%s/.local/bin/appimagetool.AppImage" --appimage-extract-and-run "$@"\n' "$HOME" > "$HOME/.local/bin/appimagetool"
+          chmod +x "$HOME/.local/bin/appimagetool"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Test
+        run: cargo test --release
+      - name: Build and package (AppImage, deb, rpm, tar.gz)
+        run: packaging/linux/package.sh
+      - name: Check the packages
+        run: |
+          desktop-file-validate packaging/linux/io.github.burkhaltery.UMLCraft.desktop
+          ls dist/release/*.AppImage dist/release/*.deb dist/release/*.rpm dist/release/*.tar.gz
+          dpkg-deb --info dist/release/*.deb
+          file dist/release/*.AppImage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux-${{ matrix.arch }}
+          path: dist/release/*
+          if-no-files-found: error
+
+  macos:
+    name: macOS universal
+    needs: version
+    runs-on: macos-14
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: macos
+      - name: Import signing certificate
+        if: env.APPLE_CERTIFICATE != ''
+        run: packaging/macos/import-cert.sh
+      - name: Build, sign, package (DMG, zip)
+        run: packaging/macos/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: dist/release/*
+          if-no-files-found: error
+      - name: Remove temporary keychain
+        if: always() && env.APPLE_CERTIFICATE != ''
+        run: security delete-keychain "$RUNNER_TEMP/umlcraft-signing.keychain-db" || true
+
+  windows:
+    name: Windows ${{ matrix.arch }}
+    needs: version
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: x64, runner: windows-latest }
+          - { arch: arm64, runner: windows-11-arm }
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-${{ matrix.arch }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Install WiX
+        run: dotnet tool install --global wix --version 5.0.2
+      - name: Build, sign, package (MSI, portable zip)
+        shell: pwsh
+        run: ./packaging/windows/package.ps1 -Arch ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows-${{ matrix.arch }}
+          path: dist/release/*
+          if-no-files-found: error
+
+  freebsd:
+    name: FreeBSD x86_64
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and package in a FreeBSD VM (pkg, tar.gz)
+        uses: vmactions/freebsd-vm@v1
+        with:
+          envs: VERSION
+          usesh: true
+          prepare: pkg install -y bash rust pkgconf gtk3 libxkbcommon mesa-libs fontconfig
+          run: bash packaging/freebsd/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-freebsd-x86_64
+          path: dist/release/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: [version, linux, macos, windows, freebsd]
+    if: github.ref == 'refs/heads/release' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Create the release
+        run: |
+          tag="v$VERSION"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/* --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "UMLCraft $VERSION" --generate-notes
+          fi

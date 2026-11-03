@@ -1017,7 +1017,7 @@ impl App {
     fn dialogs(&mut self, ctx: &egui::Context) {
         if self.about_open {
             egui::Window::new("About UMLCraft").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
-                ui.label("UMLCraft 0.1.0");
+                ui.label(concat!("UMLCraft ", env!("CARGO_PKG_VERSION")));
                 ui.label("A UML modeler for class and use case diagrams that opens and saves .mdj model files.");
                 ui.label("Written in Rust with egui. The source code is in the app folder of this project; its README lists every file.");
                 if ui.button("OK").clicked() {
