@@ -853,7 +853,7 @@ impl App {
                 Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: 19.0 },
                 _ => R { x: mid.x - 50.0, y: mid.y - 10.0, w: 100.0, h: 19.0 },
             };
-            self.editing = Some(Editing { kind: EditKind::Name(m), text: self.repo.name(m), rect, multiline: false, center: true, fresh: true, host: None });
+            self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: None });
             return;
         }
         if let Some(iv) = p.and_then(|p| self.row_at(v, p)) {
@@ -866,7 +866,7 @@ impl App {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
         };
-        self.editing = Some(Editing { kind: EditKind::Name(m), text: self.repo.name(m), rect, multiline: false, center: true, fresh: true, host: Some(v) });
+        self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: Some(v) });
     }
 
     /// Open the inline edit on one compartment row (an attribute, operation or literal label).
@@ -1025,8 +1025,8 @@ impl App {
                 }
             }
             EditKind::Name(m) => {
-                if self.repo.alive(m) && self.repo.name(m) != e.text {
-                    self.change(|a| a.repo.set(m, "name", json!(e.text)));
+                if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
+                    self.change(|a| crate::parse::apply_name(&mut a.repo, m, &e.text));
                 }
             }
             EditKind::Feature(f) => {

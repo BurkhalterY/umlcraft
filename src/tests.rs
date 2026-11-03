@@ -848,3 +848,54 @@ fn inline_editor_keys_through_frames() {
     assert!(a.editing.is_none());
     assert_eq!(a.repo.str(n, "text"), "one\ntwo");
 }
+
+#[test]
+fn name_and_stereotype_expressions() {
+    use crate::parse::{apply_attribute, apply_name, apply_operation, name_text};
+    let mut a = App::new(None);
+    let model = a.repo.children(a.repo.root)[0].1;
+    let c = a.add_model(model, "UMLClass");
+    let order = a.add_model(model, "UMLClass");
+    a.repo.set(order, "name", json!("Order"));
+    apply_name(&mut a.repo, c, "<<entity>> #Customer");
+    assert_eq!(a.repo.name(c), "Customer");
+    assert_eq!(a.repo.str(c, "stereotype"), "entity");
+    assert_eq!(a.repo.str(c, "visibility"), "protected");
+    assert_eq!(name_text(&a.repo, c), "<<entity>> Customer");
+    // an existing stereotype is linked; no stereotype clears it
+    let st = a.add_model(model, "UMLStereotype");
+    a.repo.set(st, "name", json!("entity"));
+    apply_name(&mut a.repo, c, "«entity» Customer");
+    assert_eq!(a.repo.refd(c, "stereotype"), Some(st));
+    apply_name(&mut a.repo, c, "Customer");
+    assert!(!a.repo.has(c, "stereotype"));
+    // attributes and operations: stereotype, and a type naming a classifier is linked
+    let at = a.add_feature(c, "UMLAttribute").unwrap();
+    apply_attribute(&mut a.repo, at, "<<id>> -order: Order");
+    assert_eq!(a.repo.str(at, "stereotype"), "id");
+    assert_eq!(a.repo.refd(at, "type"), Some(order));
+    assert_eq!(crate::views::attribute_text(&a.repo, at, true), "«id» -order: Order");
+    apply_attribute(&mut a.repo, at, "«id» -order: int");
+    assert_eq!(a.repo.str(at, "type"), "int");
+    let op = a.add_feature(c, "UMLOperation").unwrap();
+    apply_operation(&mut a.repo, op, "<<query>> +total(o: Order): int");
+    assert_eq!(a.repo.str(op, "stereotype"), "query");
+    let p = a.repo.list(op, "parameters")[0];
+    assert_eq!(a.repo.refd(p, "type"), Some(order));
+}
+
+#[test]
+fn operation_parameters_follow_their_position() {
+    let mut a = App::new(None);
+    let model = a.repo.children(a.repo.root)[0].1;
+    let c = a.add_model(model, "UMLClass");
+    let op = a.add_feature(c, "UMLOperation").unwrap();
+    crate::parse::apply_operation(&mut a.repo, op, "f(a: int, b: int): int");
+    let ps = a.repo.list(op, "parameters");
+    crate::parse::apply_operation(&mut a.repo, op, "f(x: long, b: int): int");
+    let ps2 = a.repo.list(op, "parameters");
+    assert_eq!(ps, ps2, "renamed in place");
+    assert_eq!(a.repo.name(ps2[0]), "x");
+    crate::parse::apply_operation(&mut a.repo, op, "f");
+    assert!(a.repo.list(op, "parameters").is_empty(), "no parentheses, no parameters");
+}
