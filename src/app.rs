@@ -188,6 +188,8 @@ pub struct App {
     pub show_relationships: bool,
     /// View > Diagram Thumbnails: the panel under the diagram (view.diagramThumbnails.visibility).
     pub show_thumbnails: bool,
+    /// View > Minimap: the overview in the canvas corner (view.minimap.visibility, on by default).
+    pub show_minimap: bool,
     /// Give the keyboard back to the canvas on the next frame (after an inline edit closes).
     pub refocus_canvas: bool,
     /// When the last auto-backup was written.
@@ -278,6 +280,7 @@ impl App {
             show_validation: false,
             show_relationships: false,
             show_thumbnails: false,
+            show_minimap: true,
             refocus_canvas: false,
             last_backup: std::time::Instant::now(),
             print_open: false,

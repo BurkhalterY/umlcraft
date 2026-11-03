@@ -2103,3 +2103,21 @@ fn diagram_thumbnails() {
     a.open_from_thumb(d);
     assert_eq!((a.diagram, a.focus, a.scroll.x, a.scroll.y), (Some(d), Some(d), 0.0, 0.0));
 }
+
+#[test]
+fn minimap_toggle_is_remembered() {
+    let dir = std::env::temp_dir().join(format!("umlcraft-minimap-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut a = App::new(None);
+    a.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
+    a.apply_prefs();
+    assert!(a.show_minimap, "on by default");
+    a.show_minimap = false;
+    a.store_prefs();
+    let mut b = App::new(None);
+    b.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
+    b.apply_prefs();
+    assert!(!b.show_minimap);
+    let _ = std::fs::remove_dir_all(&dir);
+}

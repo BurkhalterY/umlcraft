@@ -1255,6 +1255,7 @@ impl App {
                 ui.checkbox(&mut self.show_grid, "Show Grid");
                 ui.checkbox(&mut self.snap, "Snap to Grid");
                 ui.separator();
+                ui.checkbox(&mut self.show_minimap, "Minimap               Ctrl+Alt+M");
                 ui.checkbox(&mut self.show_thumbnails, "Diagram Thumbnails  Ctrl+Alt+T");
                 ui.checkbox(&mut self.show_relationships, "Relationships     Ctrl+Alt+R");
                 ui.separator();
@@ -1643,6 +1644,9 @@ impl App {
         }
         if hit(sc(ca, Key::R)) {
             self.show_relationships = !self.show_relationships;
+        }
+        if hit(sc(ca, Key::M)) {
+            self.show_minimap = !self.show_minimap;
         }
         if hit(sc(ca, Key::T)) {
             self.show_thumbnails = !self.show_thumbnails;

@@ -91,6 +91,7 @@ impl App {
         self.style_open = p.bool("_viewState.styleEditor.visible", true);
         self.show_relationships = p.bool("view.relationships.visibility", false);
         self.show_thumbnails = p.bool("view.diagramThumbnails.visibility", false);
+        self.show_minimap = p.bool("view.minimap.visibility", true);
     }
 
     /// Record the current settings; the file is written only when they changed.
@@ -111,6 +112,7 @@ impl App {
             ("_viewState.styleEditor.visible", json!(self.style_open)),
             ("view.relationships.visibility", json!(self.show_relationships)),
             ("view.diagramThumbnails.visibility", json!(self.show_thumbnails)),
+            ("view.minimap.visibility", json!(self.show_minimap)),
         ];
         for (k, v) in vals {
             self.prefs.set(k, v);

@@ -437,7 +437,7 @@ impl App {
 
     fn draw_minimap(&self, painter: &Painter, rect: Rect, d: Eid, ctx: &egui::Context) {
         let m = Self::mini_rect(rect);
-        if m.left() < rect.left() + 10.0 || m.top() < rect.top() + 10.0 {
+        if !self.show_minimap || m.left() < rect.left() + 10.0 || m.top() < rect.top() + 10.0 {
             return;
         }
         painter.rect_filled(m.translate(Vec2::new(0.0, 2.0)).expand(2.0), 2.0, Color32::from_black_alpha(40));
@@ -620,7 +620,7 @@ impl App {
 
     pub(crate) fn on_press(&mut self, rect: Rect, pos: Pos2, mods: egui::Modifiers) {
         let p = self.to_diagram(rect.min, pos);
-        if Self::mini_rect(rect).contains(pos) && rect.width() > MINI_W + 40.0 {
+        if self.show_minimap && Self::mini_rect(rect).contains(pos) && rect.width() > MINI_W + 40.0 {
             self.drag = Some(Drag::Mini);
             self.mini_scroll(rect, pos);
             return;
