@@ -1130,3 +1130,41 @@ fn toolbox_lock_esc_and_text_on_double_click() {
     assert_eq!((a.repo.f(t, "left"), a.repo.f(t, "width")), (200.0, 100.0));
     assert!(matches!(a.editing.as_ref().map(|e| e.kind.clone()), Some(crate::app::EditKind::Text(x)) if x == t));
 }
+
+#[test]
+fn dragging_a_line_label_keeps_it_with_the_line() {
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    a.change(|a| a.repo.set(m, "name", json!("owns")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let l = a.repo.refd(e, "nameLabel").unwrap();
+    let b = crate::views::node_rect(&a.repo, l);
+    let at = Pos2::new((b.x + b.w / 2.0) as f32, (b.y + 6.0) as f32);
+    a.on_press(canvas, at, Modifiers::NONE);
+    assert!(matches!(a.drag, Some(crate::app::Drag::Label { .. })));
+    assert_eq!(a.selection, vec![e]);
+    a.on_move(canvas, at + egui::vec2(30.0, -20.0));
+    a.on_release(canvas.min, at + egui::vec2(30.0, -20.0));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let b2 = crate::views::node_rect(&a.repo, l);
+    assert!((b2.x - b.x - 30.0).abs() <= 1.0 && (b2.y - b.y + 20.0).abs() <= 1.0, "moved by the drag: {b:?} -> {b2:?}");
+    // the label follows when the line moves
+    a.change(|a| {
+        a.repo.set(c2, "top", json!(140));
+        a.repo.set(c1, "top", json!(140));
+    });
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let b3 = crate::views::node_rect(&a.repo, l);
+    assert!((b3.y - b2.y - 100.0).abs() <= 1.0);
+    a.do_undo();
+    a.do_undo();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(crate::views::node_rect(&a.repo, l).x, b.x, "one undo step");
+}

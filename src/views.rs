@@ -961,6 +961,46 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     out
 }
 
+/// The segment an edge label hangs on: head, tail or middle by its edgePosition; with an even number of
+/// points the middle anchor is the middle of the central segment (diagram-editor.js:2071-2097).
+pub fn label_anchor(r: &Repo, lv: Eid, pts: &[P]) -> (P, P) {
+    let n = pts.len();
+    match r.val(lv, "edgePosition").and_then(|v| v.as_i64()).unwrap_or(0) {
+        0 => (pts[n - 1], pts[n - 2]),
+        2 => (pts[0], pts[1]),
+        _ => {
+            let mut mi = n / 2;
+            if n % 2 == 0 {
+                mi -= 1;
+            }
+            let mut p1 = pts[mi];
+            let p2 = pts[mi + 1];
+            if n % 2 == 0 {
+                p1.x = ((p1.x + p2.x) / 2.0).floor();
+                p1.y = ((p1.y + p2.y) / 2.0).floor();
+            }
+            (p1, p2)
+        }
+    }
+}
+
+/// The alpha and distance that put a label's centre at `c`: the inverse of point_away_line
+/// (engine.js:754-795).
+pub fn label_polar(p1: P, p2: P, c: P) -> (f64, f64) {
+    let (vx, vy) = (c.x - p1.x, c.y - p1.y);
+    let dist = (vx * vx + vy * vy).sqrt();
+    let a = p1.x - p2.x;
+    let b = p1.y - p2.y;
+    let mut th = (b.abs() / (a.abs() + 0.000001)).atan();
+    if a > 0.0 {
+        th = if b > 0.0 { std::f64::consts::PI - th } else { th + std::f64::consts::PI };
+    } else if b < 0.0 {
+        th = 2.0 * std::f64::consts::PI - th;
+    }
+    let phi = (-vy).atan2(vx);
+    (phi - th, dist)
+}
+
 fn layout_edge_labels(r: &mut Repo, ms: &dyn Measure, e: Eid, pts: &[P]) {
     if pts.len() < 2 {
         return;
@@ -982,25 +1022,7 @@ fn layout_edge_labels(r: &mut Repo, ms: &dyn Measure, e: Eid, pts: &[P]) {
         let w = if t.is_empty() { 0.0 } else { ms.width(&t, 0) };
         r.set(lv, "width", num(w));
         r.set(lv, "height", json!(LABEL_H));
-        let pos = r.val(lv, "edgePosition").and_then(|v| v.as_i64()).unwrap_or(0);
-        let n = pts.len();
-        let (p1, p2) = match pos {
-            0 => (pts[n - 1], pts[n - 2]),
-            2 => (pts[0], pts[1]),
-            _ => {
-                let mut mi = n / 2;
-                if n % 2 == 0 {
-                    mi -= 1;
-                }
-                let mut p1 = pts[mi];
-                let p2 = pts[mi + 1];
-                if n % 2 == 0 {
-                    p1.x = ((p1.x + p2.x) / 2.0).floor();
-                    p1.y = ((p1.y + p2.y) / 2.0).floor();
-                }
-                (p1, p2)
-            }
-        };
+        let (p1, p2) = label_anchor(r, lv, pts);
         let d = point_away_line(p1, p2, r.f(lv, "alpha"), r.f(lv, "distance"));
         r.set(lv, "left", num(d.x + p1.x - (w / 2.0).floor()));
         r.set(lv, "top", num(d.y + p1.y - (LABEL_H / 2.0).floor()));

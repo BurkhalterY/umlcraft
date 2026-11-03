@@ -147,6 +147,25 @@ impl App {
         pts.windows(2).any(|w| dist_to_seg(p, w[0], w[1]) <= 5.0 / self.zoom)
     }
 
+    /// The visible label of a line under `p`, topmost first: (label, line).
+    fn hit_edge_label(&self, p: P) -> Option<(Eid, Eid)> {
+        let d = self.diagram?;
+        for e in self.repo.list(d, "ownedViews").into_iter().rev() {
+            if !is_edge(&self.repo, e) || matches!(self.repo.raw(e, "visible"), Some(serde_json::Value::Bool(false))) {
+                continue;
+            }
+            for l in self.repo.list(e, "subViews") {
+                if matches!(self.repo.raw(l, "visible"), Some(serde_json::Value::Bool(false)) | Some(serde_json::Value::Null)) || self.repo.str(l, "text").is_empty() {
+                    continue;
+                }
+                if in_rect(p, &node_rect(&self.repo, l)) {
+                    return Some((l, e));
+                }
+            }
+        }
+        None
+    }
+
     pub fn hit_view(&self, p: P, nodes_only: bool) -> Option<Eid> {
         let d = self.diagram?;
         let views = self.repo.list(d, "ownedViews");
@@ -630,6 +649,18 @@ impl App {
                 }
             }
         }
+        // a line's label can be dragged away from its line (diagram-editor.js:2051-2106)
+        if !mods.shift {
+            if let Some((label, edge)) = self.hit_edge_label(p) {
+                if !self.selection.contains(&edge) {
+                    self.select(vec![edge]);
+                }
+                let b = node_rect(&self.repo, label);
+                let orig = P { x: b.x + (b.w / 2.0).floor(), y: b.y + (views::LABEL_H / 2.0).floor() };
+                self.drag = Some(Drag::Label { label, edge, start: p, orig, changed: false });
+                return;
+            }
+        }
         let add = mods.shift;
         match self.hit_view(p, false) {
             None => {
@@ -866,6 +897,24 @@ impl App {
                     self.repo.set(*edge, "points", json!(views::format_points(&pts)));
                 }
             }
+            Drag::Label { label, edge, start, orig, changed } => {
+                let (dx, dy) = (p.x - start.x, p.y - start.y);
+                if !*changed && (dx * dx + dy * dy).sqrt() * self.zoom < 3.0 {
+                    self.drag = Some(drag);
+                    return;
+                }
+                if !*changed {
+                    self.checkpoint();
+                    *changed = true;
+                }
+                let pts = points_of(&self.repo, *edge);
+                if pts.len() >= 2 {
+                    let (p1, p2) = views::label_anchor(&self.repo, *label, &pts);
+                    let (alpha, distance) = views::label_polar(p1, p2, P { x: orig.x + dx, y: orig.y + dy });
+                    self.repo.set(*label, "alpha", json!(alpha));
+                    self.repo.set(*label, "distance", json!(distance));
+                }
+            }
             Drag::Reconnect { now, .. } => {
                 *now = p;
                 self.hover = self.hit_view(p, true);
@@ -989,7 +1038,7 @@ impl App {
                 }
                 self.done();
             }
-            Drag::Move { changed, .. } | Drag::Resize { changed, .. } | Drag::Point { changed, .. } | Drag::Segment { changed, .. } => {
+            Drag::Move { changed, .. } | Drag::Resize { changed, .. } | Drag::Point { changed, .. } | Drag::Segment { changed, .. } | Drag::Label { changed, .. } => {
                 if changed {
                     self.done();
                 }

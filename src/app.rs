@@ -51,6 +51,8 @@ pub enum Drag {
     Move { start: P, orig: Vec<(Eid, P)>, edges: Vec<(Eid, Vec<P>)>, lead: Option<Eid>, changed: bool, collapse: Option<Eid> },
     Resize { handle: usize, start: P, orig: R, view: Eid, changed: bool },
     Point { edge: Eid, index: usize, insert: Option<P>, changed: bool },
+    /// Dragging a line's label: its centre goes from `orig` by the mouse delta.
+    Label { label: Eid, edge: Eid, start: P, orig: P, changed: bool },
     /// Dragging the first (`tail`) or last point of a line to reconnect it.
     Reconnect { edge: Eid, tail: bool, now: P },
     /// Dragging a segment of a rectilinear line across: points `index` and `index + 1` move together.
