@@ -1194,3 +1194,16 @@ fn association_end_inline_edit_by_proximity() {
     a.edit_view(e, Some(crate::views::P { x: (pts[0].x + pts[1].x) / 2.0, y: pts[0].y }));
     assert_eq!(kind(&a), Some(EditKind::Name(m)), "the middle edits the association");
 }
+
+#[test]
+fn realization_lines() {
+    let mut a = App::new(None);
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(300.0, 40.0, 100.0, 60.0))).unwrap();
+    let t = tool("UMLRealization", AssocInit::Plain);
+    assert!(a.can_connect(&t, c1, c2));
+    let e = a.change(|a| a.create_edge(&t, c1, c2)).unwrap();
+    assert_eq!(a.repo.ty(e), "UMLRealizationView");
+    let m = a.repo.refd(e, "model").unwrap();
+    assert_eq!(a.repo.refd(m, "source"), a.repo.refd(c1, "model"));
+}
