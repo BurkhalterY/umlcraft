@@ -380,12 +380,39 @@ pub fn stereotype_text(r: &Repo, e: Eid) -> String {
     let n = type_name(r, e, "stereotype");
     if n.is_empty() { n } else { format!("«{n}»") }
 }
-pub fn attribute_text(r: &Repo, a: Eid, show_vis: bool) -> String {
+/// Which parts of a feature's text a view shows (its showVisibility, showMultiplicity,
+/// showOperationSignature, showType and showProperty flags).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Show {
+    pub vis: bool,
+    pub mult: bool,
+    pub sig: bool,
+    pub ty: bool,
+    pub prop: bool,
+}
+
+impl Show {
+    pub const ALL: Show = Show { vis: true, mult: true, sig: true, ty: true, prop: true };
+
+    /// The flags of a view; a flag the view does not have counts as on.
+    pub fn of(r: &Repo, v: Eid) -> Show {
+        let f = |k: &str| r.val(v, k).and_then(|x| x.as_bool()).unwrap_or(true);
+        Show { vis: f("showVisibility"), mult: f("showMultiplicity"), sig: f("showOperationSignature"), ty: f("showType"), prop: f("showProperty") }
+    }
+}
+
+/// The property string of an attribute or association end: `{id, readOnly, ordered, unique}`, or "".
+pub fn property_text(r: &Repo, a: Eid) -> String {
+    let props: Vec<&str> = [("isID", "id"), ("isReadOnly", "readOnly"), ("isOrdered", "ordered"), ("isUnique", "unique")].into_iter().filter(|(k, _)| r.bool(a, k)).map(|(_, l)| l).collect();
+    if props.is_empty() { String::new() } else { format!("{{{}}}", props.join(", ")) }
+}
+
+pub fn attribute_text(r: &Repo, a: Eid, show: Show) -> String {
     let mut s = stereotype_text(r, a);
     if !s.is_empty() {
         s.push(' ');
     }
-    if show_vis {
+    if show.vis {
         s += vis_symbol(&r.str(a, "visibility"));
     }
     if r.bool(a, "isDerived") {
@@ -393,25 +420,20 @@ pub fn attribute_text(r: &Repo, a: Eid, show_vis: bool) -> String {
     }
     s += &r.name(a);
     let t = type_name(r, a, "type");
-    if !t.is_empty() {
+    if show.ty && !t.is_empty() {
         s += &format!(": {t}");
     }
     let m = r.str(a, "multiplicity");
-    if !m.is_empty() {
+    if show.mult && !m.is_empty() {
         s += &format!("[{m}]");
     }
     let d = r.str(a, "defaultValue");
     if !d.is_empty() {
         s += &format!(" = {d}");
     }
-    let mut props = vec![];
-    for (k, label) in [("isID", "id"), ("isReadOnly", "readOnly"), ("isOrdered", "ordered"), ("isUnique", "unique")] {
-        if r.bool(a, k) {
-            props.push(label);
-        }
-    }
-    if !props.is_empty() {
-        s += &format!(" {{{}}}", props.join(", "));
+    let p = property_text(r, a);
+    if show.prop && !p.is_empty() {
+        s += &format!(" {p}");
     }
     s
 }
@@ -436,16 +458,16 @@ pub fn template_parameter_text(r: &Repo, t: Eid) -> String {
     s
 }
 
-pub fn operation_text(r: &Repo, o: Eid, show_vis: bool, show_sig: bool) -> String {
+pub fn operation_text(r: &Repo, o: Eid, show: Show) -> String {
     let mut s = stereotype_text(r, o);
     if !s.is_empty() {
         s.push(' ');
     }
-    if show_vis {
+    if show.vis {
         s += vis_symbol(&r.str(o, "visibility"));
     }
     s += &r.name(o);
-    if !show_sig {
+    if !show.sig {
         return s + "()";
     }
     let params = r.list(o, "parameters");
@@ -462,11 +484,11 @@ pub fn operation_text(r: &Repo, o: Eid, show_vis: bool, show_sig: bool) -> Strin
             }
             t += &r.name(p);
             let ty = type_name(r, p, "type");
-            if !ty.is_empty() {
+            if show.ty && !ty.is_empty() {
                 t += &format!(": {ty}");
             }
             let m = r.str(p, "multiplicity");
-            if !m.is_empty() {
+            if show.mult && !m.is_empty() {
                 t += &format!("[{m}]");
             }
             let d = r.str(p, "defaultValue");
@@ -477,13 +499,13 @@ pub fn operation_text(r: &Repo, o: Eid, show_vis: bool, show_sig: bool) -> Strin
         })
         .collect();
     s += &format!("({})", list.join(", "));
-    if let Some(rp) = ret {
+    if let Some(rp) = ret.filter(|_| show.ty) {
         let ty = type_name(r, rp, "type");
         if !ty.is_empty() {
             s += &format!(": {ty}");
         }
         let m = r.str(rp, "multiplicity");
-        if !m.is_empty() {
+        if show.mult && !m.is_empty() {
             s += &format!("[{m}]");
         }
     }
@@ -688,7 +710,6 @@ fn grow(r: &mut Repo, v: Eid, min_w: f64, min_h: f64) {
 
 fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     let ty = r.ty(m).to_string();
-    let show_vis = r.bool(v, "showVisibility");
     let display = r.str(v, "stereotypeDisplay");
     let keyword = keyword_of(&ty);
     let comps_all = ["attributeCompartment", "operationCompartment", "receptionCompartment", "templateParameterCompartment", "extensionPointCompartment"];
@@ -731,8 +752,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     }
 
     // box form: name, [literals], attributes, operations
-    let show_mult = r.bool(v, "showMultiplicity");
-    let show_sig = r.bool(v, "showOperationSignature");
+    let show = Show::of(r, v);
     let mut comps: Vec<(Eid, f64, f64, Vec<Row>)> = vec![];
     if let Some(lc) = r.refd(v, "enumerationLiteralCompartment") {
         if r.bool(v, "suppressLiterals") {
@@ -759,15 +779,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
             let items = r.list(m, "attributes");
             let texts: Vec<String> = items
                 .iter()
-                .map(|a| {
-                    let t = attribute_text(r, *a, show_vis);
-                    if show_mult {
-                        t
-                    } else {
-                        let mm = r.str(*a, "multiplicity");
-                        t.replacen(&format!("[{mm}]"), "", 1)
-                    }
-                })
+                .map(|a| attribute_text(r, *a, show))
                 .collect();
             let (w, h, rows) = sync_list(r, ms, ac, &items, "UMLAttributeView", &texts);
             comps.push((ac, w, h, rows));
@@ -779,7 +791,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         } else {
             r.remove(oc, "visible");
             let items = r.list(m, "operations");
-            let texts: Vec<String> = items.iter().map(|o| operation_text(r, *o, show_vis, show_sig)).collect();
+            let texts: Vec<String> = items.iter().map(|o| operation_text(r, *o, show)).collect();
             let (w, h, rows) = sync_list(r, ms, oc, &items, "UMLOperationView", &texts);
             comps.push((oc, w, h, rows));
         }
@@ -1055,8 +1067,10 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
         out.push(("headRoleNameLabel", role(e2)));
         out.push(("tailMultiplicityLabel", mult(e1)));
         out.push(("headMultiplicityLabel", mult(e2)));
-        out.push(("tailPropertyLabel", String::new()));
-        out.push(("headPropertyLabel", String::new()));
+        let show_prop = r.bool(e, "showProperty");
+        let prop = |end: Option<Eid>| if show_prop { end.map(|x| property_text(r, x)).unwrap_or_default() } else { String::new() };
+        out.push(("tailPropertyLabel", prop(e1)));
+        out.push(("headPropertyLabel", prop(e2)));
     }
     out
 }

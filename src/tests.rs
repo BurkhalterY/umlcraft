@@ -55,7 +55,7 @@ fn builds_edits_and_saves_a_model() {
     assert_eq!(a.repo.str(at, "defaultValue"), "0");
     let op = a.change(|a| a.add_feature(m1, "UMLOperation")).unwrap();
     a.change(|a| crate::parse::apply_operation(&mut a.repo, op, "+placeOrder(item: Order, qty: int): boolean"));
-    assert_eq!(crate::views::operation_text(&a.repo, op, true, true), "+placeOrder(item: Order, qty: int): boolean");
+    assert_eq!(crate::views::operation_text(&a.repo, op, crate::views::Show::ALL), "+placeOrder(item: Order, qty: int): boolean");
     let em = a.repo.refd(e1, "model").unwrap();
     a.change(|a| a.add_feature(em, "UMLEnumerationLiteral"));
     a.change(|a| a.repo.set(m1, "isAbstract", json!(true)));
@@ -550,6 +550,43 @@ fn format_toggles_invert_the_shared_value() {
     press(&mut a, Key::A, cs);
     assert!(a.repo.bool(c1, "suppressAttributes"));
     assert_eq!(a.selection, vec![c1, c2, note], "Ctrl+Shift+A is not Select All");
+    // Ctrl+Shift+B and Ctrl+Shift+Y hide the property strings and the types; Ctrl+Shift+Y is not Redo
+    press(&mut a, Key::B, cs);
+    press(&mut a, Key::Y, cs);
+    assert!(!a.repo.bool(c1, "showProperty") && !a.repo.bool(c1, "showType"));
+    assert!(a.repo.alive(c1));
+}
+
+#[test]
+fn show_type_and_property() {
+    use crate::views::{attribute_text, operation_text, Show};
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    let at = a.change(|a| a.add_feature(m, "UMLAttribute")).unwrap();
+    crate::parse::apply_attribute(&mut a.repo, at, "-items: Item[*] = none");
+    a.repo.set(at, "isOrdered", json!(true));
+    a.repo.set(at, "isReadOnly", json!(true));
+    assert_eq!(attribute_text(&a.repo, at, Show::ALL), "-items: Item[*] = none {readOnly, ordered}");
+    assert_eq!(attribute_text(&a.repo, at, Show { ty: false, prop: false, ..Show::ALL }), "-items[*] = none");
+    let op = a.change(|a| a.add_feature(m, "UMLOperation")).unwrap();
+    crate::parse::apply_operation(&mut a.repo, op, "+find(key: String): Item");
+    assert_eq!(operation_text(&a.repo, op, Show { ty: false, ..Show::ALL }), "+find(key)");
+    // association ends show their property strings unless showProperty is off
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(300.0, 40.0, 100.0, 60.0))).unwrap();
+    let tool = crate::app::Tool { label: "", kind: "UMLAssociation", icon: "", line: true, init: crate::app::AssocInit::Plain };
+    let e = a.change(|a| a.create_edge(&tool, c, c2)).unwrap();
+    let asc = a.repo.refd(e, "model").unwrap();
+    let end2 = a.repo.child(asc, "end2").unwrap();
+    a.repo.set(end2, "isUnique", json!(true));
+    let ms = measure();
+    let d = a.diagram.unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let hp = a.repo.refd(e, "headPropertyLabel").unwrap();
+    assert_eq!(a.repo.str(hp, "text"), "{unique}");
+    a.repo.set(e, "showProperty", json!(false));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(hp, "text"), "");
 }
 
 #[test]
@@ -874,7 +911,7 @@ fn name_and_stereotype_expressions() {
     apply_attribute(&mut a.repo, at, "<<id>> -order: Order");
     assert_eq!(a.repo.str(at, "stereotype"), "id");
     assert_eq!(a.repo.refd(at, "type"), Some(order));
-    assert_eq!(crate::views::attribute_text(&a.repo, at, true), "«id» -order: Order");
+    assert_eq!(crate::views::attribute_text(&a.repo, at, crate::views::Show::ALL), "«id» -order: Order");
     apply_attribute(&mut a.repo, at, "«id» -order: int");
     assert_eq!(a.repo.str(at, "type"), "int");
     let op = a.add_feature(c, "UMLOperation").unwrap();

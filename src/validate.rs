@@ -55,7 +55,7 @@ fn opposite_ends(r: &Repo, c: Eid) -> Vec<Eid> {
 
 fn signature(r: &Repo, o: Eid) -> String {
     // stereotype and visibility hidden, type and signature shown (rules.js:83)
-    let t = crate::views::operation_text(r, o, false, true);
+    let t = crate::views::operation_text(r, o, crate::views::Show { vis: false, ..crate::views::Show::ALL });
     let st = crate::views::stereotype_text(r, o);
     t.strip_prefix(&st).unwrap_or(&t).trim().to_string()
 }
