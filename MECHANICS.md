@@ -112,7 +112,34 @@ returned nothing).
 | Panel colours | #3a3f41 (explorer), #4a4c4e (toolbox/editors), #cccccc (diagram area) | live computed style |
 | Text colour | #e3e3e3 | live computed style |
 | UI font | 13px Source Sans Pro (UMLCraft uses an installed Source Sans Pro, else Noto Sans; diagrams use Liberation Sans, metric-compatible with Arial) | live computed style |
-| Shortcuts | Ctrl+N/O/S, Ctrl+Shift+S, Ctrl+Z/Y, Delete, Ctrl+Delete, Ctrl+A | `resources/default/keymaps/linux.json` |
+| Shortcuts | Ctrl+N/O/S, Ctrl+Shift+S, Ctrl+Z/Y, Delete, Ctrl+Delete, Ctrl+A; Format toggles Ctrl+Shift+H/V/N/M/J/A/O/T | `resources/default/keymaps/linux.json` |
+
+## Editing commands
+
+Read from the StarUML source through the feature inventory (`docs/features/`), which quotes these lines.
+
+| Rule | Source |
+|---|---|
+| Ctrl/Cmd + left-drag pans (move cursor) and blocks every tool, so Ctrl+click never selects; middle-drag pans the same way | `src/ui/diagram-editor.js:2178-2193, 2236-2251` |
+| Shift+click toggles a view and never starts a drag; a click without moving on a member of a group keeps only that view | `src/ui/diagram-editor.js:645-660, 901-912` |
+| Right-click on empty canvas deselects everything | `src/ui/diagram-editor.js:701-704` |
+| Tab selects the next top-level view in `ownedViews`, wrapping; none selected → the first; no reverse | `src/ui/diagram-manager.js:726-754` |
+| Shift+arrow nudges by the grid size, or 1 with snap off | `src/ui/diagram-manager.js:761-810` |
+| Format toggles (Show Shadow, Show Visibility/Namespace/Multiplicity/Operation Signature, Suppress Attributes/Operations/Literals): invert the merged value on the selected views that have the flag; a mixed selection gets `true` | `src/engine/default-commands.js:1013-1029`, `extensions/essential/uml/uml-commands.js:271-279, 4596-4651` |
+| Alignment and sizing act on selected node views only; lines and labels are skipped; each command is one undo step | `extensions/default/alignment/main.js:26-34, 370-376` |
+| Align Right/Bottom: right = left + width − 1, new left = max right − width + 1, so right edges meet (UMLCraft: right = left + width, same edge) | `extensions/default/alignment/main.js:96-115` |
+| Align Center/Middle: centre on the midpoint of the selection's overall extent | `extensions/default/alignment/main.js:117-142` |
+| Space Equally: sort by left (top), keep the outermost extent, equal gaps; no-op when the sizes fill the extent | `extensions/default/alignment/main.js:213-293` |
+| Set Width/Height/Size Equally: the largest width and/or height | `extensions/default/alignment/main.js:295-368` |
+| Zoom In/Out (±0.1) and Actual Size (1.0) keep the diagram point at the screen centre; Ctrl+wheel keeps the origin | `src/engine/default-commands.js:1063-1084`, `src/ui/diagram-editor.js:2273-2280` |
+| Fit to Window: zoom = min(view w / box w, view h / box h) of the diagram bounding box, at most 1.0, then centre on the box (UMLCraft rounds down to a tenth) | `src/engine/default-commands.js:1086-1101` |
+| Closing the current diagram: the one that slid into its index becomes current, else the first; closing any diagram clears the selection | `src/ui/diagram-manager.js:106-138`, `src/app-context.js:1310-1317` |
+| Next/Previous Diagram wrap around the working diagrams (open order); Close Others keeps only the current one | `src/ui/diagram-manager.js:201-216, 271-292` |
+| Select In Diagram: the model's views directly in diagrams; one → open, select, centre; several → picker "Select Diagram to show"; none → toast "No diagrams to show" | `src/engine/default-commands.js:877-907` |
+| Scroll-to-view: centre on the view's bounding box, at the current zoom, clamped at 0 | `src/ui/diagram-manager.js:340-348, 484-490` |
+| Each diagram keeps its scroll origin (`_originX/Y`, not saved in the file); a new one starts at (0,0) | `src/ui/diagram-editor.js:2384-2387`, `src/ui/diagram-manager.js:218-228` |
+| Toasts stack upward inside the content area and hide after 5 s | `src/ui/toast-manager.js:36-72` |
+| Bring to Front / Send to Back: move the selected top-level views to the end / start of `diagram.ownedViews` (drawing and hit order) | `extensions/default/alignment/main.js:36-73` |
 
 ## Estimated / not taken over
 

@@ -285,6 +285,11 @@ impl App {
             self.open_diagram(e);
             ui.close();
         }
+        if !self.is_diagram(e) && t != "Project" && ui.button("Select In Diagram").clicked() {
+            self.focus = Some(e);
+            self.select_in_diagram();
+            ui.close();
+        }
         ui.separator();
         if ui.add_enabled(t != "Project", egui::Button::new("Delete from Model")).clicked() {
             self.change(|a| a.delete_models(&[e]));
@@ -620,6 +625,8 @@ impl App {
             if resp.hovered() {
                 p.text(close.center(), Align2::CENTER_CENTER, "×", FontId::proportional(14.0), DIM);
             }
+            // the menu acts on the current diagram; right-clicking a row does not make it current
+            resp.context_menu(|ui| self.diagram_close_items(ui));
             if resp.clicked() {
                 if resp.interact_pointer_pos().map(|q| close.contains(q)).unwrap_or(false) {
                     self.close_diagram(Some(d));
@@ -713,8 +720,8 @@ impl App {
                 icons::draw(ui.painter(), r.shrink(3.0), key);
                 if resp.on_hover_text(tip).clicked() {
                     match key {
-                        "zoomIn" => self.set_zoom(self.zoom + crate::app::ZOOM_STEP),
-                        "zoomOut" => self.set_zoom(self.zoom - crate::app::ZOOM_STEP),
+                        "zoomIn" => self.zoom_keep_centre(self.zoom + crate::app::ZOOM_STEP),
+                        "zoomOut" => self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP),
                         "fit" => self.fit(),
                         "grid" => self.show_grid = !self.show_grid,
                         _ => self.export_png(&ui.ctx().clone()),
@@ -827,6 +834,10 @@ impl App {
                     }
                     ui.close();
                 }
+                if ui.add_enabled(self.focus.is_some(), egui::Button::new("Select In Diagram   Ctrl+D")).clicked() {
+                    self.select_in_diagram();
+                    ui.close();
+                }
             });
             ui.menu_button("Format", |ui| {
                 ui.menu_button("Line Style", |ui| {
@@ -839,10 +850,9 @@ impl App {
                         ui.close();
                     }
                 });
-                if ui.button("Show Shadow   Ctrl+Shift+H").clicked() {
-                    self.toggle_shadow();
-                    ui.close();
-                }
+                self.format_toggles(ui);
+                ui.separator();
+                self.alignment_menu(ui);
             });
             ui.menu_button("Model", |ui| {
                 if ui.button("Add Class Diagram").clicked() {
@@ -868,19 +878,26 @@ impl App {
                 }
             });
             ui.menu_button("View", |ui| {
-                if ui.button("Close Diagram       F4").clicked() {
-                    self.close_diagram(None);
+                self.diagram_close_items(ui);
+                ui.separator();
+                let many = self.open.len() > 1;
+                if ui.add_enabled(many, egui::Button::new("Next Diagram        Ctrl+Shift+]")).clicked() {
+                    self.cycle_diagram(1);
+                    ui.close();
+                }
+                if ui.add_enabled(many, egui::Button::new("Previous Diagram    Ctrl+Shift+[")).clicked() {
+                    self.cycle_diagram(-1);
                     ui.close();
                 }
                 ui.separator();
                 if ui.button("Zoom In             Ctrl+=").clicked() {
-                    self.set_zoom(self.zoom + crate::app::ZOOM_STEP);
+                    self.zoom_keep_centre(self.zoom + crate::app::ZOOM_STEP);
                 }
                 if ui.button("Zoom Out            Ctrl+-").clicked() {
-                    self.set_zoom(self.zoom - crate::app::ZOOM_STEP);
+                    self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP);
                 }
                 if ui.button("Actual Size         Ctrl+0").clicked() {
-                    self.set_zoom(1.0);
+                    self.zoom_keep_centre(1.0);
                 }
                 if ui.button("Fit To Window       Ctrl+9").clicked() {
                     self.fit();
@@ -903,6 +920,64 @@ impl App {
         });
     }
 
+    /// Close Diagram, Close Other Diagrams and Close All Diagrams (View menu and Working Diagrams menu).
+    fn diagram_close_items(&mut self, ui: &mut egui::Ui) {
+        let has = self.diagram.is_some();
+        if ui.add_enabled(has, egui::Button::new("Close Diagram       F4")).clicked() {
+            self.close_diagram(None);
+            ui.close();
+        }
+        if ui.add_enabled(has, egui::Button::new("Close Other Diagrams  Ctrl+F4")).clicked() {
+            self.close_other_diagrams();
+            ui.close();
+        }
+        if ui.add_enabled(!self.open.is_empty(), egui::Button::new("Close All Diagrams  Shift+F4")).clicked() {
+            self.close_all_diagrams();
+            ui.close();
+        }
+    }
+
+    /// The Format menu's on/off items, checked when every selected view that has the flag is on,
+    /// and enabled only when a selected view has it (uml.json order; default-commands.js:1319-1350).
+    pub(crate) fn format_toggles(&mut self, ui: &mut egui::Ui) {
+        for (i, (field, label)) in FORMAT_TOGGLES.into_iter().enumerate() {
+            if i == 1 || i == 5 {
+                ui.separator();
+            }
+            let has = !self.flag_views(field).is_empty();
+            let mut on = self.flag_state(field) == Some(true);
+            if ui.add_enabled(has, egui::Checkbox::new(&mut on, label)).clicked() {
+                self.toggle_flag(field);
+                ui.close();
+            }
+        }
+    }
+
+    /// Format > Alignment, in the main menu and the canvas menu (alignment.json order).
+    pub(crate) fn alignment_menu(&mut self, ui: &mut egui::Ui) {
+        ui.add_enabled_ui(self.can_align(), |ui| {
+            ui.menu_button("Alignment", |ui| {
+                if ui.button("Send To Back").clicked() {
+                    self.reorder(false);
+                    ui.close();
+                }
+                if ui.button("Bring To Front").clicked() {
+                    self.reorder(true);
+                    ui.close();
+                }
+                for (i, (how, label)) in crate::align::Align::ALL.into_iter().enumerate() {
+                    if i == 0 || i == 6 || i == 8 {
+                        ui.separator();
+                    }
+                    if ui.button(label).clicked() {
+                        self.align(how);
+                        ui.close();
+                    }
+                }
+            });
+        });
+    }
+
     pub(crate) fn shortcuts(&mut self, ctx: &egui::Context) {
         use egui::{Key, KeyboardShortcut, Modifiers};
         let typing = self.editing.is_some() || text_field_focused(ctx);
@@ -910,6 +985,25 @@ impl App {
         let sc = |m: Modifiers, k: Key| KeyboardShortcut::new(m, k);
         let cs = Modifiers::COMMAND | Modifiers::SHIFT;
         let hit = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
+        // Ctrl+Shift toggles first: a Ctrl shortcut also matches when Shift is held (Ctrl+N, Ctrl+A…)
+        if !typing {
+            for (key, field) in [(Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::T, "suppressLiterals")] {
+                if hit(sc(cs, key)) {
+                    self.toggle_flag(field);
+                }
+            }
+            // Ctrl+Shift+V reaches egui as a paste (when the clipboard holds text), not as a key
+            let shift_paste = ctx.input_mut(|i| {
+                let n = i.events.len();
+                if i.modifiers.command && i.modifiers.shift {
+                    i.events.retain(|e| !matches!(e, egui::Event::Paste(_)));
+                }
+                n != i.events.len()
+            });
+            if shift_paste {
+                self.toggle_flag("showVisibility");
+            }
+        }
         if hit(sc(Modifiers::COMMAND, Key::N)) {
             self.cmd_new(&measure);
         }
@@ -945,6 +1039,9 @@ impl App {
                 self.reveal(f);
             }
         }
+        if hit(sc(Modifiers::COMMAND, Key::D)) {
+            self.select_in_diagram();
+        }
         if hit(sc(Modifiers::COMMAND, Key::L)) {
             self.set_line_style(0);
         }
@@ -955,25 +1052,40 @@ impl App {
             self.toggle_shadow();
         }
         if hit(sc(Modifiers::COMMAND, Key::Equals)) || hit(sc(Modifiers::COMMAND, Key::Plus)) {
-            self.set_zoom(self.zoom + crate::app::ZOOM_STEP);
+            self.zoom_keep_centre(self.zoom + crate::app::ZOOM_STEP);
         }
         if hit(sc(Modifiers::COMMAND, Key::Minus)) {
-            self.set_zoom(self.zoom - crate::app::ZOOM_STEP);
+            self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP);
         }
         if hit(sc(Modifiers::COMMAND, Key::Num0)) {
-            self.set_zoom(1.0);
+            self.zoom_keep_centre(1.0);
         }
         if hit(sc(Modifiers::COMMAND, Key::Num9)) {
             self.fit();
         }
-        if hit(sc(Modifiers::COMMAND, Key::G)) {
-            self.show_grid = !self.show_grid;
-        }
+        // Ctrl+Shift+G first: Ctrl+G also matches when Shift is held
         if hit(sc(cs, Key::G)) {
             self.snap = !self.snap;
         }
+        if hit(sc(Modifiers::COMMAND, Key::G)) {
+            self.show_grid = !self.show_grid;
+        }
+        // Shift+F4 first: a plain F4 shortcut also matches when Shift is held
+        if hit(sc(Modifiers::SHIFT, Key::F4)) {
+            self.close_all_diagrams();
+        }
+        if hit(sc(Modifiers::COMMAND, Key::F4)) {
+            self.close_other_diagrams();
+        }
         if hit(sc(Modifiers::NONE, Key::F4)) {
             self.close_diagram(None);
+        }
+        // Ctrl+Shift+] and [: with Shift held most layouts report } and {
+        if hit(sc(cs, Key::CloseBracket)) || hit(sc(cs, Key::CloseCurlyBracket)) {
+            self.cycle_diagram(1);
+        }
+        if hit(sc(cs, Key::OpenBracket)) || hit(sc(cs, Key::OpenCurlyBracket)) {
+            self.cycle_diagram(-1);
         }
     }
 
@@ -1029,6 +1141,7 @@ impl App {
                 }
             });
         }
+        self.diagram_picker_ui(ctx);
         if let Some((title, detail)) = self.message.clone() {
             egui::Window::new(title).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
                 ui.label(detail);
@@ -1036,6 +1149,78 @@ impl App {
                     self.message = None;
                 }
             });
+        }
+    }
+
+    /// The Element List Picker as Select In Diagram uses it: "Select Diagram to show", one row per
+    /// diagram with its icon, name and (path); "Do not specify" until a row is picked; double-click is OK
+    /// (element-list-picker-dialog.js:73-131).
+    fn diagram_picker_ui(&mut self, ctx: &egui::Context) {
+        let Some((views, mut chosen)) = self.diagram_picker.clone() else { return };
+        let mut close = false;
+        let mut ok = false;
+        egui::Window::new("Select Diagram to show").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            ui.set_min_width(320.0);
+            for (i, v) in views.iter().enumerate() {
+                let Some(d) = self.repo.parent(*v).filter(|d| self.repo.alive(*d)) else { continue };
+                let mut owners = self.repo.path(d);
+                owners.pop();
+                let path: Vec<String> = owners.into_iter().map(|p| self.repo.name(p)).filter(|n| !n.is_empty()).collect();
+                let text = format!("{}  ({})", self.repo.name(d), path.join("::"));
+                ui.horizontal(|ui| {
+                    let (r, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                    icons::draw(ui.painter(), r, icons::key_for(&self.repo, d));
+                    let resp = ui.selectable_label(chosen == Some(i), text);
+                    if resp.clicked() {
+                        chosen = Some(i);
+                    }
+                    if resp.double_clicked() {
+                        chosen = Some(i);
+                        ok = true;
+                    }
+                });
+            }
+            let mut none = chosen.is_none();
+            if ui.checkbox(&mut none, "Do not specify").changed() && none {
+                chosen = None;
+            }
+            ui.horizontal(|ui| {
+                if ui.button("OK").clicked() {
+                    ok = true;
+                }
+                if ui.button("Cancel").clicked() {
+                    close = true;
+                }
+            });
+        });
+        if ok {
+            self.diagram_picker = None;
+            if let Some(v) = chosen.and_then(|i| views.get(i)).copied().filter(|v| self.repo.alive(*v)) {
+                self.show_view(v);
+            }
+        } else if close {
+            self.diagram_picker = None;
+        } else {
+            self.diagram_picker = Some((views, chosen));
+        }
+    }
+
+    /// Toasts stack upward inside the diagram area and hide after 5 s (toast-manager.js:36-72).
+    fn toasts_ui(&mut self, ctx: &egui::Context) {
+        self.toasts.retain(|(_, t)| t.elapsed().as_secs_f32() < 5.0);
+        let Some(area) = self.canvas_rect else { return };
+        let mut y = area.bottom() - 16.0;
+        for (i, (text, _)) in self.toasts.iter().enumerate().rev() {
+            let pos = Pos2::new(area.left() + 16.0, y);
+            let r = egui::Area::new(egui::Id::new(("toast", i))).order(egui::Order::Foreground).pivot(Align2::LEFT_BOTTOM).fixed_pos(pos).show(ctx, |ui| {
+                Frame::NONE.fill(LAYER1).stroke(Stroke::new(1.0, BORDER)).corner_radius(CornerRadius::same(3)).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
+                    ui.label(egui::RichText::new(text).color(TEXT).size(13.0));
+                });
+            });
+            y -= r.response.rect.height() + 6.0;
+        }
+        if !self.toasts.is_empty() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(250));
         }
     }
 
@@ -1073,6 +1258,18 @@ impl App {
         }
     }
 }
+
+/// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
+const FORMAT_TOGGLES: [(&str, &str); 8] = [
+    ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
+    ("showVisibility", "Show Visibility                 Ctrl+Shift+V"),
+    ("showNamespace", "Show Namespace                  Ctrl+Shift+N"),
+    ("showMultiplicity", "Show Multiplicity               Ctrl+Shift+M"),
+    ("showOperationSignature", "Show Operation Signature    Ctrl+Shift+J"),
+    ("suppressAttributes", "Suppress Attributes             Ctrl+Shift+A"),
+    ("suppressOperations", "Suppress Operations            Ctrl+Shift+O"),
+    ("suppressLiterals", "Suppress Literals                 Ctrl+Shift+T"),
+];
 
 /// True while a text field has the keyboard (the diagram canvas can hold focus too, and then the
 /// editing shortcuts such as Ctrl+Z must still work).
@@ -1147,6 +1344,7 @@ impl eframe::App for App {
             }
         }
         self.dialogs(&ctx);
+        self.toasts_ui(&ctx);
         self.screenshots(&ctx);
         let _ = R::default();
     }

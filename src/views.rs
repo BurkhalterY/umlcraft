@@ -95,7 +95,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct R {
     pub x: f64,
     pub y: f64,

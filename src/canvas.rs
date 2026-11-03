@@ -209,6 +209,12 @@ impl App {
             return;
         };
 
+        if let Some(v) = self.centre_pending.take() {
+            if self.repo.alive(v) && self.repo.parent(v) == Some(d) {
+                let b = self.view_bounds(v);
+                self.centre_on(P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 });
+            }
+        }
         self.handle_input(ui, &resp, rect, d);
         if !self.repo.alive(d) || self.diagram != Some(d) {
             return;
@@ -386,6 +392,9 @@ impl App {
             let pos = latest.unwrap_or(rect.center());
             self.on_release(origin, pos);
         }
+        if matches!(self.drag, Some(Drag::Pan { .. })) {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::Move);
+        }
         if !matches!(self.drag, Some(_)) {
             if let Some(pos) = resp.hover_pos() {
                 let p = self.to_diagram(origin, pos);
@@ -418,10 +427,11 @@ impl App {
                 let p = self.to_diagram(origin, pos);
                 self.ctx_pos = p;
                 self.ctx_target = self.hit_view(p, false);
-                if let Some(v) = self.ctx_target {
-                    if !self.selection.contains(&v) {
-                        self.select(vec![v]);
-                    }
+                match self.ctx_target {
+                    Some(v) if !self.selection.contains(&v) => self.select(vec![v]),
+                    Some(_) => {}
+                    // a right-click on empty canvas deselects everything (diagram-editor.js:701-704)
+                    None => self.select(vec![]),
                 }
             }
         }
@@ -429,9 +439,15 @@ impl App {
 
         // keyboard on the canvas
         if resp.has_focus() && self.editing.is_none() {
+            // keep Tab and the arrows on the canvas instead of moving the keyboard focus
+            ui.memory_mut(|m| m.set_focus_lock_filter(resp.id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true }));
+            let tab = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Tab));
+            if tab {
+                self.select_next_view();
+            }
             let (del, esc, enter, arrows) = ui.input(|i| {
                 (
-                    i.key_pressed(egui::Key::Delete) && !i.modifiers.command,
+                    (i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)) && !i.modifiers.command,
                     i.key_pressed(egui::Key::Escape),
                     i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::F2),
                     (
@@ -456,7 +472,8 @@ impl App {
             }
             let (l, r, u, dn, shift) = arrows;
             if (l || r || u || dn) && !self.selection.is_empty() {
-                let step = if shift { render::GRID_SIZE } else { 1.0 };
+                // Shift moves by the grid factor: the grid size, or 1 with snap off (diagram-manager.js:761-765)
+                let step = if shift && self.snap { render::GRID_SIZE } else { 1.0 };
                 let dx = if l { -step } else if r { step } else { 0.0 };
                 let dy = if u { -step } else if dn { step } else { 0.0 };
                 let sel = self.selection.clone();
@@ -474,11 +491,17 @@ impl App {
         let _ = d;
     }
 
-    fn on_press(&mut self, rect: Rect, pos: Pos2, mods: egui::Modifiers) {
+    pub(crate) fn on_press(&mut self, rect: Rect, pos: Pos2, mods: egui::Modifiers) {
         let p = self.to_diagram(rect.min, pos);
         if Self::mini_rect(rect).contains(pos) && rect.width() > MINI_W + 40.0 {
             self.drag = Some(Drag::Mini);
             self.mini_scroll(rect, pos);
+            return;
+        }
+        // Ctrl/Cmd + left-drag pans, and while Ctrl/Cmd is held nothing is edited or selected
+        // (diagram-editor.js:2178-2193, 2236-2244)
+        if mods.command {
+            self.drag = Some(Drag::Pan { start: crate::app::egui_pos::Pos { x: pos.x, y: pos.y }, scroll: self.scroll });
             return;
         }
         if let Some(tool) = self.tool {
@@ -511,7 +534,7 @@ impl App {
                 }
             }
         }
-        let add = mods.shift || mods.command;
+        let add = mods.shift;
         match self.hit_view(p, false) {
             None => {
                 if !add {
@@ -521,6 +544,7 @@ impl App {
             }
             Some(v) => {
                 if add {
+                    // Shift+click toggles, and a Shift press never drags (diagram-editor.js:645-660)
                     let mut sel = self.selection.clone();
                     if let Some(i) = sel.iter().position(|x| *x == v) {
                         sel.remove(i);
@@ -528,12 +552,18 @@ impl App {
                         sel.push(v);
                     }
                     self.select(sel);
-                } else if !self.selection.contains(&v) {
+                    return;
+                }
+                let group = self.selection.len() > 1 && self.selection.contains(&v);
+                if !self.selection.contains(&v) {
                     self.select(vec![v]);
                 } else {
                     self.focus = Some(self.repo.refd(v, "model").unwrap_or(v));
                 }
                 self.start_move(p);
+                if let Some(Drag::Move { collapse, .. }) = &mut self.drag {
+                    *collapse = group.then_some(v);
+                }
             }
         }
     }
@@ -583,10 +613,10 @@ impl App {
                 }
             }
         }
-        self.drag = Some(Drag::Move { start: p, orig, edges, lead: nodes.first().copied(), changed: false });
+        self.drag = Some(Drag::Move { start: p, orig, edges, lead: nodes.first().copied(), changed: false, collapse: None });
     }
 
-    fn on_move(&mut self, rect: Rect, pos: Pos2) {
+    pub(crate) fn on_move(&mut self, rect: Rect, pos: Pos2) {
         let p = self.to_diagram(rect.min, pos);
         let Some(mut drag) = self.drag.take() else { return };
         match &mut drag {
@@ -630,7 +660,7 @@ impl App {
                 let nodes_only = self.tool.map(|t| t.kind != "NoteLink").unwrap_or(true);
                 self.hover = self.hit_view(p, nodes_only);
             }
-            Drag::Move { start, orig, edges, lead, changed } => {
+            Drag::Move { start, orig, edges, lead, changed, .. } => {
                 let (mut dx, mut dy) = (p.x - start.x, p.y - start.y);
                 if !*changed && (dx * dx + dy * dy).sqrt() * self.zoom < 3.0 {
                     self.drag = Some(drag);
@@ -711,7 +741,7 @@ impl App {
         self.drag = Some(drag);
     }
 
-    fn on_release(&mut self, origin: Pos2, pos: Pos2) {
+    pub(crate) fn on_release(&mut self, origin: Pos2, pos: Pos2) {
         let Some(drag) = self.drag.take() else { return };
         self.hover = None;
         let p = self.to_diagram(origin, pos);
@@ -761,6 +791,12 @@ impl App {
                 }
                 if !self.tool_sticky {
                     self.tool = None;
+                }
+            }
+            Drag::Move { changed: false, collapse: Some(v), .. } => {
+                // a click on a member of a group, without moving, keeps only that view (diagram-editor.js:901-912)
+                if self.repo.alive(v) {
+                    self.select(vec![v]);
                 }
             }
             Drag::Move { changed, .. } | Drag::Resize { changed, .. } | Drag::Point { changed, .. } => {
@@ -971,10 +1007,20 @@ impl App {
                 }
             });
         }
+        ui.menu_button("Format", |ui| {
+            self.format_toggles(ui);
+            ui.separator();
+            self.alignment_menu(ui);
+        });
         ui.separator();
         if let Some(m) = m {
             if ui.button("Select In Explorer").clicked() {
                 self.reveal(m);
+                ui.close();
+            }
+            if ui.button("Select In Diagram").clicked() {
+                self.focus = Some(m);
+                self.select_in_diagram();
                 ui.close();
             }
         }
@@ -988,6 +1034,21 @@ impl App {
         }
     }
 
+    /// Tab: select the top-level view after the first selected one in ownedViews order, wrapping
+    /// around, or the first view when nothing is selected (diagram-manager.js:726-754).
+    pub fn select_next_view(&mut self) {
+        let Some(d) = self.diagram else { return };
+        let list = self.repo.list(d, "ownedViews");
+        if list.is_empty() {
+            return;
+        }
+        let next = match self.selection.first().and_then(|v| list.iter().position(|x| x == v)) {
+            Some(i) => list[(i + 1) % list.len()],
+            None => list[0],
+        };
+        self.select(vec![next]);
+    }
+
     pub fn select_all(&mut self) {
         if let Some(d) = self.diagram {
             let all = self.repo.list(d, "ownedViews");
@@ -995,14 +1056,42 @@ impl App {
         }
     }
 
+    /// Size of the visible diagram area, in diagram units at the current zoom.
+    fn view_size(&self) -> Option<(f64, f64)> {
+        let r = self.canvas_rect?;
+        Some((r.width() as f64 / self.zoom, r.height() as f64 / self.zoom))
+    }
+
+    /// Scroll so that diagram point `c` is at the centre of the canvas, never into negative space
+    /// (diagram-manager.js:340-348, diagram-editor.js:2380-2383).
+    pub fn centre_on(&mut self, c: P) {
+        let Some((w, h)) = self.view_size() else { return };
+        self.scroll = P { x: (c.x - w / 2.0).max(0.0), y: (c.y - h / 2.0).max(0.0) };
+    }
+
+    /// Zoom In, Zoom Out and Actual Size: change the zoom and keep the point at the screen centre
+    /// where it was (default-commands.js:1063-1084).
+    pub fn zoom_keep_centre(&mut self, z: f64) {
+        let Some((w, h)) = self.view_size() else {
+            self.set_zoom(z);
+            return;
+        };
+        let c = P { x: self.scroll.x + w / 2.0, y: self.scroll.y + h / 2.0 };
+        self.set_zoom(z);
+        self.centre_on(c);
+    }
+
+    /// Fit to Window: the largest zoom (at most 1.0) showing the whole diagram, centred on its
+    /// bounding box (default-commands.js:1086-1101).
     pub fn fit(&mut self) {
         let (Some(d), Some(rect)) = (self.diagram, self.canvas_rect) else { return };
         match render::bounds(&self.repo, d) {
             None => self.set_zoom(1.0),
             Some(b) => {
-                let z = (rect.width() as f64 / (b.x + b.w + 20.0)).min(rect.height() as f64 / (b.y + b.h + 20.0));
-                self.scroll = P::default();
-                self.set_zoom(1f64.min((z * 10.0).floor() / 10.0));
+                let z = (rect.width() as f64 / b.w.max(1.0)).min(rect.height() as f64 / b.h.max(1.0));
+                // whole tenths, rounded down so the diagram still fits
+                self.set_zoom(1f64.min(((z * 10.0).floor() / 10.0).max(crate::app::ZOOM_MIN)));
+                self.centre_on(P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 });
             }
         }
     }
