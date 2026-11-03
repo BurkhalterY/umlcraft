@@ -184,6 +184,8 @@ pub struct App {
     pub problems: Vec<crate::validate::Problem>,
     pub validated: bool,
     pub show_validation: bool,
+    /// Give the keyboard back to the canvas on the next frame (after an inline edit closes).
+    pub refocus_canvas: bool,
 }
 
 impl App {
@@ -262,6 +264,7 @@ impl App {
             problems: vec![],
             validated: false,
             show_validation: false,
+            refocus_canvas: false,
         };
         a.set_project(Repo::blank(), None);
         a
@@ -929,6 +932,8 @@ impl App {
             self.open.push(d);
         }
         if self.diagram != Some(d) {
+            // switching diagrams closes the inline edit, keeping what was typed (app-context.js:1297-1324)
+            self.close_inline(true);
             // each diagram keeps its own scroll position (diagram-manager.js:218-228, 243)
             if let Some(old) = self.diagram {
                 self.scrolls.insert(old, self.scroll);
@@ -947,8 +952,8 @@ impl App {
         if let Some(i) = self.open.iter().position(|x| *x == d) {
             self.open.remove(i);
             // closing any working diagram clears the selection and the quick edit (app-context.js:1310-1317)
+            self.close_inline(true);
             self.selection.clear();
-            self.editing = None;
             if self.diagram == Some(d) {
                 self.scrolls.insert(d, self.scroll);
                 let next = self.open.get(i).or(self.open.first()).copied();

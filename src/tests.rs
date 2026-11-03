@@ -1724,3 +1724,18 @@ fn cli_help_and_version() {
     assert_eq!(crate::cli::run(&args(&["model.mdj"]), egui::Context::default), None, "a file opens the window");
     assert_eq!(crate::cli::run(&args(&["image", "/nope.mdj"]), egui::Context::default), Some(1));
 }
+
+#[test]
+fn inline_edit_closes_on_diagram_switch() {
+    let mut a = App::new(None);
+    let d1 = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    a.edit_view(c, None);
+    a.editing.as_mut().unwrap().text = "Renamed".into();
+    let d2 = a.add_diagram(None, "UMLClassDiagram");
+    assert!(a.editing.is_none());
+    assert_eq!(a.repo.name(m), "Renamed", "what was typed is kept");
+    assert!(a.refocus_canvas);
+    let _ = (d1, d2);
+}

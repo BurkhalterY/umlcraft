@@ -286,6 +286,9 @@ impl App {
                 self.centre_on(P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 });
             }
         }
+        if std::mem::take(&mut self.refocus_canvas) {
+            resp.request_focus();
+        }
         self.handle_input(ui, &resp, rect, d);
         if !self.repo.alive(d) || self.diagram != Some(d) {
             return;
@@ -1274,6 +1277,8 @@ impl App {
 
     pub fn close_inline(&mut self, commit: bool) {
         let Some(e) = self.editing.take() else { return };
+        // the canvas takes the keyboard back, so Enter can open the edit again (quickedit-manager.js:680-682)
+        self.refocus_canvas = true;
         if !commit {
             return;
         }
@@ -1316,7 +1321,13 @@ impl App {
             egui::Frame::NONE.fill(Color32::WHITE).stroke(Stroke::new(1.0, c32(render::SELECT_COLOR))).show(ui, |ui| {
                 ui.visuals_mut().override_text_color = Some(Color32::BLACK);
                 ui.visuals_mut().extreme_bg_color = Color32::WHITE;
-                let font = FontId::new((13.0 * self.zoom) as f32, diagram_family(0));
+                // the editor uses the edited view's font size (quickedit-manager.js:365-381)
+                let size = match (&ed.kind, ed.host) {
+                    (EditKind::Text(v), _) => views::view_font(&self.repo, *v).1,
+                    (_, Some(h)) => views::view_font(&self.repo, h).1,
+                    _ => 13.0,
+                };
+                let font = FontId::new((size * self.zoom) as f32, diagram_family(0));
                 let te = if ed.multiline {
                     egui::TextEdit::multiline(&mut ed.text).desired_width(w).desired_rows(((h / 16.0) as usize).max(2))
                 } else {
@@ -1364,7 +1375,42 @@ impl App {
                         key = k;
                     }
                 }
-                let r = ui.add(te);
+                // a visibility dropdown left of the field (quickedits/uml.json "uml.visibility")
+                let vis_target = match &ed.kind {
+                    EditKind::Name(m) | EditKind::Feature(m) if crate::meta::order_of(self.repo.ty(*m), "visibility").is_some() => Some(*m),
+                    _ => None,
+                };
+                let mut picked_vis: Option<&'static str> = None;
+                let r = ui
+                    .horizontal(|ui| {
+                        if let Some(m) = vis_target {
+                            let cur = views::vis_symbol(&self.repo.str(m, "visibility"));
+                            ui.menu_button(egui::RichText::new(if cur.is_empty() { "+" } else { cur }).monospace().color(Color32::WHITE), |ui| {
+                                for (sym, v) in [("+", "public"), ("#", "protected"), ("-", "private"), ("~", "package")] {
+                                    if ui.button(format!("{sym}  {v}")).clicked() {
+                                        picked_vis = Some(v);
+                                        ui.close();
+                                    }
+                                }
+                            });
+                        }
+                        ui.add(te)
+                    })
+                    .inner;
+                if let (Some(v), Some(m)) = (picked_vis, vis_target) {
+                    self.change(|a| a.repo.set(m, "visibility", serde_json::json!(v)));
+                    // keep the typed text in step: a leading symbol is replaced by the new one
+                    if let EditKind::Feature(_) = ed.kind {
+                        let (st, rest) = crate::parse::split_stereotype(&ed.text);
+                        let rest = rest.trim_start_matches(['+', '-', '#', '~']).trim_start();
+                        let sym = views::vis_symbol(v);
+                        ed.text = match st {
+                            Some(st) => format!("<<{st}>> {sym}{rest}"),
+                            None => format!("{sym}{rest}"),
+                        };
+                    }
+                    ed.fresh = true;
+                }
                 if ed.fresh {
                     r.request_focus();
                     if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), r.id) {
@@ -1397,7 +1443,7 @@ impl App {
                     commit = Some(false);
                 } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
                     commit = Some(true);
-                } else if r.lost_focus() {
+                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() {
                     commit = Some(true);
                 }
             });
