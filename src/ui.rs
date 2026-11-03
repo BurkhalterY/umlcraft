@@ -1063,11 +1063,12 @@ impl App {
         if hit(sc(Modifiers::COMMAND, Key::Num9)) {
             self.fit();
         }
-        if hit(sc(Modifiers::COMMAND, Key::G)) {
-            self.show_grid = !self.show_grid;
-        }
+        // Ctrl+Shift+G first: Ctrl+G also matches when Shift is held
         if hit(sc(cs, Key::G)) {
             self.snap = !self.snap;
+        }
+        if hit(sc(Modifiers::COMMAND, Key::G)) {
+            self.show_grid = !self.show_grid;
         }
         // Shift+F4 first: a plain F4 shortcut also matches when Shift is held
         if hit(sc(Modifiers::SHIFT, Key::F4)) {

@@ -551,3 +551,20 @@ fn format_toggles_invert_the_shared_value() {
     assert!(a.repo.bool(c1, "suppressAttributes"));
     assert_eq!(a.selection, vec![c1, c2, note], "Ctrl+Shift+A is not Select All");
 }
+
+#[test]
+fn ctrl_shift_g_toggles_snap_not_the_grid() {
+    use egui::{Key, Modifiers};
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let mut press = |a: &mut App, modifiers: Modifiers| {
+        let ev = egui::Event::Key { key: Key::G, physical_key: None, pressed: true, repeat: false, modifiers };
+        let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+        out.textures_delta.clear();
+    };
+    press(&mut a, Modifiers::COMMAND | Modifiers::SHIFT);
+    assert!(!a.snap && a.show_grid);
+    press(&mut a, Modifiers::COMMAND);
+    assert!(!a.snap && !a.show_grid);
+}
