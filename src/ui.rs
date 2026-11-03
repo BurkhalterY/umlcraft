@@ -301,6 +301,15 @@ impl App {
 
     /// The items of an Add submenu for an element.
     fn add_items(&mut self, ui: &mut egui::Ui, e: Eid) {
+        // Model › Add › Tag on any element that can hold tags (common/menus)
+        if self.repo.kind_of(e, "ExtensibleModel") && ui.button("Tag").clicked() {
+            let name = self.new_name(e, "Tag");
+            let t = self.change(|a| a.repo.create("Tag", &[("name", json!(name)), ("kind", json!("string"))], Some((e, "tags"))));
+            self.expanded.insert(e);
+            self.focus = Some(t);
+            ui.close();
+            return;
+        }
         for (l, k, feature) in self.add_kinds(e) {
             if ui.button(l).clicked() {
                 let created = self.change(|a| if feature { a.add_feature(e, k) } else { Some(a.add_model(e, k)) });
@@ -319,7 +328,7 @@ impl App {
         let is_pkg = self.repo.kind_of(e, "UMLPackage") || t == "Project";
         let is_classifier = self.repo.kind_of(e, "UMLClassifier");
         let adds = self.add_kinds(e);
-        if !adds.is_empty() {
+        if !adds.is_empty() || self.repo.kind_of(e, "ExtensibleModel") {
             ui.menu_button("Add", |ui| self.add_items(ui, e));
         }
         if is_pkg || is_classifier {
@@ -335,6 +344,11 @@ impl App {
         }
         if self.is_diagram(e) && ui.button("Open Diagram").clicked() {
             self.open_diagram(e);
+            ui.close();
+        }
+        if self.repo.kind_of(e, "ExtensibleModel") && ui.button("Tag Editor...").clicked() {
+            self.focus = Some(e);
+            self.open_tag_editor();
             ui.close();
         }
         if !self.is_diagram(e) && t != "Project" && ui.button("Select In Diagram").clicked() {
@@ -1087,7 +1101,7 @@ impl App {
             ui.menu_button("Model", |ui| {
                 // Model › Add and Add Diagram act on the focused element (or the project)
                 let target = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f)).unwrap_or(self.repo.root);
-                ui.add_enabled_ui(!self.add_kinds(target).is_empty(), |ui| {
+                ui.add_enabled_ui(!self.add_kinds(target).is_empty() || self.repo.kind_of(target, "ExtensibleModel"), |ui| {
                     ui.menu_button("Add", |ui| self.add_items(ui, target));
                 });
                 ui.menu_button("Add Diagram", |ui| {
@@ -1099,6 +1113,11 @@ impl App {
                         }
                     }
                 });
+                let taggable = self.focus.map(|f| self.repo.alive(f) && self.repo.kind_of(f, "ExtensibleModel")).unwrap_or(false);
+                if ui.add_enabled(taggable, egui::Button::new("Tag Editor...       Ctrl+T")).clicked() {
+                    self.open_tag_editor();
+                    ui.close();
+                }
                 ui.separator();
                 for (label, ty) in [("Add Attribute", "UMLAttribute"), ("Add Operation", "UMLOperation"), ("Add Literal", "UMLEnumerationLiteral")] {
                     let ok = self.focus.map(|f| self.can_add_feature(f, ty)).unwrap_or(false);
@@ -1520,6 +1539,9 @@ impl App {
         if hit(sc(ca, Key::B)) {
             self.set_line_style(3);
         }
+        if hit(sc(Modifiers::COMMAND, Key::T)) {
+            self.open_tag_editor();
+        }
         if hit(sc(Modifiers::COMMAND, Key::L)) {
             self.set_line_style(0);
         }
@@ -1672,6 +1694,7 @@ impl App {
         self.diagram_picker_ui(ctx);
         self.color_dialog_ui(ctx);
         self.preferences_ui(ctx);
+        self.tag_editor_ui(ctx);
         self.font_dialog_ui(ctx);
         if let Some((title, detail)) = self.message.clone() {
             egui::Window::new(title).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {

@@ -16,6 +16,7 @@ mod parse;
 mod prefs;
 mod render;
 mod style;
+mod tags;
 mod ui;
 mod views;
 #[cfg(test)]

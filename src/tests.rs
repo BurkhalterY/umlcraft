@@ -1507,3 +1507,45 @@ fn package_diagrams_and_more_kinds() {
     assert_eq!(a.repo.refd(c, "stereotype"), Some(st));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn tag_editor_rows_and_values() {
+    use crate::tags::Row;
+    let mut a = App::new(None);
+    let model = a.repo.children(a.repo.root)[0].1;
+    let prof = a.add_model(model, "UMLProfile");
+    let st = a.add_model(prof, "UMLStereotype");
+    a.repo.set(st, "name", json!("entity"));
+    let slot_b = a.add_feature(st, "UMLAttribute").unwrap();
+    crate::parse::apply_attribute(&mut a.repo, slot_b, "table: string = items");
+    let slot_a = a.add_feature(st, "UMLAttribute").unwrap();
+    crate::parse::apply_attribute(&mut a.repo, slot_a, "audited: boolean = true");
+    let c = a.add_model(model, "UMLClass");
+    crate::parse::apply_name(&mut a.repo, c, "<<entity>> Item");
+    a.focus = Some(c);
+    a.open_tag_editor();
+    assert_eq!(a.tag_editor, Some(c));
+    // slots come first, sorted by name
+    assert_eq!(a.tag_rows(c), vec![Row::Slot(slot_a), Row::Slot(slot_b)]);
+    // editing a slot pre-fills from the attribute type
+    a.edit_tag(Some(Row::Slot(slot_a)));
+    let ed = a.tag_edit.clone().unwrap();
+    assert_eq!((ed.name.as_str(), ed.kind.as_str(), ed.checked, ed.slot), ("audited", "boolean", true, true));
+    a.apply_tag_edit(c, &ed);
+    let t = a.repo.list(c, "tags")[0];
+    assert_eq!(a.repo.str(t, "kind"), "boolean");
+    assert!(a.repo.bool(t, "checked"));
+    assert!(!a.repo.has(t, "value"), "only the fields of the kind are stored");
+    assert_eq!(a.tag_rows(c)[0], Row::Tag(t));
+    // a plain tag follows the slots
+    a.edit_tag(None);
+    let mut ed = a.tag_edit.clone().unwrap();
+    ed.name = "author".into();
+    ed.value = "Ann".into();
+    a.apply_tag_edit(c, &ed);
+    let rows = a.tag_rows(c);
+    assert_eq!(rows.len(), 3);
+    let Row::Tag(last) = rows[2].clone() else { panic!() };
+    assert_eq!(a.tag_value_text(last), "Ann");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

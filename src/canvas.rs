@@ -1485,6 +1485,11 @@ impl App {
                 self.open_sub_diagram();
                 ui.close();
             }
+            if ui.button("Tag Editor...").clicked() {
+                self.focus = Some(m);
+                self.open_tag_editor();
+                ui.close();
+            }
         }
         if ui.button("Delete").clicked() {
             self.delete_selection(false);

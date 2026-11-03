@@ -169,6 +169,10 @@ pub struct App {
     pub prefs: crate::prefs::Prefs,
     /// The Preferences window, open on this section.
     pub prefs_open: Option<String>,
+    /// The Tag Editor: the element, the selected row, and the Tag dialog being edited.
+    pub tag_editor: Option<Eid>,
+    pub tag_row: Option<crate::tags::Row>,
+    pub tag_edit: Option<crate::tags::TagEdit>,
 }
 
 impl App {
@@ -236,6 +240,9 @@ impl App {
             font_dialog: None,
             prefs: crate::prefs::Prefs::default(),
             prefs_open: None,
+            tag_editor: None,
+            tag_row: None,
+            tag_edit: None,
         };
         a.set_project(Repo::blank(), None);
         a
