@@ -1163,7 +1163,7 @@ impl App {
     /// and enabled only when a selected view has it (uml.json order; default-commands.js:1319-1350).
     pub(crate) fn format_toggles(&mut self, ui: &mut egui::Ui) {
         for (i, (field, label)) in FORMAT_TOGGLES.into_iter().enumerate() {
-            if i == 1 || i == 5 {
+            if i == 2 || i == 6 {
                 ui.separator();
             }
             let has = !self.flag_views(field).is_empty();
@@ -1217,7 +1217,7 @@ impl App {
                     self.color_dialog = Some(field);
                 }
             }
-            for (key, field) in [(Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::T, "suppressLiterals")] {
+            for (key, field) in [(Key::R, "autoResize"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::T, "suppressLiterals")] {
                 if hit(sc(cs, key)) {
                     self.toggle_flag(field);
                 }
@@ -1631,7 +1631,8 @@ impl App {
 }
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 8] = [
+const FORMAT_TOGGLES: [(&str, &str); 9] = [
+    ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
     ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
     ("showVisibility", "Show Visibility                 Ctrl+Shift+V"),
     ("showNamespace", "Show Namespace                  Ctrl+Shift+N"),

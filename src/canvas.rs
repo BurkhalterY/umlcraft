@@ -216,7 +216,8 @@ impl App {
             return None;
         }
         let v = self.selection[0];
-        if is_edge(&self.repo, v) {
+        // an auto-resized box has no resize handles (diagram-editor.js:195, 1365-1369)
+        if is_edge(&self.repo, v) || self.repo.bool(v, "autoResize") {
             return None;
         }
         let hs = 6.0 / self.zoom;

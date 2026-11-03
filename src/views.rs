@@ -654,9 +654,11 @@ fn keyword_of(ty: &str) -> Option<&'static str> {
     }
 }
 
+/// Grow a box to its content; with autoResize on it takes exactly its content size (core.js:2115-2125).
 fn grow(r: &mut Repo, v: Eid, min_w: f64, min_h: f64) {
-    let w = r.f(v, "width").max(min_w);
-    let h = r.f(v, "height").max(min_h);
+    let auto = r.bool(v, "autoResize");
+    let w = if auto { min_w } else { r.f(v, "width").max(min_w) };
+    let h = if auto { min_h } else { r.f(v, "height").max(min_h) };
     r.set(v, "width", num(w));
     r.set(v, "height", num(h));
 }
@@ -764,7 +766,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         min_w = min_w.max(c.1);
     }
     let (x, y) = (r.f(v, "left"), r.f(v, "top"));
-    let w0 = r.f(v, "width").max(min_w);
+    let w0 = if r.bool(v, "autoResize") { min_w } else { r.f(v, "width").max(min_w) };
     let name_h = layout_name(r, ms, v, m, x, y, w0, keyword, false);
     let min_h = name_h + comps.iter().map(|c| c.2).sum::<f64>();
     grow(r, v, min_w, min_h);

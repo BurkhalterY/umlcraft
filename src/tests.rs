@@ -1264,3 +1264,22 @@ fn font_size_reaches_the_layout() {
     assert_eq!(a.repo.str(nm, "font"), "Arial;26;1", "the name keeps its bold style");
     let _ = at;
 }
+
+#[test]
+fn auto_resize_fits_the_content() {
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 300.0, 200.0))).unwrap();
+    a.select(vec![c]);
+    a.toggle_flag("autoResize");
+    assert!(a.repo.bool(c, "autoResize"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.repo.f(c, "width") < 300.0 && a.repo.f(c, "height") < 200.0, "it shrinks to its content");
+    // the corner handle does nothing: the press starts a move instead
+    let (x2, y2) = (a.repo.f(c, "left") + a.repo.f(c, "width"), a.repo.f(c, "top") + a.repo.f(c, "height"));
+    a.on_press(canvas, Pos2::new(x2 as f32, y2 as f32), Modifiers::NONE);
+    assert!(!matches!(a.drag, Some(crate::app::Drag::Resize { .. })));
+}
