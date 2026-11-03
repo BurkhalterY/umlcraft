@@ -27,6 +27,7 @@ npm run build    # static site in website/out/; BASE_PATH=/umlcraft npm run buil
   - the screenshots and icons are copied at build time from `docs/images/` and `packaging/icons/`, so change them there, not in `website/public/`;
   - the latest release is read from the GitHub API at build time;
   - the "Progress" figures come from files 1–7 of `docs/features/`.
+- **Hosting:** `.github/workflows/website.yml` builds the site and publishes it on GitHub Pages (https://burkhaltery.github.io/umlcraft). It runs when `website/`, `docs/features/`, `docs/images/` or `packaging/icons/` change on `main`, after each successful release, and on demand.
 - **Licensing:** the getartcraft.com source (`storytold/artcraft-services`) is under the ArtCraft licence, which only allows private personal use and forbids using the ArtCraft name and logo. Never copy its code, styles or images into this MIT repository. Follow its stack and layout, but write our own code.
 
 ## Commits
