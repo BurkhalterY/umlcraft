@@ -100,12 +100,16 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
 
 | Area | What you get |
 |---|---|
-| **Editing** | Rubber-band and Shift/Ctrl selection, moving with snap to grid, eight resize handles, bend points on lines, rectilinear and oblique lines, shadows on or off, arrow-key nudging |
-| **Model Explorer** | The whole model as a tree in the original's order, search, sort by name, right-click to add elements, diagrams, attributes, operations, literals and parameters, drag onto a diagram to show an element again |
-| **Editors** | Every property of classes, attributes, operations, parameters, literals, relationships and both association ends, plus documentation |
-| **Views** | Working Diagrams, zoom from 10% to 300%, fit to window, a live mini-map, show or hide the grid and the panels |
+| **Editing** | Rubber-band (by overlap) and Shift selection, Tab to walk the views, moving with snap to grid, dropping boxes into packages and subjects, eight resize handles, auto resize, bend points, rectilinear segments, reconnecting a line by its end, draggable line labels, four line styles, arrow-key nudging, Ctrl+drag to pan |
+| **Clipboard** | Cut, copy and paste of views (as new views of the same models) and of model elements (as deep copies), through the system clipboard; copy a diagram as a picture |
+| **Typing on the diagram** | `<<stereotype>> +Name`, attributes and operations parsed as you type; Ctrl+Enter adds an attribute, Ctrl+Shift+Enter an operation, Ctrl+Delete removes one, Up/Down walk them; association role names; buttons that add a sub-class, super-class, interface, associated class, note… with its relationship |
+| **Format** | Fonts and sizes, fill, line and text colours, shadow, show/suppress compartments and visibility, stereotype display, align, distribute, size equally, bring to front and send to back, all from the Format menu, a Styles panel and the original's shortcuts |
+| **Model Explorer** | The whole model as a tree in the original's order, quick search, sort by name, stereotype text, expand and collapse all, arrow keys, drag to move elements, right-click to add elements, diagrams, tags, attributes, operations, literals and parameters, drag onto a diagram (relationships come along) |
+| **Editors** | Styles, every property of classes, attributes, operations, parameters, literals, relationships and both association ends, documentation, and a Tag Editor (Ctrl+T) |
+| **Find and check** | Quick Find (Ctrl+P), Model › Find (Ctrl+F), a Command Palette (Ctrl+Shift+P), Select In Diagram (Ctrl+D), and StarUML's UML validation rules with a results panel |
+| **Views** | Working Diagrams remembered per file, Next/Previous Diagram, zoom from 10% to 300% around the screen centre, fit to window, a live mini-map, every panel on Ctrl+1 to Ctrl+6, Preferences for the grid and the style of new views |
 | **History** | Undo and redo for every change (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) |
-| **Export** | PNG and SVG of the whole diagram, drawn off-screen with a transparent background and the original's 10-pixel margin |
+| **Export** | PNG, JPEG and SVG of one diagram or of every diagram into a folder, drawn off-screen with the original's 10-pixel margin |
 | **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj`, and `umlcraft image model.mdj -f png\|jpeg\|svg -s <selector> -o <file>` to export diagrams without a window |
 
 ## .mdj without compromise
