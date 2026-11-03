@@ -1449,6 +1449,39 @@ impl App {
                     }
                     ed.fresh = true;
                 }
+                // an association end: aggregation, navigability and multiplicity dropdowns
+                // (quickedits/uml.json "uml.association-end1/2")
+                let mut picked_end: Option<(&'static str, String)> = None;
+                if let EditKind::Name(end) = ed.kind {
+                    if self.repo.ty(end) == "UMLAssociationEnd" {
+                        ui.horizontal(|ui| {
+                            let fields: [(&'static str, &str, &[&str]); 3] = [
+                                ("aggregation", "Aggregation Kind", &["none", "shared", "composite"]),
+                                ("navigable", "Navigability", &["unspecified", "navigable", "notNavigable"]),
+                                ("multiplicity", "Multiplicity", &crate::ui::MULTIPLICITIES),
+                            ];
+                            for (field, hint, options) in fields {
+                                let cur = self.repo.str(end, field);
+                                let shown = if cur.is_empty() { "—".to_string() } else { cur.clone() };
+                                ui.menu_button(egui::RichText::new(format!("{shown} ▾")).size(11.0).color(Color32::WHITE), |ui| {
+                                    for o in options {
+                                        if ui.selectable_label(cur == *o, *o).clicked() {
+                                            picked_end = Some((field, o.to_string()));
+                                            ui.close();
+                                        }
+                                    }
+                                })
+                                .response
+                                .on_hover_text(hint);
+                            }
+                        });
+                    }
+                }
+                if let (Some((field, value)), EditKind::Name(end)) = (picked_end.clone(), &ed.kind) {
+                    let end = *end;
+                    self.change(|a| a.repo.set(end, field, serde_json::json!(value)));
+                    ed.fresh = true;
+                }
                 if ed.fresh {
                     r.request_focus();
                     if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), r.id) {
@@ -1481,7 +1514,7 @@ impl App {
                     commit = Some(false);
                 } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
                     commit = Some(true);
-                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() {
+                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() {
                     commit = Some(true);
                 }
             });
