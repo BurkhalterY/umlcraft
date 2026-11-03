@@ -86,19 +86,19 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 
 | Menu path | Command | Shortcut | UMLCraft | Notes | Source |
 |---|---|---|---|---|---|
-| Format › Alignment › Send To Back | `alignment:send-to-back` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Bring To Front | `alignment:bring-to-front` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Align Left | `alignment:align-left` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Align Right | `alignment:align-right` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Align Center | `alignment:align-center` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Align Top | `alignment:align-top` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Align Bottom | `alignment:align-bottom` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Align Middle | `alignment:align-middle` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Space Equally, Horizontally | `alignment:space-equally-horizontally` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Space Equally, Vertically | `alignment:space-equally-vertically` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Set Width Equally | `alignment:set-width-equally` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Set Height Equally | `alignment:set-height-equally` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Set Size Equally | `alignment:set-size-equally` |  | ❌ |  | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Send To Back | `alignment:send-to-back` |  | ✅ | Format › Alignment › Send To Back moves the selected top-level views to the start of ownedViews (src/align.rs:146; src/ui.rs:909) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Bring To Front | `alignment:bring-to-front` |  | ✅ | Format › Alignment › Bring To Front moves the selected top-level views to the end of ownedViews (src/align.rs:146; src/ui.rs:909) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Align Left | `alignment:align-left` |  | ✅ | left of every selected node set to the minimum left (src/align.rs:55) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Align Right | `alignment:align-right` |  | ✅ | right edges set to the maximum right (src/align.rs:58) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Align Center | `alignment:align-center` |  | ✅ | nodes centred on the midpoint of the horizontal extent (src/align.rs:60) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Align Top | `alignment:align-top` |  | ✅ | top of every selected node set to the minimum top (src/align.rs:56) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Align Bottom | `alignment:align-bottom` |  | ✅ | bottom edges set to the maximum bottom (src/align.rs:59) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Align Middle | `alignment:align-middle` |  | ✅ | nodes centred on the midpoint of the vertical extent (src/align.rs:64) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Space Equally, Horizontally | `alignment:space-equally-horizontally` |  | ✅ | sorted by left, equal gaps inside the outer extent; nothing when they overlap (src/align.rs:68) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Space Equally, Vertically | `alignment:space-equally-vertically` |  | ✅ | sorted by top, equal gaps inside the outer extent; nothing when they overlap (src/align.rs:68) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Set Width Equally | `alignment:set-width-equally` |  | ✅ | largest width in the selection (src/align.rs:92) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Set Height Equally | `alignment:set-height-equally` |  | ✅ | largest height in the selection (src/align.rs:93) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Set Size Equally | `alignment:set-size-equally` |  | ✅ | largest width and height in the selection (src/align.rs:94) | extensions/default/alignment/menus/alignment.json |
 | Debug › Show DevTools | `debug:show-devtools` | `shift-alt-t` | ➖ | Electron devtools | extensions/default/debug/menus/debug.json |
 | Debug › Reload | `debug:reload` | `ctrl-r` | ➖ | Electron reload | extensions/default/debug/menus/debug.json |
 | Tools › Diagram Generator › Overview | `diagram-generator:overview` |  | ❌ |  | extensions/default/diagram-generator/menus/diagram-generator.json |
@@ -355,20 +355,20 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 
 | Context | Item | Command | UMLCraft | Notes |
 |---|---|---|---|---|
-| diagram-canvas | *(the menu as a whole)* |  | 🟡 | the canvas menu has Edit, Add Literal/Attribute/Operation, Line Style (two styles), Select In Explorer, Delete, Delete from Model; on empty canvas Select All and Fit To Window (src/canvas.rs:934) |
-| diagram-canvas | Format › Alignment › Send To Back | `alignment:send-to-back` | ❌ |  |
-| diagram-canvas | Format › Alignment › Bring To Front | `alignment:bring-to-front` | ❌ |  |
-| diagram-canvas | Format › Alignment › Align Left | `alignment:align-left` | ❌ |  |
-| diagram-canvas | Format › Alignment › Align Right | `alignment:align-right` | ❌ |  |
-| diagram-canvas | Format › Alignment › Align Center | `alignment:align-center` | ❌ |  |
-| diagram-canvas | Format › Alignment › Align Top | `alignment:align-top` | ❌ |  |
-| diagram-canvas | Format › Alignment › Align Bottom | `alignment:align-bottom` | ❌ |  |
-| diagram-canvas | Format › Alignment › Align Middle | `alignment:align-middle` | ❌ |  |
-| diagram-canvas | Format › Alignment › Space Equally, Horizontally | `alignment:space-equally-horizontally` | ❌ |  |
-| diagram-canvas | Format › Alignment › Space Equally, Vertically | `alignment:space-equally-vertically` | ❌ |  |
-| diagram-canvas | Format › Alignment › Set Width Equally | `alignment:set-width-equally` | ❌ |  |
-| diagram-canvas | Format › Alignment › Set Height Equally | `alignment:set-height-equally` | ❌ |  |
-| diagram-canvas | Format › Alignment › Set Size Equally | `alignment:set-size-equally` | ❌ |  |
+| diagram-canvas | *(the menu as a whole)* |  | 🟡 | the canvas menu has Edit, Add Literal/Attribute/Operation, Line Style (two styles), Format › Alignment, Select In Explorer, Delete, Delete from Model; on empty canvas Select All and Fit To Window (src/canvas.rs:934) |
+| diagram-canvas | Format › Alignment › Send To Back | `alignment:send-to-back` | ✅ | Format › Alignment › Send To Back moves the selected top-level views to the start of ownedViews (src/align.rs:146; src/ui.rs:909) |
+| diagram-canvas | Format › Alignment › Bring To Front | `alignment:bring-to-front` | ✅ | Format › Alignment › Bring To Front moves the selected top-level views to the end of ownedViews (src/align.rs:146; src/ui.rs:909) |
+| diagram-canvas | Format › Alignment › Align Left | `alignment:align-left` | ✅ | left of every selected node set to the minimum left (src/align.rs:55) |
+| diagram-canvas | Format › Alignment › Align Right | `alignment:align-right` | ✅ | right edges set to the maximum right (src/align.rs:58) |
+| diagram-canvas | Format › Alignment › Align Center | `alignment:align-center` | ✅ | nodes centred on the midpoint of the horizontal extent (src/align.rs:60) |
+| diagram-canvas | Format › Alignment › Align Top | `alignment:align-top` | ✅ | top of every selected node set to the minimum top (src/align.rs:56) |
+| diagram-canvas | Format › Alignment › Align Bottom | `alignment:align-bottom` | ✅ | bottom edges set to the maximum bottom (src/align.rs:59) |
+| diagram-canvas | Format › Alignment › Align Middle | `alignment:align-middle` | ✅ | nodes centred on the midpoint of the vertical extent (src/align.rs:64) |
+| diagram-canvas | Format › Alignment › Space Equally, Horizontally | `alignment:space-equally-horizontally` | ✅ | sorted by left, equal gaps inside the outer extent; nothing when they overlap (src/align.rs:68) |
+| diagram-canvas | Format › Alignment › Space Equally, Vertically | `alignment:space-equally-vertically` | ✅ | sorted by top, equal gaps inside the outer extent; nothing when they overlap (src/align.rs:68) |
+| diagram-canvas | Format › Alignment › Set Width Equally | `alignment:set-width-equally` | ✅ | largest width in the selection (src/align.rs:92) |
+| diagram-canvas | Format › Alignment › Set Height Equally | `alignment:set-height-equally` | ✅ | largest height in the selection (src/align.rs:93) |
+| diagram-canvas | Format › Alignment › Set Size Equally | `alignment:set-size-equally` | ✅ | largest width and height in the selection (src/align.rs:94) |
 | diagram-canvas | Model › Add › Tag | `common:tag` | 🟡 | Tags are listed in the explorer ("name = value", src/ui.rs:169) but cannot be added |
 | diagram-canvas | Format › Suppress Columns | `erd:suppress-columns` | ❌ |  |
 | diagram-canvas | Format › Suppress Property Values | `format:suppress-property-values` | ❌ | SysML |

@@ -114,6 +114,19 @@ returned nothing).
 | UI font | 13px Source Sans Pro (UMLCraft uses an installed Source Sans Pro, else Noto Sans; diagrams use Liberation Sans, metric-compatible with Arial) | live computed style |
 | Shortcuts | Ctrl+N/O/S, Ctrl+Shift+S, Ctrl+Z/Y, Delete, Ctrl+Delete, Ctrl+A | `resources/default/keymaps/linux.json` |
 
+## Editing commands
+
+Read from the StarUML source through the feature inventory (`docs/features/`), which quotes these lines.
+
+| Rule | Source |
+|---|---|
+| Alignment and sizing act on selected node views only; lines and labels are skipped; each command is one undo step | `extensions/default/alignment/main.js:26-34, 370-376` |
+| Align Right/Bottom: right = left + width − 1, new left = max right − width + 1, so right edges meet (UMLCraft: right = left + width, same edge) | `extensions/default/alignment/main.js:96-115` |
+| Align Center/Middle: centre on the midpoint of the selection's overall extent | `extensions/default/alignment/main.js:117-142` |
+| Space Equally: sort by left (top), keep the outermost extent, equal gaps; no-op when the sizes fill the extent | `extensions/default/alignment/main.js:213-293` |
+| Set Width/Height/Size Equally: the largest width and/or height | `extensions/default/alignment/main.js:295-368` |
+| Bring to Front / Send to Back: move the selected top-level views to the end / start of `diagram.ownedViews` (drawing and hit order) | `extensions/default/alignment/main.js:36-73` |
+
 ## Estimated / not taken over
 
 * Label text widths come from the system's Arial-compatible font (Liberation Sans), so widths can differ by a pixel.

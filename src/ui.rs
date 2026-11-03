@@ -843,6 +843,8 @@ impl App {
                     self.toggle_shadow();
                     ui.close();
                 }
+                ui.separator();
+                self.alignment_menu(ui);
             });
             ui.menu_button("Model", |ui| {
                 if ui.button("Add Class Diagram").clicked() {
@@ -898,6 +900,31 @@ impl App {
                 if ui.button("About UMLCraft").clicked() {
                     self.about_open = true;
                     ui.close();
+                }
+            });
+        });
+    }
+
+    /// Format > Alignment, in the main menu and the canvas menu (alignment.json order).
+    pub(crate) fn alignment_menu(&mut self, ui: &mut egui::Ui) {
+        ui.add_enabled_ui(self.can_align(), |ui| {
+            ui.menu_button("Alignment", |ui| {
+                if ui.button("Send To Back").clicked() {
+                    self.reorder(false);
+                    ui.close();
+                }
+                if ui.button("Bring To Front").clicked() {
+                    self.reorder(true);
+                    ui.close();
+                }
+                for (i, (how, label)) in crate::align::Align::ALL.into_iter().enumerate() {
+                    if i == 0 || i == 6 || i == 8 {
+                        ui.separator();
+                    }
+                    if ui.button(label).clicked() {
+                        self.align(how);
+                        ui.close();
+                    }
                 }
             });
         });

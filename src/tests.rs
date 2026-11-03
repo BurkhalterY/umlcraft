@@ -288,3 +288,56 @@ fn png_export_follows_the_originals_size_rules() {
     assert!(svg.contains(&format!("width=\"{:.0}\"", b.w + 20.0)));
     assert!(!svg.contains("fill=\"#ffffff\"/>\n<"), "no background rectangle");
 }
+
+#[test]
+fn alignment_commands_follow_the_originals_rules() {
+    use crate::align::Align;
+    let mut a = App::new(None);
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(200.0, 100.0, 140.0, 80.0))).unwrap();
+    let c3 = a.change(|a| a.create_node("UMLClass", rect(400.0, 20.0, 120.0, 40.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let r = |a: &App, v| crate::views::node_rect(&a.repo, v);
+    a.select(vec![c1, c2, c3, e]);
+    let undo = a.undo.len();
+    a.align(Align::Left);
+    assert_eq!(a.undo.len(), undo + 1, "one undo step");
+    assert!([c1, c2, c3].iter().all(|v| r(&a, *v).x == 40.0));
+    a.align(Align::Right);
+    assert!([c1, c2, c3].iter().all(|v| r(&a, *v).x + r(&a, *v).w == 180.0), "right edges meet the rightmost");
+    a.align(Align::Top);
+    assert!([c1, c2, c3].iter().all(|v| r(&a, *v).y == 20.0));
+    a.align(Align::Middle);
+    // extent 20..100, middle 60
+    assert_eq!(r(&a, c1).y, 30.0);
+    assert_eq!(r(&a, c3).y, 40.0);
+    a.align(Align::Size);
+    assert!([c1, c2, c3].iter().all(|v| r(&a, *v).w == 140.0 && r(&a, *v).h == 80.0));
+    a.do_undo();
+    a.do_undo();
+    a.do_undo();
+    a.do_undo();
+    a.do_undo();
+    assert_eq!(r(&a, c2).x, 200.0, "undo restores the layout");
+
+    // space equally: extent 40..520 (480), boxes 100+140+120 = 360, gap 60
+    a.align(Align::SpaceH);
+    assert_eq!(r(&a, c1).x, 40.0);
+    assert_eq!(r(&a, c2).x, 200.0);
+    assert_eq!(r(&a, c3).x, 400.0);
+    a.change(|a| a.repo.set(c2, "left", json!(150)));
+    a.align(Align::SpaceH);
+    assert_eq!(r(&a, c2).x, 200.0);
+    // overlapping boxes are left alone
+    let boxes = [rect(0.0, 0.0, 100.0, 10.0), rect(50.0, 0.0, 100.0, 10.0)];
+    assert_eq!(crate::align::arrange(Align::SpaceH, &boxes), boxes.to_vec());
+
+    // z-order: only the order of the selected top-level views changes
+    let d = a.diagram.unwrap();
+    a.select(vec![c1]);
+    a.reorder(true);
+    assert_eq!(*a.repo.list(d, "ownedViews").last().unwrap(), c1);
+    a.select(vec![c3, e]);
+    a.reorder(false);
+    assert_eq!(a.repo.list(d, "ownedViews"), vec![c3, e, c2, c1]);
+}
