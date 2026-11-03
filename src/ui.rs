@@ -1255,6 +1255,8 @@ impl App {
                 ui.checkbox(&mut self.show_grid, "Show Grid");
                 ui.checkbox(&mut self.snap, "Snap to Grid");
                 ui.separator();
+                ui.checkbox(&mut self.show_relationships, "Relationships     Ctrl+Alt+R");
+                ui.separator();
                 for (i, label) in PANELS.iter().enumerate() {
                     let mut on = *self.panel_flag(i);
                     if ui.checkbox(&mut on, format!("{label:<14}Ctrl+{}", i + 1)).clicked() {
@@ -1637,6 +1639,9 @@ impl App {
         }
         if hit(sc(ca, Key::B)) {
             self.set_line_style(3);
+        }
+        if hit(sc(ca, Key::R)) {
+            self.show_relationships = !self.show_relationships;
         }
         if hit(sc(Modifiers::COMMAND, Key::T)) {
             self.open_tag_editor();
@@ -2138,6 +2143,9 @@ impl eframe::App for App {
         }
         if self.show_validation {
             Panel::bottom("validation").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.validation_ui(ui));
+        }
+        if self.show_relationships {
+            Panel::bottom("relationships").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.relationships_ui(ui));
         }
         // the Find Results panel sits under the diagram, above the status bar
         if self.find_results.is_some() {

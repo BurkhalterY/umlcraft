@@ -2070,3 +2070,21 @@ fn broken_views_removed_on_open() {
     assert!(!a.repo.alive(e) && !a.repo.alive(c2));
     assert!(a.repo.alive(c1) && a.repo.alive(note));
 }
+
+#[test]
+fn relationships_panel_rows() {
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let find = |a: &App, n: &str, t: &str| a.repo.all().find(|e| a.repo.name(*e) == n && a.repo.ty(*e) == t).unwrap();
+    let item = find(&a, "LibraryItem", "UMLClass");
+    let book = find(&a, "Book", "UMLClass");
+    let rows = a.relationship_rows(item);
+    // Book generalizes LibraryItem: from LibraryItem, Book is the source
+    assert!(rows.iter().any(|r| r.other == book && r.role == "(source)"), "{rows:?}");
+    let rows = a.relationship_rows(book);
+    assert!(rows.iter().any(|r| r.other == item && r.role == "(target)"));
+    // an association lists the opposite end's role name
+    let member = find(&a, "Member", "UMLClass");
+    let rows = a.relationship_rows(member);
+    assert!(rows.iter().any(|r| a.repo.ty(r.rel) == "UMLAssociation"), "{rows:?}");
+}

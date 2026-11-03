@@ -23,6 +23,7 @@ mod pdf;
 mod picker;
 mod prefs;
 mod related;
+mod relview;
 mod render;
 mod selector;
 mod style;

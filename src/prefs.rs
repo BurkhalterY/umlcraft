@@ -89,6 +89,7 @@ impl App {
         self.props_open = p.bool("_viewState.propertyEditor.visible", true);
         self.doc_open = p.bool("_viewState.documentationEditor.visible", true);
         self.style_open = p.bool("_viewState.styleEditor.visible", true);
+        self.show_relationships = p.bool("view.relationships.visibility", false);
     }
 
     /// Record the current settings; the file is written only when they changed.
@@ -107,6 +108,7 @@ impl App {
             ("_viewState.propertyEditor.visible", json!(self.props_open)),
             ("_viewState.documentationEditor.visible", json!(self.doc_open)),
             ("_viewState.styleEditor.visible", json!(self.style_open)),
+            ("view.relationships.visibility", json!(self.show_relationships)),
         ];
         for (k, v) in vals {
             self.prefs.set(k, v);

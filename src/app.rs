@@ -184,6 +184,8 @@ pub struct App {
     pub problems: Vec<crate::validate::Problem>,
     pub validated: bool,
     pub show_validation: bool,
+    /// View > Relationships: the panel under the diagram (view.relationships.visibility).
+    pub show_relationships: bool,
     /// Give the keyboard back to the canvas on the next frame (after an inline edit closes).
     pub refocus_canvas: bool,
     /// When the last auto-backup was written.
@@ -272,6 +274,7 @@ impl App {
             problems: vec![],
             validated: false,
             show_validation: false,
+            show_relationships: false,
             refocus_canvas: false,
             last_backup: std::time::Instant::now(),
             print_open: false,
