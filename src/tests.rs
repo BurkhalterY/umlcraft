@@ -1589,3 +1589,18 @@ fn command_palette_and_quick_find() {
     frame(&mut a, vec![]);
     assert!(!a.show_statusbar, "the picked command ran");
 }
+
+#[test]
+fn model_find() {
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let found = a.find("loan", false, false);
+    assert!(found.len() >= 2 && found.iter().all(|e| a.repo.name(*e).to_lowercase().contains("loan")));
+    assert!(a.find("loan", true, false).is_empty(), "case sensitive");
+    assert!(a.find("   ", false, false).is_empty(), "an empty keyword finds nothing");
+    let m = found[0];
+    a.change(|a| a.repo.set(m, "documentation", json!("a zebra")));
+    assert!(a.find("zebra", false, false).is_empty());
+    assert_eq!(a.find("zebra", false, true), vec![m], "in documentation");
+    assert!(a.path_name(m).contains("::"));
+}

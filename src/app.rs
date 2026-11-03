@@ -176,6 +176,10 @@ pub struct App {
     /// The Command Palette or Quick Find, while open, and a picked command to run next frame.
     pub palette: Option<crate::palette::Palette>,
     pub palette_run: Option<&'static str>,
+    /// Model > Find: the open dialog, the last options, and the results panel (keyword, elements).
+    pub find_dialog: Option<crate::find::FindDialog>,
+    pub find_last: crate::find::FindDialog,
+    pub find_results: Option<(String, Vec<Eid>)>,
 }
 
 impl App {
@@ -248,6 +252,9 @@ impl App {
             tag_edit: None,
             palette: None,
             palette_run: None,
+            find_dialog: None,
+            find_last: Default::default(),
+            find_results: None,
         };
         a.set_project(Repo::blank(), None);
         a

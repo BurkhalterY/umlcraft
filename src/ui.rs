@@ -1113,6 +1113,10 @@ impl App {
                         }
                     }
                 });
+                if ui.button("Find...                   Ctrl+F").clicked() {
+                    self.open_find();
+                    ui.close();
+                }
                 let taggable = self.focus.map(|f| self.repo.alive(f) && self.repo.kind_of(f, "ExtensibleModel")).unwrap_or(false);
                 if ui.add_enabled(taggable, egui::Button::new("Tag Editor...       Ctrl+T")).clicked() {
                     self.open_tag_editor();
@@ -1557,6 +1561,9 @@ impl App {
         if hit(sc(Modifiers::COMMAND, Key::P)) {
             self.open_palette(crate::palette::Mode::Find);
         }
+        if hit(sc(Modifiers::COMMAND, Key::F)) {
+            self.open_find();
+        }
         if hit(sc(Modifiers::COMMAND, Key::L)) {
             self.set_line_style(0);
         }
@@ -1711,6 +1718,7 @@ impl App {
         self.preferences_ui(ctx);
         self.tag_editor_ui(ctx);
         self.palette_ui(ctx);
+        self.find_dialog_ui(ctx);
         self.font_dialog_ui(ctx);
         if let Some((title, detail)) = self.message.clone() {
             egui::Window::new(title).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
@@ -2032,6 +2040,10 @@ impl eframe::App for App {
         }
         if self.show_toolbar {
             Panel::right("toolbar").exact_size(TOOLBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(TOOLBAR)).show(ui, |ui| self.toolbar_ui(ui));
+        }
+        // the Find Results panel sits under the diagram, above the status bar
+        if self.find_results.is_some() {
+            Panel::bottom("find-results").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.find_results_ui(ui));
         }
         egui::CentralPanel::no_frame().show(ui, |ui| {
             self.canvas_ui(ui);
