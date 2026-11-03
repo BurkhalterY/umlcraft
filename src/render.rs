@@ -240,7 +240,11 @@ pub enum End {
     ArrowDiamond,
     ArrowFilledDiamond,
     Cross,
+    /// A circle with a plus at the container's end of a containment line (radius estimated).
+    CirclePlus,
 }
+
+const CIRCLE_PLUS_R: f64 = 7.0;
 
 fn end_shape(c: &mut dyn Canvas, p0: P, p1: P, end: Option<End>, line: Rgba) {
     let Some(end) = end else { return };
@@ -261,6 +265,12 @@ fn end_shape(c: &mut dyn Canvas, p0: P, p1: P, end: Option<End>, line: Rgba) {
             let b1 = P { x: tip3.x + ARROW_LENGTH * (th - half).cos(), y: tip3.y + ARROW_LENGTH * (th - half).sin() };
             let b2 = P { x: tip3.x + ARROW_LENGTH * (th + half).cos(), y: tip3.y + ARROW_LENGTH * (th + half).sin() };
             c.polyline(&[b1, tip3, b2], line, false);
+        }
+        End::CirclePlus => {
+            let m = at(CIRCLE_PLUS_R, th);
+            c.ellipse(m, CIRCLE_PLUS_R, CIRCLE_PLUS_R, Some(WHITE), Some(line));
+            c.polyline(&[P { x: m.x - CIRCLE_PLUS_R, y: m.y }, P { x: m.x + CIRCLE_PLUS_R, y: m.y }], line, false);
+            c.polyline(&[P { x: m.x, y: m.y - CIRCLE_PLUS_R }, P { x: m.x, y: m.y + CIRCLE_PLUS_R }], line, false);
         }
         End::Cross => {
             let m = at(7.0, th);
@@ -302,6 +312,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     match ty.as_str() {
         "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" => head = Some(End::Triangle),
         "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" => head = Some(End::Arrow),
+        "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" => {
             if let Some(m) = r.refd(e, "model") {
                 tail = assoc_end(r, r.child(m, "end1"));

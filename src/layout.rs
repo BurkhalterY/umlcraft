@@ -33,9 +33,15 @@ impl Dir {
 }
 
 /// Space between two boxes of a rank, between a line and anything else in a rank, and between ranks.
-pub const NODE_SEP: f64 = 50.0;
-pub const EDGE_SEP: f64 = 10.0;
-pub const RANK_SEP: f64 = 50.0;
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Seps {
+    pub node: f64,
+    pub edge: f64,
+    pub rank: f64,
+}
+
+/// The separations of Format › Layout (estimated).
+pub const SEPS: Seps = Seps { node: 50.0, edge: 10.0, rank: 50.0 };
 
 /// The result: each box's top-left corner, and for each line the bend points it passes through
 /// (from its first end to its second), all relative to (0, 0).
@@ -46,7 +52,7 @@ pub struct Placed {
 }
 
 /// Lay out boxes of these sizes; each edge (a, b) puts a above b (before b in the direction).
-pub fn layered(sizes: &[(f64, f64)], edges: &[(usize, usize)], dir: Dir) -> Placed {
+pub fn layered(sizes: &[(f64, f64)], edges: &[(usize, usize)], dir: Dir, seps: Seps) -> Placed {
     let n = sizes.len();
     let across = matches!(dir, Dir::LeftRight | Dir::RightLeft);
     // work top to bottom; for left-right layouts the boxes are turned
@@ -139,7 +145,7 @@ pub fn layered(sizes: &[(f64, f64)], edges: &[(usize, usize)], dir: Dir) -> Plac
         let mut prev = a;
         for r in rank[a] + 1..rank[b] {
             let d = node_sz.len();
-            node_sz.push((EDGE_SEP, 0.0));
+            node_sz.push((seps.edge, 0.0));
             is_dummy.push(true);
             node_rank.push(r);
             links.push((prev, d));
@@ -238,7 +244,7 @@ pub fn layered(sizes: &[(f64, f64)], edges: &[(usize, usize)], dir: Dir) -> Plac
 
     // 5. positions across the ranks: packed, then pulled towards the neighbours without overlapping
     let gap = |a: usize, b: usize| -> f64 {
-        let sep = if is_dummy[a] || is_dummy[b] { EDGE_SEP } else { NODE_SEP };
+        let sep = if is_dummy[a] || is_dummy[b] { seps.edge } else { seps.node };
         node_sz[a].0 / 2.0 + sep + node_sz[b].0 / 2.0
     };
     let mut x = vec![0.0; total];
@@ -258,11 +264,19 @@ pub fn layered(sizes: &[(f64, f64)], edges: &[(usize, usize)], dir: Dir) -> Plac
             if l.is_empty() {
                 continue;
             }
+            // a box without lines follows the one before it, so loose boxes stay packed
             let want: Vec<f64> = l
                 .iter()
-                .map(|v| {
+                .enumerate()
+                .map(|(i, v)| {
                     let nb: Vec<usize> = up[*v].iter().chain(down[*v].iter()).copied().collect();
-                    if nb.is_empty() { x[*v] } else { nb.iter().map(|w| x[*w]).sum::<f64>() / nb.len() as f64 }
+                    if !nb.is_empty() {
+                        nb.iter().map(|w| x[*w]).sum::<f64>() / nb.len() as f64
+                    } else if i > 0 {
+                        x[l[i - 1]] + gap(l[i - 1], *v)
+                    } else {
+                        x[*v]
+                    }
                 })
                 .collect();
             // keep the order and the gaps: least squares under order constraints (pool adjacent violators)
@@ -295,7 +309,7 @@ pub fn layered(sizes: &[(f64, f64)], edges: &[(usize, usize)], dir: Dir) -> Plac
     let heights: Vec<f64> = layers.iter().map(|l| l.iter().map(|v| node_sz[*v].1).fold(0.0, f64::max)).collect();
     let mut rank_y = vec![0.0; ranks];
     for r in 1..ranks {
-        rank_y[r] = rank_y[r - 1] + heights[r - 1] + RANK_SEP;
+        rank_y[r] = rank_y[r - 1] + heights[r - 1] + seps.rank;
     }
     let depth = if ranks == 0 { 0.0 } else { rank_y[ranks - 1] + heights[ranks - 1] };
     let width = (0..total).map(|v| x[v] + node_sz[v].0 / 2.0 - min_x).fold(0.0, f64::max);
@@ -340,6 +354,11 @@ impl App {
     /// package or subject, contained or only lying within its bounds, move with it; lines get the bend
     /// points of the layout (none when rectilinear, which routes itself).
     pub fn layout_diagram(&mut self, dir: Dir) {
+        self.layout_diagram_with(dir, SEPS);
+    }
+
+    /// Lay out the current diagram with these separations.
+    pub fn layout_diagram_with(&mut self, dir: Dir, seps: Seps) {
         let Some(d) = self.diagram else { return };
         let all = self.repo.list(d, "ownedViews");
         let free: Vec<Eid> = all.iter().copied().filter(|v| views::is_node(&self.repo, *v) && !self.repo.has(*v, "containerView") && self.repo.refd(*v, "hostEdge").is_none()).collect();
@@ -391,7 +410,7 @@ impl App {
         let sizes: Vec<(f64, f64)> = top.iter().map(|v| (self.repo.f(*v, "width"), self.repo.f(*v, "height"))).collect();
         // the head of a line goes above its tail
         let edges: Vec<(usize, usize)> = lines.iter().map(|(_, t, h)| (*h, *t)).collect();
-        let placed = layered(&sizes, &edges, dir);
+        let placed = layered(&sizes, &edges, dir, seps);
         // keep the diagram where it was: the layout starts at the old top-left corner
         let rects: Vec<R> = top.iter().map(|v| views::node_rect(&self.repo, *v)).collect();
         let ox = rects.iter().map(|b| b.x).fold(f64::INFINITY, f64::min);

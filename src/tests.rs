@@ -1895,23 +1895,24 @@ fn word_wrap() {
 
 #[test]
 fn layout_layers() {
-    use crate::layout::{layered, Dir, NODE_SEP, RANK_SEP};
+    use crate::layout::{layered, Dir, SEPS};
+    let (node_sep, rank_sep) = (SEPS.node, SEPS.rank);
     // a super-class above two sub-classes, side by side and centred under it
     let sizes = [(100.0, 50.0), (80.0, 40.0), (80.0, 40.0)];
-    let p = layered(&sizes, &[(0, 1), (0, 2)], Dir::TopBottom);
-    assert_eq!(p.boxes[1].y, 50.0 + RANK_SEP);
+    let p = layered(&sizes, &[(0, 1), (0, 2)], Dir::TopBottom, SEPS);
+    assert_eq!(p.boxes[1].y, 50.0 + rank_sep);
     assert_eq!(p.boxes[1].y, p.boxes[2].y);
-    assert_eq!((p.boxes[2].x - p.boxes[1].x).abs(), 80.0 + NODE_SEP);
+    assert_eq!((p.boxes[2].x - p.boxes[1].x).abs(), 80.0 + node_sep);
     let mid = (p.boxes[1].x + p.boxes[2].x + 80.0) / 2.0;
     assert!((p.boxes[0].x + 50.0 - mid).abs() <= 1.0, "{p:?}");
     // left to right: ranks become columns
-    let q = layered(&sizes, &[(0, 1), (0, 2)], Dir::LeftRight);
-    assert_eq!(q.boxes[1].x, 100.0 + RANK_SEP);
+    let q = layered(&sizes, &[(0, 1), (0, 2)], Dir::LeftRight, SEPS);
+    assert_eq!(q.boxes[1].x, 100.0 + rank_sep);
     // bottom to top: the super-class is below
-    let b = layered(&sizes, &[(0, 1), (0, 2)], Dir::BottomTop);
+    let b = layered(&sizes, &[(0, 1), (0, 2)], Dir::BottomTop, SEPS);
     assert!(b.boxes[0].y > b.boxes[1].y);
     // a line over two ranks bends once; cycles do not hang
-    let c = layered(&[(10.0, 10.0); 3], &[(0, 1), (1, 2), (0, 2), (2, 0)], Dir::TopBottom);
+    let c = layered(&[(10.0, 10.0); 3], &[(0, 1), (1, 2), (0, 2), (2, 0)], Dir::TopBottom, SEPS);
     assert_eq!(c.bends[2].len(), 1);
     assert!(c.boxes.iter().all(|p| p.x >= 0.0 && p.y >= 0.0));
 }
@@ -1934,5 +1935,46 @@ fn layout_diagram_command() {
             assert!(p.x + p.w <= q.x || q.x + q.w <= p.x || p.y + p.h <= q.y || q.y + q.h <= p.y, "{p:?} {q:?}");
         }
     }
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn diagram_generator() {
+    use crate::generate::Generator;
+    let ms = measure();
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    // without a package selected, an alert
+    a.focus = None;
+    assert!(a.generate_diagram(Generator::Overview, &ms).is_none());
+    assert_eq!(a.message.take().map(|m| m.0), Some("To generate Overview diagram, select a Package.".to_string()));
+    let pkg = a.repo.all().find(|e| a.repo.ty(*e) == "UMLModel").unwrap();
+    let classes = a.repo.list(pkg, "ownedElements").into_iter().filter(|e| a.repo.ty(*e) == "UMLClass").count();
+    a.focus = Some(pkg);
+    let undo = a.undo.len();
+    let d = a.generate_diagram(Generator::Overview, &ms).unwrap();
+    assert_eq!(a.undo.len(), undo + 1, "one undo step");
+    assert_eq!(a.repo.name(d), "Overview");
+    assert_eq!(a.diagram, Some(d), "opened");
+    let vs = a.repo.list(d, "ownedViews");
+    let class_views: Vec<crate::model::Eid> = vs.iter().copied().filter(|v| a.repo.ty(*v) == "UMLClassView").collect();
+    assert_eq!(class_views.len(), classes);
+    assert!(class_views.iter().all(|v| a.repo.bool(*v, "suppressAttributes")));
+    let gens = a.repo.all().filter(|e| a.repo.ty(*e) == "UMLGeneralization").count();
+    assert_eq!(vs.iter().filter(|v| a.repo.ty(**v) == "UMLGeneralizationView").count(), gens, "each relationship once");
+    // type hierarchy: only generalizations and realizations
+    a.focus = Some(pkg);
+    let th = a.generate_diagram(Generator::TypeHierarchy, &ms).unwrap();
+    let kinds: std::collections::HashSet<String> = a.repo.list(th, "ownedViews").into_iter().filter(|v| crate::views::is_edge(&a.repo, *v)).map(|v| a.repo.ty(v).to_string()).collect();
+    assert!(kinds.iter().all(|k| k == "UMLGeneralizationView" || k == "UMLInterfaceRealizationView"), "{kinds:?}");
+    // package structure: packages joined by containment lines
+    a.focus = Some(pkg);
+    let sub = a.change(|a| a.repo.create("UMLPackage", &[("name", json!("Sub"))], Some((pkg, "ownedElements"))));
+    let _ = sub;
+    a.focus = Some(pkg);
+    let ps = a.generate_diagram(Generator::PackageStructure, &ms).unwrap();
+    assert_eq!(a.repo.ty(ps), "UMLPackageDiagram");
+    assert!(a.repo.list(ps, "ownedViews").iter().any(|v| a.repo.ty(*v) == "UMLContainmentView"));
+    crate::export::render(&mut a, ps, &ms, crate::export::Format::Svg, 1.0).unwrap();
     Repo::parse(&a.repo.serialize()).unwrap();
 }

@@ -624,7 +624,7 @@ impl App {
     }
 
     /// A view of a model at `p`, showing the namespace when the model lives elsewhere than the diagram.
-    fn place_node(&mut self, d: Eid, m: Eid, p: P) -> Option<Eid> {
+    pub(crate) fn place_node(&mut self, d: Eid, m: Eid, p: P) -> Option<Eid> {
         let (w, h) = views::default_size(self.repo.ty(m));
         let v = views::create_node_view(&mut self.repo, d, m, R { x: p.x, y: p.y, w, h })?;
         self.apply_view_defaults(v);

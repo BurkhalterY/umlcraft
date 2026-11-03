@@ -10,6 +10,7 @@ mod cli;
 mod clipboard;
 mod export;
 mod find;
+mod generate;
 mod layout;
 mod canvas;
 mod icons;

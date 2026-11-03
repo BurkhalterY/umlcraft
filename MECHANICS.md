@@ -112,6 +112,10 @@ returned nothing).
 | Undo | the whole layout is one "layout diagram" step | `src/engine/engine.js:1513-1549` |
 | UMLCraft | own layered layout instead of dagre: a line's head goes one rank before its tail; node, edge and rank separations 50, 10 and 50 (estimated); rectilinear lines are left to route themselves; boxes lying inside a package or subject move with it | `src/layout.rs` |
 
+## Diagram Generator
+
+* Tools › Diagram Generator works on the package selected in the Explorer ("To generate … diagram, select a Package." otherwise), adds the diagram in one undo step, lays it out and opens it. Overview: owned elements with compartments suppressed and interfaces as icons; Type Hierarchy: classes, interfaces, enumerations, signals and data types at any depth with only generalizations and realizations, left to right, separations node 10, edge 10, rank 100; Package Structure: nested packages joined by containment lines (`extensions/default/diagram-generator/main.js:58-303`). UMLCraft draws the containment's circle-plus at the parent package, radius 7 (estimated).
+
 ## Print to PDF
 
 | Rule | Value | Source |

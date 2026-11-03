@@ -133,6 +133,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLNoteView", Some("UMLCustomNoteView"), vec![]);
     def("UMLTextView", Some("UMLCustomTextView"), vec![]);
     def("UMLNoteLinkView", Some("EdgeView"), vec![]);
+    def("UMLContainmentView", Some("EdgeView"), vec![]);
     def("UMLGeneralEdgeView", Some("EdgeView"), vec![
         ("stereotypeDisplay", d(json!("label"))), ("showVisibility", d(json!(false))), ("showProperty", d(json!(true))),
         ("nameLabel", n()), ("stereotypeLabel", n()), ("propertyLabel", n()),

@@ -1162,6 +1162,16 @@ impl App {
                     }
                 }
             });
+            ui.menu_button("Tools", |ui| {
+                ui.menu_button("Diagram Generator", |ui| {
+                    for (g, label) in crate::generate::Generator::MENU {
+                        if ui.button(label).clicked() {
+                            self.generate_diagram(g, &measure);
+                            ui.close();
+                        }
+                    }
+                });
+            });
             ui.menu_button("View", |ui| {
                 if ui.button("Quick Find...        Ctrl+P").clicked() {
                     self.open_palette(crate::palette::Mode::Find);
