@@ -4,6 +4,7 @@
 // no console window next to the app on Windows (release builds)
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+mod align;
 mod app;
 mod canvas;
 mod icons;

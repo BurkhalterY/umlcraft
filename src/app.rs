@@ -46,7 +46,9 @@ pub enum Drag {
     Rubber { start: P, now: P, add: bool, base: Vec<Eid> },
     CreateNode { start: P, now: P },
     CreateEdge { start: P, now: P, tail: Eid },
-    Move { start: P, orig: Vec<(Eid, P)>, edges: Vec<(Eid, Vec<P>)>, lead: Option<Eid>, changed: bool },
+    /// `collapse`: the pressed member of a multi-selection, which alone stays selected if the mouse
+    /// is released without moving.
+    Move { start: P, orig: Vec<(Eid, P)>, edges: Vec<(Eid, Vec<P>)>, lead: Option<Eid>, changed: bool, collapse: Option<Eid> },
     Resize { handle: usize, start: P, orig: R, view: Eid, changed: bool },
     Point { edge: Eid, index: usize, insert: Option<P>, changed: bool },
 }
@@ -128,6 +130,14 @@ pub struct App {
     pub quit_after_save: bool,
     pub pending_edit: Option<Eid>,
     pub reveal_pending: Option<Eid>,
+    /// Scroll origin of each diagram, kept while the project is open (the original's `_originX/Y`).
+    pub scrolls: HashMap<Eid, P>,
+    /// A view to centre on once the canvas size is known.
+    pub centre_pending: Option<Eid>,
+    /// Short notices shown at the bottom of the diagram area, with the time they appeared.
+    pub toasts: Vec<(String, std::time::Instant)>,
+    /// Select In Diagram with several diagrams: the views to choose from and the chosen row.
+    pub diagram_picker: Option<(Vec<Eid>, Option<usize>)>,
 }
 
 impl App {
@@ -177,6 +187,10 @@ impl App {
             quit_after_save: false,
             pending_edit: None,
             reveal_pending: None,
+            scrolls: HashMap::new(),
+            centre_pending: None,
+            toasts: vec![],
+            diagram_picker: None,
         };
         a.set_project(Repo::blank(), None);
         a
@@ -201,6 +215,9 @@ impl App {
         self.focus = None;
         self.zoom = 1.0;
         self.scroll = P::default();
+        self.scrolls.clear();
+        self.centre_pending = None;
+        self.diagram_picker = None;
         self.expanded.clear();
         let root = self.repo.root;
         self.expanded.insert(root);
@@ -594,22 +611,62 @@ impl App {
             self.open.push(d);
         }
         if self.diagram != Some(d) {
+            // each diagram keeps its own scroll position (diagram-manager.js:218-228, 243)
+            if let Some(old) = self.diagram {
+                self.scrolls.insert(old, self.scroll);
+            }
             self.diagram = Some(d);
             self.selection.clear();
-            self.scroll = P::default();
+            self.scroll = self.scrolls.get(&d).copied().unwrap_or_default();
         }
         self.tool = None;
     }
 
+    /// Close a working diagram. When it was the current one, the diagram that slid into its place
+    /// becomes current, or else the first one (diagram-manager.js:106-138).
     pub fn close_diagram(&mut self, d: Option<Eid>) {
         let Some(d) = d.or(self.diagram) else { return };
         if let Some(i) = self.open.iter().position(|x| *x == d) {
             self.open.remove(i);
+            // closing any working diagram clears the selection and the quick edit (app-context.js:1310-1317)
+            self.selection.clear();
+            self.editing = None;
             if self.diagram == Some(d) {
-                self.diagram = if self.open.is_empty() { None } else { Some(self.open[i.min(self.open.len() - 1)]) };
-                self.selection.clear();
+                self.scrolls.insert(d, self.scroll);
+                let next = self.open.get(i).or(self.open.first()).copied();
+                self.diagram = None;
+                if let Some(n) = next {
+                    self.open_diagram(n);
+                }
             }
         }
+    }
+
+    /// View > Close Other Diagrams: keep only the current diagram open (diagram-manager.js:201-207).
+    pub fn close_other_diagrams(&mut self) {
+        self.open = self.diagram.into_iter().collect();
+        self.editing = None;
+    }
+
+    /// View > Close All Diagrams.
+    pub fn close_all_diagrams(&mut self) {
+        self.open.clear();
+        self.diagram = None;
+        self.selection.clear();
+        self.editing = None;
+        self.tool = None;
+    }
+
+    /// View > Next Diagram (`step` 1) and Previous Diagram (`step` -1), wrapping around the working
+    /// diagrams (diagram-manager.js:271-292).
+    pub fn cycle_diagram(&mut self, step: isize) {
+        let n = self.open.len() as isize;
+        if n == 0 {
+            return;
+        }
+        let i = self.diagram.and_then(|d| self.open.iter().position(|x| *x == d)).map(|i| i as isize).unwrap_or(-step.max(0));
+        let next = self.open[(i + step).rem_euclid(n) as usize];
+        self.open_diagram(next);
     }
 
     pub fn select(&mut self, views: Vec<Eid>) {
@@ -619,6 +676,56 @@ impl App {
             self.focus = None;
         }
         self.selection = views;
+    }
+
+    pub fn toast(&mut self, text: &str) {
+        self.toasts.push((text.to_string(), std::time::Instant::now()));
+    }
+
+    /// Edit > Select In Diagram (Ctrl+D): the views of the focused model that sit directly in a
+    /// diagram. One view is shown at once; several diagrams open a picker; none shows a toast
+    /// (default-commands.js:877-907).
+    pub fn select_in_diagram(&mut self) {
+        let Some(m) = self.focus.filter(|f| self.repo.alive(*f)) else { return };
+        let mut views: Vec<Eid> = vec![];
+        for d in self.repo.all_of("Diagram") {
+            if let Some(v) = self.repo.list(d, "ownedViews").into_iter().find(|v| self.repo.refd(*v, "model") == Some(m)) {
+                views.push(v);
+            }
+        }
+        match views.len() {
+            0 => self.toast("No diagrams to show"),
+            1 => self.show_view(views[0]),
+            _ => self.diagram_picker = Some((views, None)),
+        }
+    }
+
+    /// Open the view's diagram, select the view and centre the canvas on it (diagram-manager.js:340-348, 484-490).
+    pub fn show_view(&mut self, v: Eid) {
+        let Some(d) = self.repo.parent(v).filter(|d| self.is_diagram(*d)) else { return };
+        self.open_diagram(d);
+        self.select(vec![v]);
+        self.centre_pending = Some(v);
+    }
+
+    /// Bounding box of a view: its box, or the box around a line's points.
+    pub fn view_bounds(&self, v: Eid) -> R {
+        if views::is_edge(&self.repo, v) {
+            let pts = views::points_of(&self.repo, v);
+            let (mut x1, mut y1, mut x2, mut y2) = (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
+            for p in &pts {
+                x1 = x1.min(p.x);
+                y1 = y1.min(p.y);
+                x2 = x2.max(p.x);
+                y2 = y2.max(p.y);
+            }
+            if pts.is_empty() {
+                return R::default();
+            }
+            R { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }
+        } else {
+            views::node_rect(&self.repo, v)
+        }
     }
 
     pub fn focus_element(&mut self, e: Eid) {
@@ -645,15 +752,39 @@ impl App {
         });
     }
 
-    pub fn toggle_shadow(&mut self) {
-        let nodes: Vec<Eid> = self.selection.iter().copied().filter(|v| !views::is_edge(&self.repo, *v)).collect();
-        let Some(first) = nodes.first() else { return };
-        let show = !self.repo.bool(*first, "showShadow");
+    /// The selected views that have this display flag (for example showVisibility on classifier views).
+    pub fn flag_views(&self, field: &str) -> Vec<Eid> {
+        self.selection.iter().copied().filter(|v| self.repo.alive(*v) && meta::order_of(self.repo.ty(*v), field).is_some()).collect()
+    }
+
+    /// The merged value of a flag over the selection: Some(value) when every view agrees.
+    pub fn flag_state(&self, field: &str) -> Option<bool> {
+        let vs = self.flag_views(field);
+        let first = self.repo.bool(*vs.first()?, field);
+        vs.iter().all(|v| self.repo.bool(*v, field) == first).then_some(first)
+    }
+
+    /// Format toggles (Show Shadow, Show Visibility, Suppress Attributes…): invert the shared value on
+    /// every selected view that has the flag, or set it when the selection is mixed. One undo step
+    /// (default-commands.js:1013-1029; uml-commands.js:271-279, 4596-4651).
+    pub fn toggle_flag(&mut self, field: &str) {
+        let vs = self.flag_views(field);
+        if vs.is_empty() {
+            return;
+        }
+        let value = match self.flag_state(field) {
+            Some(v) => !v,
+            None => true,
+        };
         self.change(|a| {
-            for v in nodes {
-                a.repo.set(v, "showShadow", json!(show));
+            for v in vs {
+                a.repo.set(v, field, json!(value));
             }
         });
+    }
+
+    pub fn toggle_shadow(&mut self) {
+        self.toggle_flag("showShadow");
     }
 
     pub fn set_zoom(&mut self, z: f64) {
@@ -671,6 +802,7 @@ impl App {
             let view = self.repo.list(d, "ownedViews").into_iter().find(|v| self.repo.refd(*v, "model").map(|m| self.repo.name(m) == name).unwrap_or(false));
             if let Some(v) = view {
                 self.select(vec![v]);
+                self.centre_pending = Some(v);
             }
         }
     }
