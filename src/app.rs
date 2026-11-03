@@ -192,6 +192,8 @@ pub struct App {
     pub print_open: bool,
     /// The open Element Picker ("Select Element").
     pub element_picker: Option<crate::picker::ElementPicker>,
+    /// The open input dialog.
+    pub input_dialog: Option<crate::input::InputDialog>,
 }
 
 impl App {
@@ -274,6 +276,7 @@ impl App {
             last_backup: std::time::Instant::now(),
             print_open: false,
             element_picker: None,
+            input_dialog: None,
         };
         a.set_project(Repo::blank(), None);
         a

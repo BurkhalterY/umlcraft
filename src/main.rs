@@ -14,6 +14,7 @@ mod generate;
 mod layout;
 mod canvas;
 mod icons;
+mod input;
 mod meta;
 mod model;
 mod palette;

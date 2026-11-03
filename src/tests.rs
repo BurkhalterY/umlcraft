@@ -2002,3 +2002,21 @@ fn element_picker_and_name_lookup() {
     assert_eq!(a.repo.refd(at, "type"), None);
     assert_eq!(crate::picker::field_type("stereotype"), "UMLStereotype");
 }
+
+#[test]
+fn rename_diagram_dialog() {
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let old = a.repo.name(d);
+    a.rename_diagram();
+    let dlg = a.input_dialog.clone().unwrap();
+    assert_eq!((dlg.message.as_str(), dlg.text.clone()), ("Enter diagram name", old));
+    let undo = a.undo.len();
+    a.input_dialog = None;
+    a.apply_input(dlg.action, "Overview".into());
+    assert_eq!(a.repo.name(d), "Overview");
+    assert_eq!(a.undo.len(), undo + 1);
+    // the same name changes nothing
+    a.apply_input(dlg.action, "Overview".into());
+    assert_eq!(a.undo.len(), undo + 1);
+}

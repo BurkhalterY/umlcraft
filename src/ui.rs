@@ -830,7 +830,14 @@ impl App {
                 p.text(close.center(), Align2::CENTER_CENTER, "×", FontId::proportional(14.0), DIM);
             }
             // the menu acts on the current diagram; right-clicking a row does not make it current
-            resp.context_menu(|ui| self.diagram_close_items(ui));
+            resp.context_menu(|ui| {
+                self.diagram_close_items(ui);
+                ui.separator();
+                if ui.add_enabled(self.diagram.is_some(), egui::Button::new("Rename")).clicked() {
+                    self.rename_diagram();
+                    ui.close();
+                }
+            });
             if resp.clicked() {
                 if resp.interact_pointer_pos().map(|q| close.contains(q)).unwrap_or(false) {
                     self.close_diagram(Some(d));
@@ -1776,6 +1783,7 @@ impl App {
         self.color_dialog_ui(ctx);
         self.print_dialog_ui(ctx);
         self.element_picker_ui(ctx);
+        self.input_dialog_ui(ctx);
         self.preferences_ui(ctx);
         self.tag_editor_ui(ctx);
         self.palette_ui(ctx);
