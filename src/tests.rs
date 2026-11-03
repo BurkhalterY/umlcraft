@@ -2020,3 +2020,18 @@ fn rename_diagram_dialog() {
     a.apply_input(dlg.action, "Overview".into());
     assert_eq!(a.undo.len(), undo + 1);
 }
+
+#[test]
+fn small_drags_keep_off_grid_values() {
+    let mut a = App::new(None);
+    a.snap = true;
+    let g = a.grid_size();
+    // an off-grid value stays while the drag stays in its cell, then snaps
+    let o = 1.5 * g + 1.0;
+    assert_eq!(a.snap_from(o, o + 0.3 * g), o);
+    assert_eq!(a.snap_from(o, g + 0.5), o);
+    assert_eq!(a.snap_from(o, 2.0 * g + 1.0), 2.0 * g);
+    assert_eq!(a.snap_from(o, 0.9 * g), g);
+    a.snap = false;
+    assert_eq!(a.snap_from(13.0, 17.4), 17.0);
+}

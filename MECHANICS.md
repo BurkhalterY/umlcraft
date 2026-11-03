@@ -145,6 +145,10 @@ returned nothing).
 | UI font | 13px Source Sans Pro (UMLCraft uses an installed Source Sans Pro, else Noto Sans; diagrams use Liberation Sans, metric-compatible with Arial) | live computed style |
 | Shortcuts | Ctrl+N/O/S, Ctrl+Shift+S, Ctrl+Z/Y, Delete, Ctrl+Delete, Ctrl+A; Format toggles Ctrl+Shift+H/V/N/M/J/A/O/T | `resources/default/keymaps/linux.json` |
 
+## Snapping
+
+* While a moved or resized coordinate stays in the grid cell it started in, it keeps its original value; once it crosses into another cell it snaps to the nearest grid multiple (`src/ui/diagram-editor.js:1201-1323`). UMLCraft applies this to box moves and resizes, not to bend points.
+
 ## Editing commands
 
 Read from the StarUML source through the feature inventory (`docs/features/`), which quotes these lines.

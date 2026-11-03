@@ -239,6 +239,18 @@ impl App {
         if self.snap { (n / g).round() * g } else { n.round() }
     }
 
+    /// Snap a dragged coordinate that started at `orig`: while it stays in the grid cell it started in,
+    /// it keeps its original value, so an off-grid box does not jump on a tiny drag; once it crosses
+    /// into another cell it snaps to the grid (diagram-editor.js:1201-1323, 1892-1915).
+    pub(crate) fn snap_from(&self, orig: f64, n: f64) -> f64 {
+        let g = self.grid_size();
+        if self.snap && (n / g).floor() == (orig / g).floor() {
+            orig
+        } else {
+            self.snap_v(n)
+        }
+    }
+
     fn to_diagram(&self, origin: Pos2, pos: Pos2) -> P {
         P { x: (pos.x - origin.x) as f64 / self.zoom + self.scroll.x, y: (pos.y - origin.y) as f64 / self.zoom + self.scroll.y }
     }
@@ -848,8 +860,8 @@ impl App {
                 }
                 if let Some(l) = lead {
                     if let Some((_, o)) = orig.iter().find(|(n, _)| n == l) {
-                        dx = self.snap_v(o.x + dx) - o.x;
-                        dy = self.snap_v(o.y + dy) - o.y;
+                        dx = self.snap_from(o.x, o.x + dx) - o.x;
+                        dy = self.snap_from(o.y, o.y + dy) - o.y;
                     }
                 }
                 for (n, o) in orig.iter() {
@@ -871,16 +883,16 @@ impl App {
                 let (mut x1, mut y1, mut x2, mut y2) = (o.x, o.y, o.x + o.w, o.y + o.h);
                 let h = *handle;
                 if [0, 6, 7].contains(&h) {
-                    x1 = self.snap_v(o.x + dx);
+                    x1 = self.snap_from(o.x, o.x + dx);
                 }
                 if [2, 3, 4].contains(&h) {
-                    x2 = self.snap_v(o.x + o.w + dx);
+                    x2 = self.snap_from(o.x + o.w, o.x + o.w + dx);
                 }
                 if [0, 1, 2].contains(&h) {
-                    y1 = self.snap_v(o.y + dy);
+                    y1 = self.snap_from(o.y, o.y + dy);
                 }
                 if [4, 5, 6].contains(&h) {
-                    y2 = self.snap_v(o.y + o.h + dy);
+                    y2 = self.snap_from(o.y + o.h, o.y + o.h + dy);
                 }
                 if x2 - x1 < 20.0 {
                     if x1 != o.x { x1 = x2 - 20.0 } else { x2 = x1 + 20.0 }
