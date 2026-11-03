@@ -234,6 +234,19 @@ impl App {
         }
     }
 
+    /// Whether an element may be moved under `target` in the explorer: into the same-named field, which
+    /// the target must be able to hold, and never into itself or something inside it (engine.js:585-614).
+    pub fn can_relocate(&self, src: Eid, target: Eid) -> bool {
+        if !self.repo.alive(src) || !self.repo.alive(target) || src == target || self.repo.parent(src) == Some(target) || self.is_view(target) {
+            return false;
+        }
+        if self.repo.path(target).contains(&src) {
+            return false;
+        }
+        let Some(field) = self.repo.field_of(src) else { return false };
+        self.can_hold(target, self.repo.ty(src), &field)
+    }
+
     /// Edit > Paste of the given clipboard text (default-commands.js:702-774).
     pub fn paste_text(&mut self, text: &str) {
         match parse(text) {

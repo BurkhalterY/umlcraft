@@ -199,8 +199,27 @@ impl App {
         p.text(Pos2::new(tx, rect.center().y), Align2::LEFT_CENTER, &label, FontId::proportional(13.0), TEXT);
 
         let ty = self.repo.ty(e).to_string();
-        if views::node_kind(&ty).is_some() || views::edge_view_of(&ty).is_some() {
+        if ty != "Project" {
             resp.dnd_set_drag_payload(e);
+        }
+        // dropping a row on another moves it there (model-explorer-view.js:182-241, app-context.js:1117-1144)
+        if let Some(src) = resp.dnd_hover_payload::<Eid>() {
+            let ok = self.can_relocate(*src, e);
+            if ok {
+                ui.painter().rect_stroke(rect, 0.0, Stroke::new(1.0, Color32::from_rgb(0x4f, 0x99, 0xff)), egui::StrokeKind::Inside);
+            } else if *src != e {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::NotAllowed);
+            }
+        }
+        if let Some(src) = resp.dnd_release_payload::<Eid>() {
+            let src = *src;
+            if self.can_relocate(src, e) {
+                let field = self.repo.field_of(src).unwrap_or_default();
+                self.change(|a| a.repo.relocate(src, e, &field));
+                self.expanded.insert(e);
+                self.focus = Some(src);
+                self.reveal(src);
+            }
         }
         if resp.clicked() || resp.secondary_clicked() {
             self.last_area = Area::Explorer;

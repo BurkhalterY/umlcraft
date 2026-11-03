@@ -1043,3 +1043,23 @@ fn dropping_boxes_into_a_package_moves_view_and_model() {
     assert_eq!(a.repo.parent(cm), Some(pm), "one undo step");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn explorer_drag_relocates_elements() {
+    let mut a = App::new(None);
+    let model = a.repo.children(a.repo.root)[0].1;
+    let p1 = a.add_model(model, "UMLPackage");
+    let p2 = a.add_model(p1, "UMLPackage");
+    let c = a.add_model(model, "UMLClass");
+    let at = a.add_feature(c, "UMLAttribute").unwrap();
+    assert!(a.can_relocate(c, p2));
+    assert!(!a.can_relocate(p1, p2), "not into something inside it");
+    assert!(!a.can_relocate(c, model), "already there");
+    assert!(!a.can_relocate(at, p1), "a package takes no attributes");
+    let id = a.repo.id(c);
+    a.repo.relocate(c, p2, "ownedElements");
+    assert_eq!(a.repo.parent(c), Some(p2));
+    assert_eq!(a.repo.id(c), id, "same element, same id");
+    assert_eq!(a.repo.list(c, "attributes"), vec![at], "with its contents");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
