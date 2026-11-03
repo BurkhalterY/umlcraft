@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=UMLCraft
+GenericName=UML Modeler
+Comment=Draw class and use case diagrams and open StarUML .mdj models
+Exec=umlcraft %f
+Icon=io.github.burkhaltery.UMLCraft
+Terminal=false
+Categories=Development;
+MimeType=application/x-umlcraft-mdj;
+Keywords=UML;diagram;class;model;mdj;StarUML;
+StartupWMClass=umlcraft

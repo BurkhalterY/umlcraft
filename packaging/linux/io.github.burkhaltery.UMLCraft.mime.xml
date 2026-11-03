@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-umlcraft-mdj">
+    <comment>UML model</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.mdj"/>
+    <icon name="io.github.burkhaltery.UMLCraft"/>
+  </mime-type>
+</mime-info>
