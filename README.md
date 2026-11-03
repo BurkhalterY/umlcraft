@@ -135,6 +135,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/model.rs`, `src/meta.rs` | The project and the `.mdj` element kinds, fields and defaults |
 | `src/views.rs`, `src/render.rs`, `src/export.rs` | Laying out and drawing boxes, labels and lines, on screen and into PNG, JPEG and SVG |
 | `src/layout.rs`, `src/generate.rs` | Format › Layout (the layered automatic layout) and Tools › Diagram Generator |
+| `src/thumbs.rs` | View › Diagram Thumbnails |
 | `src/relview.rs` | View › Relationships: the relationships of the selected element |
 | `src/input.rs` | The input dialog (Working Diagrams › Rename) |
 | `src/picker.rs` | The Element Picker ("Select Element") and the name lookup of type and stereotype fields |

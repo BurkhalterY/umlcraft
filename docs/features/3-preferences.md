@@ -77,25 +77,25 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | SysML | `sysml.port.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
 | SysML | `sysml.constraint-property.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
 | SysML | `sysml.constraint-parameter.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| UML | `uml.package.fillColor` | Fill Color | null | ✅ in Preferences › UML › package; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.model.fillColor` | Fill Color | null | ✅ in Preferences › UML › model; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.subsystem.fillColor` | Fill Color | null | ✅ in Preferences › UML › subsystem; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.class.fillColor` | Fill Color | null | ✅ in Preferences › UML › class; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.class.stereotypeDisplay` | Stereotype Display | "label" | ✅ in Preferences › UML › class; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.class.suppressAttributes` | Suppress Attributes | false | ✅ in Preferences › UML › class; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.class.suppressOperations` | Suppress Operations | false | ✅ in Preferences › UML › class; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.interface.fillColor` | Fill Color | null | ✅ in Preferences › UML › interface; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.interface.stereotypeDisplay` | Stereotype Display | "icon" | ✅ in Preferences › UML › interface; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.interface.suppressAttributes` | Suppress Attributes | true | ✅ in Preferences › UML › interface; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.interface.suppressOperations` | Suppress Operations | true | ✅ in Preferences › UML › interface; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.signal.fillColor` | Fill Color | null | ✅ in Preferences › UML › signal; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.datatype.fillColor` | Fill Color | null | ✅ in Preferences › UML › datatype; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.primitivetype.fillColor` | Fill Color | null | ✅ in Preferences › UML › primitivetype; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.enumeration.fillColor` | Fill Color | null | ✅ in Preferences › UML › enumeration; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.enumeration.stereotypeDisplay` | Stereotype Display | "label" | ✅ in Preferences › UML › enumeration; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.enumeration.suppressAttributes` | Suppress Attributes | true | ✅ in Preferences › UML › enumeration; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.enumeration.suppressOperations` | Suppress Operations | true | ✅ in Preferences › UML › enumeration; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.enumeration.suppressLiterals` | Suppress Literals | false | ✅ in Preferences › UML › enumeration; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.package.fillColor` | Fill Color | null | ✅ in Preferences › UML › package; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.model.fillColor` | Fill Color | null | ✅ in Preferences › UML › model; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.subsystem.fillColor` | Fill Color | null | ✅ in Preferences › UML › subsystem; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.class.fillColor` | Fill Color | null | ✅ in Preferences › UML › class; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.class.stereotypeDisplay` | Stereotype Display | "label" | ✅ in Preferences › UML › class; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.class.suppressAttributes` | Suppress Attributes | false | ✅ in Preferences › UML › class; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.class.suppressOperations` | Suppress Operations | false | ✅ in Preferences › UML › class; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.interface.fillColor` | Fill Color | null | ✅ in Preferences › UML › interface; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.interface.stereotypeDisplay` | Stereotype Display | "icon" | ✅ in Preferences › UML › interface; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.interface.suppressAttributes` | Suppress Attributes | true | ✅ in Preferences › UML › interface; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.interface.suppressOperations` | Suppress Operations | true | ✅ in Preferences › UML › interface; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.signal.fillColor` | Fill Color | null | ✅ in Preferences › UML › signal; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.datatype.fillColor` | Fill Color | null | ✅ in Preferences › UML › datatype; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.primitivetype.fillColor` | Fill Color | null | ✅ in Preferences › UML › primitivetype; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.enumeration.fillColor` | Fill Color | null | ✅ in Preferences › UML › enumeration; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.enumeration.stereotypeDisplay` | Stereotype Display | "label" | ✅ in Preferences › UML › enumeration; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.enumeration.suppressAttributes` | Suppress Attributes | true | ✅ in Preferences › UML › enumeration; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.enumeration.suppressOperations` | Suppress Operations | true | ✅ in Preferences › UML › enumeration; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.enumeration.suppressLiterals` | Suppress Literals | false | ✅ in Preferences › UML › enumeration; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.port.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.part.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.collaboration.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
@@ -116,35 +116,35 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | UML | `uml.artifactinstance.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.componentinstance.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.nodeinstance.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.usecase.fillColor` | Fill Color | null | ✅ in Preferences › UML › usecase; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.usecase.stereotypeDisplay` | Stereotype Display | "label" | ✅ in Preferences › UML › usecase; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.usecase.suppressAttributes` | Suppress Attributes | true | ✅ in Preferences › UML › usecase; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.usecase.suppressOperations` | Suppress Operations | true | ✅ in Preferences › UML › usecase; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.actor.fillColor` | Fill Color | null | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.actor.stereotypeDisplay` | Stereotype Display | "label" | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.actor.suppressAttributes` | Suppress Attributes | true | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.actor.suppressOperations` | Suppress Operations | true | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.usecase.fillColor` | Fill Color | null | ✅ in Preferences › UML › usecase; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.usecase.stereotypeDisplay` | Stereotype Display | "label" | ✅ in Preferences › UML › usecase; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.usecase.suppressAttributes` | Suppress Attributes | true | ✅ in Preferences › UML › usecase; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.usecase.suppressOperations` | Suppress Operations | true | ✅ in Preferences › UML › usecase; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.actor.fillColor` | Fill Color | null | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.actor.stereotypeDisplay` | Stereotype Display | "label" | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.actor.suppressAttributes` | Suppress Attributes | true | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.actor.suppressOperations` | Suppress Operations | true | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.lifeline.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.state.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.action.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.objectnode.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.metaclass.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.stereotype.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.note.fillColor` | Fill Color | null | ✅ in Preferences › UML › note; new views of that kind take it (src/prefs.rs:189-267, 278-315) | extensions/essential/uml/preferences/uml.json |
-| General | `general.working-file` | Auto load working file | false | ✅ in Preferences › General: with no file given, the most recent file opens at launch (src/prefs.rs:478) | resources/default/preferences/default.json |
-| General | `general.auto-backup` | Auto backup | true | ✅ in Preferences › General, on by default (src/prefs.rs:434) | resources/default/preferences/default.json |
-| General | `theme.default` | Default Theme | "dark" | 🟡 dark theme only, the original default (src/main.rs:105); no light theme | resources/default/preferences/default.json |
-| General | `view.font` | Font Face | "Arial" | ✅ Font Face in Preferences › General; new views take it (src/prefs.rs:278-315) | resources/default/preferences/default.json |
-| General | `view.fontSize` | Font Size | 13 | ✅ Font Size in Preferences › General; new views take it (src/prefs.rs:278-315) | resources/default/preferences/default.json |
-| General | `view.fillColor` | Fill Color | "#ffffff" | ✅ Fill Color in Preferences › General; new views take it unless their kind has one (src/prefs.rs:278-315) | resources/default/preferences/default.json |
-| General | `view.lineColor` | Line Color | "#000000" | ✅ Line Color in Preferences › General; new views take it (src/prefs.rs:278-315) | resources/default/preferences/default.json |
-| General | `view.fontColor` | Font Color | "#000000" | ✅ Font Color in Preferences › General; new views take it (src/prefs.rs:278-315) | resources/default/preferences/default.json |
-| General | `view.lineStyle` | Line Style | 1 | ✅ Line Style in Preferences › General; new lines take it (src/prefs.rs:278-315) | resources/default/preferences/default.json |
-| General | `view.showShadow` | Show Shadow | true | ✅ Show Shadow in Preferences › General; new views take it (src/prefs.rs:278-315) | resources/default/preferences/default.json |
-| General | `diagramEditor.showGrid` | Show Grid | true | ✅ on by default; toggled from the View menu and Ctrl+G and kept in the preferences file (src/prefs.rs:79, 98) | resources/default/preferences/default.json |
-| General | `diagramEditor.snapToGrid` | Snap to Grid | true | ✅ on by default; toggled from the View menu and Ctrl+Shift+G and kept in the preferences file (src/prefs.rs:80, 99) | resources/default/preferences/default.json |
-| General | `diagramEditor.gridSize` | Grid Size | 8 | ✅ Grid Size in Preferences › General; snapping, Shift+arrow and the grid lines follow it at once (src/prefs.rs:272-275; src/canvas.rs:238, 322) | resources/default/preferences/default.json |
+| UML | `uml.note.fillColor` | Fill Color | null | ✅ in Preferences › UML › note; new views of that kind take it (src/prefs.rs:191-269, 280-317) | extensions/essential/uml/preferences/uml.json |
+| General | `general.working-file` | Auto load working file | false | ✅ in Preferences › General: with no file given, the most recent file opens at launch (src/prefs.rs:480) | resources/default/preferences/default.json |
+| General | `general.auto-backup` | Auto backup | true | ✅ in Preferences › General, on by default (src/prefs.rs:436) | resources/default/preferences/default.json |
+| General | `theme.default` | Default Theme | "dark" | 🟡 dark theme only, the original default (src/main.rs:106); no light theme | resources/default/preferences/default.json |
+| General | `view.font` | Font Face | "Arial" | ✅ Font Face in Preferences › General; new views take it (src/prefs.rs:280-317) | resources/default/preferences/default.json |
+| General | `view.fontSize` | Font Size | 13 | ✅ Font Size in Preferences › General; new views take it (src/prefs.rs:280-317) | resources/default/preferences/default.json |
+| General | `view.fillColor` | Fill Color | "#ffffff" | ✅ Fill Color in Preferences › General; new views take it unless their kind has one (src/prefs.rs:280-317) | resources/default/preferences/default.json |
+| General | `view.lineColor` | Line Color | "#000000" | ✅ Line Color in Preferences › General; new views take it (src/prefs.rs:280-317) | resources/default/preferences/default.json |
+| General | `view.fontColor` | Font Color | "#000000" | ✅ Font Color in Preferences › General; new views take it (src/prefs.rs:280-317) | resources/default/preferences/default.json |
+| General | `view.lineStyle` | Line Style | 1 | ✅ Line Style in Preferences › General; new lines take it (src/prefs.rs:280-317) | resources/default/preferences/default.json |
+| General | `view.showShadow` | Show Shadow | true | ✅ Show Shadow in Preferences › General; new views take it (src/prefs.rs:280-317) | resources/default/preferences/default.json |
+| General | `diagramEditor.showGrid` | Show Grid | true | ✅ on by default; toggled from the View menu and Ctrl+G and kept in the preferences file (src/prefs.rs:79, 99) | resources/default/preferences/default.json |
+| General | `diagramEditor.snapToGrid` | Snap to Grid | true | ✅ on by default; toggled from the View menu and Ctrl+Shift+G and kept in the preferences file (src/prefs.rs:80, 100) | resources/default/preferences/default.json |
+| General | `diagramEditor.gridSize` | Grid Size | 8 | ✅ Grid Size in Preferences › General; snapping, Shift+arrow and the grid lines follow it at once (src/prefs.rs:274-277; src/canvas.rs:238, 322) | resources/default/preferences/default.json |
 | General | `diagramEditor.backgroundColor` | Background Color | "#ffffff" | ✅ Background Color in Preferences › General, used for the canvas at once (src/canvas.rs:315-317) | resources/default/preferences/default.json |
 | General | `diagramEditor.gridColor` | Grid Color | "#e0e0e0" | ✅ Grid Color in Preferences › General, used for the grid lines at once (src/canvas.rs:315-322) | resources/default/preferences/default.json |
-| General | `validation.validateModel` | Validate Model | true | ✅ in Preferences › General, on by default; validates after load and save (src/prefs.rs:209; src/validate.rs:198) | resources/default/preferences/default.json |
+| General | `validation.validateModel` | Validate Model | true | ✅ in Preferences › General, on by default; validates after load and save (src/prefs.rs:211; src/validate.rs:198) | resources/default/preferences/default.json |
 | General | `checkUpdate.checkUpdateOnStart` | Check Updates on Start | true | ➖ StarUML update server | resources/default/preferences/default.json |

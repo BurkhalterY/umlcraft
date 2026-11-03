@@ -1255,6 +1255,7 @@ impl App {
                 ui.checkbox(&mut self.show_grid, "Show Grid");
                 ui.checkbox(&mut self.snap, "Snap to Grid");
                 ui.separator();
+                ui.checkbox(&mut self.show_thumbnails, "Diagram Thumbnails  Ctrl+Alt+T");
                 ui.checkbox(&mut self.show_relationships, "Relationships     Ctrl+Alt+R");
                 ui.separator();
                 for (i, label) in PANELS.iter().enumerate() {
@@ -1642,6 +1643,9 @@ impl App {
         }
         if hit(sc(ca, Key::R)) {
             self.show_relationships = !self.show_relationships;
+        }
+        if hit(sc(ca, Key::T)) {
+            self.show_thumbnails = !self.show_thumbnails;
         }
         if hit(sc(Modifiers::COMMAND, Key::T)) {
             self.open_tag_editor();
@@ -2143,6 +2147,9 @@ impl eframe::App for App {
         }
         if self.show_validation {
             Panel::bottom("validation").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.validation_ui(ui));
+        }
+        if self.show_thumbnails {
+            Panel::bottom("thumbnails").exact_size(130.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.thumbnails_ui(ui));
         }
         if self.show_relationships {
             Panel::bottom("relationships").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.relationships_ui(ui));

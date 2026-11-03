@@ -186,6 +186,8 @@ pub struct App {
     pub show_validation: bool,
     /// View > Relationships: the panel under the diagram (view.relationships.visibility).
     pub show_relationships: bool,
+    /// View > Diagram Thumbnails: the panel under the diagram (view.diagramThumbnails.visibility).
+    pub show_thumbnails: bool,
     /// Give the keyboard back to the canvas on the next frame (after an inline edit closes).
     pub refocus_canvas: bool,
     /// When the last auto-backup was written.
@@ -275,6 +277,7 @@ impl App {
             validated: false,
             show_validation: false,
             show_relationships: false,
+            show_thumbnails: false,
             refocus_canvas: false,
             last_backup: std::time::Instant::now(),
             print_open: false,

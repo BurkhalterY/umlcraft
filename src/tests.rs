@@ -2088,3 +2088,18 @@ fn relationships_panel_rows() {
     let rows = a.relationship_rows(member);
     assert!(rows.iter().any(|r| a.repo.ty(r.rel) == "UMLAssociation"), "{rows:?}");
 }
+
+#[test]
+fn diagram_thumbnails() {
+    use crate::thumbs::thumb_fit;
+    let (s, at) = thumb_fit(Some(crate::views::R { x: 50.0, y: 40.0, w: 220.0, h: 60.0 }));
+    assert_eq!((s, at.x, at.y), (0.5, 40.0, 30.0), "the bounds plus 20 fit 120 x 80");
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let d = a.repo.all_of("Diagram").into_iter().find(|d| a.repo.name(*d) == "Use Cases").unwrap();
+    let owner = a.repo.name(a.repo.parent(d).unwrap());
+    assert_eq!(a.thumb_label(d), format!("Use Cases (from {owner})"));
+    a.scroll = crate::views::P { x: 300.0, y: 200.0 };
+    a.open_from_thumb(d);
+    assert_eq!((a.diagram, a.focus, a.scroll.x, a.scroll.y), (Some(d), Some(d), 0.0, 0.0));
+}
