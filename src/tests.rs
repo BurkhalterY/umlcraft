@@ -1063,3 +1063,42 @@ fn explorer_drag_relocates_elements() {
     assert_eq!(a.repo.list(c, "attributes"), vec![at], "with its contents");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn rubber_band_selects_by_overlap() {
+    use egui::{Modifiers, Pos2};
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(300.0, 40.0, 100.0, 60.0))).unwrap();
+    let hidden = a.change(|a| a.create_node("UMLClass", rect(40.0, 200.0, 100.0, 60.0))).unwrap();
+    a.change(|a| a.repo.set(hidden, "visible", json!(false)));
+    // a band touching only the corner of c1 selects it
+    a.on_press(canvas, Pos2::new(130.0, 90.0), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(200.0, 250.0));
+    a.on_release(canvas.min, Pos2::new(200.0, 250.0));
+    assert_eq!(a.selection, vec![c1], "overlap is enough, hidden views are skipped");
+    // Shift+band adds; a selected view counts 5 px larger
+    a.on_press(canvas, Pos2::new(250.0, 95.0), Modifiers::SHIFT);
+    a.on_move(canvas, Pos2::new(310.0, 140.0));
+    a.on_release(canvas.min, Pos2::new(310.0, 140.0));
+    assert_eq!(a.selection, vec![c1, c2]);
+    // a band 3 px below c1 still reaches it while it is selected
+    a.select(vec![c1]);
+    a.on_press(canvas, Pos2::new(60.0, 103.0), Modifiers::SHIFT);
+    a.on_move(canvas, Pos2::new(70.0, 110.0));
+    a.on_release(canvas.min, Pos2::new(70.0, 110.0));
+    assert_eq!(a.selection, vec![c1]);
+    a.select(vec![]);
+    a.on_press(canvas, Pos2::new(60.0, 103.0), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(70.0, 110.0));
+    a.on_release(canvas.min, Pos2::new(70.0, 110.0));
+    assert!(a.selection.is_empty(), "but not when it is not selected");
+    // the band stops at the edge
+    a.on_press(canvas, Pos2::new(500.0, 500.0), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(-50.0, -50.0));
+    assert!(matches!(a.drag, Some(crate::app::Drag::Rubber { now, .. }) if now.x == 0.0 && now.y == 0.0));
+    a.on_release(canvas.min, Pos2::new(-50.0, -50.0));
+    a.select_all();
+    assert_eq!(a.selection, vec![c1, c2]);
+}

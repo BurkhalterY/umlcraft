@@ -119,6 +119,9 @@ fn dist_to_seg(p: P, a: P, b: P) -> f64 {
 fn in_rect(p: P, r: &R) -> bool {
     p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h
 }
+fn overlaps(a: &R, b: &R) -> bool {
+    a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h
+}
 fn contains(outer: &R, inner: &R) -> bool {
     inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.w <= outer.x + outer.w && inner.y + inner.h <= outer.y + outer.h
 }
@@ -744,18 +747,22 @@ impl App {
             }
             Drag::Mini => self.mini_scroll(rect, pos),
             Drag::Rubber { start, now, add, base } => {
+                // the band stops at the left and top edge (diagram-editor.js:747-765)
+                let p = P { x: p.x.max(0.0), y: p.y.max(0.0) };
                 *now = p;
                 let r = rect_of(*start, p);
                 let mut inside = vec![];
                 if let Some(d) = self.diagram {
+                    // views whose box overlaps the band; a selected one counts 5 px larger (core.js:4162-4176)
                     for v in self.repo.list(d, "ownedViews") {
-                        let hit = if is_edge(&self.repo, v) {
-                            let pts = points_of(&self.repo, v);
-                            !pts.is_empty() && pts.iter().all(|q| in_rect(*q, &r))
-                        } else {
-                            is_node(&self.repo, v) && contains(&r, &node_rect(&self.repo, v))
-                        };
-                        if hit {
+                        if matches!(self.repo.raw(v, "visible"), Some(serde_json::Value::Bool(false))) || !(is_edge(&self.repo, v) || is_node(&self.repo, v)) {
+                            continue;
+                        }
+                        let mut b = self.view_bounds(v);
+                        if base.contains(&v) {
+                            b = R { x: b.x - 5.0, y: b.y - 5.0, w: b.w + 10.0, h: b.h + 10.0 };
+                        }
+                        if overlaps(&r, &b) {
                             inside.push(v);
                         }
                     }
@@ -1416,9 +1423,10 @@ impl App {
         self.select(vec![next]);
     }
 
+    /// Select All: every visible, enabled top-level view (core.js:4180-4196).
     pub fn select_all(&mut self) {
         if let Some(d) = self.diagram {
-            let all = self.repo.list(d, "ownedViews");
+            let all = self.repo.list(d, "ownedViews").into_iter().filter(|v| !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))) && !matches!(self.repo.raw(*v, "enabled"), Some(serde_json::Value::Bool(false)))).collect();
             self.select(all);
         }
     }

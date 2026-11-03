@@ -123,6 +123,7 @@ Read from the StarUML source through the feature inventory (`docs/features/`), w
 | Ctrl/Cmd + left-drag pans (move cursor) and blocks every tool, so Ctrl+click never selects; middle-drag pans the same way | `src/ui/diagram-editor.js:2178-2193, 2236-2251` |
 | Shift+click toggles a view and never starts a drag; a click without moving on a member of a group keeps only that view | `src/ui/diagram-editor.js:645-660, 901-912` |
 | Right-click on empty canvas deselects everything | `src/ui/diagram-editor.js:701-704` |
+| Rubber band: clamped at x, y ≥ 0; selects visible views whose bounding box overlaps it, a selected view counting 5 px larger; Select All takes the visible, enabled top-level views | `src/ui/diagram-editor.js:747-765`, `src/core/core.js:4162-4196`, `src/core/graphics.js:1011-1018` |
 | Tab selects the next top-level view in `ownedViews`, wrapping; none selected → the first; no reverse | `src/ui/diagram-manager.js:726-754` |
 | Shift+arrow nudges by the grid size, or 1 with snap off | `src/ui/diagram-manager.js:761-810` |
 | Format toggles (Show Shadow, Show Visibility/Namespace/Multiplicity/Operation Signature, Suppress Attributes/Operations/Literals): invert the merged value on the selected views that have the flag; a mixed selection gets `true` | `src/engine/default-commands.js:1013-1029`, `extensions/essential/uml/uml-commands.js:271-279, 4596-4651` |
