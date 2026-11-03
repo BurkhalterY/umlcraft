@@ -6,6 +6,7 @@
 
 mod align;
 mod app;
+mod cli;
 mod clipboard;
 mod export;
 mod find;
@@ -18,6 +19,7 @@ mod parse;
 mod prefs;
 mod related;
 mod render;
+mod selector;
 mod style;
 mod tags;
 mod ui;
@@ -118,6 +120,17 @@ fn setup_style(ctx: &egui::Context) {
 
 fn main() -> eframe::Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // command-line commands (image, --help, --version) run without a window
+    let headless = || {
+        let ctx = egui::Context::default();
+        setup_fonts(&ctx);
+        let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
+        out.textures_delta.clear();
+        ctx
+    };
+    if let Some(code) = cli::run(&args, headless) {
+        std::process::exit(code);
+    }
     // `--resave <in.mdj> <out.mdj>`: open a model and save it again without a window
     if let Some(i) = args.iter().position(|a| a == "--resave") {
         let (Some(src), Some(dst)) = (args.get(i + 1), args.get(i + 2)) else {

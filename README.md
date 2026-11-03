@@ -106,7 +106,7 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
 | **Views** | Working Diagrams, zoom from 10% to 300%, fit to window, a live mini-map, show or hide the grid and the panels |
 | **History** | Undo and redo for every change (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) |
 | **Export** | PNG and SVG of the whole diagram, drawn off-screen with a transparent background and the original's 10-pixel margin |
-| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj` |
+| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj`, and `umlcraft image model.mdj -f png\|jpeg\|svg -s <selector> -o <file>` to export diagrams without a window |
 
 ## .mdj without compromise
 
@@ -131,6 +131,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/model.rs`, `src/meta.rs` | The project and the `.mdj` element kinds, fields and defaults |
 | `src/views.rs`, `src/render.rs`, `src/export.rs` | Laying out and drawing boxes, labels and lines, on screen and into PNG, JPEG and SVG |
 | `src/canvas.rs`, `src/parse.rs`, `src/align.rs`, `src/clipboard.rs`, `src/style.rs`, `src/related.rs` | The diagram canvas, the typed attribute and operation lines, Format › Alignment, cut, copy and paste, view colours, and the inline edit's "add related element" buttons |
+| `src/main.rs`, `src/cli.rs`, `src/selector.rs` | Start-up, the window, and the command line (`umlcraft image`, `--help`) with the element selector language |
 | `src/app.rs`, `src/ui.rs`, `src/icons.rs`, `src/prefs.rs`, `src/tags.rs`, `src/palette.rs`, `src/find.rs`, `src/validate.rs` | Project state, undo, open and save, and the panels, menus and icons |
 | `src/tests.rs` | Round-trips of StarUML files, editing, saving and keyboard shortcuts |
 | `packaging/`, `.github/workflows/release.yml` | Installers for every system and the workflow that builds them |

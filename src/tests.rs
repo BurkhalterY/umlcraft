@@ -1697,3 +1697,30 @@ fn add_related_elements() {
     assert_eq!(a.undo.len(), undo + 1, "one undo step");
     assert!(!actions("UMLUseCase").is_empty() && !actions("UMLActor").is_empty() && !actions("UMLPackage").is_empty());
 }
+
+#[test]
+fn selector_language() {
+    use crate::selector::select;
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let r = &a.repo;
+    let diagrams = select(r, "@Diagram").unwrap();
+    assert_eq!(diagrams.len(), r.all_of("Diagram").len());
+    let classes = select(r, "Model::@UMLClass").unwrap();
+    assert!(classes.len() >= 5 && classes.iter().all(|c| r.ty(*c) == "UMLClass"));
+    let loan_ops = select(r, "Loan.operations").unwrap();
+    assert_eq!(loan_ops.len(), 2);
+    let concrete = select(r, "@UMLClass[isAbstract=true]").unwrap();
+    assert_eq!(concrete.iter().map(|c| r.name(*c)).collect::<Vec<_>>(), vec!["LibraryItem".to_string()]);
+    assert_eq!(select(r, "Model::Domain").unwrap().len(), 1);
+    assert!(select(r, "Loan[name").is_err());
+    assert!(select(r, "@").is_err());
+}
+
+#[test]
+fn cli_help_and_version() {
+    let args = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    assert_eq!(crate::cli::run(&args(&["--version"]), egui::Context::default), Some(0));
+    assert_eq!(crate::cli::run(&args(&["model.mdj"]), egui::Context::default), None, "a file opens the window");
+    assert_eq!(crate::cli::run(&args(&["image", "/nope.mdj"]), egui::Context::default), Some(1));
+}
