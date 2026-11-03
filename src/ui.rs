@@ -850,10 +850,7 @@ impl App {
                         ui.close();
                     }
                 });
-                if ui.button("Show Shadow   Ctrl+Shift+H").clicked() {
-                    self.toggle_shadow();
-                    ui.close();
-                }
+                self.format_toggles(ui);
                 ui.separator();
                 self.alignment_menu(ui);
             });
@@ -940,6 +937,22 @@ impl App {
         }
     }
 
+    /// The Format menu's on/off items, checked when every selected view that has the flag is on,
+    /// and enabled only when a selected view has it (uml.json order; default-commands.js:1319-1350).
+    pub(crate) fn format_toggles(&mut self, ui: &mut egui::Ui) {
+        for (i, (field, label)) in FORMAT_TOGGLES.into_iter().enumerate() {
+            if i == 1 || i == 5 {
+                ui.separator();
+            }
+            let has = !self.flag_views(field).is_empty();
+            let mut on = self.flag_state(field) == Some(true);
+            if ui.add_enabled(has, egui::Checkbox::new(&mut on, label)).clicked() {
+                self.toggle_flag(field);
+                ui.close();
+            }
+        }
+    }
+
     /// Format > Alignment, in the main menu and the canvas menu (alignment.json order).
     pub(crate) fn alignment_menu(&mut self, ui: &mut egui::Ui) {
         ui.add_enabled_ui(self.can_align(), |ui| {
@@ -972,6 +985,25 @@ impl App {
         let sc = |m: Modifiers, k: Key| KeyboardShortcut::new(m, k);
         let cs = Modifiers::COMMAND | Modifiers::SHIFT;
         let hit = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
+        // Ctrl+Shift toggles first: a Ctrl shortcut also matches when Shift is held (Ctrl+N, Ctrl+A…)
+        if !typing {
+            for (key, field) in [(Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::T, "suppressLiterals")] {
+                if hit(sc(cs, key)) {
+                    self.toggle_flag(field);
+                }
+            }
+            // Ctrl+Shift+V reaches egui as a paste (when the clipboard holds text), not as a key
+            let shift_paste = ctx.input_mut(|i| {
+                let n = i.events.len();
+                if i.modifiers.command && i.modifiers.shift {
+                    i.events.retain(|e| !matches!(e, egui::Event::Paste(_)));
+                }
+                n != i.events.len()
+            });
+            if shift_paste {
+                self.toggle_flag("showVisibility");
+            }
+        }
         if hit(sc(Modifiers::COMMAND, Key::N)) {
             self.cmd_new(&measure);
         }
@@ -1225,6 +1257,18 @@ impl App {
         }
     }
 }
+
+/// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
+const FORMAT_TOGGLES: [(&str, &str); 8] = [
+    ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
+    ("showVisibility", "Show Visibility                 Ctrl+Shift+V"),
+    ("showNamespace", "Show Namespace                  Ctrl+Shift+N"),
+    ("showMultiplicity", "Show Multiplicity               Ctrl+Shift+M"),
+    ("showOperationSignature", "Show Operation Signature    Ctrl+Shift+J"),
+    ("suppressAttributes", "Suppress Attributes             Ctrl+Shift+A"),
+    ("suppressOperations", "Suppress Operations            Ctrl+Shift+O"),
+    ("suppressLiterals", "Suppress Literals                 Ctrl+Shift+T"),
+];
 
 /// True while a text field has the keyboard (the diagram canvas can hold focus too, and then the
 /// editing shortcuts such as Ctrl+Z must still work).

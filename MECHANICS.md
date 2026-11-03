@@ -112,7 +112,7 @@ returned nothing).
 | Panel colours | #3a3f41 (explorer), #4a4c4e (toolbox/editors), #cccccc (diagram area) | live computed style |
 | Text colour | #e3e3e3 | live computed style |
 | UI font | 13px Source Sans Pro (UMLCraft uses an installed Source Sans Pro, else Noto Sans; diagrams use Liberation Sans, metric-compatible with Arial) | live computed style |
-| Shortcuts | Ctrl+N/O/S, Ctrl+Shift+S, Ctrl+Z/Y, Delete, Ctrl+Delete, Ctrl+A | `resources/default/keymaps/linux.json` |
+| Shortcuts | Ctrl+N/O/S, Ctrl+Shift+S, Ctrl+Z/Y, Delete, Ctrl+Delete, Ctrl+A; Format toggles Ctrl+Shift+H/V/N/M/J/A/O/T | `resources/default/keymaps/linux.json` |
 
 ## Editing commands
 
@@ -125,6 +125,7 @@ Read from the StarUML source through the feature inventory (`docs/features/`), w
 | Right-click on empty canvas deselects everything | `src/ui/diagram-editor.js:701-704` |
 | Tab selects the next top-level view in `ownedViews`, wrapping; none selected → the first; no reverse | `src/ui/diagram-manager.js:726-754` |
 | Shift+arrow nudges by the grid size, or 1 with snap off | `src/ui/diagram-manager.js:761-810` |
+| Format toggles (Show Shadow, Show Visibility/Namespace/Multiplicity/Operation Signature, Suppress Attributes/Operations/Literals): invert the merged value on the selected views that have the flag; a mixed selection gets `true` | `src/engine/default-commands.js:1013-1029`, `extensions/essential/uml/uml-commands.js:271-279, 4596-4651` |
 | Alignment and sizing act on selected node views only; lines and labels are skipped; each command is one undo step | `extensions/default/alignment/main.js:26-34, 370-376` |
 | Align Right/Bottom: right = left + width − 1, new left = max right − width + 1, so right edges meet (UMLCraft: right = left + width, same edge) | `extensions/default/alignment/main.js:96-115` |
 | Align Center/Middle: centre on the midpoint of the selection's overall extent | `extensions/default/alignment/main.js:117-142` |

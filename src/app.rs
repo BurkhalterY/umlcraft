@@ -752,15 +752,39 @@ impl App {
         });
     }
 
-    pub fn toggle_shadow(&mut self) {
-        let nodes: Vec<Eid> = self.selection.iter().copied().filter(|v| !views::is_edge(&self.repo, *v)).collect();
-        let Some(first) = nodes.first() else { return };
-        let show = !self.repo.bool(*first, "showShadow");
+    /// The selected views that have this display flag (for example showVisibility on classifier views).
+    pub fn flag_views(&self, field: &str) -> Vec<Eid> {
+        self.selection.iter().copied().filter(|v| self.repo.alive(*v) && meta::order_of(self.repo.ty(*v), field).is_some()).collect()
+    }
+
+    /// The merged value of a flag over the selection: Some(value) when every view agrees.
+    pub fn flag_state(&self, field: &str) -> Option<bool> {
+        let vs = self.flag_views(field);
+        let first = self.repo.bool(*vs.first()?, field);
+        vs.iter().all(|v| self.repo.bool(*v, field) == first).then_some(first)
+    }
+
+    /// Format toggles (Show Shadow, Show Visibility, Suppress Attributes…): invert the shared value on
+    /// every selected view that has the flag, or set it when the selection is mixed. One undo step
+    /// (default-commands.js:1013-1029; uml-commands.js:271-279, 4596-4651).
+    pub fn toggle_flag(&mut self, field: &str) {
+        let vs = self.flag_views(field);
+        if vs.is_empty() {
+            return;
+        }
+        let value = match self.flag_state(field) {
+            Some(v) => !v,
+            None => true,
+        };
         self.change(|a| {
-            for v in nodes {
-                a.repo.set(v, "showShadow", json!(show));
+            for v in vs {
+                a.repo.set(v, field, json!(value));
             }
         });
+    }
+
+    pub fn toggle_shadow(&mut self) {
+        self.toggle_flag("showShadow");
     }
 
     pub fn set_zoom(&mut self, z: f64) {

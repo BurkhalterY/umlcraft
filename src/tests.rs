@@ -513,3 +513,41 @@ fn selection_clicks_follow_the_original() {
     a.select_next_view();
     assert_eq!(a.selection, vec![c1]);
 }
+
+#[test]
+fn format_toggles_invert_the_shared_value() {
+    use egui::{Key, Modifiers};
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(240.0, 40.0, 100.0, 60.0))).unwrap();
+    let note = a.change(|a| a.create_node("Note", rect(440.0, 40.0, 100.0, 60.0))).unwrap();
+    a.select(vec![c1, c2, note]);
+    assert_eq!(a.flag_views("suppressAttributes"), vec![c1, c2], "only views with the flag");
+    assert_eq!(a.flag_state("suppressAttributes"), Some(false));
+    let undo = a.undo.len();
+    a.toggle_flag("suppressAttributes");
+    assert_eq!(a.undo.len(), undo + 1);
+    assert!(a.repo.bool(c1, "suppressAttributes") && a.repo.bool(c2, "suppressAttributes"));
+    a.toggle_flag("suppressAttributes");
+    assert_eq!(a.flag_state("suppressAttributes"), Some(false));
+    // mixed: set to true
+    a.change(|a| a.repo.set(c1, "showVisibility", json!(false)));
+    assert_eq!(a.flag_state("showVisibility"), None);
+    a.toggle_flag("showVisibility");
+    assert!(a.repo.bool(c1, "showVisibility") && a.repo.bool(c2, "showVisibility"));
+
+    // Ctrl+Shift+N toggles the namespace, and does not start a new project
+    let mut press = |a: &mut App, key: Key, modifiers: Modifiers| {
+        let ev = egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers };
+        let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+        out.textures_delta.clear();
+    };
+    let cs = Modifiers::COMMAND | Modifiers::SHIFT;
+    press(&mut a, Key::N, cs);
+    assert!(a.repo.alive(c1) && a.repo.bool(c1, "showNamespace"));
+    press(&mut a, Key::A, cs);
+    assert!(a.repo.bool(c1, "suppressAttributes"));
+    assert_eq!(a.selection, vec![c1, c2, note], "Ctrl+Shift+A is not Select All");
+}

@@ -1007,7 +1007,11 @@ impl App {
                 }
             });
         }
-        ui.menu_button("Format", |ui| self.alignment_menu(ui));
+        ui.menu_button("Format", |ui| {
+            self.format_toggles(ui);
+            ui.separator();
+            self.alignment_menu(ui);
+        });
         ui.separator();
         if let Some(m) = m {
             if ui.button("Select In Explorer").clicked() {
