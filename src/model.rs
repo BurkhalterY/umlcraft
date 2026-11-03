@@ -436,6 +436,58 @@ impl Repo {
         }
     }
 
+    /// Insert copies of exported elements under parent[field] with fresh ids. References between the
+    /// copied elements follow the copies; references to anything else are kept as they are.
+    pub fn insert_copies(&mut self, items: Vec<Value>, parent: Eid, field: &str) -> Vec<Eid> {
+        fn ids(v: &Value, out: &mut HashMap<String, String>) {
+            match v {
+                Value::Object(m) => {
+                    if let (Some(Value::String(id)), true) = (m.get("_id"), m.contains_key("_type")) {
+                        out.insert(id.clone(), new_id());
+                    }
+                    m.values().for_each(|x| ids(x, out));
+                }
+                Value::Array(a) => a.iter().for_each(|x| ids(x, out)),
+                _ => {}
+            }
+        }
+        fn remap(v: &mut Value, map: &HashMap<String, String>) {
+            match v {
+                Value::Object(m) => {
+                    for key in ["_id", "$ref"] {
+                        if let Some(Value::String(id)) = m.get_mut(key) {
+                            if let Some(n) = map.get(id.as_str()) {
+                                *id = n.clone();
+                            }
+                        }
+                    }
+                    m.values_mut().for_each(|x| remap(x, map));
+                }
+                Value::Array(a) => a.iter_mut().for_each(|x| remap(x, map)),
+                _ => {}
+            }
+        }
+        let mut map = HashMap::new();
+        items.iter().for_each(|v| ids(v, &mut map));
+        let mut out = vec![];
+        for mut v in items {
+            if !is_elem(&v) {
+                continue;
+            }
+            remap(&mut v, &map);
+            let e = self.import(v, Some(parent));
+            self.attach(e, parent, field, None);
+            out.push(e);
+        }
+        out
+    }
+
+    /// The field of its owner that holds this element (ownedElements, attributes, end1…).
+    pub fn field_of(&self, eid: Eid) -> Option<String> {
+        let p = self.parent(eid)?;
+        self.children(p).into_iter().find(|(_, c)| *c == eid).map(|(k, _)| k)
+    }
+
     pub fn path(&self, eid: Eid) -> Vec<Eid> {
         let mut out = vec![eid];
         let mut cur = self.parent(eid);

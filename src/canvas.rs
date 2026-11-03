@@ -968,7 +968,12 @@ impl App {
     }
 
     fn canvas_menu(&mut self, ui: &mut egui::Ui) {
+        self.last_area = crate::app::Area::Canvas;
         let Some(v) = self.ctx_target.filter(|v| self.repo.alive(*v)) else {
+            if ui.button("Paste").clicked() {
+                self.cmd_paste();
+                ui.close();
+            }
             if ui.button("Select All").clicked() {
                 self.select_all();
                 ui.close();
@@ -980,6 +985,8 @@ impl App {
             return;
         };
         let m = self.repo.refd(v, "model");
+        self.clipboard_items(ui);
+        ui.separator();
         if ui.button("Edit").clicked() {
             let p = self.ctx_pos;
             self.edit_view(v, Some(p));

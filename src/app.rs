@@ -138,6 +138,8 @@ pub struct App {
     pub toasts: Vec<(String, std::time::Instant)>,
     /// Select In Diagram with several diagrams: the views to choose from and the chosen row.
     pub diagram_picker: Option<(Vec<Eid>, Option<usize>)>,
+    /// The last text UMLCraft put on the clipboard, used when the system clipboard cannot be read.
+    pub clipboard: Option<String>,
 }
 
 impl App {
@@ -191,6 +193,7 @@ impl App {
             centre_pending: None,
             toasts: vec![],
             diagram_picker: None,
+            clipboard: None,
         };
         a.set_project(Repo::blank(), None);
         a

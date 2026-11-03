@@ -568,3 +568,108 @@ fn ctrl_shift_g_toggles_snap_not_the_grid() {
     press(&mut a, Modifiers::COMMAND);
     assert!(!a.snap && !a.show_grid);
 }
+
+#[test]
+fn copy_and_paste_views_and_models() {
+    use crate::app::Area;
+    let mut a = App::new(None);
+    a.canvas_rect = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0)));
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(240.0, 40.0, 100.0, 60.0))).unwrap();
+    let c3 = a.change(|a| a.create_node("UMLClass", rect(440.0, 40.0, 100.0, 60.0))).unwrap();
+    let e12 = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let e23 = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c2, c3)).unwrap();
+    let m1 = a.repo.refd(c1, "model").unwrap();
+
+    // views: the line to an uncopied box stays behind; pasted views share the models
+    a.last_area = Area::Canvas;
+    a.select(vec![c1, c2, e12, e23]);
+    let text = a.copy_text().unwrap();
+    let before = a.repo.list(d, "ownedViews").len();
+    let classes = a.repo.all_of("UMLClass").len();
+    a.paste_text(&text);
+    let views = a.repo.list(d, "ownedViews");
+    assert_eq!(views.len(), before + 3, "two boxes and the line between them");
+    assert_eq!(a.repo.all_of("UMLClass").len(), classes, "no model copies");
+    assert_eq!(a.selection.len(), 3, "pasted views are selected");
+    let pasted_box = a.selection.iter().copied().find(|v| a.repo.refd(*v, "model") == Some(m1)).unwrap();
+    let pasted_edge = a.selection.iter().copied().find(|v| crate::views::is_edge(&a.repo, *v)).unwrap();
+    assert!(a.selection.contains(&a.repo.refd(pasted_edge, "tail").unwrap()), "the line joins the pasted boxes");
+    // the group (40..340 x 40..100) is centred on the screen centre (400, 300)
+    assert_eq!((a.repo.f(pasted_box, "left"), a.repo.f(pasted_box, "top")), (250.0, 270.0));
+
+    // cut views removes them, models stay
+    a.select(vec![c3]);
+    a.cmd_cut(None);
+    assert!(!a.repo.alive(c3) && !a.repo.alive(e23));
+    assert_eq!(a.repo.all_of("UMLClass").len(), classes);
+
+    // a model: deep copy with new ids into the selected element, or its owner
+    let at = a.change(|a| a.add_feature(m1, "UMLAttribute")).unwrap();
+    a.last_area = Area::Explorer;
+    a.select(vec![]);
+    a.focus = Some(m1);
+    let text = a.copy_text().unwrap();
+    a.paste_text(&text);
+    let copy = a.focus.unwrap();
+    assert_ne!(copy, m1);
+    assert_eq!(a.repo.name(copy), a.repo.name(m1));
+    assert_eq!(a.repo.parent(copy), Some(m1), "a class can own classes, so the copy goes inside the selected class");
+    let attrs = a.repo.list(copy, "attributes");
+    assert_eq!(attrs.len(), 1);
+    assert_ne!(a.repo.id(attrs[0]), a.repo.id(at));
+    assert_eq!(a.repo.parent(attrs[0]), Some(copy));
+    // an operation cannot hold a class: the copy goes to its owner
+    let op = a.change(|a| a.add_feature(m1, "UMLOperation")).unwrap();
+    a.focus = Some(op);
+    a.paste_text(&text);
+    assert_eq!(a.repo.parent(a.focus.unwrap()), Some(m1));
+    // an attribute pastes into a class
+    a.focus = Some(at);
+    let text = a.copy_text().unwrap();
+    a.focus = Some(copy);
+    a.paste_text(&text);
+    assert_eq!(a.repo.list(copy, "attributes").len(), 2);
+    // cut a model deletes it
+    a.focus = Some(copy);
+    a.cmd_cut(None);
+    assert!(!a.repo.alive(copy));
+    // pasting views whose model is gone does nothing
+    a.select(vec![]);
+    let n = a.repo.list(d, "ownedViews").len();
+    a.paste_text(&a.clipboard.clone().unwrap());
+    a.last_area = Area::Canvas;
+    a.select(vec![c1]);
+    let text = a.copy_text().unwrap();
+    a.change(|a| a.delete_models(&[m1]));
+    let n2 = a.repo.list(d, "ownedViews").len();
+    a.paste_text(&text);
+    assert_eq!(a.repo.list(d, "ownedViews").len(), n2);
+    // other text is ignored
+    a.paste_text("hello");
+    let _ = n;
+    // the saved file still parses
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn clipboard_shortcuts_arrive_as_events() {
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    a.last_area = crate::app::Area::Canvas;
+    a.select(vec![c1]);
+    let mut send = |a: &mut App, ev: egui::Event| {
+        let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+        out.textures_delta.clear();
+    };
+    send(&mut a, egui::Event::Copy);
+    let text = a.clipboard.clone().expect("Ctrl+C copies");
+    send(&mut a, egui::Event::Paste(text));
+    assert_eq!(a.repo.list(d, "ownedViews").len(), 2);
+    send(&mut a, egui::Event::Cut);
+    assert_eq!(a.repo.list(d, "ownedViews").len(), 1);
+}

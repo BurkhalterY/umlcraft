@@ -291,6 +291,8 @@ impl App {
             ui.close();
         }
         ui.separator();
+        self.last_area = Area::Explorer;
+        self.clipboard_items(ui);
         if ui.add_enabled(t != "Project", egui::Button::new("Delete from Model")).clicked() {
             self.change(|a| a.delete_models(&[e]));
             ui.close();
@@ -815,6 +817,7 @@ impl App {
                     ui.close();
                 }
                 ui.separator();
+                self.clipboard_items(ui);
                 if ui.button("Delete              Delete").clicked() {
                     self.delete_selection(false);
                     ui.close();
@@ -918,6 +921,23 @@ impl App {
                 }
             });
         });
+    }
+
+    /// Cut, Copy and Paste (Edit menu, canvas menu and explorer menu).
+    pub(crate) fn clipboard_items(&mut self, ui: &mut egui::Ui) {
+        let can = self.can_copy();
+        if ui.add_enabled(can, egui::Button::new("Cut                 Ctrl+X")).clicked() {
+            self.cmd_cut(Some(&ui.ctx().clone()));
+            ui.close();
+        }
+        if ui.add_enabled(can, egui::Button::new("Copy                Ctrl+C")).clicked() {
+            self.cmd_copy(Some(&ui.ctx().clone()));
+            ui.close();
+        }
+        if ui.button("Paste               Ctrl+V").clicked() {
+            self.cmd_paste();
+            ui.close();
+        }
     }
 
     /// Close Diagram, Close Other Diagrams and Close All Diagrams (View menu and Working Diagrams menu).
@@ -1027,6 +1047,24 @@ impl App {
         }
         if hit(sc(Modifiers::COMMAND, Key::Z)) {
             self.do_undo();
+        }
+        // Ctrl+C, Ctrl+X and Ctrl+V reach egui as Copy, Cut and Paste events, not as keys
+        let clip = ctx.input_mut(|i| {
+            let mut out = None;
+            i.events.retain(|e| match e {
+                egui::Event::Copy | egui::Event::Cut | egui::Event::Paste(_) if out.is_none() => {
+                    out = Some(e.clone());
+                    false
+                }
+                _ => true,
+            });
+            out
+        });
+        match clip {
+            Some(egui::Event::Copy) => self.cmd_copy(Some(ctx)),
+            Some(egui::Event::Cut) => self.cmd_cut(Some(ctx)),
+            Some(egui::Event::Paste(t)) => self.paste_text(&t),
+            _ => {}
         }
         if hit(sc(Modifiers::COMMAND, Key::Delete)) {
             self.delete_selection(true);

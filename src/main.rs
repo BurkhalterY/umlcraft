@@ -6,6 +6,7 @@
 
 mod align;
 mod app;
+mod clipboard;
 mod canvas;
 mod icons;
 mod meta;

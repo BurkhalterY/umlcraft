@@ -133,7 +133,7 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | UML | `uml.note.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | General | `general.working-file` | Auto load working file | false | ❌ | resources/default/preferences/default.json |
 | General | `general.auto-backup` | Auto backup | true | ❌ no auto-backup | resources/default/preferences/default.json |
-| General | `theme.default` | Default Theme | "dark" | 🟡 dark theme only, the original default (src/main.rs:88); no light theme | resources/default/preferences/default.json |
+| General | `theme.default` | Default Theme | "dark" | 🟡 dark theme only, the original default (src/main.rs:89); no light theme | resources/default/preferences/default.json |
 | General | `view.font` | Font Face | "Arial" | 🟡 Arial default used (src/views.rs:22), not configurable | resources/default/preferences/default.json |
 | General | `view.fontSize` | Font Size | 13 | 🟡 13 used, not configurable | resources/default/preferences/default.json |
 | General | `view.fillColor` | Fill Color | "#ffffff" | 🟡 white default, not configurable | resources/default/preferences/default.json |
@@ -141,7 +141,7 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | General | `view.fontColor` | Font Color | "#000000" | 🟡 black default, not configurable | resources/default/preferences/default.json |
 | General | `view.lineStyle` | Line Style | 1 | 🟡 oblique default (src/views.rs:23), not configurable | resources/default/preferences/default.json |
 | General | `view.showShadow` | Show Shadow | true | 🟡 shadow on by default, not configurable | resources/default/preferences/default.json |
-| General | `diagramEditor.showGrid` | Show Grid | true | 🟡 on by default, toggled per session (src/app.rs:155), not saved | resources/default/preferences/default.json |
+| General | `diagramEditor.showGrid` | Show Grid | true | 🟡 on by default, toggled per session (src/app.rs:157), not saved | resources/default/preferences/default.json |
 | General | `diagramEditor.snapToGrid` | Snap to Grid | true | 🟡 on by default, toggled per session, not saved | resources/default/preferences/default.json |
 | General | `diagramEditor.gridSize` | Grid Size | 8 | 🟡 8 hard-coded (src/render.rs:10) | resources/default/preferences/default.json |
 | General | `diagramEditor.backgroundColor` | Background Color | "#ffffff" | 🟡 white hard-coded | resources/default/preferences/default.json |
