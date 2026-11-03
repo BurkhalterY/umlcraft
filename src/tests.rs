@@ -1892,3 +1892,47 @@ fn word_wrap() {
     // the picture still draws
     crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap();
 }
+
+#[test]
+fn layout_layers() {
+    use crate::layout::{layered, Dir, NODE_SEP, RANK_SEP};
+    // a super-class above two sub-classes, side by side and centred under it
+    let sizes = [(100.0, 50.0), (80.0, 40.0), (80.0, 40.0)];
+    let p = layered(&sizes, &[(0, 1), (0, 2)], Dir::TopBottom);
+    assert_eq!(p.boxes[1].y, 50.0 + RANK_SEP);
+    assert_eq!(p.boxes[1].y, p.boxes[2].y);
+    assert_eq!((p.boxes[2].x - p.boxes[1].x).abs(), 80.0 + NODE_SEP);
+    let mid = (p.boxes[1].x + p.boxes[2].x + 80.0) / 2.0;
+    assert!((p.boxes[0].x + 50.0 - mid).abs() <= 1.0, "{p:?}");
+    // left to right: ranks become columns
+    let q = layered(&sizes, &[(0, 1), (0, 2)], Dir::LeftRight);
+    assert_eq!(q.boxes[1].x, 100.0 + RANK_SEP);
+    // bottom to top: the super-class is below
+    let b = layered(&sizes, &[(0, 1), (0, 2)], Dir::BottomTop);
+    assert!(b.boxes[0].y > b.boxes[1].y);
+    // a line over two ranks bends once; cycles do not hang
+    let c = layered(&[(10.0, 10.0); 3], &[(0, 1), (1, 2), (0, 2), (2, 0)], Dir::TopBottom);
+    assert_eq!(c.bends[2].len(), 1);
+    assert!(c.boxes.iter().all(|p| p.x >= 0.0 && p.y >= 0.0));
+}
+
+#[test]
+fn layout_diagram_command() {
+    let ms = measure();
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let d = a.diagram.unwrap();
+    let undo = a.undo.len();
+    a.layout_diagram(crate::layout::Dir::TopBottom);
+    assert_eq!(a.undo.len(), undo + 1, "one undo step");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // no two top-level boxes overlap
+    let boxes: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| crate::views::is_node(&a.repo, *v) && !a.repo.has(*v, "containerView")).map(|v| crate::views::node_rect(&a.repo, v)).collect();
+    for i in 0..boxes.len() {
+        for j in i + 1..boxes.len() {
+            let (p, q) = (boxes[i], boxes[j]);
+            assert!(p.x + p.w <= q.x || q.x + q.w <= p.x || p.y + p.h <= q.y || q.y + q.h <= p.y, "{p:?} {q:?}");
+        }
+    }
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

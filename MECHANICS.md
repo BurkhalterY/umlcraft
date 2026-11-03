@@ -104,6 +104,14 @@ returned nothing).
 | Native side | `toPNG` 0xec2c6e/0x101d688 and `image/png` are Electron API table entries only; no function to follow | native_strings_find ev_b82b90eb… |
 | UMLCraft | draws the SVG off-screen with resvg for PNG export, so scrolled-out parts and the grid do not matter; trial watermarks of the original are not copied | `src/render.rs` to_png, to_svg_sized |
 
+## Layout
+
+| Rule | Value | Source |
+|---|---|---|
+| Menu | Format › Layout › Auto, Top to Bottom, Bottom to Top, Left to Right, Right to Left; Auto is top to bottom (estimated) | `extensions/default/diagram-layout/main.js:30-40` |
+| Undo | the whole layout is one "layout diagram" step | `src/engine/engine.js:1513-1549` |
+| UMLCraft | own layered layout instead of dagre: a line's head goes one rank before its tail; node, edge and rank separations 50, 10 and 50 (estimated); rectilinear lines are left to route themselves; boxes lying inside a package or subject move with it | `src/layout.rs` |
+
 ## Print to PDF
 
 | Rule | Value | Source |

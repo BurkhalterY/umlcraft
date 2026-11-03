@@ -1115,6 +1115,16 @@ impl App {
                 self.format_toggles(ui);
                 ui.separator();
                 self.alignment_menu(ui);
+                ui.add_enabled_ui(self.diagram.is_some(), |ui| {
+                    ui.menu_button("Layout", |ui| {
+                        for (dir, label) in crate::layout::Dir::MENU {
+                            if ui.button(label).clicked() {
+                                self.layout_diagram(dir);
+                                ui.close();
+                            }
+                        }
+                    });
+                });
             });
             ui.menu_button("Model", |ui| {
                 // Model › Add and Add Diagram act on the focused element (or the project)
