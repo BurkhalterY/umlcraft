@@ -1978,3 +1978,27 @@ fn diagram_generator() {
     crate::export::render(&mut a, ps, &ms, crate::export::Format::Svg, 1.0).unwrap();
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn element_picker_and_name_lookup() {
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let find = |a: &App, n: &str, t: &str| a.repo.all().find(|e| a.repo.name(*e) == n && a.repo.ty(*e) == t).unwrap();
+    let book = find(&a, "Book", "UMLClass");
+    let member = find(&a, "Member", "UMLClass");
+    let at = a.change(|a| a.add_feature(book, "UMLAttribute")).unwrap();
+    // a typed name that names a classifier becomes a reference; other text stays text
+    a.commit_text(at, "type", "type", "Member".into());
+    assert_eq!(a.repo.refd(at, "type"), Some(member));
+    a.commit_text(at, "type", "type", "Nothing".into());
+    assert_eq!(a.repo.str(at, "type"), "Nothing");
+    // the picker starts on the current value; "Do not specify" clears it
+    a.apply_picked(at, "type", Some(member));
+    a.open_element_picker(at, "type");
+    let p = a.element_picker.clone().unwrap();
+    assert_eq!((p.chosen, p.ty), (Some(member), "UMLClassifier"));
+    assert!(p.open.contains(&a.repo.parent(member).unwrap()), "owners expanded");
+    a.apply_picked(at, "type", None);
+    assert_eq!(a.repo.refd(at, "type"), None);
+    assert_eq!(crate::picker::field_type("stereotype"), "UMLStereotype");
+}

@@ -597,7 +597,7 @@ impl App {
         }
     }
 
-    fn commit_text(&mut self, obj: Eid, field: &str, kind: &str, text: String) {
+    pub(crate) fn commit_text(&mut self, obj: Eid, field: &str, kind: &str, text: String) {
         if self.display_value(obj, field, kind) == text {
             return;
         }
@@ -613,6 +613,9 @@ impl App {
                     a.repo.set_raw(obj, "type", json!(""));
                 } else if text.is_empty() {
                     a.repo.remove(obj, &field);
+                } else if let Some(x) = a.resolve_name(obj, &text, crate::picker::field_type(&field)) {
+                    // a name found from the owner outward, then anywhere, becomes a reference
+                    a.repo.set_ref(obj, &field, Some(x));
                 } else {
                     a.repo.set(obj, &field, json!(text));
                 }
@@ -653,12 +656,27 @@ impl App {
             let w = ui.available_width() - 2.0;
             match kind {
                 "text" | "type" => {
+                    // type and stereotype: the linked element's icon, then a picker button
+                    let var = kind == "type" || field == "stereotype";
+                    let linked = if var { self.repo.raw(obj, &field).and_then(|v| self.repo.by_ref(v)).filter(|t| self.repo.alive(*t)) } else { None };
+                    let mut fw = w;
+                    if let Some(t) = linked {
+                        let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                        icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
+                        fw -= 16.0 + ui.spacing().item_spacing.x;
+                    }
+                    if var {
+                        fw -= 24.0 + ui.spacing().item_spacing.x;
+                    }
                     let cur = self.display_value(obj, &field, kind);
                     let buf = self.prop_buf.entry(path.to_string()).or_insert(cur);
-                    let r = ui.add_sized(Vec2::new(w, 23.0), egui::TextEdit::singleline(buf).font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
+                    let r = ui.add_sized(Vec2::new(fw, 23.0), egui::TextEdit::singleline(buf).font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
                     if r.lost_focus() {
                         let text = buf.clone();
                         self.commit_text(obj, &field, kind, text);
+                    }
+                    if var && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("…")).on_hover_text("Select Element").clicked() {
+                        self.open_element_picker(obj, &field);
                     }
                 }
                 "bool" => {
@@ -686,6 +704,8 @@ impl App {
                         let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
                         icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
                         ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT));
+                    } else {
+                        ui.label(egui::RichText::new("—").size(12.0).color(DIM));
                     }
                 }
                 _ => {}
@@ -1755,6 +1775,7 @@ impl App {
         self.diagram_picker_ui(ctx);
         self.color_dialog_ui(ctx);
         self.print_dialog_ui(ctx);
+        self.element_picker_ui(ctx);
         self.preferences_ui(ctx);
         self.tag_editor_ui(ctx);
         self.palette_ui(ctx);

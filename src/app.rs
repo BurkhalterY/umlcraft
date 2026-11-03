@@ -190,6 +190,8 @@ pub struct App {
     pub last_backup: std::time::Instant,
     /// The Print to PDF dialog is open.
     pub print_open: bool,
+    /// The open Element Picker ("Select Element").
+    pub element_picker: Option<crate::picker::ElementPicker>,
 }
 
 impl App {
@@ -271,6 +273,7 @@ impl App {
             refocus_canvas: false,
             last_backup: std::time::Instant::now(),
             print_open: false,
+            element_picker: None,
         };
         a.set_project(Repo::blank(), None);
         a
