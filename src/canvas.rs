@@ -447,7 +447,7 @@ impl App {
             }
             let (del, esc, enter, arrows) = ui.input(|i| {
                 (
-                    i.key_pressed(egui::Key::Delete) && !i.modifiers.command,
+                    (i.key_pressed(egui::Key::Delete) || i.key_pressed(egui::Key::Backspace)) && !i.modifiers.command,
                     i.key_pressed(egui::Key::Escape),
                     i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::F2),
                     (

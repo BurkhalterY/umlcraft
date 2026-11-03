@@ -172,7 +172,7 @@ Source: the extracted `app/` tree. Paths below are relative to `app/`. Each bull
 
 ## Keyboard on the canvas (hidden behaviour beyond the keymap)
 
-- **Delete and Backspace both delete**: either key runs `edit:delete` (view-level delete, see the clipboard and delete section). (src/ui/diagram-manager.js:700-703) — **UMLCraft:** 🟡 partial only Delete removes views; Backspace is not bound (src/canvas.rs:450, 462-464)
+- **Delete and Backspace both delete**: either key runs `edit:delete` (view-level delete, see the clipboard and delete section). (src/ui/diagram-manager.js:700-703) — **UMLCraft:** ✅ present Delete or Backspace on the focused canvas removes the selected views (src/canvas.rs:450, 462-464)
 - **Ctrl+Plus/Minus are empty on the canvas**: the canvas-level handlers do nothing. Zoom keys come only from the menu keymap. (src/ui/diagram-manager.js:704-711; src/app-context.js:1484-1502) — **UMLCraft:** ✅ present zoom keys exist only once, as global shortcuts (Ctrl+= / Ctrl++ / Ctrl+-) (src/ui.rs:1054-1059)
 - **Undo/redo/cut/copy/paste act on text first**: when an `<input>` or `<textarea>` (quick edit, property field) has focus, these commands go to the text field instead of the model. (src/engine/default-commands.js:591-612, 614-616, 639-641, 702-704) — **UMLCraft:** ✅ present while a text field has focus, the shortcut handler returns before undo/redo, so the field gets them. There are no model cut/copy/paste commands (src/ui.rs:983, 1022-1030, 1276-1278)
 
