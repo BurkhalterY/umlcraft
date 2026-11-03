@@ -901,7 +901,7 @@ impl App {
                         "zoomOut" => self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP),
                         "fit" => self.fit(),
                         "grid" => self.show_grid = !self.show_grid,
-                        _ => self.export_png(&ui.ctx().clone()),
+                        _ => self.export_current(&ui.ctx().clone(), crate::export::Format::Png),
                     }
                 }
             }
@@ -968,14 +968,22 @@ impl App {
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Export Diagram As PNG...").clicked() {
-                    self.export_png(&ui.ctx().clone());
-                    ui.close();
-                }
-                if ui.button("Export Diagram As SVG...").clicked() {
-                    self.export_svg(&measure);
-                    ui.close();
-                }
+                ui.menu_button("Export Diagram As", |ui| {
+                    use crate::export::Format;
+                    for f in [Format::Png, Format::Jpeg, Format::Svg] {
+                        if ui.button(format!("{}...", f.label())).clicked() {
+                            self.export_current(&ui.ctx().clone(), f);
+                            ui.close();
+                        }
+                    }
+                    ui.separator();
+                    for f in [Format::Png, Format::Jpeg, Format::Svg] {
+                        if ui.button(format!("All to {}s...", f.label())).clicked() {
+                            self.export_all_cmd(&ui.ctx().clone(), f);
+                            ui.close();
+                        }
+                    }
+                });
                 ui.separator();
                 if ui.button("Preferences...").clicked() {
                     self.prefs_open = Some("General".into());
@@ -1542,17 +1550,37 @@ impl App {
         }
     }
 
-    fn export_png(&mut self, ctx: &egui::Context) {
-        let Some(d) = self.diagram else { return };
-        let ms = EguiMeasure { ctx: ctx.clone() };
-        let name = self.repo.name(d);
-        let Some(p) = rfd::FileDialog::new().set_title("Export Diagram as PNG").set_file_name(format!("{name}.png")).add_filter("PNG", &["png"]).save_file() else {
+    /// Export the current diagram as PNG, JPEG or SVG. The selection is cleared first; with no diagram
+    /// open the toast "No diagram to export." appears (default-commands.js:360-445).
+    pub(crate) fn export_current(&mut self, ctx: &egui::Context, f: crate::export::Format) {
+        let Some(d) = self.diagram else {
+            self.toast("No diagram to export.");
             return;
         };
-        let info = views::layout_diagram(&mut self.repo, &ms, d);
-        let result = render::to_png(&self.repo, d, &info, &ms, ctx.pixels_per_point()).and_then(|png| std::fs::write(&p, png).map_err(|e| e.to_string()));
+        self.select(vec![]);
+        let ms = EguiMeasure { ctx: ctx.clone() };
+        let title = format!("Export Diagram as {}", f.label());
+        let Some(p) = rfd::FileDialog::new().set_title(&title).set_file_name(self.export_name(d, f)).add_filter(f.label(), &[f.ext()]).save_file() else {
+            return;
+        };
+        let result = crate::export::render(self, d, &ms, f, ctx.pixels_per_point()).and_then(|bytes| std::fs::write(&p, bytes).map_err(|e| e.to_string()));
         if let Err(e) = result {
             self.message = Some(("Failed to export the diagram.".into(), e));
+        }
+    }
+
+    /// Export every diagram into a folder the person picks (default-commands.js:452-535).
+    pub(crate) fn export_all_cmd(&mut self, ctx: &egui::Context, f: crate::export::Format) {
+        if self.repo.all_of("Diagram").is_empty() {
+            self.toast("No diagram to export.");
+            return;
+        }
+        let Some(folder) = rfd::FileDialog::new().set_title("Select a folder where all diagrams to be exported").pick_folder() else { return };
+        self.select(vec![]);
+        let ms = EguiMeasure { ctx: ctx.clone() };
+        match self.export_all(&folder, &ms, f, ctx.pixels_per_point()) {
+            Ok(n) => self.toast(&format!("{n} diagrams exported.")),
+            Err(e) => self.message = Some(("Failed to export the diagrams.".into(), e)),
         }
     }
 
@@ -1562,18 +1590,6 @@ impl App {
         let info = views::layout_diagram(&mut self.repo, &ms, d);
         let png = render::to_png(&self.repo, d, &info, &ms, 1.0);
         self.copy_diagram_image(png);
-    }
-
-    fn export_svg(&mut self, ms: &EguiMeasure) {
-        let Some(d) = self.diagram else { return };
-        let info = views::layout_diagram(&mut self.repo, ms, d);
-        let Some(svg) = render::to_svg(&self.repo, d, &info, ms) else { return };
-        let name = self.repo.name(d);
-        if let Some(p) = rfd::FileDialog::new().set_title("Export Diagram as SVG").set_file_name(format!("{name}.svg")).add_filter("SVG", &["svg"]).save_file() {
-            if let Err(e) = std::fs::write(&p, svg) {
-                self.message = Some(("Failed to export the diagram.".into(), e.to_string()));
-            }
-        }
     }
 
     fn dialogs(&mut self, ctx: &egui::Context) {

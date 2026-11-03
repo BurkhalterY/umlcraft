@@ -91,6 +91,8 @@ returned nothing).
 
 ## Exporting pictures
 
+* JPEG is the PNG flattened on white; Export All writes `<folder>/<png|jpg|svg>/<filenamify(path)>_<index>.<ext>`, the path joining owner names with "::" and filenamify turning `<>:"/\|?*` and control characters into "!" (`src/engine/default-commands.js:452-535`, `src/engine/diagram-export.js:130-134, 275-298`).
+
 | Rule | Value | Source |
 |---|---|---|
 | Margin around the drawing | the diagram's bounds grown by 10 on every side | `src/engine/diagram-export.js:33` BOUNDING_BOX_EXPAND, `src/core/graphics.js:381` expand |

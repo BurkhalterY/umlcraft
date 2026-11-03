@@ -1442,3 +1442,24 @@ fn preferences_set_new_view_defaults_and_the_grid() {
         assert!(!b.repo.has(v, k), "{k} left at its default");
     }
 }
+
+#[test]
+fn export_jpeg_and_all_diagrams() {
+    use crate::export::{filenamify, Format};
+    let ms = measure();
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let d = a.diagram.unwrap();
+    assert_eq!(filenamify("a/b:c?"), "a!b!c!");
+    assert_eq!(a.export_name(d, Format::Jpeg), format!("{}.jpg", a.repo.name(d)));
+    let jpg = crate::export::render(&mut a, d, &ms, Format::Jpeg, 1.0).unwrap();
+    let img = image::load_from_memory(&jpg).unwrap().to_rgb8();
+    assert_eq!(img.get_pixel(0, 0).0, [255, 255, 255], "JPEG gets a white background");
+    let dir = std::env::temp_dir().join(format!("umlcraft-export-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let n = a.export_all(&dir, &ms, Format::Svg, 1.0).unwrap();
+    assert_eq!(n, a.repo.all_of("Diagram").len());
+    let names: Vec<String> = std::fs::read_dir(dir.join("svg")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().to_string()).collect();
+    assert!(names.iter().any(|f| f.ends_with("_0.svg") && f.contains("!!")), "path joined with :: then made safe: {names:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

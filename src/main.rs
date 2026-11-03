@@ -7,6 +7,7 @@
 mod align;
 mod app;
 mod clipboard;
+mod export;
 mod canvas;
 mod icons;
 mod meta;
