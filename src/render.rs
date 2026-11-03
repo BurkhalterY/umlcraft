@@ -1,0 +1,436 @@
+//! Draws a diagram onto a canvas (the screen or an SVG file). Shapes and sizes: MECHANICS.md "Drawing".
+
+use crate::model::{Eid, Repo};
+use crate::views::{self, is_edge, is_node, node_rect, points_of, Info, Measure, P, R};
+use std::collections::HashMap;
+
+pub const SHADOW_OFFSET: f64 = 7.0; // elements.js:57
+pub const SHADOW_ALPHA: f64 = 0.2; // elements.js:58
+pub const SHADOW_COLOR: Rgba = Rgba(0xC0, 0xC0, 0xC0, 255);
+pub const GRID_SIZE: f64 = 8.0; // diagramEditor.gridSize, default.json:117
+pub const GRID_STEP: f64 = 16.0; // grid lines every 2 x grid size (screenshot)
+pub const GRID_COLOR_HEX: &str = "#e0e0e0"; // default.json:141
+pub const GRID_COLOR: Rgba = Rgba(0xe0, 0xe0, 0xe0, 255); // = GRID_COLOR_HEX
+pub const SELECT_COLOR_HEX: &str = "#4f99ff"; // graphics.js:2723
+pub const SELECT_COLOR: Rgba = Rgba(0x4f, 0x99, 0xff, 255); // = SELECT_COLOR_HEX
+pub const HANDLE_SIZE: f64 = 8.0;
+pub const ARROW_LENGTH: f64 = 11.0; // drawLineEnd c1, core.js:2748
+pub const TRIANGLE_LENGTH: f64 = 22.0; // drawLineEnd c2, core.js:2749
+pub const ARROW_HALF_ANGLE_DEG: f64 = 22.5; // pi/8, core.js:2738
+pub const DASH: f64 = 3.0; // lineMode DOT
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Rgba(pub u8, pub u8, pub u8, pub u8);
+pub const BLACK: Rgba = Rgba(0, 0, 0, 255);
+pub const WHITE: Rgba = Rgba(255, 255, 255, 255);
+
+pub fn parse_color(s: &str, def: Rgba) -> Rgba {
+    let h = s.trim_start_matches('#');
+    if h.len() == 6 {
+        if let Ok(n) = u32::from_str_radix(h, 16) {
+            return Rgba((n >> 16) as u8, (n >> 8) as u8, n as u8, 255);
+        }
+    }
+    def
+}
+
+/// What the drawing code needs from a surface. Coordinates are diagram coordinates.
+pub trait Canvas: Measure {
+    fn polyline(&mut self, pts: &[P], color: Rgba, dashed: bool);
+    fn polygon(&mut self, pts: &[P], fill: Option<Rgba>, stroke: Option<Rgba>);
+    fn ellipse(&mut self, c: P, rx: f64, ry: f64, fill: Option<Rgba>, stroke: Option<Rgba>);
+    /// align: 0 left, 1 right, 2 centre; text is centred vertically in the box
+    fn text(&mut self, t: &str, b: R, align: i64, style: u8, size: f64, color: Rgba, underline: bool);
+    fn rect(&mut self, r: R, fill: Option<Rgba>, stroke: Option<Rgba>) {
+        let pts = [P { x: r.x, y: r.y }, P { x: r.x + r.w, y: r.y }, P { x: r.x + r.w, y: r.y + r.h }, P { x: r.x, y: r.y + r.h }];
+        self.polygon(&pts, fill, stroke);
+    }
+}
+
+fn color(r: &Repo, v: Eid, key: &str, def: Rgba) -> Rgba {
+    parse_color(&r.str(v, key), def)
+}
+
+fn font_style(font: &str) -> u8 {
+    font.split(';').nth(2).and_then(|s| s.parse().ok()).unwrap_or(0)
+}
+fn font_size(font: &str) -> f64 {
+    font.split(';').nth(1).and_then(|s| s.parse().ok()).unwrap_or(13.0)
+}
+
+fn shown(r: &Repo, v: Eid) -> bool {
+    !matches!(r.raw(v, "visible"), Some(serde_json::Value::Bool(false)) | Some(serde_json::Value::Null))
+}
+
+fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
+    if !shown(r, lv) {
+        return;
+    }
+    let t = r.str(lv, "text");
+    if t.is_empty() {
+        return;
+    }
+    let font = r.str(lv, "font");
+    let b = R { x: r.f(lv, "left"), y: r.f(lv, "top"), w: r.f(lv, "width"), h: r.f(lv, "height").max(13.0) };
+    let align = r.val(lv, "horizontalAlignment").and_then(|v| v.as_i64()).unwrap_or(2);
+    c.text(&t, b, align, font_style(&font), font_size(&font), fc, r.bool(lv, "underline"));
+}
+
+fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid) {
+    let Some(nc) = r.refd(v, "nameCompartment") else { return };
+    let fc = color(r, v, "fontColor", BLACK);
+    for f in ["stereotypeLabel", "nameLabel", "namespaceLabel", "propertyLabel"] {
+        if let Some(lv) = r.refd(nc, f) {
+            draw_label(c, r, lv, fc);
+        }
+    }
+}
+
+fn shadow_rect(c: &mut dyn Canvas, r: &Repo, v: Eid, b: R) {
+    if r.bool(v, "showShadow") {
+        let s = Rgba(SHADOW_COLOR.0, SHADOW_COLOR.1, SHADOW_COLOR.2, (255.0 * SHADOW_ALPHA) as u8);
+        c.rect(R { x: b.x + SHADOW_OFFSET, y: b.y + SHADOW_OFFSET, ..b }, Some(s), None);
+    }
+}
+fn shadow_ellipse(c: &mut dyn Canvas, r: &Repo, v: Eid, ctr: P, rx: f64, ry: f64) {
+    if r.bool(v, "showShadow") {
+        let s = Rgba(SHADOW_COLOR.0, SHADOW_COLOR.1, SHADOW_COLOR.2, (255.0 * SHADOW_ALPHA) as u8);
+        c.ellipse(P { x: ctr.x + SHADOW_OFFSET, y: ctr.y + SHADOW_OFFSET }, rx, ry, Some(s), None);
+    }
+}
+
+pub fn wrap_lines(c: &dyn Measure, text: &str, width: f64) -> Vec<String> {
+    let mut out = vec![];
+    for para in text.split('\n') {
+        let mut line = String::new();
+        for word in para.split(' ') {
+            let test = if line.is_empty() { word.to_string() } else { format!("{line} {word}") };
+            if c.width(&test, 0) > width && !line.is_empty() {
+                out.push(std::mem::take(&mut line));
+                line = word.to_string();
+            } else {
+                line = test;
+            }
+        }
+        out.push(line);
+    }
+    out
+}
+
+fn draw_wrapped(c: &mut dyn Canvas, text: &str, b: R, fc: Rgba) {
+    let lh = (13.0f64 * 1.15).round();
+    let lines = wrap_lines(c, text, b.w);
+    let mut y = b.y;
+    for l in lines {
+        if y + lh > b.y + b.h + 1.0 {
+            break;
+        }
+        c.text(&l, R { x: b.x, y, w: b.w, h: lh }, 0, 0, 13.0, fc, false);
+        y += lh;
+    }
+}
+
+fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
+    let b = node_rect(r, v);
+    let line = color(r, v, "lineColor", BLACK);
+    let fill = color(r, v, "fillColor", WHITE);
+    let fc = color(r, v, "fontColor", BLACK);
+    let ty = r.ty(v).to_string();
+    let shape = info.map(|i| i.shape).unwrap_or("");
+    match shape {
+        "interface" => {
+            let ih = b.h - views::NAME_MIN_H;
+            let d = b.w.min(ih);
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + ih / 2.0 };
+            shadow_ellipse(c, r, v, ctr, d / 2.0, d / 2.0);
+            c.ellipse(ctr, d / 2.0, d / 2.0, Some(fill), Some(line));
+            draw_name(c, r, v);
+            return;
+        }
+        "actor" => {
+            let ih = b.h - views::NAME_MIN_H;
+            let iw = b.w.min(ih * views::ACTOR_ICON_W / views::ACTOR_ICON_H);
+            let (ix, iy) = (b.x + (b.w - iw) / 2.0, b.y);
+            let head_h = ih * 0.34 - 1.0;
+            c.ellipse(P { x: ix + iw / 2.0, y: iy + 1.0 + head_h / 2.0 }, iw * 0.34, head_h / 2.0, Some(fill), Some(line));
+            let p = |fx: f64, fy: f64| P { x: ix + iw * fx, y: iy + ih * fy };
+            c.polyline(&[p(0.5, 0.34), p(0.5, 0.66)], line, false);
+            c.polyline(&[p(0.14, 0.46), p(0.86, 0.46)], line, false);
+            c.polyline(&[p(0.0, 1.0), p(0.5, 0.66), p(1.0, 1.0)], line, false);
+            draw_name(c, r, v);
+            return;
+        }
+        "usecase" => {
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+            shadow_ellipse(c, r, v, ctr, b.w / 2.0, b.h / 2.0);
+            c.ellipse(ctr, b.w / 2.0, b.h / 2.0, Some(fill), Some(line));
+            draw_name(c, r, v);
+            return;
+        }
+        "package" => {
+            let tab_w = (b.w * views::PKG_TAB_RATIO).round();
+            let th = views::PKG_TAB_H;
+            let body = R { x: b.x, y: b.y + th - 1.0, w: b.w, h: b.h - th + 1.0 };
+            shadow_rect(c, r, v, body);
+            c.rect(R { x: b.x, y: b.y, w: tab_w, h: th }, Some(fill), Some(line));
+            c.rect(body, Some(fill), Some(line));
+            draw_name(c, r, v);
+            return;
+        }
+        _ => {}
+    }
+    if ty == "UMLNoteView" || ty == "UMLCustomNoteView" {
+        let f = views::NOTE_FOLD;
+        let pts = [
+            P { x: b.x, y: b.y }, P { x: b.x + b.w - f, y: b.y }, P { x: b.x + b.w, y: b.y + f },
+            P { x: b.x + b.w, y: b.y + b.h }, P { x: b.x, y: b.y + b.h },
+        ];
+        if r.bool(v, "showShadow") {
+            let s = Rgba(SHADOW_COLOR.0, SHADOW_COLOR.1, SHADOW_COLOR.2, (255.0 * SHADOW_ALPHA) as u8);
+            let sp: Vec<P> = pts.iter().map(|p| P { x: p.x + SHADOW_OFFSET, y: p.y + SHADOW_OFFSET }).collect();
+            c.polygon(&sp, Some(s), None);
+        }
+        c.polygon(&pts, Some(fill), Some(line));
+        c.polyline(&[P { x: b.x + b.w - f, y: b.y }, P { x: b.x + b.w - f, y: b.y + f }, P { x: b.x + b.w, y: b.y + f }], line, false);
+        draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc);
+        return;
+    }
+    if ty == "UMLTextView" || ty == "UMLCustomTextView" || ty == "UMLTextBoxView" {
+        draw_wrapped(c, &r.str(v, "text"), R { x: b.x, y: b.y, w: b.w.max(10.0), h: b.h.max(15.0) + 100.0 }, fc);
+        return;
+    }
+    // a box: classifier, subject, or any kind UMLCraft does not draw itself
+    shadow_rect(c, r, v, b);
+    c.rect(b, Some(fill), Some(line));
+    if let Some(i) = info {
+        for comp in &i.compartments {
+            c.polyline(&[P { x: b.x, y: comp.y }, P { x: b.x + b.w, y: comp.y }], line, false);
+        }
+        for comp in &i.compartments {
+            for row in &comp.rows {
+                draw_label(c, r, row.iv, fc);
+            }
+        }
+        if i.is_active {
+            c.polyline(&[P { x: b.x + 3.0, y: b.y }, P { x: b.x + 3.0, y: b.y + b.h }], line, false);
+            c.polyline(&[P { x: b.x + b.w - 3.0, y: b.y }, P { x: b.x + b.w - 3.0, y: b.y + b.h }], line, false);
+        }
+    }
+    if r.has(v, "nameCompartment") {
+        draw_name(c, r, v);
+    } else if let Some(m) = r.refd(v, "model") {
+        c.text(&r.name(m), R { x: b.x, y: b.y + 5.0, w: b.w, h: 15.0 }, 2, 1, 13.0, fc, false);
+    }
+}
+
+// ---- line ends (core.js:2715 drawLineEnd)
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum End {
+    Arrow,
+    Triangle,
+    Diamond,
+    FilledDiamond,
+    ArrowDiamond,
+    ArrowFilledDiamond,
+    Cross,
+}
+
+fn end_shape(c: &mut dyn Canvas, p0: P, p1: P, end: Option<End>, line: Rgba) {
+    let Some(end) = end else { return };
+    let th = (p1.y - p0.y).atan2(p1.x - p0.x);
+    let half = ARROW_HALF_ANGLE_DEG.to_radians();
+    let at = |len: f64, ang: f64| P { x: p0.x + len * ang.cos(), y: p0.y + len * ang.sin() };
+    let (a1, a2) = (at(ARROW_LENGTH, th - half), at(ARROW_LENGTH, th + half));
+    let tip3 = at(TRIANGLE_LENGTH, th);
+    let (t1, t2) = (at(TRIANGLE_LENGTH, th - half), at(TRIANGLE_LENGTH, th + half));
+    match end {
+        End::Arrow => c.polyline(&[a1, p0, a2], line, false),
+        End::Triangle => c.polygon(&[t1, p0, t2], Some(WHITE), Some(line)),
+        End::Diamond => c.polygon(&[a1, p0, a2, tip3], Some(WHITE), Some(line)),
+        End::FilledDiamond => c.polygon(&[a1, p0, a2, tip3], Some(line), Some(line)),
+        End::ArrowDiamond | End::ArrowFilledDiamond => {
+            let f = if end == End::ArrowFilledDiamond { line } else { WHITE };
+            c.polygon(&[a1, p0, a2, tip3], Some(f), Some(line));
+            let b1 = P { x: tip3.x + ARROW_LENGTH * (th - half).cos(), y: tip3.y + ARROW_LENGTH * (th - half).sin() };
+            let b2 = P { x: tip3.x + ARROW_LENGTH * (th + half).cos(), y: tip3.y + ARROW_LENGTH * (th + half).sin() };
+            c.polyline(&[b1, tip3, b2], line, false);
+        }
+        End::Cross => {
+            let m = at(7.0, th);
+            let q = std::f64::consts::FRAC_PI_4;
+            let k = |a: f64, s: f64| P { x: m.x + s * 7.0 * (th + a).cos(), y: m.y + s * 7.0 * (th + a).sin() };
+            c.polyline(&[k(-q, 1.0), k(-q, -1.0)], line, false);
+            c.polyline(&[k(q, 1.0), k(q, -1.0)], line, false);
+        }
+    }
+}
+
+fn assoc_end(r: &Repo, end: Option<Eid>) -> Option<End> {
+    let end = end?;
+    let nav = r.str(end, "navigable");
+    let agg = r.str(end, "aggregation");
+    match (agg.as_str(), nav == "navigable") {
+        ("shared", true) => Some(End::ArrowDiamond),
+        ("shared", false) => Some(End::Diamond),
+        ("composite", true) => Some(End::ArrowFilledDiamond),
+        ("composite", false) => Some(End::FilledDiamond),
+        (_, true) => Some(End::Arrow),
+        _ if nav == "notNavigable" => Some(End::Cross),
+        _ => None,
+    }
+}
+
+fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
+    let pts = points_of(r, e);
+    if pts.len() < 2 {
+        return;
+    }
+    let line = color(r, e, "lineColor", BLACK);
+    let ty = r.ty(e).to_string();
+    let mut dashed = matches!(
+        ty.as_str(),
+        "UMLDependencyView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLIncludeView" | "UMLExtendView" | "UMLNoteLinkView" | "UMLComponentRealizationView" | "UMLDeploymentView"
+    );
+    let (mut head, mut tail) = (None, None);
+    match ty.as_str() {
+        "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" => head = Some(End::Triangle),
+        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" => head = Some(End::Arrow),
+        "UMLAssociationView" => {
+            if let Some(m) = r.refd(e, "model") {
+                tail = assoc_end(r, r.child(m, "end1"));
+                head = assoc_end(r, r.child(m, "end2"));
+            }
+        }
+        _ => {}
+    }
+    let head_ball = r.refd(e, "head").and_then(|h| info.get(&h)).map(|i| i.shape == "interface").unwrap_or(false);
+    if head_ball && (ty == "UMLInterfaceRealizationView" || ty == "UMLRealizationView") {
+        dashed = false;
+        head = None;
+    }
+    c.polyline(&pts, line, dashed);
+    let n = pts.len();
+    end_shape(c, pts[n - 1], pts[n - 2], head, line);
+    end_shape(c, pts[0], pts[1], tail, line);
+    let fc = color(r, e, "fontColor", BLACK);
+    for sv in r.list(e, "subViews") {
+        if r.kind_of(sv, "LabelView") || r.ty(sv) == "EdgeLabelView" {
+            draw_label(c, r, sv, fc);
+        }
+    }
+}
+
+pub fn draw_diagram(c: &mut dyn Canvas, r: &Repo, d: Eid, info: &HashMap<Eid, Info>) {
+    for v in r.list(d, "ownedViews") {
+        if !r.alive(v) || matches!(r.raw(v, "visible"), Some(serde_json::Value::Bool(false))) {
+            continue;
+        }
+        if is_edge(r, v) {
+            draw_edge(c, r, v, info);
+        } else if is_node(r, v) {
+            draw_node(c, r, v, info.get(&v));
+        }
+    }
+}
+
+pub fn handle_points(b: &R) -> [P; 8] {
+    let (cx, cy, x2, y2) = (b.x + b.w / 2.0, b.y + b.h / 2.0, b.x + b.w, b.y + b.h);
+    [
+        P { x: b.x, y: b.y }, P { x: cx, y: b.y }, P { x: x2, y: b.y }, P { x: x2, y: cy },
+        P { x: x2, y: y2 }, P { x: cx, y: y2 }, P { x: b.x, y: y2 }, P { x: b.x, y: cy },
+    ]
+}
+
+pub fn bounds(r: &Repo, d: Eid) -> Option<R> {
+    let (mut x1, mut y1, mut x2, mut y2) = (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
+    for v in r.list(d, "ownedViews") {
+        if !r.alive(v) {
+            continue;
+        }
+        if is_edge(r, v) {
+            for p in points_of(r, v) {
+                x1 = x1.min(p.x);
+                y1 = y1.min(p.y);
+                x2 = x2.max(p.x);
+                y2 = y2.max(p.y);
+            }
+        } else if is_node(r, v) {
+            let b = node_rect(r, v);
+            x1 = x1.min(b.x);
+            y1 = y1.min(b.y);
+            x2 = x2.max(b.x + b.w);
+            y2 = y2.max(b.y + b.h);
+        }
+    }
+    if x1.is_finite() { Some(R { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }) } else { None }
+}
+
+// ------------------------------------------------------------------ SVG export
+pub struct Svg<'a> {
+    pub out: String,
+    pub measure: &'a dyn Measure,
+}
+
+fn hex(c: Rgba) -> String {
+    format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2)
+}
+fn paint(attr: &str, c: Option<Rgba>) -> String {
+    match c {
+        None => format!(" {attr}=\"none\""),
+        Some(c) if c.3 < 255 => format!(" {attr}=\"{}\" {attr}-opacity=\"{:.2}\"", hex(c), c.3 as f64 / 255.0),
+        Some(c) => format!(" {attr}=\"{}\"", hex(c)),
+    }
+}
+fn esc(s: &str) -> String {
+    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
+}
+fn pts_attr(pts: &[P]) -> String {
+    pts.iter().map(|p| format!("{:.2},{:.2}", p.x, p.y)).collect::<Vec<_>>().join(" ")
+}
+
+impl Measure for Svg<'_> {
+    fn width(&self, text: &str, style: u8) -> f64 {
+        self.measure.width(text, style)
+    }
+}
+
+impl Canvas for Svg<'_> {
+    fn polyline(&mut self, pts: &[P], color: Rgba, dashed: bool) {
+        let dash = if dashed { format!(" stroke-dasharray=\"{DASH}\"") } else { String::new() };
+        self.out += &format!("<polyline points=\"{}\" fill=\"none\"{}{dash}/>\n", pts_attr(pts), paint("stroke", Some(color)));
+    }
+    fn polygon(&mut self, pts: &[P], fill: Option<Rgba>, stroke: Option<Rgba>) {
+        self.out += &format!("<polygon points=\"{}\"{}{}/>\n", pts_attr(pts), paint("fill", fill), paint("stroke", stroke));
+    }
+    fn ellipse(&mut self, c: P, rx: f64, ry: f64, fill: Option<Rgba>, stroke: Option<Rgba>) {
+        self.out += &format!("<ellipse cx=\"{:.2}\" cy=\"{:.2}\" rx=\"{:.2}\" ry=\"{:.2}\"{}{}/>\n", c.x, c.y, rx, ry, paint("fill", fill), paint("stroke", stroke));
+    }
+    fn text(&mut self, t: &str, b: R, align: i64, style: u8, size: f64, color: Rgba, underline: bool) {
+        let (x, anchor) = match align {
+            0 => (b.x, "start"),
+            1 => (b.x + b.w, "end"),
+            _ => (b.x + b.w / 2.0, "middle"),
+        };
+        let weight = if style & 1 != 0 { " font-weight=\"bold\"" } else { "" };
+        let italic = if style & 2 != 0 { " font-style=\"italic\"" } else { "" };
+        let deco = if underline { " text-decoration=\"underline\"" } else { "" };
+        self.out += &format!(
+            "<text x=\"{x:.2}\" y=\"{:.2}\" font-family=\"Arial, sans-serif\" font-size=\"{size}\" text-anchor=\"{anchor}\" dominant-baseline=\"central\"{weight}{italic}{deco}{}>{}</text>\n",
+            b.y + b.h / 2.0,
+            paint("fill", Some(color)),
+            esc(t)
+        );
+    }
+}
+
+pub fn to_svg(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure) -> Option<String> {
+    let b = bounds(r, d)?;
+    let m = 10.0;
+    let (w, h) = (b.w + 2.0 * m + SHADOW_OFFSET, b.h + 2.0 * m + SHADOW_OFFSET);
+    let mut svg = Svg { out: String::new(), measure };
+    draw_diagram(&mut svg, r, d, info);
+    Some(format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w:.0}\" height=\"{h:.0}\" viewBox=\"{:.2} {:.2} {w:.2} {h:.2}\">\n<rect x=\"{:.2}\" y=\"{:.2}\" width=\"{w:.2}\" height=\"{h:.2}\" fill=\"#ffffff\"/>\n{}</svg>\n",
+        b.x - m, b.y - m, b.x - m, b.y - m, svg.out
+    ))
+}

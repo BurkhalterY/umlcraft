@@ -1,0 +1,263 @@
+{
+  "version": 1,
+  "values": [
+    {
+      "name": "file indent",
+      "group": "file format",
+      "value": "tab",
+      "source": "src/core/repository.js:1586 writeObject"
+    },
+    {
+      "name": "document version",
+      "group": "file format",
+      "value": 1,
+      "source": "src/core/core.js:57 DOCUMENT_VERSION"
+    },
+    {
+      "name": "default font",
+      "group": "file format",
+      "value": "Arial;13;0",
+      "source": "src/core/core.js:1475 View; sample.mdj"
+    },
+    {
+      "name": "id bytes",
+      "group": "file format",
+      "value": 14,
+      "source": "src/core/core.js:150 IdGenerator.generate; sample.mdj"
+    },
+    {
+      "name": "default line style",
+      "group": "file format",
+      "value": 1,
+      "source": "resources/default/preferences/default.json:83"
+    },
+    {
+      "name": "compartment padding",
+      "group": "drawing",
+      "value": 5,
+      "unit": "px",
+      "source": "extensions/essential/uml/elements.js:65"
+    },
+    {
+      "name": "compartment item interval",
+      "group": "drawing",
+      "value": 2,
+      "unit": "px",
+      "source": "extensions/essential/uml/elements.js:64"
+    },
+    {
+      "name": "name compartment min height",
+      "group": "drawing",
+      "value": 25,
+      "unit": "px",
+      "source": "sample.mdj saved by the original"
+    },
+    {
+      "name": "empty compartment height",
+      "group": "drawing",
+      "value": 10,
+      "unit": "px",
+      "source": "sample.mdj saved by the original"
+    },
+    {
+      "name": "shadow offset",
+      "group": "drawing",
+      "value": 7,
+      "unit": "px",
+      "source": "extensions/essential/uml/elements.js:57"
+    },
+    {
+      "name": "shadow alpha",
+      "group": "drawing",
+      "value": 0.2,
+      "source": "extensions/essential/uml/elements.js:58"
+    },
+    {
+      "name": "package tab height",
+      "group": "drawing",
+      "value": 15,
+      "unit": "px",
+      "source": "extensions/essential/uml/elements.js:87"
+    },
+    {
+      "name": "package tab width ratio",
+      "group": "drawing",
+      "value": 0.4,
+      "source": "extensions/essential/uml/elements.js:6760"
+    },
+    {
+      "name": "use case min width",
+      "group": "drawing",
+      "value": 70,
+      "unit": "px",
+      "source": "extensions/essential/uml/elements.js:96"
+    },
+    {
+      "name": "use case min height",
+      "group": "drawing",
+      "value": 32,
+      "unit": "px",
+      "source": "extensions/essential/uml/elements.js:97"
+    },
+    {
+      "name": "actor icon min width",
+      "group": "drawing",
+      "value": 26,
+      "unit": "px",
+      "source": "extensions/essential/uml/elements.js:93"
+    },
+    {
+      "name": "actor icon min height",
+      "group": "drawing",
+      "value": 55,
+      "unit": "px",
+      "source": "extensions/essential/uml/elements.js:92"
+    },
+    {
+      "name": "note fold",
+      "group": "drawing",
+      "value": 10,
+      "unit": "px",
+      "source": "extensions/essential/uml/elements.js:14261"
+    },
+    {
+      "name": "arrow length",
+      "group": "drawing",
+      "value": 11,
+      "unit": "px",
+      "source": "src/core/core.js:2748 drawLineEnd"
+    },
+    {
+      "name": "triangle and diamond length",
+      "group": "drawing",
+      "value": 22,
+      "unit": "px",
+      "source": "src/core/core.js:2749 drawLineEnd"
+    },
+    {
+      "name": "arrow half angle",
+      "group": "drawing",
+      "value": 22.5,
+      "unit": "deg",
+      "source": "src/core/core.js:2738 drawLineEnd"
+    },
+    {
+      "name": "dash pattern",
+      "group": "drawing",
+      "value": 3,
+      "unit": "px",
+      "source": "src/core/core.js lineMode DOT"
+    },
+    {
+      "name": "grid size",
+      "group": "canvas",
+      "value": 8,
+      "unit": "px",
+      "source": "resources/default/preferences/default.json:117"
+    },
+    {
+      "name": "grid line spacing",
+      "group": "canvas",
+      "value": 16,
+      "unit": "px",
+      "source": "screenshot checks/original/class-diagram.png"
+    },
+    {
+      "name": "grid color",
+      "group": "canvas",
+      "value": "#e0e0e0",
+      "source": "resources/default/preferences/default.json:141"
+    },
+    {
+      "name": "zoom step",
+      "group": "canvas",
+      "value": 0.1,
+      "source": "src/ui/diagram-editor.js:2396"
+    },
+    {
+      "name": "zoom min",
+      "group": "canvas",
+      "value": 0.1,
+      "source": "src/ui/diagram-editor.js:2396"
+    },
+    {
+      "name": "zoom max",
+      "group": "canvas",
+      "value": 3,
+      "source": "src/ui/diagram-editor.js:2396"
+    },
+    {
+      "name": "selection color",
+      "group": "canvas",
+      "value": "#4f99ff",
+      "source": "src/core/graphics.js:2723"
+    },
+    {
+      "name": "handle size",
+      "group": "canvas",
+      "value": 8,
+      "unit": "px",
+      "source": "src/core/graphics.js:2723"
+    },
+    {
+      "name": "window width",
+      "group": "window",
+      "value": 1200,
+      "unit": "px",
+      "source": "src/main-process/window.js:38"
+    },
+    {
+      "name": "window height",
+      "group": "window",
+      "value": 900,
+      "unit": "px",
+      "source": "src/main-process/window.js:39"
+    },
+    {
+      "name": "sidebar width",
+      "group": "window",
+      "value": 200,
+      "unit": "px",
+      "source": "live layout of the original (#sidebar)"
+    },
+    {
+      "name": "navigator width",
+      "group": "window",
+      "value": 300,
+      "unit": "px",
+      "source": "live layout of the original (#navigator)"
+    },
+    {
+      "name": "toolbar width",
+      "group": "window",
+      "value": 30,
+      "unit": "px",
+      "source": "live layout of the original (#toolbar)"
+    },
+    {
+      "name": "statusbar height",
+      "group": "window",
+      "value": 27,
+      "unit": "px",
+      "source": "live layout of the original (#statusbar)"
+    },
+    {
+      "name": "theme",
+      "group": "window",
+      "value": "dark",
+      "source": "src/static/index.html loads staruml-dark.css"
+    },
+    {
+      "name": "editable diagram kinds",
+      "group": "scope",
+      "value": "class, use case",
+      "estimated": true
+    },
+    {
+      "name": "rectilinear routing",
+      "group": "drawing",
+      "value": "single elbow",
+      "estimated": true
+    }
+  ]
+}
