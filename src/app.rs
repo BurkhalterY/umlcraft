@@ -173,6 +173,9 @@ pub struct App {
     pub tag_editor: Option<Eid>,
     pub tag_row: Option<crate::tags::Row>,
     pub tag_edit: Option<crate::tags::TagEdit>,
+    /// The Command Palette or Quick Find, while open, and a picked command to run next frame.
+    pub palette: Option<crate::palette::Palette>,
+    pub palette_run: Option<&'static str>,
 }
 
 impl App {
@@ -243,6 +246,8 @@ impl App {
             tag_editor: None,
             tag_row: None,
             tag_edit: None,
+            palette: None,
+            palette_run: None,
         };
         a.set_project(Repo::blank(), None);
         a

@@ -12,6 +12,7 @@ mod canvas;
 mod icons;
 mod meta;
 mod model;
+mod palette;
 mod parse;
 mod prefs;
 mod render;

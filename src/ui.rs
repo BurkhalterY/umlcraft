@@ -1131,6 +1131,15 @@ impl App {
                 }
             });
             ui.menu_button("View", |ui| {
+                if ui.button("Quick Find...        Ctrl+P").clicked() {
+                    self.open_palette(crate::palette::Mode::Find);
+                    ui.close();
+                }
+                if ui.button("Command Palette... Ctrl+Shift+P").clicked() {
+                    self.open_palette(crate::palette::Mode::Commands);
+                    ui.close();
+                }
+                ui.separator();
                 self.diagram_close_items(ui);
                 ui.separator();
                 let many = self.open.len() > 1;
@@ -1428,6 +1437,9 @@ impl App {
             if hit(sc(cs, Key::F)) {
                 self.open_font_dialog();
             }
+            if hit(sc(cs, Key::P)) {
+                self.open_palette(crate::palette::Mode::Commands);
+            }
             // Ctrl+Shift+0…5 before Ctrl+0 (Actual Size), which also matches with Shift held
             for (i, key) in [Key::Num0, Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5].into_iter().enumerate() {
                 if hit(sc(cs, key)) {
@@ -1541,6 +1553,9 @@ impl App {
         }
         if hit(sc(Modifiers::COMMAND, Key::T)) {
             self.open_tag_editor();
+        }
+        if hit(sc(Modifiers::COMMAND, Key::P)) {
+            self.open_palette(crate::palette::Mode::Find);
         }
         if hit(sc(Modifiers::COMMAND, Key::L)) {
             self.set_line_style(0);
@@ -1695,6 +1710,7 @@ impl App {
         self.color_dialog_ui(ctx);
         self.preferences_ui(ctx);
         self.tag_editor_ui(ctx);
+        self.palette_ui(ctx);
         self.font_dialog_ui(ctx);
         if let Some((title, detail)) = self.message.clone() {
             egui::Window::new(title).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
@@ -1982,6 +1998,10 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         self.handle_close(&ctx);
         self.dropped_files(&ctx);
+        // a command picked in the palette runs a frame later, once the palette is gone (command-palette.js:106-112)
+        if let Some(id) = self.palette_run.take() {
+            self.run_command(&ctx, id);
+        }
         self.shortcuts(&ctx);
         let title = self.title();
         if ctx.input(|i| i.viewport().title.as_deref() != Some(title.as_str())) {

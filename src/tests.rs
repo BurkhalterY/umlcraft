@@ -1549,3 +1549,43 @@ fn tag_editor_rows_and_values() {
     assert_eq!(a.tag_value_text(last), "Ann");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn command_palette_and_quick_find() {
+    use crate::palette::{matching, Hit, Mode};
+    use egui::{Key, Modifiers};
+    assert!(matching("zoom").iter().all(|c| c.id.contains("zoom") || c.name.to_lowercase().contains("zoom")));
+    assert!(matching("view:fit").iter().any(|c| c.name == "Fit To Window"), "the id matches too");
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let hits = a.find_hits("loan");
+    let Hit::Model(m) = hits[0] else { panic!() };
+    assert!(a.repo.name(m).to_lowercase().contains("loan"));
+    assert!(hits.iter().any(|h| matches!(h, Hit::View(_))), "views follow their model");
+    let view = hits.iter().find_map(|h| if let Hit::View(v) = h { Some(*v) } else { None }).unwrap();
+    a.pick_hit(Hit::View(view));
+    assert_eq!(a.selection, vec![view]);
+
+    // through frames: Ctrl+Shift+P, type, Enter
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut frame = |a: &mut App, events: Vec<egui::Event>| {
+        let mut out = ctx.run_ui(egui::RawInput { events, ..Default::default() }, |ui| {
+            if let Some(id) = a.palette_run.take() {
+                a.run_command(ui.ctx(), id);
+            }
+            a.shortcuts(ui.ctx());
+            a.palette_ui(ui.ctx());
+        });
+        out.textures_delta.clear();
+    };
+    let key = |k: Key, m: Modifiers| egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: m };
+    frame(&mut a, vec![key(Key::P, Modifiers::COMMAND | Modifiers::SHIFT)]);
+    assert_eq!(a.palette.as_ref().map(|p| p.mode), Some(Mode::Commands));
+    frame(&mut a, vec![]);
+    frame(&mut a, vec![egui::Event::Text("statusbar".into())]);
+    frame(&mut a, vec![key(Key::Enter, Modifiers::NONE)]);
+    assert!(a.palette.is_none());
+    frame(&mut a, vec![]);
+    assert!(!a.show_statusbar, "the picked command ran");
+}
