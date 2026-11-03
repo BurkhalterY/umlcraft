@@ -996,14 +996,42 @@ impl App {
         }
     }
 
+    /// Size of the visible diagram area, in diagram units at the current zoom.
+    fn view_size(&self) -> Option<(f64, f64)> {
+        let r = self.canvas_rect?;
+        Some((r.width() as f64 / self.zoom, r.height() as f64 / self.zoom))
+    }
+
+    /// Scroll so that diagram point `c` is at the centre of the canvas, never into negative space
+    /// (diagram-manager.js:340-348, diagram-editor.js:2380-2383).
+    pub fn centre_on(&mut self, c: P) {
+        let Some((w, h)) = self.view_size() else { return };
+        self.scroll = P { x: (c.x - w / 2.0).max(0.0), y: (c.y - h / 2.0).max(0.0) };
+    }
+
+    /// Zoom In, Zoom Out and Actual Size: change the zoom and keep the point at the screen centre
+    /// where it was (default-commands.js:1063-1084).
+    pub fn zoom_keep_centre(&mut self, z: f64) {
+        let Some((w, h)) = self.view_size() else {
+            self.set_zoom(z);
+            return;
+        };
+        let c = P { x: self.scroll.x + w / 2.0, y: self.scroll.y + h / 2.0 };
+        self.set_zoom(z);
+        self.centre_on(c);
+    }
+
+    /// Fit to Window: the largest zoom (at most 1.0) showing the whole diagram, centred on its
+    /// bounding box (default-commands.js:1086-1101).
     pub fn fit(&mut self) {
         let (Some(d), Some(rect)) = (self.diagram, self.canvas_rect) else { return };
         match render::bounds(&self.repo, d) {
             None => self.set_zoom(1.0),
             Some(b) => {
-                let z = (rect.width() as f64 / (b.x + b.w + 20.0)).min(rect.height() as f64 / (b.y + b.h + 20.0));
-                self.scroll = P::default();
-                self.set_zoom(1f64.min((z * 10.0).floor() / 10.0));
+                let z = (rect.width() as f64 / b.w.max(1.0)).min(rect.height() as f64 / b.h.max(1.0));
+                // whole tenths, rounded down so the diagram still fits
+                self.set_zoom(1f64.min(((z * 10.0).floor() / 10.0).max(crate::app::ZOOM_MIN)));
+                self.centre_on(P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 });
             }
         }
     }

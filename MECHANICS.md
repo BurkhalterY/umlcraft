@@ -125,6 +125,8 @@ Read from the StarUML source through the feature inventory (`docs/features/`), w
 | Align Center/Middle: centre on the midpoint of the selection's overall extent | `extensions/default/alignment/main.js:117-142` |
 | Space Equally: sort by left (top), keep the outermost extent, equal gaps; no-op when the sizes fill the extent | `extensions/default/alignment/main.js:213-293` |
 | Set Width/Height/Size Equally: the largest width and/or height | `extensions/default/alignment/main.js:295-368` |
+| Zoom In/Out (±0.1) and Actual Size (1.0) keep the diagram point at the screen centre; Ctrl+wheel keeps the origin | `src/engine/default-commands.js:1063-1084`, `src/ui/diagram-editor.js:2273-2280` |
+| Fit to Window: zoom = min(view w / box w, view h / box h) of the diagram bounding box, at most 1.0, then centre on the box (UMLCraft rounds down to a tenth) | `src/engine/default-commands.js:1086-1101` |
 | Bring to Front / Send to Back: move the selected top-level views to the end / start of `diagram.ownedViews` (drawing and hit order) | `extensions/default/alignment/main.js:36-73` |
 
 ## Estimated / not taken over

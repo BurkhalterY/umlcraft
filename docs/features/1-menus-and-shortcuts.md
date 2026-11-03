@@ -69,10 +69,10 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | `shift-f4` | `view:close-all-diagrams` | ❌ |  | resources/default/keymaps/linux.json |
 | `ctrl-shift-]` | `view:next-diagram` | ❌ |  | resources/default/keymaps/linux.json |
 | `ctrl-shift-[` | `view:previous-diagram` | ❌ |  | resources/default/keymaps/linux.json |
-| `ctrl-plus` | `view:zoom-in` | ✅ | Ctrl+= / Ctrl++ (src/ui.rs:957) | resources/default/keymaps/linux.json |
-| `ctrl-minus` | `view:zoom-out` | ✅ | Ctrl+- (src/ui.rs:960) | resources/default/keymaps/linux.json |
-| `ctrl-0` | `view:actual-size` | ✅ | Ctrl+0 (src/ui.rs:963) | resources/default/keymaps/linux.json |
-| `ctrl-9` | `view:fit-to-window` | ✅ | Ctrl+9 (src/canvas.rs:998) | resources/default/keymaps/linux.json |
+| `ctrl-plus` | `view:zoom-in` | ✅ | Ctrl+= / Ctrl++, keeps the screen centre (src/ui.rs:984; src/canvas.rs:1014) | resources/default/keymaps/linux.json |
+| `ctrl-minus` | `view:zoom-out` | ✅ | Ctrl+-, keeps the screen centre (src/ui.rs:987; src/canvas.rs:1014) | resources/default/keymaps/linux.json |
+| `ctrl-0` | `view:actual-size` | ✅ | Ctrl+0, keeps the screen centre (src/ui.rs:990; src/canvas.rs:1014) | resources/default/keymaps/linux.json |
+| `ctrl-9` | `view:fit-to-window` | ✅ | Ctrl+9, centred on the bounding box (src/ui.rs:993; src/canvas.rs:1026) | resources/default/keymaps/linux.json |
 | `ctrl-g` | `view:show-grid` | ✅ | Ctrl+G (src/ui.rs:969) | resources/default/keymaps/linux.json |
 | `ctrl-shift-g` | `view:snap-to-grid` | ✅ | Ctrl+Shift+G (src/ui.rs:972) | resources/default/keymaps/linux.json |
 | `ctrl-1` | `view:sidebar` | 🟡 | View menu toggle, no Ctrl+1 (src/ui.rs:893) | resources/default/keymaps/linux.json |
@@ -330,10 +330,10 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | View › Close All Diagrams | `view:close-all-diagrams` | `shift-f4` | ❌ |  | resources/default/menus/linux.json |
 | View › Next Diagram | `view:next-diagram` | `ctrl-shift-]` | ❌ |  | resources/default/menus/linux.json |
 | View › Previous Diagram | `view:previous-diagram` | `ctrl-shift-[` | ❌ |  | resources/default/menus/linux.json |
-| View › Zoom In | `view:zoom-in` | `ctrl-plus` | ✅ | Ctrl+= / Ctrl++ (src/ui.rs:957) | resources/default/menus/linux.json |
-| View › Zoom Out | `view:zoom-out` | `ctrl-minus` | ✅ | Ctrl+- (src/ui.rs:960) | resources/default/menus/linux.json |
-| View › Actual Size | `view:actual-size` | `ctrl-0` | ✅ | Ctrl+0 (src/ui.rs:963) | resources/default/menus/linux.json |
-| View › Fit To Window | `view:fit-to-window` | `ctrl-9` | ✅ | Ctrl+9 (src/canvas.rs:998) | resources/default/menus/linux.json |
+| View › Zoom In | `view:zoom-in` | `ctrl-plus` | ✅ | Ctrl+= / Ctrl++, keeps the screen centre (src/ui.rs:984; src/canvas.rs:1014) | resources/default/menus/linux.json |
+| View › Zoom Out | `view:zoom-out` | `ctrl-minus` | ✅ | Ctrl+-, keeps the screen centre (src/ui.rs:987; src/canvas.rs:1014) | resources/default/menus/linux.json |
+| View › Actual Size | `view:actual-size` | `ctrl-0` | ✅ | Ctrl+0, keeps the screen centre (src/ui.rs:990; src/canvas.rs:1014) | resources/default/menus/linux.json |
+| View › Fit To Window | `view:fit-to-window` | `ctrl-9` | ✅ | Ctrl+9, centred on the bounding box (src/ui.rs:993; src/canvas.rs:1026) | resources/default/menus/linux.json |
 | View › Show Grid | `view:show-grid` | `ctrl-g` | ✅ | Ctrl+G (src/ui.rs:969) | resources/default/menus/linux.json |
 | View › Snap to Grid | `view:snap-to-grid` | `ctrl-shift-g` | ✅ | Ctrl+Shift+G (src/ui.rs:972) | resources/default/menus/linux.json |
 | View › Sidebar | `view:sidebar` | `ctrl-1` | 🟡 | View menu toggle, no Ctrl+1 (src/ui.rs:893) | resources/default/menus/linux.json |

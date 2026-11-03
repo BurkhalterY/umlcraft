@@ -341,3 +341,36 @@ fn alignment_commands_follow_the_originals_rules() {
     a.reorder(false);
     assert_eq!(a.repo.list(d, "ownedViews"), vec![c3, e, c2, c1]);
 }
+
+#[test]
+fn zoom_commands_keep_the_screen_centre() {
+    let mut a = App::new(None);
+    a.canvas_rect = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0)));
+    a.change(|a| a.create_node("UMLClass", rect(1000.0, 1000.0, 200.0, 100.0)));
+    a.change(|a| a.create_node("UMLClass", rect(1400.0, 1300.0, 200.0, 100.0)));
+    a.scroll = crate::views::P { x: 100.0, y: 100.0 };
+    let centre = |a: &App| (a.scroll.x + 400.0 / a.zoom, a.scroll.y + 300.0 / a.zoom);
+    a.zoom_keep_centre(a.zoom + crate::app::ZOOM_STEP);
+    assert!((a.zoom - 1.1).abs() < 1e-9);
+    let (x, y) = centre(&a);
+    assert!((x - 500.0).abs() < 1e-6 && (y - 400.0).abs() < 1e-6, "centre kept: {x},{y}");
+    a.zoom_keep_centre(1.0);
+    assert_eq!((a.scroll.x.round(), a.scroll.y.round()), (100.0, 100.0));
+    // zooming out near the origin never scrolls into negative space
+    a.scroll = crate::views::P::default();
+    a.zoom_keep_centre(0.5);
+    assert_eq!((a.scroll.x, a.scroll.y), (0.0, 0.0));
+
+    // fit: bounding box 1000..1600 x 1000..1400 fits at 1.0 and is centred
+    a.fit();
+    assert_eq!(a.zoom, 1.0);
+    let (x, y) = centre(&a);
+    let b = crate::render::bounds(&a.repo, a.diagram.unwrap()).unwrap();
+    assert!((x - (b.x + b.w / 2.0)).abs() < 1e-6 && (y - (b.y + b.h / 2.0)).abs() < 1e-6);
+    // a box larger than the window zooms out
+    a.change(|a| a.create_node("UMLClass", rect(3000.0, 1000.0, 200.0, 100.0)));
+    a.fit();
+    assert!(a.zoom < 1.0);
+    let b = crate::render::bounds(&a.repo, a.diagram.unwrap()).unwrap();
+    assert!(b.w * a.zoom <= 800.0 && b.h * a.zoom <= 600.0);
+}

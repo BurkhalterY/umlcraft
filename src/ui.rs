@@ -713,8 +713,8 @@ impl App {
                 icons::draw(ui.painter(), r.shrink(3.0), key);
                 if resp.on_hover_text(tip).clicked() {
                     match key {
-                        "zoomIn" => self.set_zoom(self.zoom + crate::app::ZOOM_STEP),
-                        "zoomOut" => self.set_zoom(self.zoom - crate::app::ZOOM_STEP),
+                        "zoomIn" => self.zoom_keep_centre(self.zoom + crate::app::ZOOM_STEP),
+                        "zoomOut" => self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP),
                         "fit" => self.fit(),
                         "grid" => self.show_grid = !self.show_grid,
                         _ => self.export_png(&ui.ctx().clone()),
@@ -876,13 +876,13 @@ impl App {
                 }
                 ui.separator();
                 if ui.button("Zoom In             Ctrl+=").clicked() {
-                    self.set_zoom(self.zoom + crate::app::ZOOM_STEP);
+                    self.zoom_keep_centre(self.zoom + crate::app::ZOOM_STEP);
                 }
                 if ui.button("Zoom Out            Ctrl+-").clicked() {
-                    self.set_zoom(self.zoom - crate::app::ZOOM_STEP);
+                    self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP);
                 }
                 if ui.button("Actual Size         Ctrl+0").clicked() {
-                    self.set_zoom(1.0);
+                    self.zoom_keep_centre(1.0);
                 }
                 if ui.button("Fit To Window       Ctrl+9").clicked() {
                     self.fit();
@@ -982,13 +982,13 @@ impl App {
             self.toggle_shadow();
         }
         if hit(sc(Modifiers::COMMAND, Key::Equals)) || hit(sc(Modifiers::COMMAND, Key::Plus)) {
-            self.set_zoom(self.zoom + crate::app::ZOOM_STEP);
+            self.zoom_keep_centre(self.zoom + crate::app::ZOOM_STEP);
         }
         if hit(sc(Modifiers::COMMAND, Key::Minus)) {
-            self.set_zoom(self.zoom - crate::app::ZOOM_STEP);
+            self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP);
         }
         if hit(sc(Modifiers::COMMAND, Key::Num0)) {
-            self.set_zoom(1.0);
+            self.zoom_keep_centre(1.0);
         }
         if hit(sc(Modifiers::COMMAND, Key::Num9)) {
             self.fit();
