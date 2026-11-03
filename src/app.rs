@@ -115,6 +115,8 @@ pub struct App {
     pub search: String,
     pub sort_by_name: bool,
     pub open_groups: HashSet<&'static str>,
+    /// The diagram type the toolbox groups were last opened for.
+    pub toolbox_for: Option<String>,
     pub prop_buf: HashMap<String, String>,
     pub prop_for: Option<Eid>,
     pub doc_buf: String,
@@ -177,7 +179,8 @@ impl App {
             expanded: HashSet::new(),
             search: String::new(),
             sort_by_name: false,
-            open_groups: ["class", "usecase"].into_iter().collect(),
+            open_groups: HashSet::new(),
+            toolbox_for: None,
             prop_buf: HashMap::new(),
             prop_for: None,
             doc_buf: String::new(),

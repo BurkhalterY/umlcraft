@@ -494,6 +494,8 @@ impl App {
                 let p = self.to_diagram(origin, pos);
                 if let Some(v) = self.hit_view(p, false) {
                     self.edit_view(v, Some(p));
+                } else {
+                    self.create_text_at(p);
                 }
             }
         }
@@ -1405,6 +1407,21 @@ impl App {
         if m.is_some() && ui.button("Delete from Model").clicked() {
             self.delete_selection(true);
             ui.close();
+        }
+    }
+
+    /// A double-click on empty canvas adds a text "Text", 100 wide, there and edits it (app-context.js:1397-1402).
+    pub fn create_text_at(&mut self, p: P) {
+        let (_, h) = views::default_size("Text");
+        let r = R { x: self.snap_v(p.x).max(0.0), y: self.snap_v(p.y).max(0.0), w: 100.0, h };
+        let t = self.change(|a| {
+            let t = a.create_node("Text", r)?;
+            a.repo.set(t, "text", json!("Text"));
+            Some(t)
+        });
+        if let Some(t) = t {
+            self.select(vec![t]);
+            self.edit_view(t, None);
         }
     }
 

@@ -664,6 +664,20 @@ impl App {
         let top = ui.cursor().top();
         ui.painter().text(Pos2::new(ui.max_rect().left() + 13.0, top + 17.0), Align2::LEFT_CENTER, "TOOLBOX", FontId::proportional(13.0), TEXT);
         ui.add_space(26.0);
+        // without a diagram the toolbox is empty (toolbox-view.js:307-310)
+        if self.diagram.is_none() {
+            return;
+        }
+        // a group opens by itself when a diagram of its type becomes current (toolbox-view.js:298-305)
+        let dty = self.diagram.map(|d| self.repo.ty(d).to_string());
+        if dty != self.toolbox_for {
+            match dty.as_deref() {
+                Some("UMLClassDiagram") => self.open_groups.insert("class"),
+                Some("UMLUseCaseDiagram") => self.open_groups.insert("usecase"),
+                _ => false,
+            };
+            self.toolbox_for = dty;
+        }
         ui.horizontal(|ui| {
             ui.add_space((ui.available_width() - 26.0) / 2.0);
             let (r, resp) = ui.allocate_exact_size(Vec2::new(26.0, 24.0), Sense::click());
@@ -703,6 +717,9 @@ impl App {
                     } else {
                         self.open_groups.insert(g.id);
                     }
+                    // opening or closing a group goes back to Select (toolbox-view.js:446-449)
+                    self.tool = None;
+                    self.tool_sticky = false;
                 }
                 if !open {
                     continue;
@@ -718,16 +735,29 @@ impl App {
                     }
                     icons::draw(p, Rect::from_min_size(Pos2::new(rect.left() + 14.0, rect.top() + 8.0), Vec2::splat(16.0)), it.icon);
                     p.text(Pos2::new(rect.left() + 34.0, rect.center().y), Align2::LEFT_CENTER, it.label, FontId::proportional(13.0), if selected { Color32::WHITE } else { TEXT });
-                    if resp.double_clicked() {
-                        self.tool = Some(*it);
-                        self.tool_sticky = true;
-                    } else if resp.clicked() {
-                        self.tool = if selected { None } else { Some(*it) };
-                        self.tool_sticky = false;
+                    if selected && self.tool_sticky {
+                        draw_lock(p, Pos2::new(rect.right() - 18.0, rect.center().y));
+                    }
+                    if resp.clicked() {
+                        self.toolbox_click(*it);
                     }
                 }
             }
         });
+    }
+
+    /// A click on a toolbox item: select it; on the active item, lock it; on a locked item, unlock it and
+    /// go back to Select. A double-click therefore locks (toolbox-view.js:451-457).
+    pub(crate) fn toolbox_click(&mut self, it: crate::app::Tool) {
+        if self.tool != Some(it) {
+            self.tool = Some(it);
+            self.tool_sticky = false;
+        } else if !self.tool_sticky {
+            self.tool_sticky = true;
+        } else {
+            self.tool = None;
+            self.tool_sticky = false;
+        }
     }
 
     fn toolbar_ui(&mut self, ui: &mut egui::Ui) {
@@ -1093,6 +1123,11 @@ impl App {
         if typing {
             return;
         }
+        // Esc anywhere goes back to the Select tool and clears the lock (toolbox-view.js:473-479)
+        if ctx.input(|i| i.key_pressed(Key::Escape)) && self.drag.is_none() {
+            self.tool = None;
+            self.tool_sticky = false;
+        }
         if hit(sc(Modifiers::COMMAND, Key::Y)) || hit(sc(cs, Key::Z)) {
             self.do_redo();
         }
@@ -1389,6 +1424,17 @@ const FORMAT_TOGGLES: [(&str, &str); 8] = [
     ("suppressOperations", "Suppress Operations            Ctrl+Shift+O"),
     ("suppressLiterals", "Suppress Literals                 Ctrl+Shift+T"),
 ];
+
+/// The small padlock shown on a locked toolbox item.
+fn draw_lock(p: &egui::Painter, c: Pos2) {
+    let body = Rect::from_center_size(c + Vec2::new(0.0, 2.0), Vec2::new(9.0, 7.0));
+    p.rect_filled(body, CornerRadius::same(1), Color32::WHITE);
+    let pts: Vec<Pos2> = (0..=8).map(|i| {
+        let a = std::f32::consts::PI * i as f32 / 8.0;
+        c + Vec2::new(-3.0 * a.cos(), -1.5 - 3.5 * a.sin())
+    }).collect();
+    p.add(egui::Shape::line(pts, Stroke::new(1.5, Color32::WHITE)));
+}
 
 /// True while a text field has the keyboard (the diagram canvas can hold focus too, and then the
 /// editing shortcuts such as Ctrl+Z must still work).

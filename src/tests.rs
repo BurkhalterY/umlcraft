@@ -1102,3 +1102,31 @@ fn rubber_band_selects_by_overlap() {
     a.select_all();
     assert_eq!(a.selection, vec![c1, c2]);
 }
+
+#[test]
+fn toolbox_lock_esc_and_text_on_double_click() {
+    use egui::{Key, Modifiers};
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let class = tool("UMLClass", AssocInit::Plain);
+    a.toolbox_click(class);
+    assert_eq!((a.tool, a.tool_sticky), (Some(class), false));
+    a.toolbox_click(class);
+    assert!(a.tool_sticky, "clicking the active item locks it");
+    a.toolbox_click(class);
+    assert_eq!((a.tool, a.tool_sticky), (None, false), "and once more unlocks it");
+    a.toolbox_click(class);
+    a.toolbox_click(class);
+    let ev = egui::Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE };
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+    out.textures_delta.clear();
+    assert_eq!((a.tool, a.tool_sticky), (None, false), "Esc goes back to Select");
+
+    a.create_text_at(crate::views::P { x: 203.0, y: 101.0 });
+    let t = a.selection[0];
+    assert_eq!(a.repo.ty(t), "UMLTextView");
+    assert_eq!(a.repo.str(t, "text"), "Text");
+    assert_eq!((a.repo.f(t, "left"), a.repo.f(t, "width")), (200.0, 100.0));
+    assert!(matches!(a.editing.as_ref().map(|e| e.kind.clone()), Some(crate::app::EditKind::Text(x)) if x == t));
+}
