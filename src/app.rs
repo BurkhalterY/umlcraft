@@ -76,6 +76,8 @@ pub struct Editing {
     pub multiline: bool,
     pub center: bool,
     pub fresh: bool,
+    /// The box the edit belongs to (a class view for its name and its compartment items).
+    pub host: Option<Eid>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -129,6 +131,8 @@ pub struct App {
     pub shot_requested: bool,
     pub quit_after_save: bool,
     pub pending_edit: Option<Eid>,
+    /// A compartment item to edit inline once its row is laid out: (box view, item, frames left).
+    pub pending_item: Option<(Eid, Eid, u8)>,
     pub reveal_pending: Option<Eid>,
     /// Scroll origin of each diagram, kept while the project is open (the original's `_originX/Y`).
     pub scrolls: HashMap<Eid, P>,
@@ -190,6 +194,7 @@ impl App {
             shot_requested: false,
             quit_after_save: false,
             pending_edit: None,
+            pending_item: None,
             reveal_pending: None,
             scrolls: HashMap::new(),
             centre_pending: None,

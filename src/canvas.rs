@@ -123,6 +123,21 @@ fn contains(outer: &R, inner: &R) -> bool {
     inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.w <= outer.x + outer.w && inner.y + inner.h <= outer.y + outer.h
 }
 
+/// Keys of the inline edit on a class name or a compartment item.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum ItemKey {
+    /// Ctrl+Enter: a new attribute (literal on an enumeration), or a sibling of the edited item
+    Add,
+    /// Ctrl+Shift+Enter: a new operation
+    AddOperation,
+    /// Ctrl+Delete: delete the edited item
+    Delete,
+    /// Ctrl+Up / Ctrl+Down: move the edited item
+    Move(bool),
+    /// Up / Down: edit the previous or next item
+    Nav(bool),
+}
+
 impl App {
     fn hit_edge(&self, e: Eid, p: P) -> bool {
         let pts = points_of(&self.repo, e);
@@ -826,7 +841,7 @@ impl App {
         let t = self.repo.ty(v).to_string();
         if t == "UMLNoteView" || t == "UMLTextView" || t == "UMLCustomTextView" {
             let text = self.repo.str(v, "text");
-            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true });
+            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None });
             return;
         }
         let Some(m) = self.repo.refd(v, "model") else { return };
@@ -838,20 +853,11 @@ impl App {
                 Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: 19.0 },
                 _ => R { x: mid.x - 50.0, y: mid.y - 10.0, w: 100.0, h: 19.0 },
             };
-            self.editing = Some(Editing { kind: EditKind::Name(m), text: self.repo.name(m), rect, multiline: false, center: true, fresh: true });
+            self.editing = Some(Editing { kind: EditKind::Name(m), text: self.repo.name(m), rect, multiline: false, center: true, fresh: true, host: None });
             return;
         }
         if let Some(iv) = p.and_then(|p| self.row_at(v, p)) {
-            if let Some(item) = self.repo.refd(iv, "model") {
-                let b = node_rect(&self.repo, iv);
-                self.editing = Some(Editing {
-                    kind: EditKind::Feature(item),
-                    text: self.repo.str(iv, "text"),
-                    rect: R { x: b.x - 2.0, y: b.y - 3.0, w: b.w.max(120.0) + 4.0, h: 19.0 },
-                    multiline: false,
-                    center: false,
-                    fresh: true,
-                });
+            if self.edit_row(v, iv) {
                 return;
             }
         }
@@ -860,7 +866,151 @@ impl App {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
         };
-        self.editing = Some(Editing { kind: EditKind::Name(m), text: self.repo.name(m), rect, multiline: false, center: true, fresh: true });
+        self.editing = Some(Editing { kind: EditKind::Name(m), text: self.repo.name(m), rect, multiline: false, center: true, fresh: true, host: Some(v) });
+    }
+
+    /// Open the inline edit on one compartment row (an attribute, operation or literal label).
+    fn edit_row(&mut self, v: Eid, iv: Eid) -> bool {
+        let Some(item) = self.repo.refd(iv, "model") else { return false };
+        let b = node_rect(&self.repo, iv);
+        self.editing = Some(Editing {
+            kind: EditKind::Feature(item),
+            text: self.repo.str(iv, "text"),
+            rect: R { x: b.x - 2.0, y: b.y - 3.0, w: b.w.max(120.0) + 4.0, h: 19.0 },
+            multiline: false,
+            center: false,
+            fresh: true,
+            host: Some(v),
+        });
+        true
+    }
+
+    /// The visible compartment rows of a box, top to bottom: (row view, item).
+    fn item_rows(&self, v: Eid) -> Vec<(Eid, Eid)> {
+        let Some(i) = self.info.get(&v) else { return vec![] };
+        i.compartments.iter().flat_map(|c| c.rows.iter()).filter_map(|r| self.repo.refd(r.iv, "model").map(|m| (r.iv, m))).collect()
+    }
+
+    /// Open the queued item edit once its row is laid out, waiting a few frames at most.
+    pub fn take_pending_item(&mut self) {
+        let Some((v, item, left)) = self.pending_item.take() else { return };
+        if !self.repo.alive(v) || !self.repo.alive(item) {
+            return;
+        }
+        if self.item_shown(v, item) {
+            self.edit_item(v, item);
+        } else if left > 0 {
+            self.pending_item = Some((v, item, left - 1));
+        }
+    }
+
+    pub fn item_shown(&self, v: Eid, item: Eid) -> bool {
+        self.item_rows(v).iter().any(|(_, m)| *m == item)
+    }
+
+    /// Edit this item inline: now if its row is laid out, else after the next layout.
+    pub fn edit_item(&mut self, v: Eid, item: Eid) {
+        match self.item_rows(v).into_iter().find(|(_, m)| *m == item) {
+            Some((iv, _)) if self.repo.alive(iv) => {
+                self.edit_row(v, iv);
+            }
+            _ => self.pending_item = Some((v, item, 3)),
+        }
+    }
+
+    /// The suppress flag that hides a kind of item.
+    fn suppress_flag(ty: &str) -> &'static str {
+        match ty {
+            "UMLOperation" => "suppressOperations",
+            "UMLEnumerationLiteral" => "suppressLiterals",
+            _ => "suppressAttributes",
+        }
+    }
+
+    /// Add an item of this kind to the box's model, show its compartment and edit it
+    /// (uml-commands.js:784-823).
+    fn add_item(&mut self, v: Eid, owner: Eid, ty: &str) {
+        if !self.can_add_feature(owner, ty) {
+            return;
+        }
+        let flag = Self::suppress_flag(ty);
+        let new = self.change(|a| {
+            if a.repo.bool(v, flag) {
+                a.repo.set(v, flag, json!(false));
+            }
+            a.add_feature(owner, ty)
+        });
+        if let Some(n) = new {
+            self.focus = Some(n);
+            self.edit_item(v, n);
+        }
+    }
+
+    /// Keys of the inline edit on a class box or one of its items, applied after the text is committed
+    /// (quickedits/uml.json; uml-commands.js:784-1024).
+    pub(crate) fn item_key(&mut self, host: Eid, kind: EditKind, key: ItemKey) {
+        let Some(m) = self.repo.refd(host, "model").filter(|m| self.repo.alive(*m)) else { return };
+        let item = match kind {
+            EditKind::Feature(f) if self.repo.alive(f) => Some(f),
+            _ => None,
+        };
+        match (key, item) {
+            (ItemKey::Add, None) => {
+                let ty = if self.repo.ty(m) == "UMLEnumeration" { "UMLEnumerationLiteral" } else { "UMLAttribute" };
+                self.add_item(host, m, ty);
+            }
+            (ItemKey::Add, Some(f)) => {
+                let (Some(owner), ty) = (self.repo.parent(f), self.repo.ty(f).to_string()) else { return };
+                self.add_item(host, owner, &ty);
+            }
+            (ItemKey::AddOperation, _) => self.add_item(host, m, "UMLOperation"),
+            (ItemKey::Delete, Some(f)) => {
+                let (Some(owner), Some(field)) = (self.repo.parent(f), self.repo.field_of(f)) else { return };
+                let i = self.repo.list(owner, &field).iter().position(|x| *x == f).unwrap_or(0);
+                self.change(|a| a.delete_models(&[f]));
+                let rest = self.repo.list(owner, &field);
+                match rest.get(i).or(rest.last()) {
+                    Some(&n) => self.edit_item(host, n),
+                    None => self.focus = Some(m),
+                }
+            }
+            (ItemKey::Move(up), Some(f)) => {
+                let (Some(owner), Some(field)) = (self.repo.parent(f), self.repo.field_of(f)) else { return };
+                let mut list = self.repo.list(owner, &field);
+                let i = list.iter().position(|x| *x == f).unwrap_or(0);
+                let j = if up { i.checked_sub(1) } else { Some(i + 1).filter(|j| *j < list.len()) };
+                if let Some(j) = j {
+                    list.swap(i, j);
+                    self.change(|a| a.repo.set_list(owner, &field, list));
+                }
+                self.edit_item(host, f);
+            }
+            (ItemKey::Nav(up), _) => {
+                let rows = self.item_rows(host);
+                let at = item.and_then(|f| rows.iter().position(|(_, x)| *x == f));
+                let next = match (at, up) {
+                    (None, false) => rows.first().copied(),
+                    (None, true) => None,
+                    (Some(0), true) => {
+                        self.edit_view(host, None);
+                        return;
+                    }
+                    (Some(i), true) => rows.get(i - 1).copied(),
+                    (Some(i), false) => rows.get(i + 1).copied(),
+                };
+                match next {
+                    Some((iv, _)) => {
+                        self.edit_row(host, iv);
+                    }
+                    // nothing further: stay on the same item or name
+                    None => match item {
+                        Some(f) => self.edit_item(host, f),
+                        None => self.edit_view(host, None),
+                    },
+                }
+            }
+            _ => {}
+        }
     }
 
     pub fn close_inline(&mut self, commit: bool) {
@@ -901,6 +1051,7 @@ impl App {
         let w = ((ed.rect.w * self.zoom) as f32).max(60.0);
         let h = ((ed.rect.h * self.zoom) as f32).max(if ed.multiline { 40.0 } else { 20.0 });
         let mut commit = None;
+        let mut key: Option<ItemKey> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
             egui::Frame::NONE.fill(Color32::WHITE).stroke(Stroke::new(1.0, c32(render::SELECT_COLOR))).show(ui, |ui| {
                 ui.visuals_mut().override_text_color = Some(Color32::BLACK);
@@ -912,6 +1063,47 @@ impl App {
                     egui::TextEdit::singleline(&mut ed.text).desired_width(w)
                 };
                 let te = te.font(font).frame(egui::Frame::NONE).horizontal_align(if ed.center { egui::Align::Center } else { egui::Align::Min });
+                // Enter commits a note too; Shift+Enter is the new line (quickedit-manager.js:326-332)
+                let mut plain_enter = false;
+                if ed.multiline {
+                    ui.input_mut(|i| {
+                        i.events.retain(|e| match e {
+                            egui::Event::Key { key: egui::Key::Enter, pressed: true, modifiers, .. } if !modifiers.shift => {
+                                plain_enter = true;
+                                false
+                            }
+                            _ => true,
+                        })
+                    });
+                }
+                // item keys on a class name or a compartment item, taken before the text field sees them
+                if let (Some(_), false) = (ed.host, ed.multiline) {
+                    let item = matches!(ed.kind, EditKind::Feature(_));
+                    let k = ui.input_mut(|i| {
+                        use egui::{Key, Modifiers};
+                        let cs = Modifiers::COMMAND | Modifiers::SHIFT;
+                        if i.consume_key(cs, Key::Enter) {
+                            Some(ItemKey::AddOperation)
+                        } else if i.consume_key(Modifiers::COMMAND, Key::Enter) {
+                            Some(ItemKey::Add)
+                        } else if item && i.consume_key(Modifiers::COMMAND, Key::Delete) {
+                            Some(ItemKey::Delete)
+                        } else if item && i.consume_key(Modifiers::COMMAND, Key::ArrowUp) {
+                            Some(ItemKey::Move(true))
+                        } else if item && i.consume_key(Modifiers::COMMAND, Key::ArrowDown) {
+                            Some(ItemKey::Move(false))
+                        } else if i.consume_key(Modifiers::NONE, Key::ArrowUp) {
+                            Some(ItemKey::Nav(true))
+                        } else if i.consume_key(Modifiers::NONE, Key::ArrowDown) {
+                            Some(ItemKey::Nav(false))
+                        } else {
+                            None
+                        }
+                    });
+                    if k.is_some() {
+                        key = k;
+                    }
+                }
                 let r = ui.add(te);
                 if ed.fresh {
                     r.request_focus();
@@ -923,18 +1115,24 @@ impl App {
                     ed.fresh = false;
                 }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if esc {
+                if key.is_some() {
+                    commit = Some(true);
+                } else if esc {
                     commit = Some(false);
-                } else if (!ed.multiline && enter) || (ed.multiline && ctrl_enter) {
+                } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
                     commit = Some(true);
                 } else if r.lost_focus() {
                     commit = Some(true);
                 }
             });
         });
+        let (host, kind) = (ed.host, ed.kind.clone());
         self.editing = Some(ed);
         if let Some(c) = commit {
             self.close_inline(c);
+        }
+        if let (Some(k), Some(h)) = (key, host) {
+            self.item_key(h, kind, k);
         }
     }
 

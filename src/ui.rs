@@ -1443,6 +1443,7 @@ impl eframe::App for App {
                 self.edit_view(v, None);
             }
         }
+        self.take_pending_item();
         self.dialogs(&ctx);
         self.toasts_ui(&ctx);
         self.screenshots(&ctx);

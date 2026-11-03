@@ -754,3 +754,97 @@ fn rounded_and_curved_line_styles() {
     crate::views::layout_diagram(&mut a.repo, &ms, a.diagram.unwrap());
     assert_eq!(crate::views::points_of(&a.repo, e).len(), 3, "one elbow");
 }
+
+#[test]
+fn inline_item_keys() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    let lay = |a: &mut App| a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let editing = |a: &App| a.editing.as_ref().map(|e| e.kind.clone());
+    lay(&mut a);
+    // Ctrl+Enter on the name adds an attribute and edits it once laid out
+    a.item_key(v, EditKind::Name(m), ItemKey::Add);
+    let at1 = a.repo.list(m, "attributes")[0];
+    assert_eq!(a.pending_item, Some((v, at1, 3)));
+    lay(&mut a);
+    a.take_pending_item();
+    assert_eq!(editing(&a), Some(EditKind::Feature(at1)));
+    // Ctrl+Enter on an item adds a sibling; Ctrl+Shift+Enter an operation
+    a.item_key(v, EditKind::Feature(at1), ItemKey::Add);
+    let at2 = a.repo.list(m, "attributes")[1];
+    a.item_key(v, EditKind::Feature(at2), ItemKey::AddOperation);
+    let op = a.repo.list(m, "operations")[0];
+    lay(&mut a);
+    // Up/Down walk name → attributes → operations
+    a.item_key(v, EditKind::Name(m), ItemKey::Nav(false));
+    assert_eq!(editing(&a), Some(EditKind::Feature(at1)));
+    a.item_key(v, EditKind::Feature(at2), ItemKey::Nav(false));
+    assert_eq!(editing(&a), Some(EditKind::Feature(op)));
+    a.item_key(v, EditKind::Feature(at1), ItemKey::Nav(true));
+    assert_eq!(editing(&a), Some(EditKind::Name(m)));
+    // Ctrl+Up reorders
+    a.item_key(v, EditKind::Feature(at2), ItemKey::Move(true));
+    assert_eq!(a.repo.list(m, "attributes"), vec![at2, at1]);
+    lay(&mut a);
+    // Ctrl+Delete deletes and moves to the item now at that index
+    a.pending_item = None;
+    a.item_key(v, EditKind::Feature(at2), ItemKey::Delete);
+    assert!(!a.repo.alive(at2));
+    lay(&mut a);
+    a.take_pending_item();
+    assert_eq!(editing(&a), Some(EditKind::Feature(at1)));
+    // adding to a suppressed compartment shows it again
+    a.change(|a| a.repo.set(v, "suppressOperations", json!(true)));
+    a.item_key(v, EditKind::Name(m), ItemKey::AddOperation);
+    assert!(!a.repo.bool(v, "suppressOperations"));
+}
+
+#[test]
+fn inline_editor_keys_through_frames() {
+    use egui::{Key, Modifiers};
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let mut frame = |a: &mut App, events: Vec<egui::Event>| {
+        let input = egui::RawInput { screen_rect: Some(screen), events, ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            egui::CentralPanel::no_frame().show_inside(ui, |ui| a.canvas_ui(ui));
+            a.take_pending_item();
+        });
+        out.textures_delta.clear();
+    };
+    let key = |k: Key, m: Modifiers| egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: m };
+    frame(&mut a, vec![]);
+    a.edit_view(v, None);
+    frame(&mut a, vec![]);
+    frame(&mut a, vec![key(Key::Enter, Modifiers::COMMAND)]);
+    assert_eq!(a.repo.list(m, "attributes").len(), 1, "Ctrl+Enter adds an attribute");
+    frame(&mut a, vec![]);
+    frame(&mut a, vec![]);
+    let at = a.repo.list(m, "attributes")[0];
+    assert_eq!(a.editing.as_ref().map(|e| e.kind.clone()), Some(crate::app::EditKind::Feature(at)), "and edits it");
+    frame(&mut a, vec![egui::Event::Text("-id: int".into())]);
+    frame(&mut a, vec![key(Key::Enter, Modifiers::NONE)]);
+    assert_eq!(a.repo.name(at), "id");
+    assert_eq!(a.repo.str(at, "visibility"), "private");
+    assert!(a.editing.is_none());
+
+    // a note: Enter commits, Shift+Enter is a new line
+    let n = a.change(|a| a.create_node("Note", rect(300.0, 40.0, 140.0, 60.0))).unwrap();
+    a.edit_view(n, None);
+    frame(&mut a, vec![]);
+    frame(&mut a, vec![egui::Event::Text("one".into())]);
+    frame(&mut a, vec![key(Key::Enter, Modifiers::SHIFT)]);
+    frame(&mut a, vec![egui::Event::Text("two".into())]);
+    frame(&mut a, vec![key(Key::Enter, Modifiers::NONE)]);
+    assert!(a.editing.is_none());
+    assert_eq!(a.repo.str(n, "text"), "one\ntwo");
+}
