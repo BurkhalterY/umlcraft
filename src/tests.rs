@@ -899,3 +899,58 @@ fn operation_parameters_follow_their_position() {
     crate::parse::apply_operation(&mut a.repo, op, "f");
     assert!(a.repo.list(op, "parameters").is_empty(), "no parentheses, no parameters");
 }
+
+#[test]
+fn reconnect_lines_and_tidy_bend_points() {
+    use crate::views::{clean_points, points_of, P};
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 60.0))).unwrap();
+    let c3 = a.change(|a| a.create_node("UMLClass", rect(400.0, 300.0, 100.0, 60.0))).unwrap();
+    let i1 = a.change(|a| a.create_node("UMLInterface", rect(40.0, 300.0, 100.0, 60.0))).unwrap();
+    let g = a.change(|a| a.create_edge(&tool("UMLGeneralization", AssocInit::Plain), c1, c2)).unwrap();
+    let s = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let gm = a.repo.refd(g, "model").unwrap();
+    let m3 = a.repo.refd(c3, "model").unwrap();
+
+    // drag the head of the generalization onto c3: view and model follow
+    a.select(vec![g]);
+    let head = *points_of(&a.repo, g).last().unwrap();
+    a.on_press(canvas, Pos2::new(head.x as f32, head.y as f32), Modifiers::NONE);
+    assert!(matches!(a.drag, Some(crate::app::Drag::Reconnect { tail: false, .. })));
+    a.on_move(canvas, Pos2::new(450.0, 330.0));
+    a.on_release(canvas.min, Pos2::new(450.0, 330.0));
+    assert_eq!(a.repo.refd(g, "head"), Some(c3));
+    assert_eq!(a.repo.refd(gm, "target"), Some(m3));
+    // an association end follows its view
+    a.reconnect(s, true, c3).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    assert_eq!(a.repo.refd(a.repo.child(sm, "end1").unwrap(), "reference"), Some(m3));
+    // an interface realization must end on an interface
+    let r = a.change(|a| a.create_edge(&tool("UMLInterfaceRealization", AssocInit::Plain), c1, i1)).unwrap();
+    assert_eq!(a.reconnect(r, false, c2).unwrap_err(), "InterfaceRealization cannot be connected to Class");
+    assert_eq!(a.repo.refd(r, "head"), Some(i1));
+
+    // tidy-up
+    let pts = [P { x: 0.0, y: 0.0 }, P { x: 50.0, y: 0.0 }, P { x: 100.0, y: 0.0 }, P { x: 103.0, y: 2.0 }, P { x: 100.0, y: 100.0 }];
+    let c = clean_points(&pts, false);
+    assert_eq!((c.len(), c[0], c[2]), (3, pts[0], pts[4]), "the collinear point and one of the two close points go");
+    let rect_pts = [P { x: 0.0, y: 0.0 }, P { x: 50.0, y: 0.0 }, P { x: 100.0, y: 0.0 }, P { x: 100.0, y: 100.0 }];
+    assert_eq!(clean_points(&rect_pts, true), vec![rect_pts[0], rect_pts[2], rect_pts[3]]);
+
+    // a rectilinear line: dragging its middle segment across moves both of its points
+    a.change(|a| a.repo.set(s, "lineStyle", json!(0)));
+    a.change(|a| a.repo.set(s, "points", json!("90:100;90:200;450:200;450:300")));
+    a.select(vec![s]);
+    a.on_press(canvas, Pos2::new(250.0, 200.0), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(250.0, 240.0));
+    a.on_release(canvas.min, Pos2::new(250.0, 240.0));
+    let p = points_of(&a.repo, s);
+    assert_eq!((p[1].y, p[2].y), (240.0, 240.0));
+    assert_eq!((p[1].x, p[2].x), (90.0, 450.0));
+}

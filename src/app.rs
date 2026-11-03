@@ -51,6 +51,10 @@ pub enum Drag {
     Move { start: P, orig: Vec<(Eid, P)>, edges: Vec<(Eid, Vec<P>)>, lead: Option<Eid>, changed: bool, collapse: Option<Eid> },
     Resize { handle: usize, start: P, orig: R, view: Eid, changed: bool },
     Point { edge: Eid, index: usize, insert: Option<P>, changed: bool },
+    /// Dragging the first (`tail`) or last point of a line to reconnect it.
+    Reconnect { edge: Eid, tail: bool, now: P },
+    /// Dragging a segment of a rectilinear line across: points `index` and `index + 1` move together.
+    Segment { edge: Eid, index: usize, start: P, orig: Vec<P>, horizontal: bool, changed: bool },
 }
 
 pub mod egui_pos {
@@ -422,8 +426,22 @@ impl App {
     }
 
     pub fn can_connect(&self, tool: &Tool, tail: Eid, head: Eid) -> bool {
+        self.can_link(tool.kind, tail, head)
+    }
+
+    /// The kind a line was made with: its model's type, or "NoteLink".
+    pub fn edge_kind(&self, e: Eid) -> String {
+        match self.repo.refd(e, "model") {
+            Some(m) => self.repo.ty(m).to_string(),
+            None if self.repo.ty(e) == "UMLNoteLinkView" => "NoteLink".into(),
+            None => String::new(),
+        }
+    }
+
+    /// Whether a line of this kind may join these two views.
+    pub fn can_link(&self, kind: &str, tail: Eid, head: Eid) -> bool {
         let r = &self.repo;
-        if tool.kind == "NoteLink" {
+        if kind == "NoteLink" {
             return r.ty(tail) == "UMLNoteView" || r.ty(head) == "UMLNoteView";
         }
         if views::is_edge(r, tail) || views::is_edge(r, head) {
@@ -431,7 +449,7 @@ impl App {
         }
         let (Some(tm), Some(hm)) = (r.refd(tail, "model"), r.refd(head, "model")) else { return false };
         let classifier = |m: Eid| r.kind_of(m, "UMLClassifier");
-        match tool.kind {
+        match kind {
             "UMLAssociation" => classifier(tm) && classifier(hm),
             "UMLGeneralization" => classifier(tm) && classifier(hm) && tm != hm,
             "UMLInterfaceRealization" => classifier(tm) && r.ty(hm) == "UMLInterface",
@@ -467,6 +485,40 @@ impl App {
             self.repo.create(tool.kind, &[("source", s), ("target", t)], Some((tm, "ownedElements")))
         };
         views::create_edge_view(&mut self.repo, d, Some(m), tail, head)
+    }
+
+    /// Reconnect one end of a line to another view, updating the model too: `source`/`target` of a
+    /// directed relationship, `end1`/`end2.reference` of an association (engine.js:940-1024). Returns
+    /// the refusal message when the kinds do not fit (uml/main.js:44-82).
+    pub fn reconnect(&mut self, e: Eid, tail: bool, to: Eid) -> Result<(), String> {
+        let (Some(t), Some(h)) = (self.repo.refd(e, "tail"), self.repo.refd(e, "head")) else { return Ok(()) };
+        if (tail && to == t) || (!tail && to == h) {
+            return Ok(());
+        }
+        let kind = self.edge_kind(e);
+        let (nt, nh) = if tail { (to, h) } else { (t, to) };
+        if !self.can_link(&kind, nt, nh) {
+            let target = self.repo.refd(to, "model").map(|m| self.repo.ty(m).to_string()).unwrap_or_default();
+            return Err(if kind.is_empty() || target.is_empty() {
+                "Invalid Connection".into()
+            } else {
+                format!("{} cannot be connected to {}", kind.trim_start_matches("UML"), target.trim_start_matches("UML"))
+            });
+        }
+        self.change(|a| {
+            a.repo.set_ref(e, if tail { "tail" } else { "head" }, Some(to));
+            // the ends are laid out again from the new box
+            if let (Some(m), Some(tm)) = (a.repo.refd(e, "model"), a.repo.refd(to, "model")) {
+                if a.repo.has(m, "end1") {
+                    if let Some(end) = a.repo.child(m, if tail { "end1" } else { "end2" }) {
+                        a.repo.set_ref(end, "reference", Some(tm));
+                    }
+                } else {
+                    a.repo.set_ref(m, if tail { "source" } else { "target" }, Some(tm));
+                }
+            }
+        });
+        Ok(())
     }
 
     pub fn add_feature(&mut self, owner: Eid, ty: &str) -> Option<Eid> {

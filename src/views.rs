@@ -837,6 +837,33 @@ pub fn drawn_points(pts: &[P], style: i64) -> Vec<P> {
     out
 }
 
+/// Bend points left after a drag: points within 5 px of a neighbour (oblique and curve lines only) and
+/// points in a straight run are dropped; the ends always stay (graphics.js:737-773, 1000-1044).
+pub fn clean_points(pts: &[P], rectilinear: bool) -> Vec<P> {
+    let mut out: Vec<P> = pts.to_vec();
+    let dist = |a: P, b: P| ((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqrt();
+    loop {
+        let n = out.len();
+        if n <= 2 {
+            return out;
+        }
+        let drop = (1..n - 1).find(|&i| {
+            let (a, c, b) = (out[i - 1], out[i], out[i + 1]);
+            let close = if rectilinear { dist(a, c) < 0.5 || dist(c, b) < 0.5 } else { dist(a, c) <= 5.0 || dist(c, b) <= 5.0 };
+            // collinear: c lies on the line through a and b
+            let cross = ((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)).abs() / dist(a, b).max(1e-9);
+            let between = (c.x - a.x) * (c.x - b.x) <= 0.5 && (c.y - a.y) * (c.y - b.y) <= 0.5;
+            close || (cross < 1.0 && between)
+        });
+        match drop {
+            Some(i) => {
+                out.remove(i);
+            }
+            None => return out,
+        }
+    }
+}
+
 /// Corner radius of rounded rectilinear lines (estimated).
 pub const ROUND_RADIUS: f64 = 10.0;
 

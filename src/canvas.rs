@@ -162,6 +162,33 @@ impl App {
         None
     }
 
+    /// Cursor over the single selected line: a hand on its ends, move on a bend point, and on a segment
+    /// ns/ew-resize for rectilinear lines or a crosshair for the others (diagram-editor.js:344-411).
+    fn edge_cursor(&self, p: P) -> Option<egui::CursorIcon> {
+        if self.selection.len() != 1 || !is_edge(&self.repo, self.selection[0]) {
+            return None;
+        }
+        let e = self.selection[0];
+        let pts = points_of(&self.repo, e);
+        let n = pts.len();
+        let near = |q: P| ((q.x - p.x).powi(2) + (q.y - p.y).powi(2)).sqrt() <= 6.0 / self.zoom;
+        if n >= 2 && (near(pts[0]) || near(pts[n - 1])) {
+            return Some(egui::CursorIcon::PointingHand);
+        }
+        if (1..n.saturating_sub(1)).any(|i| near(pts[i])) {
+            return Some(egui::CursorIcon::Move);
+        }
+        let style = self.repo.val(e, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+        let seg = (0..n.saturating_sub(1)).find(|&i| dist_to_seg(p, pts[i], pts[i + 1]) <= 4.0 / self.zoom)?;
+        Some(if !views::rectilinear(style) {
+            egui::CursorIcon::Crosshair
+        } else if (pts[seg].y - pts[seg + 1].y).abs() < 0.5 {
+            egui::CursorIcon::ResizeVertical
+        } else {
+            egui::CursorIcon::ResizeHorizontal
+        })
+    }
+
     fn hit_handle(&self, p: P) -> Option<usize> {
         if self.selection.len() != 1 {
             return None;
@@ -321,6 +348,28 @@ impl App {
                     }
                 }
             }
+            Some(Drag::Reconnect { edge, tail, now }) => {
+                // rubber line from the end that stays, and the drop target outlined
+                let pts = points_of(&self.repo, *edge);
+                if pts.len() >= 2 {
+                    let fixed = if *tail { pts[1] } else { pts[pts.len() - 2] };
+                    for s in Shape::dashed_line(&[c.pos(fixed), c.pos(*now)], Stroke::new(1.0, sel), 3.0, 3.0) {
+                        c.painter.add(s);
+                    }
+                }
+                let current = self.repo.refd(*edge, if *tail { "tail" } else { "head" });
+                if let Some(h) = self.hover.filter(|h| Some(*h) != current) {
+                    let (t, hd) = (self.repo.refd(*edge, "tail"), self.repo.refd(*edge, "head"));
+                    let ok = match (t, hd) {
+                        (Some(t), Some(hd)) => self.can_link(&self.edge_kind(*edge), if *tail { h } else { t }, if *tail { hd } else { h }),
+                        _ => false,
+                    };
+                    let b = node_rect(&self.repo, h);
+                    let r = Rect::from_two_pos(c.pos(P { x: b.x, y: b.y }), c.pos(P { x: b.x + b.w, y: b.y + b.h }));
+                    let col = if ok { sel } else { Color32::from_rgb(0xff, 0x5a, 0x4f) };
+                    c.painter.rect_stroke(r, 0.0, Stroke::new(2.0, col), egui::StrokeKind::Middle);
+                }
+            }
             _ => {}
         }
     }
@@ -421,7 +470,7 @@ impl App {
                         Some(2) | Some(6) => egui::CursorIcon::ResizeNeSw,
                         Some(1) | Some(5) => egui::CursorIcon::ResizeVertical,
                         Some(3) | Some(7) => egui::CursorIcon::ResizeHorizontal,
-                        _ => egui::CursorIcon::Default,
+                        _ => self.edge_cursor(p).unwrap_or(egui::CursorIcon::Default),
                     }
                 };
                 ui.ctx().set_cursor_icon(icon);
@@ -532,19 +581,37 @@ impl App {
             self.drag = Some(Drag::Resize { handle: h, start: p, orig: node_rect(&self.repo, v), view: v, changed: false });
             return;
         }
-        // bend points of a selected line
+        // ends and bend points of a selected line
         if self.selection.len() == 1 && is_edge(&self.repo, self.selection[0]) {
             let e = self.selection[0];
             let pts = points_of(&self.repo, e);
-            for i in 1..pts.len().saturating_sub(1) {
-                if ((pts[i].x - p.x).powi(2) + (pts[i].y - p.y).powi(2)).sqrt() <= 6.0 / self.zoom {
+            let near = |q: P| ((q.x - p.x).powi(2) + (q.y - p.y).powi(2)).sqrt() <= 6.0 / self.zoom;
+            let n = pts.len();
+            if n >= 2 {
+                for (tail, q) in [(true, pts[0]), (false, pts[n - 1])] {
+                    if near(q) {
+                        self.drag = Some(Drag::Reconnect { edge: e, tail, now: p });
+                        return;
+                    }
+                }
+            }
+            for i in 1..n.saturating_sub(1) {
+                if near(pts[i]) {
                     self.drag = Some(Drag::Point { edge: e, index: i, insert: None, changed: false });
                     return;
                 }
             }
-            for i in 0..pts.len().saturating_sub(1) {
+            let style = self.repo.val(e, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+            for i in 0..n.saturating_sub(1) {
                 if dist_to_seg(p, pts[i], pts[i + 1]) <= 5.0 / self.zoom {
-                    self.drag = Some(Drag::Point { edge: e, index: i + 1, insert: Some(p), changed: false });
+                    let (a, b) = (pts[i], pts[i + 1]);
+                    let straight = (a.y - b.y).abs() < 0.5 || (a.x - b.x).abs() < 0.5;
+                    if views::rectilinear(style) && straight {
+                        // move the segment across, keeping the path orthogonal (diagram-editor.js:1923-1979)
+                        self.drag = Some(Drag::Segment { edge: e, index: i, start: p, orig: pts.clone(), horizontal: (a.y - b.y).abs() < 0.5, changed: false });
+                    } else {
+                        self.drag = Some(Drag::Point { edge: e, index: i + 1, insert: Some(p), changed: false });
+                    }
                     return;
                 }
             }
@@ -748,9 +815,42 @@ impl App {
                 }
                 let mut pts = points_of(&self.repo, *edge);
                 if *index < pts.len() {
-                    pts[*index] = P { x: self.snap_v(p.x), y: self.snap_v(p.y) };
+                    pts[*index] = P { x: self.snap_v(p.x).max(0.0), y: self.snap_v(p.y).max(0.0) };
                     self.repo.set(*edge, "points", json!(views::format_points(&pts)));
                 }
+            }
+            Drag::Reconnect { now, .. } => {
+                *now = p;
+                self.hover = self.hit_view(p, true);
+            }
+            Drag::Segment { edge, index, start, orig, horizontal, changed } => {
+                let d = if *horizontal { p.y - start.y } else { p.x - start.x };
+                if !*changed && d.abs() * self.zoom < 3.0 {
+                    self.drag = Some(drag);
+                    return;
+                }
+                if !*changed {
+                    self.checkpoint();
+                    *changed = true;
+                    // an end segment gets an extra point so the end stays on its box
+                    let n = orig.len();
+                    if *index + 1 == n - 1 {
+                        orig.insert(n - 1, orig[n - 1]);
+                    }
+                    if *index == 0 {
+                        orig.insert(0, orig[0]);
+                        *index = 1;
+                    }
+                }
+                let mut pts = orig.clone();
+                for k in [*index, *index + 1] {
+                    if *horizontal {
+                        pts[k].y = self.snap_v(orig[k].y + d).max(0.0);
+                    } else {
+                        pts[k].x = self.snap_v(orig[k].x + d).max(0.0);
+                    }
+                }
+                self.repo.set(*edge, "points", json!(views::format_points(&pts)));
             }
         }
         self.drag = Some(drag);
@@ -814,7 +914,24 @@ impl App {
                     self.select(vec![v]);
                 }
             }
-            Drag::Move { changed, .. } | Drag::Resize { changed, .. } | Drag::Point { changed, .. } => {
+            Drag::Reconnect { edge, tail, .. } => {
+                if let Some(to) = self.hit_view(p, true) {
+                    if let Err(msg) = self.reconnect(edge, tail, to) {
+                        self.toast(&msg);
+                    }
+                }
+            }
+            Drag::Point { edge, changed: true, .. } | Drag::Segment { edge, changed: true, .. } => {
+                // tidy the bend points (diagram-editor.js:1774-1781)
+                let pts = points_of(&self.repo, edge);
+                let style = self.repo.val(edge, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+                let clean = views::clean_points(&pts, views::rectilinear(style));
+                if clean != pts {
+                    self.repo.set(edge, "points", json!(views::format_points(&clean)));
+                }
+                self.done();
+            }
+            Drag::Move { changed, .. } | Drag::Resize { changed, .. } | Drag::Point { changed, .. } | Drag::Segment { changed, .. } => {
                 if changed {
                     self.done();
                 }
