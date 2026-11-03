@@ -117,15 +117,17 @@ pub fn wrap_lines(c: &dyn Measure, text: &str, width: f64) -> Vec<String> {
     out
 }
 
-fn draw_wrapped(c: &mut dyn Canvas, text: &str, b: R, fc: Rgba) {
-    let lh = (13.0f64 * 1.15).round();
-    let lines = wrap_lines(c, text, b.w);
+/// Word-wrapped note or text in the view's font size.
+fn draw_wrapped(c: &mut dyn Canvas, text: &str, b: R, fc: Rgba, size: f64) {
+    let lh = (size * 1.15).round();
+    let scaled = views::Scaled { ms: &*c, face: "Arial".into(), size };
+    let lines = wrap_lines(&scaled, text, b.w);
     let mut y = b.y;
     for l in lines {
         if y + lh > b.y + b.h + 1.0 {
             break;
         }
-        c.text(&l, R { x: b.x, y, w: b.w, h: lh }, 0, 0, 13.0, fc, false);
+        c.text(&l, R { x: b.x, y, w: b.w, h: lh }, 0, 0, size, fc, false);
         y += lh;
     }
 }
@@ -192,11 +194,11 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         }
         c.polygon(&pts, Some(fill), Some(line));
         c.polyline(&[P { x: b.x + b.w - f, y: b.y }, P { x: b.x + b.w - f, y: b.y + f }, P { x: b.x + b.w, y: b.y + f }], line, false);
-        draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc);
+        draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc, views::view_font(r, v).1);
         return;
     }
     if ty == "UMLTextView" || ty == "UMLCustomTextView" || ty == "UMLTextBoxView" {
-        draw_wrapped(c, &r.str(v, "text"), R { x: b.x, y: b.y, w: b.w.max(10.0), h: b.h.max(15.0) + 100.0 }, fc);
+        draw_wrapped(c, &r.str(v, "text"), R { x: b.x, y: b.y, w: b.w.max(10.0), h: b.h.max(15.0) + 100.0 }, fc, views::view_font(r, v).1);
         return;
     }
     // a box: classifier, subject, or any kind UMLCraft does not draw itself

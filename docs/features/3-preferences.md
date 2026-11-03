@@ -85,9 +85,9 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | UML | `uml.class.suppressAttributes` | Suppress Attributes | false | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.class.suppressOperations` | Suppress Operations | false | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.interface.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.interface.stereotypeDisplay` | Stereotype Display | "icon" | 🟡 new interface views get icon display (src/views.rs:200) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.interface.suppressAttributes` | Suppress Attributes | true | 🟡 applied to new views (src/views.rs:203), not configurable | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.interface.suppressOperations` | Suppress Operations | true | 🟡 applied to new views (src/views.rs:204), not configurable | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.interface.stereotypeDisplay` | Stereotype Display | "icon" | 🟡 new interface views get icon display (src/views.rs:252) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.interface.suppressAttributes` | Suppress Attributes | true | 🟡 applied to new views (src/views.rs:255), not configurable | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.interface.suppressOperations` | Suppress Operations | true | 🟡 applied to new views (src/views.rs:256), not configurable | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.signal.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.datatype.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.primitivetype.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
@@ -141,7 +141,7 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | General | `view.fontColor` | Font Color | "#000000" | 🟡 black default, not configurable | resources/default/preferences/default.json |
 | General | `view.lineStyle` | Line Style | 1 | 🟡 oblique default (src/views.rs:23), not configurable | resources/default/preferences/default.json |
 | General | `view.showShadow` | Show Shadow | true | 🟡 shadow on by default, not configurable | resources/default/preferences/default.json |
-| General | `diagramEditor.showGrid` | Show Grid | true | 🟡 on by default, toggled per session (src/app.rs:174), not saved | resources/default/preferences/default.json |
+| General | `diagramEditor.showGrid` | Show Grid | true | 🟡 on by default, toggled per session (src/app.rs:176), not saved | resources/default/preferences/default.json |
 | General | `diagramEditor.snapToGrid` | Snap to Grid | true | 🟡 on by default, toggled per session, not saved | resources/default/preferences/default.json |
 | General | `diagramEditor.gridSize` | Grid Size | 8 | 🟡 8 hard-coded (src/render.rs:10) | resources/default/preferences/default.json |
 | General | `diagramEditor.backgroundColor` | Background Color | "#ffffff" | 🟡 white hard-coded | resources/default/preferences/default.json |

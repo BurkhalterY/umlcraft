@@ -159,6 +159,8 @@ pub struct App {
     pub style_edit: Option<(String, std::time::Instant)>,
     /// The colour window opened by Ctrl+Shift+I or Ctrl+Shift+L: the field it edits.
     pub color_dialog: Option<&'static str>,
+    /// The Font window (Ctrl+Shift+F): face and size as typed, and the text colour.
+    pub font_dialog: Option<(String, String, Option<crate::render::Rgba>)>,
 }
 
 impl App {
@@ -219,6 +221,7 @@ impl App {
             sys_clipboard: None,
             style_edit: None,
             color_dialog: None,
+            font_dialog: None,
         };
         a.set_project(Repo::blank(), None);
         a

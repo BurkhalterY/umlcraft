@@ -1453,6 +1453,10 @@ impl App {
             self.line_style_menu(ui);
         }
         ui.menu_button("Format", |ui| {
+            if ui.button("Font...").clicked() {
+                self.open_font_dialog();
+                ui.close();
+            }
             self.color_menus(ui);
             ui.separator();
             self.format_toggles(ui);

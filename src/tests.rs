@@ -1236,3 +1236,31 @@ fn colours_apply_to_the_selected_views() {
     out.textures_delta.clear();
     assert_eq!(a.color_dialog, Some("lineColor"));
 }
+
+#[test]
+fn font_size_reaches_the_layout() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 60.0, 40.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    let at = a.change(|a| a.add_feature(m, "UMLAttribute")).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let (w13, h13) = (a.repo.f(c, "width"), a.repo.f(c, "height"));
+    a.select(vec![c]);
+    assert_eq!(a.font_state(), (Some("Arial".into()), Some(13.0)));
+    a.set_font(None, Some(26.0));
+    assert_eq!(a.repo.str(c, "font"), "Arial;26;0");
+    a.change(|a| {
+        a.repo.set(c, "width", json!(10));
+        a.repo.set(c, "height", json!(10));
+    });
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.repo.f(c, "width") > w13 && a.repo.f(c, "height") > h13, "the box grows with the text");
+    let row = a.repo.list(a.repo.refd(c, "attributeCompartment").unwrap(), "subViews")[0];
+    assert_eq!(a.repo.f(row, "height"), 26.0);
+    assert!(a.repo.str(row, "font").starts_with("Arial;26;"));
+    let nm = a.repo.refd(a.repo.refd(c, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nm, "font"), "Arial;26;1", "the name keeps its bold style");
+    let _ = at;
+}

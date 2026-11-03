@@ -912,6 +912,10 @@ impl App {
                 self.move_items(ui);
             });
             ui.menu_button("Format", |ui| {
+                if ui.add_enabled(!self.selection.is_empty(), egui::Button::new("Font...                         Ctrl+Shift+F")).clicked() {
+                    self.open_font_dialog();
+                    ui.close();
+                }
                 self.color_menus(ui);
                 self.line_style_menu(ui);
                 self.format_toggles(ui);
@@ -987,6 +991,23 @@ impl App {
     /// The Style editor: colour swatches, line style, the show and suppress toggles, z-order and alignment.
     fn style_ui(&mut self, ui: &mut egui::Ui) {
         ui.spacing_mut().item_spacing.y = 4.0;
+        // font face and size: merged, blank when the views differ (style-editor-view.js:180-227)
+        let (face, size) = self.font_state();
+        ui.horizontal(|ui| {
+            let mut f = face.clone().unwrap_or_default();
+            let r = ui.add(egui::TextEdit::singleline(&mut f).hint_text("—").desired_width(110.0).font(FontId::proportional(12.0)));
+            if r.lost_focus() && !f.trim().is_empty() && Some(f.trim().to_string()) != face {
+                self.set_font(Some(f.trim()), None);
+            }
+            let label = size.map(|s| format!("{s}")).unwrap_or_else(|| "—".into());
+            egui::ComboBox::from_id_salt("style-size").selected_text(label).width(60.0).show_ui(ui, |ui| {
+                for s in crate::style::SIZES {
+                    if ui.selectable_label(size == Some(s), format!("{s}")).clicked() {
+                        self.set_font(None, Some(s));
+                    }
+                }
+            });
+        });
         ui.horizontal(|ui| {
             for (field, label) in crate::style::COLORS {
                 if self.color_views(field).is_empty() {
@@ -1188,6 +1209,9 @@ impl App {
         let hit = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
         // Ctrl+Shift toggles first: a Ctrl shortcut also matches when Shift is held (Ctrl+N, Ctrl+A…)
         if !typing {
+            if hit(sc(cs, Key::F)) {
+                self.open_font_dialog();
+            }
             for (key, field) in [(Key::I, "fillColor"), (Key::L, "lineColor")] {
                 if hit(sc(cs, key)) && !self.color_views(field).is_empty() {
                     self.color_dialog = Some(field);
@@ -1402,6 +1426,7 @@ impl App {
         }
         self.diagram_picker_ui(ctx);
         self.color_dialog_ui(ctx);
+        self.font_dialog_ui(ctx);
         if let Some((title, detail)) = self.message.clone() {
             egui::Window::new(title).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
                 ui.label(detail);
@@ -1462,6 +1487,71 @@ impl App {
             self.diagram_picker = None;
         } else {
             self.diagram_picker = Some((views, chosen));
+        }
+    }
+
+    pub(crate) fn open_font_dialog(&mut self) {
+        if self.selection.is_empty() {
+            return;
+        }
+        let (face, size) = self.font_state();
+        let size = size.map(|s| if s.fract() == 0.0 { format!("{}", s as i64) } else { s.to_string() });
+        self.font_dialog = Some((face.unwrap_or_default(), size.unwrap_or_default(), self.color_state("fontColor")));
+    }
+
+    /// Format > Font (Ctrl+Shift+F): face, size and colour, pre-filled with the merged values (blank where the
+    /// selected views differ). OK applies what was filled in; a size that is not a number is ignored
+    /// (default-commands.js:940-964).
+    fn font_dialog_ui(&mut self, ctx: &egui::Context) {
+        let Some((mut face, mut size, mut color)) = self.font_dialog.clone() else { return };
+        let (mut ok, mut cancel) = (false, false);
+        egui::Window::new("Font").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            egui::Grid::new("font-grid").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| {
+                ui.label("Face");
+                ui.add(egui::TextEdit::singleline(&mut face).hint_text("—").desired_width(160.0));
+                ui.end_row();
+                ui.label("Size");
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut size).hint_text("—").desired_width(60.0));
+                    egui::ComboBox::from_id_salt("font-sizes").selected_text("").width(20.0).show_ui(ui, |ui| {
+                        for s in crate::style::SIZES {
+                            if ui.selectable_label(false, format!("{s}")).clicked() {
+                                size = format!("{s}");
+                            }
+                        }
+                    });
+                });
+                ui.end_row();
+                ui.label("Color");
+                let mut c = color.map(|c| Color32::from_rgb(c.0, c.1, c.2)).unwrap_or(Color32::TRANSPARENT);
+                if egui::color_picker::color_edit_button_srgba(ui, &mut c, egui::color_picker::Alpha::Opaque).changed() {
+                    color = Some(crate::render::Rgba(c.r(), c.g(), c.b(), 255));
+                }
+                ui.end_row();
+            });
+            ui.horizontal(|ui| {
+                ok = ui.button("OK").clicked();
+                cancel = ui.button("Cancel").clicked();
+            });
+            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                cancel = true;
+            }
+        });
+        if ok {
+            let f = face.trim();
+            let sz = size.trim().parse::<f64>().ok().filter(|s| *s > 0.0);
+            self.set_font(if f.is_empty() { None } else { Some(f) }, sz);
+            if let Some(c) = color {
+                if Some(c) != self.color_state("fontColor") {
+                    self.style_edit = None;
+                    self.set_color("fontColor", c);
+                }
+            }
+            self.font_dialog = None;
+        } else if cancel {
+            self.font_dialog = None;
+        } else {
+            self.font_dialog = Some((face, size, color));
         }
     }
 

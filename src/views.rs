@@ -24,7 +24,59 @@ pub const DEFAULT_LINE_STYLE: i64 = 1; // oblique, default.json:83
 
 /// Text measuring, supplied by the window (font style: 0 normal, 1 bold, 2 italic, 3 bold italic).
 pub trait Measure {
+    /// Width of a text in the diagram font at 13 px (style: 1 bold, 2 italic).
     fn width(&self, text: &str, style: u8) -> f64;
+    /// The font size the layout is working with.
+    fn size(&self) -> f64 {
+        13.0
+    }
+    /// The font face the layout is working with.
+    fn face(&self) -> String {
+        "Arial".into()
+    }
+}
+
+/// A view's own font: widths scale with its size, and labels inside it take its face and size, as
+/// labels with parentStyle copy their parent's font (core.js:1659-1666).
+pub struct Scaled<'a> {
+    pub ms: &'a dyn Measure,
+    pub face: String,
+    pub size: f64,
+}
+impl Measure for Scaled<'_> {
+    fn width(&self, text: &str, style: u8) -> f64 {
+        self.ms.width(text, style) * self.size / 13.0
+    }
+    fn size(&self) -> f64 {
+        self.size
+    }
+    fn face(&self) -> String {
+        self.face.clone()
+    }
+}
+
+/// Face and size of a view's `font` ("Arial;13;0").
+pub fn view_font(r: &Repo, v: Eid) -> (String, f64) {
+    let f = r.str(v, "font");
+    let mut it = f.split(';');
+    let face = it.next().filter(|x| !x.is_empty()).unwrap_or("Arial").to_string();
+    let size = it.next().and_then(|x| x.parse::<f64>().ok()).filter(|x| *x > 0.0).unwrap_or(13.0);
+    (face, size)
+}
+
+/// A font string "face;size;style", the size without decimals when whole.
+pub fn font_str(face: &str, size: f64, style: i64) -> String {
+    if size.fract() == 0.0 { format!("{face};{};{style}", size as i64) } else { format!("{face};{size};{style}") }
+}
+
+fn font_style_of(r: &Repo, v: Eid) -> i64 {
+    r.str(v, "font").split(';').nth(2).and_then(|x| x.parse().ok()).unwrap_or(0)
+}
+
+/// Give a label the face and size of the layout, keeping its own style.
+fn set_label_font(r: &mut Repo, ms: &dyn Measure, lv: Eid, style: Option<i64>) {
+    let st = style.unwrap_or_else(|| font_style_of(r, lv));
+    r.set(lv, "font", json!(font_str(&ms.face(), ms.size(), st)));
 }
 
 pub fn vis_symbol(v: &str) -> &'static str {
@@ -482,7 +534,9 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
     let Some(p) = name_parts(r, v, m, keyword, hide_st) else { return NAME_MIN_H };
     let style = name_style(r, m);
     let mut items: Vec<Eid> = vec![];
+    let lh = ms.size();
     if let Some(st) = p.st {
+        set_label_font(r, ms, st, None);
         r.set(st, "text", json!(p.st_text));
         r.set_raw(st, "visible", json!(p.show_st));
         if p.show_st {
@@ -493,10 +547,11 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
     if let Some(nm) = p.nm {
         let name = r.name(m);
         r.set(nm, "text", json!(name));
-        r.set(nm, "font", json!(format!("Arial;13;{style}")));
+        set_label_font(r, ms, nm, Some(style as i64));
         items.push(nm);
     }
     if let Some(ns) = p.ns {
+        set_label_font(r, ms, ns, None);
         let show = r.bool(v, "showNamespace");
         r.set(ns, "text", json!(p.ns_text));
         if show {
@@ -507,15 +562,14 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
         }
     }
     let n = items.len() as f64;
-    let content = n * LABEL_H + ITEM_GAP * (n - 1.0).max(0.0);
+    let content = n * lh + ITEM_GAP * (n - 1.0).max(0.0);
     let h = NAME_MIN_H.max(content + 2.0 * PAD);
     let mut cy = y + ((h - content) / 2.0).ceil();
     for lv in items {
-        set_box(r, lv, x + PAD, cy, w - 2.0 * PAD, LABEL_H);
-        cy += LABEL_H + ITEM_GAP;
+        set_box(r, lv, x + PAD, cy, w - 2.0 * PAD, lh);
+        cy += lh + ITEM_GAP;
     }
     set_box(r, p.nc, x, y, w + 1.0, h);
-    let _ = ms;
     h
 }
 
@@ -560,19 +614,20 @@ fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid], item_ty: 
         let st = r.bool(items[i], "isStatic");
         r.set(*iv, "underline", json!(st));
         let italic = if r.bool(items[i], "isAbstract") { 2 } else { 0 };
+        set_label_font(r, ms, *iv, None);
         min_w = min_w.max(ms.width(t, italic).ceil() + 2.0 * PAD);
     }
     let n = keep.len() as f64;
-    let h = if keep.is_empty() { EMPTY_H } else { 2.0 * PAD + n * LABEL_H + ITEM_GAP * (n - 1.0) };
+    let h = if keep.is_empty() { EMPTY_H } else { 2.0 * PAD + n * ms.size() + ITEM_GAP * (n - 1.0) };
     (min_w, h, keep.into_iter().map(|iv| Row { iv }).collect())
 }
 
-fn place_list(r: &mut Repo, comp: Eid, x: f64, y: f64, w: f64, h: f64, rows: &[Row]) {
+fn place_list(r: &mut Repo, lh: f64, comp: Eid, x: f64, y: f64, w: f64, h: f64, rows: &[Row]) {
     set_box(r, comp, x, y, w + 1.0, h);
     let mut cy = y + PAD;
     for row in rows {
-        set_box(r, row.iv, x + PAD, cy, w - 2.0 * PAD + 1.0, LABEL_H);
-        cy += LABEL_H + ITEM_GAP;
+        set_box(r, row.iv, x + PAD, cy, w - 2.0 * PAD + 1.0, lh);
+        cy += lh + ITEM_GAP;
     }
 }
 
@@ -717,7 +772,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     let mut cy = y + name_h;
     let mut out = vec![];
     for (c, _, h, rows) in comps {
-        place_list(r, c, x, cy, w, h, &rows);
+        place_list(r, ms.size(), c, x, cy, w, h, &rows);
         out.push(Comp { y: cy, rows });
         cy += h;
     }
@@ -725,6 +780,9 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
 }
 
 fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
+    let (face, size) = view_font(r, v);
+    let scaled = Scaled { ms, face, size };
+    let ms: &dyn Measure = &scaled;
     let t = r.ty(v).to_string();
     let m = r.refd(v, "model");
     if let Some(m) = m {
@@ -1005,8 +1063,12 @@ fn layout_edge_labels(r: &mut Repo, ms: &dyn Measure, e: Eid, pts: &[P]) {
     if pts.len() < 2 {
         return;
     }
+    let (face, size) = view_font(r, e);
+    let scaled = Scaled { ms, face, size };
+    let ms: &dyn Measure = &scaled;
     for (field, t) in edge_label_texts(r, e) {
         let Some(lv) = r.refd(e, field) else { continue };
+        set_label_font(r, ms, lv, None);
         r.set(lv, "text", json!(t));
         if field == "stereotypeLabel" {
             if t.is_empty() {
@@ -1020,12 +1082,13 @@ fn layout_edge_labels(r: &mut Repo, ms: &dyn Measure, e: Eid, pts: &[P]) {
             r.remove(lv, "visible");
         }
         let w = if t.is_empty() { 0.0 } else { ms.width(&t, 0) };
+        let lh = ms.size();
         r.set(lv, "width", num(w));
-        r.set(lv, "height", json!(LABEL_H));
+        r.set(lv, "height", num(lh));
         let (p1, p2) = label_anchor(r, lv, pts);
         let d = point_away_line(p1, p2, r.f(lv, "alpha"), r.f(lv, "distance"));
         r.set(lv, "left", num(d.x + p1.x - (w / 2.0).floor()));
-        r.set(lv, "top", num(d.y + p1.y - (LABEL_H / 2.0).floor()));
+        r.set(lv, "top", num(d.y + p1.y - (lh / 2.0).floor()));
     }
 }
 
