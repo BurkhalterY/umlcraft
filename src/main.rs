@@ -1,6 +1,9 @@
 //! UMLCraft: a UML modeler that reads and writes StarUML .mdj project files.
 //! Start-up: window, fonts, theme, a file to open and the `--screenshot <file.png>` option.
 
+// no console window next to the app on Windows (release builds)
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 mod app;
 mod canvas;
 mod icons;
@@ -37,15 +40,18 @@ fn system_font(pattern: &str) -> Option<String> {
 pub(crate) fn setup_fonts(ctx: &egui::Context) {
     let mut fonts = FontDefinitions::default();
     let lib = "/usr/share/fonts/truetype/liberation";
+    // where Arial (or a metric-compatible face) lives on Linux/FreeBSD, Windows and macOS
+    let win = "C:\\Windows\\Fonts";
+    let mac = "/System/Library/Fonts/Supplemental";
     let faces = [
-        ("arial", DIAGRAM_FONT, format!("{lib}/LiberationSans-Regular.ttf")),
-        ("arial-b", "Arial:bold", format!("{lib}/LiberationSans-Bold.ttf")),
-        ("arial-i", "Arial:italic", format!("{lib}/LiberationSans-Italic.ttf")),
-        ("arial-bi", "Arial:bold:italic", format!("{lib}/LiberationSans-BoldItalic.ttf")),
+        ("arial", DIAGRAM_FONT, vec![format!("{lib}/LiberationSans-Regular.ttf"), "/usr/local/share/fonts/Liberation/LiberationSans-Regular.ttf".into(), format!("{win}\\arial.ttf"), format!("{mac}/Arial.ttf"), "/Library/Fonts/Arial.ttf".into()]),
+        ("arial-b", "Arial:bold", vec![format!("{lib}/LiberationSans-Bold.ttf"), "/usr/local/share/fonts/Liberation/LiberationSans-Bold.ttf".into(), format!("{win}\\arialbd.ttf"), format!("{mac}/Arial Bold.ttf"), "/Library/Fonts/Arial Bold.ttf".into()]),
+        ("arial-i", "Arial:italic", vec![format!("{lib}/LiberationSans-Italic.ttf"), "/usr/local/share/fonts/Liberation/LiberationSans-Italic.ttf".into(), format!("{win}\\ariali.ttf"), format!("{mac}/Arial Italic.ttf"), "/Library/Fonts/Arial Italic.ttf".into()]),
+        ("arial-bi", "Arial:bold:italic", vec![format!("{lib}/LiberationSans-BoldItalic.ttf"), "/usr/local/share/fonts/Liberation/LiberationSans-BoldItalic.ttf".into(), format!("{win}\\arialbi.ttf"), format!("{mac}/Arial Bold Italic.ttf"), "/Library/Fonts/Arial Bold Italic.ttf".into()]),
     ];
     let faces: Vec<(&str, Vec<String>)> = faces
         .into_iter()
-        .map(|(name, pattern, known)| (name, system_font(pattern).into_iter().chain(std::iter::once(known)).collect()))
+        .map(|(name, pattern, known)| (name, system_font(pattern).into_iter().chain(known).collect()))
         .collect();
     let fallback: Vec<String> = fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
     for (name, paths) in faces {
@@ -62,6 +68,8 @@ pub(crate) fn setup_fonts(ctx: &egui::Context) {
         "/usr/share/fonts/opentype/source-sans-pro/SourceSansPro-Regular.otf",
         "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/local/share/fonts/noto/NotoSans-Regular.ttf",
+        "C:\\Windows\\Fonts\\segoeui.ttf",
     ]) {
         fonts.font_data.insert("ui".into(), Arc::new(FontData::from_owned(bytes)));
         fonts.families.entry(FontFamily::Proportional).or_default().insert(0, "ui".into());
