@@ -1256,6 +1256,7 @@ impl App {
                 ui.checkbox(&mut self.snap, "Snap to Grid");
                 ui.separator();
                 ui.checkbox(&mut self.show_minimap, "Minimap               Ctrl+Alt+M");
+                ui.checkbox(&mut self.show_markdown, "Markdown Documentation  Ctrl+Alt+D");
                 ui.checkbox(&mut self.show_thumbnails, "Diagram Thumbnails  Ctrl+Alt+T");
                 ui.checkbox(&mut self.show_relationships, "Relationships     Ctrl+Alt+R");
                 ui.separator();
@@ -1620,7 +1621,10 @@ impl App {
                 self.reveal(f);
             }
         }
-        // Ctrl+Shift+D first: Ctrl+D also matches when Shift is held
+        // Ctrl+Alt+D and Ctrl+Shift+D first: Ctrl+D also matches when Alt or Shift is held
+        if hit(sc(Modifiers::COMMAND | Modifiers::ALT, Key::D)) {
+            self.show_markdown = !self.show_markdown;
+        }
         if hit(sc(cs, Key::D)) {
             self.open_sub_diagram();
         }
@@ -2151,6 +2155,9 @@ impl eframe::App for App {
         }
         if self.show_validation {
             Panel::bottom("validation").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.validation_ui(ui));
+        }
+        if self.show_markdown {
+            Panel::bottom("markdown").exact_size(200.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.markdown_ui(ui));
         }
         if self.show_thumbnails {
             Panel::bottom("thumbnails").exact_size(130.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.thumbnails_ui(ui));

@@ -92,6 +92,7 @@ impl App {
         self.show_relationships = p.bool("view.relationships.visibility", false);
         self.show_thumbnails = p.bool("view.diagramThumbnails.visibility", false);
         self.show_minimap = p.bool("view.minimap.visibility", true);
+        self.show_markdown = p.bool("view.markdown.visibility", false);
     }
 
     /// Record the current settings; the file is written only when they changed.
@@ -113,6 +114,7 @@ impl App {
             ("view.relationships.visibility", json!(self.show_relationships)),
             ("view.diagramThumbnails.visibility", json!(self.show_thumbnails)),
             ("view.minimap.visibility", json!(self.show_minimap)),
+            ("view.markdown.visibility", json!(self.show_markdown)),
         ];
         for (k, v) in vals {
             self.prefs.set(k, v);

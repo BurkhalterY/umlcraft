@@ -2121,3 +2121,34 @@ fn minimap_toggle_is_remembered() {
     assert!(!b.show_minimap);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn markdown_blocks_and_spans() {
+    use crate::markdown::{parse, spans, Block};
+    let b = parse("# Title\n\nSome *text*\nand more.\n\n- one\n  - two\n1. first\n> quoted\n```\nlet x = 1;\n```\n---");
+    assert_eq!(
+        b,
+        vec![
+            Block::Heading(1, "Title".into()),
+            Block::Paragraph("Some *text* and more.".into()),
+            Block::Bullet(0, "one".into()),
+            Block::Bullet(1, "two".into()),
+            Block::Numbered(0, "1".into(), "first".into()),
+            Block::Quote("quoted".into()),
+            Block::Code("let x = 1;".into()),
+            Block::Rule,
+        ]
+    );
+    assert_eq!(
+        spans("a **b** *c* `d` snake_case"),
+        vec![
+            ("a ".into(), false, false, false),
+            ("b".into(), true, false, false),
+            (" ".into(), false, false, false),
+            ("c".into(), false, true, false),
+            (" ".into(), false, false, false),
+            ("d".into(), false, false, true),
+            (" snake_case".into(), false, false, false),
+        ]
+    );
+}

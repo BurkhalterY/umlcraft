@@ -12,6 +12,7 @@ mod export;
 mod find;
 mod generate;
 mod layout;
+mod markdown;
 mod canvas;
 mod icons;
 mod input;

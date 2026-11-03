@@ -190,6 +190,12 @@ pub struct App {
     pub show_thumbnails: bool,
     /// View > Minimap: the overview in the canvas corner (view.minimap.visibility, on by default).
     pub show_minimap: bool,
+    /// View > Markdown Documentation: the panel (view.markdown.visibility), its mode and its text.
+    pub show_markdown: bool,
+    pub md_preview: bool,
+    pub md_buf: String,
+    pub md_for: Option<Eid>,
+    pub md_editing: bool,
     /// Give the keyboard back to the canvas on the next frame (after an inline edit closes).
     pub refocus_canvas: bool,
     /// When the last auto-backup was written.
@@ -281,6 +287,11 @@ impl App {
             show_relationships: false,
             show_thumbnails: false,
             show_minimap: true,
+            show_markdown: false,
+            md_preview: false,
+            md_buf: String::new(),
+            md_for: None,
+            md_editing: false,
             refocus_canvas: false,
             last_backup: std::time::Instant::now(),
             print_open: false,
