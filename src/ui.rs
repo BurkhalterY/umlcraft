@@ -1410,7 +1410,8 @@ impl App {
 
     pub(crate) fn format_toggles(&mut self, ui: &mut egui::Ui) {
         for (i, (field, label)) in FORMAT_TOGGLES.into_iter().enumerate() {
-            if i == 2 || i == 6 {
+            // UML display toggles after Auto Resize and Show Shadow, then the Suppress ones
+            if i == 2 || field == "suppressAttributes" {
                 ui.separator();
             }
             let has = !self.flag_views(field).is_empty();
