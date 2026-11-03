@@ -1800,3 +1800,27 @@ fn template_parameters() {
     assert_eq!(a.repo.str(t, "parameterType"), "");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn print_to_pdf() {
+    use crate::pdf::PrintOptions;
+    let ms = measure();
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let all = a.print_diagrams(true);
+    assert_eq!(all.len(), a.repo.all_of("Diagram").len());
+    let o = PrintOptions::default();
+    assert_eq!(o.page(), (841.89, 595.28), "A4 landscape by default");
+    let pdf = a.print_pdf(&o, &ms).unwrap();
+    let text = String::from_utf8_lossy(&pdf);
+    assert!(text.starts_with("%PDF-1.4"));
+    assert!(text.trim_end().ends_with("%%EOF"));
+    assert_eq!(text.matches("/Type /Page ").count(), all.len());
+    assert!(text.contains(&format!("({})", a.path_name(all[0]))), "the diagram name is printed");
+    let one = a.print_pdf(&PrintOptions { all: false, show_name: false, size: "letter".into(), landscape: false }, &ms).unwrap();
+    let text = String::from_utf8_lossy(&one);
+    assert_eq!(text.matches("/Type /Page ").count(), 1);
+    assert!(text.contains("/MediaBox [0 0 612.00 792.00]"));
+    assert!(!text.contains(" Tj "));
+    assert!(a.pdf_of(&[], &o, &ms).is_err());
+}

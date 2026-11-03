@@ -188,6 +188,8 @@ pub struct App {
     pub refocus_canvas: bool,
     /// When the last auto-backup was written.
     pub last_backup: std::time::Instant,
+    /// The Print to PDF dialog is open.
+    pub print_open: bool,
 }
 
 impl App {
@@ -268,6 +270,7 @@ impl App {
             show_validation: false,
             refocus_canvas: false,
             last_backup: std::time::Instant::now(),
+            print_open: false,
         };
         a.set_project(Repo::blank(), None);
         a

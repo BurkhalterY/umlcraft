@@ -16,6 +16,7 @@ mod meta;
 mod model;
 mod palette;
 mod parse;
+mod pdf;
 mod prefs;
 mod related;
 mod render;

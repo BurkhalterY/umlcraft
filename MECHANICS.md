@@ -102,6 +102,16 @@ returned nothing).
 | Native side | `toPNG` 0xec2c6e/0x101d688 and `image/png` are Electron API table entries only; no function to follow | native_strings_find ev_b82b90eb… |
 | UMLCraft | draws the SVG off-screen with resvg for PNG export, so scrolled-out parts and the grid do not matter; trial watermarks of the original are not copied | `src/render.rs` to_png, to_svg_sized |
 
+## Print to PDF
+
+| Rule | Value | Source |
+|---|---|---|
+| Options and defaults | range all, layout landscape, size A4, show name on; saved to `print.options` on each change | `src/dialogs/print-dialog.js:33-76` |
+| Page layout | one diagram per page, 30 pt margin, scale `min(pageW / bounds.x2, pageH / bounds.y2)` capped at 1 | `src/engine/diagram-export.js:318-362` |
+| Caption | the diagram's path name, Helvetica 10, above the diagram | `diagram-export.js:318-362` |
+| Page sizes | PDFKit's: 4A0, 2A0, A0–A10, B0–B10, C0–C10, RA0–RA4, SRA0–SRA4, Executive, Folio, Legal, Letter, Tabloid | `static/html-contents/print-dialog.html` |
+| UMLCraft | writes the PDF itself, with each diagram as a JPEG at twice the printed size instead of vector shapes | `src/pdf.rs` |
+
 ## Window (dark theme, the default)
 
 | Name | Value | Source |

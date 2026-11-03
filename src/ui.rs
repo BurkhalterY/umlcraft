@@ -1048,6 +1048,10 @@ impl App {
                         }
                     }
                 });
+                if ui.button("Print to PDF...").clicked() {
+                    self.print_open = true;
+                    ui.close();
+                }
                 ui.separator();
                 if ui.button("Preferences...").clicked() {
                     self.prefs_open = Some("General".into());
@@ -1729,6 +1733,7 @@ impl App {
         }
         self.diagram_picker_ui(ctx);
         self.color_dialog_ui(ctx);
+        self.print_dialog_ui(ctx);
         self.preferences_ui(ctx);
         self.tag_editor_ui(ctx);
         self.palette_ui(ctx);
