@@ -116,6 +116,8 @@ pub struct App {
     pub expanded: HashSet<Eid>,
     pub search: String,
     pub sort_by_name: bool,
+    /// Tree labels show «stereotype» before the name (explorer.showStereotype, default on).
+    pub show_stereotype: bool,
     pub open_groups: HashSet<&'static str>,
     /// The diagram type the toolbox groups were last opened for.
     pub toolbox_for: Option<String>,
@@ -188,6 +190,7 @@ impl App {
             expanded: HashSet::new(),
             search: String::new(),
             sort_by_name: false,
+            show_stereotype: true,
             open_groups: HashSet::new(),
             toolbox_for: None,
             prop_buf: HashMap::new(),

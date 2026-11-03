@@ -1310,3 +1310,33 @@ fn stereotype_display_commands() {
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     assert!(a.repo.raw(st, "visible").is_none());
 }
+
+#[test]
+fn explorer_keys_and_settings() {
+    let mut a = App::new(None);
+    let model = a.repo.children(a.repo.root)[0].1;
+    let p = a.add_model(model, "UMLPackage");
+    let c = a.add_model(p, "UMLClass");
+    a.repo.set(c, "stereotype", json!("entity"));
+    a.expanded.clear();
+    a.expand_all();
+    let rows = a.visible_rows();
+    assert!(rows.contains(&c), "Expand All opens every level");
+    a.expanded.clear();
+    assert_eq!(a.visible_rows(), vec![a.repo.root], "Collapse All");
+    a.expanded.insert(a.repo.root);
+    a.focus = Some(model);
+    a.tree_keys((false, false, false, true));
+    assert!(a.expanded.contains(&model), "Right opens");
+    a.tree_keys((false, false, false, true));
+    let first = a.explorer_children(model)[0];
+    assert_eq!(a.focus, Some(first), "Right again goes to the first child");
+    a.tree_keys((false, false, true, false));
+    assert_eq!(a.focus, Some(model), "Left goes to the parent");
+    a.tree_keys((false, false, true, false));
+    assert!(!a.expanded.contains(&model), "Left again closes");
+    a.tree_keys((true, false, false, false));
+    assert_eq!(a.focus, Some(a.repo.root), "Up");
+    a.tree_keys((false, true, false, false));
+    assert_eq!(a.focus, Some(model), "Down");
+}

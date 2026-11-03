@@ -173,7 +173,7 @@ impl App {
         if name.is_empty() { format!("({})", t.trim_start_matches("UML")) } else { name }
     }
 
-    fn tree_row(&mut self, ui: &mut egui::Ui, e: Eid, depth: usize, has_kids: bool, open: bool) {
+    fn tree_row(&mut self, ui: &mut egui::Ui, e: Eid, depth: usize, has_kids: bool, open: bool, search_parent: Option<String>) {
         let w = ui.available_width();
         let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, 22.0), Sense::click_and_drag());
         let x0 = rect.left() + 4.0 + depth as f32 * 16.0;
@@ -189,7 +189,16 @@ impl App {
         }
         let ir = Rect::from_min_size(Pos2::new(x0 + 16.0, rect.center().y - 8.0), Vec2::splat(16.0));
         icons::draw(p, ir, icons::key_for(&self.repo, e));
-        let label = self.label_of(e);
+        let mut label = self.label_of(e);
+        if self.show_stereotype {
+            let st = views::stereotype_text(&self.repo, e);
+            if !st.is_empty() {
+                label = format!("{st} {label}");
+            }
+        }
+        if let Some(parent) = search_parent {
+            label = format!("{label} — {parent}");
+        }
         let tx = ir.right() + 6.0;
         let tw = text_galley_width(ui, &label, 13.0);
         if self.focus == Some(e) {
@@ -250,7 +259,7 @@ impl App {
     fn tree(&mut self, ui: &mut egui::Ui, e: Eid, depth: usize) {
         let kids = self.explorer_children(e);
         let open = self.expanded.contains(&e);
-        self.tree_row(ui, e, depth, !kids.is_empty(), open);
+        self.tree_row(ui, e, depth, !kids.is_empty(), open, None);
         if open {
             for k in kids {
                 if self.repo.alive(k) {
@@ -334,9 +343,9 @@ impl App {
             let p = ui.painter();
             p.add(egui::Shape::convex_polygon(vec![c + Vec2::new(-4.0, -1.5), c + Vec2::new(4.0, -1.5), c + Vec2::new(0.0, -6.5)], TEXT, Stroke::NONE));
             p.add(egui::Shape::convex_polygon(vec![c + Vec2::new(-4.0, 1.5), c + Vec2::new(4.0, 1.5), c + Vec2::new(0.0, 6.5)], TEXT, Stroke::NONE));
-            if resp.on_hover_text("Sort by name").clicked() {
-                self.sort_by_name = !self.sort_by_name;
-            }
+            // the settings button opens the model-explorer-settings menu (model-explorer-view.js:632-641)
+            let resp = resp.on_hover_text("Settings");
+            egui::Popup::menu(&resp).show(|ui| self.explorer_settings_menu(ui));
         });
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
@@ -345,19 +354,122 @@ impl App {
                 let root = self.repo.root;
                 self.tree(ui, root, 0);
             } else {
-                let all: Vec<Eid> = self.repo.all().filter(|e| !self.is_view(*e)).collect();
+                // quick search: names containing the text, at most 99, with " — parent" (model-explorer-view.js:644-686)
+                let all: Vec<Eid> = self.repo.all().filter(|e| !self.is_view(*e) && self.repo.name(*e).to_lowercase().contains(&q)).take(99).collect();
                 for e in all {
-                    if self.label_of(e).to_lowercase().contains(&q) {
-                        self.tree_row(ui, e, 0, false, false);
+                    let parent = self.repo.parent(e).map(|p| self.repo.name(p)).filter(|n| !n.is_empty());
+                    let before = self.focus;
+                    self.tree_row(ui, e, 0, false, false, parent);
+                    // picking a result jumps to it in the tree
+                    if self.focus == Some(e) && before != Some(e) {
+                        self.search.clear();
+                        self.reveal(e);
                     }
                 }
             }
             ui.add_space(8.0);
         });
+        // arrow keys walk the tree while it is the last area used
+        if self.last_area == Area::Explorer && self.editing.is_none() && !text_field_focused(ui.ctx()) && self.search.trim().is_empty() {
+            let keys = ui.input(|i| (i.key_pressed(egui::Key::ArrowUp), i.key_pressed(egui::Key::ArrowDown), i.key_pressed(egui::Key::ArrowLeft), i.key_pressed(egui::Key::ArrowRight)));
+            self.tree_keys(keys);
+        }
         if ui.ui_contains_pointer() && ui.input(|i| i.key_pressed(egui::Key::Delete)) && self.last_area == Area::Explorer && !text_field_focused(ui.ctx()) {
             if let Some(f) = self.focus.filter(|f| self.repo.ty(*f) != "Project" && !self.is_view(*f)) {
                 self.change(|a| a.delete_models(&[f]));
             }
+        }
+    }
+
+    /// The model-explorer-settings menu: sort order, stereotype text, Expand All and Collapse All.
+    fn explorer_settings_menu(&mut self, ui: &mut egui::Ui) {
+        if ui.radio(!self.sort_by_name, "Sort By Added").clicked() {
+            self.sort_by_name = false;
+            ui.close();
+        }
+        if ui.radio(self.sort_by_name, "Sort By Name").clicked() {
+            self.sort_by_name = true;
+            ui.close();
+        }
+        ui.separator();
+        if ui.checkbox(&mut self.show_stereotype, "Show Stereotype Text").clicked() {
+            ui.close();
+        }
+        ui.separator();
+        if ui.button("Expand All").clicked() {
+            self.expand_all();
+            ui.close();
+        }
+        if ui.button("Collapse All").clicked() {
+            self.expanded.clear();
+            ui.close();
+        }
+    }
+
+    /// Expand All: open every element that has children in the tree (model-explorer-view.js:455-477).
+    pub fn expand_all(&mut self) {
+        let all: Vec<Eid> = self.repo.all().filter(|e| !self.is_view(*e)).collect();
+        for e in all {
+            if !self.explorer_children(e).is_empty() {
+                self.expanded.insert(e);
+            }
+        }
+    }
+
+    /// The rows the tree shows, top to bottom.
+    pub fn visible_rows(&self) -> Vec<Eid> {
+        fn walk(a: &App, e: Eid, out: &mut Vec<Eid>) {
+            out.push(e);
+            if a.expanded.contains(&e) {
+                for k in a.explorer_children(e) {
+                    if a.repo.alive(k) {
+                        walk(a, k, out);
+                    }
+                }
+            }
+        }
+        let mut out = vec![];
+        walk(self, self.repo.root, &mut out);
+        out
+    }
+
+    /// Up/Down move to the previous or next row; Right opens a row or goes to its first child; Left
+    /// closes it or goes to its parent (the tree widget's own keys).
+    pub fn tree_keys(&mut self, (up, down, left, right): (bool, bool, bool, bool)) {
+        if !(up || down || left || right) {
+            return;
+        }
+        let rows = self.visible_rows();
+        let Some(f) = self.focus.filter(|f| rows.contains(f)) else {
+            if let Some(&first) = rows.first() {
+                self.focus_element(first);
+            }
+            return;
+        };
+        let i = rows.iter().position(|x| *x == f).unwrap_or(0);
+        let kids = !self.explorer_children(f).is_empty();
+        let target = if up {
+            i.checked_sub(1).map(|j| rows[j])
+        } else if down {
+            rows.get(i + 1).copied()
+        } else if right {
+            if kids && !self.expanded.contains(&f) {
+                self.expanded.insert(f);
+                None
+            } else if kids {
+                self.explorer_children(f).first().copied()
+            } else {
+                None
+            }
+        } else if kids && self.expanded.contains(&f) {
+            self.expanded.remove(&f);
+            None
+        } else {
+            self.repo.parent(f)
+        };
+        if let Some(t) = target {
+            self.focus_element(t);
+            self.reveal(t);
         }
     }
 

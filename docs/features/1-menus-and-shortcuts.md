@@ -14,71 +14,71 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | `ctrl-alt-m` | `minimap:toggle` | 🟡 | minimap always drawn in the canvas corner (src/canvas.rs:409), cannot be toggled | extensions/default/minimap/keymaps/minimap.json |
 | `ctrl-alt-r` | `relationship-view:toggle` | ❌ |  | extensions/default/relationship-view/keymaps/relationship-view.json |
 | `ctrl-shift-u` | `erd:suppress-columns` | ❌ |  | extensions/essential/erd/keymaps/erd.json |
-| `ctrl-shift-0` | `format:stereotype-none` | ✅ | sets stereotypeDisplay to none on the selected views; the stereotype is hidden (src/ui.rs:1166, 1232; src/style.rs:110) | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-1` | `format:stereotype-label` | ✅ | sets stereotypeDisplay to label; the «stereotype» line is drawn (src/ui.rs:1166, 1232; src/style.rs:110) | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-2` | `format:stereotype-decoration` | 🟡 | the value is set, but UMLCraft draws no stereotype decoration icon (src/ui.rs:1166, 1232; src/style.rs:110) | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-3` | `format:stereotype-decoration-label` | 🟡 | the value is set and the label drawn, but no decoration icon (src/ui.rs:1166, 1232; src/style.rs:110) | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-4` | `format:stereotype-icon` | 🟡 | the value is set; only interfaces have an icon (the ball) (src/ui.rs:1166, 1232; src/style.rs:110) | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-5` | `format:stereotype-icon-label` | 🟡 | the value is set; only interfaces have an icon (the ball), and stereotype icons are not drawn (src/ui.rs:1166, 1232; src/style.rs:110) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-0` | `format:stereotype-none` | ✅ | sets stereotypeDisplay to none on the selected views; the stereotype is hidden (src/ui.rs:1278, 1344; src/style.rs:110) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-1` | `format:stereotype-label` | ✅ | sets stereotypeDisplay to label; the «stereotype» line is drawn (src/ui.rs:1278, 1344; src/style.rs:110) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-2` | `format:stereotype-decoration` | 🟡 | the value is set, but UMLCraft draws no stereotype decoration icon (src/ui.rs:1278, 1344; src/style.rs:110) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-3` | `format:stereotype-decoration-label` | 🟡 | the value is set and the label drawn, but no decoration icon (src/ui.rs:1278, 1344; src/style.rs:110) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-4` | `format:stereotype-icon` | 🟡 | the value is set; only interfaces have an icon (the ball) (src/ui.rs:1278, 1344; src/style.rs:110) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-5` | `format:stereotype-icon-label` | 🟡 | the value is set; only interfaces have an icon (the ball), and stereotype icons are not drawn (src/ui.rs:1278, 1344; src/style.rs:110) | extensions/essential/uml/keymaps/uml.json |
 | `ctrl-shift-w` | `format:word-wrap` | ❌ |  | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-v` | `format:show-visibility` | 🟡 | Ctrl+Shift+V toggles showVisibility; egui turns Ctrl+Shift+V into a paste, so the key works only while the clipboard holds text (src/ui.rs:1238-1253; src/app.rs:1049) | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-n` | `format:show-namespace` | ✅ | Ctrl+Shift+N toggles showNamespace on the selected views that have it (src/ui.rs:1238; src/app.rs:1049) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-v` | `format:show-visibility` | 🟡 | Ctrl+Shift+V toggles showVisibility; egui turns Ctrl+Shift+V into a paste, so the key works only while the clipboard holds text (src/ui.rs:1350-1365; src/app.rs:1052) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-n` | `format:show-namespace` | ✅ | Ctrl+Shift+N toggles showNamespace on the selected views that have it (src/ui.rs:1350; src/app.rs:1052) | extensions/essential/uml/keymaps/uml.json |
 | `ctrl-shift-b` | `format:show-property` | ❌ |  | extensions/essential/uml/keymaps/uml.json |
 | `ctrl-shift-y` | `format:show-type` | ❌ |  | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-m` | `format:show-multiplicity` | ✅ | Ctrl+Shift+M toggles showMultiplicity on the selected views that have it (src/ui.rs:1238; src/app.rs:1049) | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-j` | `format:show-operation-signature` | ✅ | Ctrl+Shift+J toggles showOperationSignature on the selected views that have it (src/ui.rs:1238; src/app.rs:1049) | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-d` | `format:show-diagram-name` | ❌ | no Show Diagram Name; in UMLCraft Ctrl+Shift+D is Open Sub-Diagram, from the default keymap (src/ui.rs:1317) | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-a` | `format:suppress-attributes` | ✅ | Ctrl+Shift+A toggles suppressAttributes on the selected views that have it (src/ui.rs:1238; src/app.rs:1049) | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-o` | `format:suppress-operations` | ✅ | Ctrl+Shift+O toggles suppressOperations on the selected views that have it (src/ui.rs:1238; src/app.rs:1049) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-m` | `format:show-multiplicity` | ✅ | Ctrl+Shift+M toggles showMultiplicity on the selected views that have it (src/ui.rs:1350; src/app.rs:1052) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-j` | `format:show-operation-signature` | ✅ | Ctrl+Shift+J toggles showOperationSignature on the selected views that have it (src/ui.rs:1350; src/app.rs:1052) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-d` | `format:show-diagram-name` | ❌ | no Show Diagram Name; in UMLCraft Ctrl+Shift+D is Open Sub-Diagram, from the default keymap (src/ui.rs:1429) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-a` | `format:suppress-attributes` | ✅ | Ctrl+Shift+A toggles suppressAttributes on the selected views that have it (src/ui.rs:1350; src/app.rs:1052) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-shift-o` | `format:suppress-operations` | ✅ | Ctrl+Shift+O toggles suppressOperations on the selected views that have it (src/ui.rs:1350; src/app.rs:1052) | extensions/essential/uml/keymaps/uml.json |
 | `ctrl-shift-e` | `format:suppress-receptions` | ❌ |  | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-shift-t` | `format:suppress-literals` | ✅ | Ctrl+Shift+T toggles suppressLiterals on the selected views that have it (src/ui.rs:1238; src/app.rs:1049) | extensions/essential/uml/keymaps/uml.json |
-| `ctrl-n` | `application:new` | ✅ | File › New, Ctrl+N (src/ui.rs:836, 1255) | resources/default/keymaps/linux.json |
-| `ctrl-o` | `project:open` | ✅ | File › Open, Ctrl+O (src/ui.rs:840, 1258) | resources/default/keymaps/linux.json |
-| `ctrl-s` | `project:save` | ✅ | Ctrl+S (src/ui.rs:845, 1264) | resources/default/keymaps/linux.json |
-| `ctrl-shift-s` | `project:save-as` | ✅ | Ctrl+Shift+S (src/ui.rs:849, 1261) | resources/default/keymaps/linux.json |
-| `ctrl-q` | `application:quit` | ✅ | File › Exit, Ctrl+Q, with unsaved-changes prompt (src/ui.rs:868, 1267, 1617) | resources/default/keymaps/linux.json |
-| `ctrl-z` | `edit:undo` | ✅ | Ctrl+Z (src/ui.rs:1281) | resources/default/keymaps/linux.json |
-| `ctrl-y` | `edit:redo` | ✅ | Ctrl+Y and Ctrl+Shift+Z (src/ui.rs:1278) | resources/default/keymaps/linux.json |
-| `ctrl-x` | `edit:cut` | ✅ | Ctrl+X, Edit, canvas and explorer menus: copies, then removes the views (canvas) or deletes the model (explorer) (src/clipboard.rs:198; src/ui.rs:1126, 1288) | resources/default/keymaps/linux.json |
-| `ctrl-c` | `edit:copy` | ✅ | Ctrl+C, Edit, canvas and explorer menus: views or one model as JSON on the system clipboard, in UMLCraft's own layout (src/clipboard.rs:108, 191; src/ui.rs:1126, 1288) | resources/default/keymaps/linux.json |
-| `ctrl-shift-c` | `edit:copy-diagram-as-image` | ✅ | Ctrl+Shift+C and Edit menu: deselects, draws the diagram as PNG export does and puts the picture on the system clipboard, white background outside macOS (src/clipboard.rs:165; src/ui.rs:1136, 1299, 1414) | resources/default/keymaps/linux.json |
-| `ctrl-v` | `edit:paste` | ✅ | Ctrl+V, Edit, canvas and explorer menus: views as new views of the same models, centred on screen; a model as a deep copy into the selected element (src/clipboard.rs:251-332; src/ui.rs:1126, 1288) | resources/default/keymaps/linux.json |
-| `delete` | `edit:delete` | ✅ | Delete key and Edit menu (src/canvas.rs:560, src/ui.rs:884) | resources/default/keymaps/linux.json |
-| `ctrl-delete` | `edit:delete-from-model` | ✅ | Ctrl+Delete (src/ui.rs:1305) | resources/default/keymaps/linux.json |
-| `ctrl-shift-up` | `edit:move-up` | ✅ | Ctrl+Shift+Up, Edit and explorer menus: swaps with the previous sibling of the same explorer group (src/app.rs:920; src/ui.rs:1113, 1323) | resources/default/keymaps/linux.json |
-| `ctrl-shift-down` | `edit:move-down` | ✅ | Ctrl+Shift+Down, Edit and explorer menus: swaps with the next sibling of the same explorer group (src/app.rs:920; src/ui.rs:1113, 1323) | resources/default/keymaps/linux.json |
-| `ctrl-a` | `edit:select-all` | ✅ | Ctrl+A (src/ui.rs:1308) | resources/default/keymaps/linux.json |
-| `ctrl-e` | `edit:select-in-explorer` | ✅ | Ctrl+E (src/ui.rs:1311) | resources/default/keymaps/linux.json |
-| `ctrl-d` | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:960; src/ui.rs:1320, 903, 308; src/canvas.rs:1474) | resources/default/keymaps/linux.json |
-| `ctrl-shift-d` | `edit:open-sub-diagram` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:938; src/ui.rs:907, 1317; src/canvas.rs:1479) | resources/default/keymaps/linux.json |
-| `ctrl-shift-f` | `format:font` | ✅ | Ctrl+Shift+F and Format › Font... (main and canvas menus) open the Font window: face, size and colour pre-filled with the merged values. The face is stored but drawn with the Arial-compatible font (src/ui.rs:1229, 915, 1516-1573; src/style.rs:74) | resources/default/keymaps/linux.json |
-| `ctrl-shift-i` | `format:fill-color` | ✅ | Ctrl+Shift+I opens a colour window; Format › Fill Color (main and canvas menus) has a colour picker; both apply the merged colour to the selected views (src/ui.rs:1238, 1081, 1583; src/style.rs:35) | resources/default/keymaps/linux.json |
-| `ctrl-shift-l` | `format:line-color` | ✅ | Ctrl+Shift+L opens a colour window; Format › Line Color has a colour picker (src/ui.rs:1238, 1081, 1583; src/style.rs:35) | resources/default/keymaps/linux.json |
-| `ctrl-l` | `format:linestyle-rectilinear` | ✅ | Ctrl+L and a check item in Format › Line Style (main and canvas menus) (src/app.rs:1018; src/ui.rs:1096, 1338) | resources/default/keymaps/linux.json |
-| `ctrl-b` | `format:linestyle-oblique` | ✅ | Ctrl+B and a check item in Format › Line Style (src/app.rs:1018; src/ui.rs:1096, 1341) | resources/default/keymaps/linux.json |
-| `ctrl-alt-l` | `format:linestyle-roundrect` | ✅ | Ctrl+Alt+L and Format › Line Style › Rounded Rectilinear: routed like rectilinear, drawn with rounded corners (radius estimated) (src/ui.rs:1096, 1332; src/views.rs:860) | resources/default/keymaps/linux.json |
-| `ctrl-alt-b` | `format:linestyle-curve` | ✅ | Ctrl+Alt+B and Format › Line Style › Curve: drawn as a smooth curve bending towards each point (curve shape estimated) (src/ui.rs:1096, 1335; src/views.rs:860) | resources/default/keymaps/linux.json |
-| `ctrl-shift-r` | `format:auto-resize` | ✅ | Ctrl+Shift+R and a check item in Format (main and canvas menus) and Styles: inverts the shared autoResize, or sets it when mixed (src/ui.rs:1243, 1658; src/app.rs:1027-1058) | resources/default/keymaps/linux.json |
-| `ctrl-shift-h` | `format:show-shadow` | ✅ | Ctrl+Shift+H and a check item in Format (main and canvas menus): inverts the shared value, or sets it when mixed (src/app.rs:1049, 1065; src/ui.rs:1344, 1181) | resources/default/keymaps/linux.json |
+| `ctrl-shift-t` | `format:suppress-literals` | ✅ | Ctrl+Shift+T toggles suppressLiterals on the selected views that have it (src/ui.rs:1350; src/app.rs:1052) | extensions/essential/uml/keymaps/uml.json |
+| `ctrl-n` | `application:new` | ✅ | File › New, Ctrl+N (src/ui.rs:948, 1367) | resources/default/keymaps/linux.json |
+| `ctrl-o` | `project:open` | ✅ | File › Open, Ctrl+O (src/ui.rs:952, 1370) | resources/default/keymaps/linux.json |
+| `ctrl-s` | `project:save` | ✅ | Ctrl+S (src/ui.rs:957, 1376) | resources/default/keymaps/linux.json |
+| `ctrl-shift-s` | `project:save-as` | ✅ | Ctrl+Shift+S (src/ui.rs:961, 1373) | resources/default/keymaps/linux.json |
+| `ctrl-q` | `application:quit` | ✅ | File › Exit, Ctrl+Q, with unsaved-changes prompt (src/ui.rs:980, 1379, 1729) | resources/default/keymaps/linux.json |
+| `ctrl-z` | `edit:undo` | ✅ | Ctrl+Z (src/ui.rs:1393) | resources/default/keymaps/linux.json |
+| `ctrl-y` | `edit:redo` | ✅ | Ctrl+Y and Ctrl+Shift+Z (src/ui.rs:1390) | resources/default/keymaps/linux.json |
+| `ctrl-x` | `edit:cut` | ✅ | Ctrl+X, Edit, canvas and explorer menus: copies, then removes the views (canvas) or deletes the model (explorer) (src/clipboard.rs:198; src/ui.rs:1238, 1400) | resources/default/keymaps/linux.json |
+| `ctrl-c` | `edit:copy` | ✅ | Ctrl+C, Edit, canvas and explorer menus: views or one model as JSON on the system clipboard, in UMLCraft's own layout (src/clipboard.rs:108, 191; src/ui.rs:1238, 1400) | resources/default/keymaps/linux.json |
+| `ctrl-shift-c` | `edit:copy-diagram-as-image` | ✅ | Ctrl+Shift+C and Edit menu: deselects, draws the diagram as PNG export does and puts the picture on the system clipboard, white background outside macOS (src/clipboard.rs:165; src/ui.rs:1248, 1411, 1526) | resources/default/keymaps/linux.json |
+| `ctrl-v` | `edit:paste` | ✅ | Ctrl+V, Edit, canvas and explorer menus: views as new views of the same models, centred on screen; a model as a deep copy into the selected element (src/clipboard.rs:251-332; src/ui.rs:1238, 1400) | resources/default/keymaps/linux.json |
+| `delete` | `edit:delete` | ✅ | Delete key and Edit menu (src/canvas.rs:560, src/ui.rs:996) | resources/default/keymaps/linux.json |
+| `ctrl-delete` | `edit:delete-from-model` | ✅ | Ctrl+Delete (src/ui.rs:1417) | resources/default/keymaps/linux.json |
+| `ctrl-shift-up` | `edit:move-up` | ✅ | Ctrl+Shift+Up, Edit and explorer menus: swaps with the previous sibling of the same explorer group (src/app.rs:923; src/ui.rs:1225, 1435) | resources/default/keymaps/linux.json |
+| `ctrl-shift-down` | `edit:move-down` | ✅ | Ctrl+Shift+Down, Edit and explorer menus: swaps with the next sibling of the same explorer group (src/app.rs:923; src/ui.rs:1225, 1435) | resources/default/keymaps/linux.json |
+| `ctrl-a` | `edit:select-all` | ✅ | Ctrl+A (src/ui.rs:1420) | resources/default/keymaps/linux.json |
+| `ctrl-e` | `edit:select-in-explorer` | ✅ | Ctrl+E (src/ui.rs:1423) | resources/default/keymaps/linux.json |
+| `ctrl-d` | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:963; src/ui.rs:1432, 1015, 317; src/canvas.rs:1474) | resources/default/keymaps/linux.json |
+| `ctrl-shift-d` | `edit:open-sub-diagram` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:941; src/ui.rs:1019, 1429; src/canvas.rs:1479) | resources/default/keymaps/linux.json |
+| `ctrl-shift-f` | `format:font` | ✅ | Ctrl+Shift+F and Format › Font... (main and canvas menus) open the Font window: face, size and colour pre-filled with the merged values. The face is stored but drawn with the Arial-compatible font (src/ui.rs:1341, 1027, 1628-1685; src/style.rs:74) | resources/default/keymaps/linux.json |
+| `ctrl-shift-i` | `format:fill-color` | ✅ | Ctrl+Shift+I opens a colour window; Format › Fill Color (main and canvas menus) has a colour picker; both apply the merged colour to the selected views (src/ui.rs:1350, 1193, 1695; src/style.rs:35) | resources/default/keymaps/linux.json |
+| `ctrl-shift-l` | `format:line-color` | ✅ | Ctrl+Shift+L opens a colour window; Format › Line Color has a colour picker (src/ui.rs:1350, 1193, 1695; src/style.rs:35) | resources/default/keymaps/linux.json |
+| `ctrl-l` | `format:linestyle-rectilinear` | ✅ | Ctrl+L and a check item in Format › Line Style (main and canvas menus) (src/app.rs:1021; src/ui.rs:1208, 1450) | resources/default/keymaps/linux.json |
+| `ctrl-b` | `format:linestyle-oblique` | ✅ | Ctrl+B and a check item in Format › Line Style (src/app.rs:1021; src/ui.rs:1208, 1453) | resources/default/keymaps/linux.json |
+| `ctrl-alt-l` | `format:linestyle-roundrect` | ✅ | Ctrl+Alt+L and Format › Line Style › Rounded Rectilinear: routed like rectilinear, drawn with rounded corners (radius estimated) (src/ui.rs:1208, 1444; src/views.rs:860) | resources/default/keymaps/linux.json |
+| `ctrl-alt-b` | `format:linestyle-curve` | ✅ | Ctrl+Alt+B and Format › Line Style › Curve: drawn as a smooth curve bending towards each point (curve shape estimated) (src/ui.rs:1208, 1447; src/views.rs:860) | resources/default/keymaps/linux.json |
+| `ctrl-shift-r` | `format:auto-resize` | ✅ | Ctrl+Shift+R and a check item in Format (main and canvas menus) and Styles: inverts the shared autoResize, or sets it when mixed (src/ui.rs:1355, 1770; src/app.rs:1030-1061) | resources/default/keymaps/linux.json |
+| `ctrl-shift-h` | `format:show-shadow` | ✅ | Ctrl+Shift+H and a check item in Format (main and canvas menus): inverts the shared value, or sets it when mixed (src/app.rs:1052, 1068; src/ui.rs:1456, 1293) | resources/default/keymaps/linux.json |
 | `ctrl-shift-k` | `format:inherit-style` | ❌ |  | resources/default/keymaps/linux.json |
 | `ctrl-t` | `model:tag-editor` | ❌ |  | resources/default/keymaps/linux.json |
 | `ctrl-p` | `view:quick-find` | ❌ |  | resources/default/keymaps/linux.json |
 | `ctrl-shift-p` | `view:command-palette` | ❌ |  | resources/default/keymaps/linux.json |
-| `f4` | `view:close-diagram` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:1373, 1147; src/app.rs:864) | resources/default/keymaps/linux.json |
-| `ctrl-f4` | `view:close-other-diagrams` | ✅ | Ctrl+F4, View menu and Working Diagrams menu (src/ui.rs:1370, 1147; src/app.rs:883) | resources/default/keymaps/linux.json |
-| `shift-f4` | `view:close-all-diagrams` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:1367, 1147; src/app.rs:889) | resources/default/keymaps/linux.json |
-| `ctrl-shift-]` | `view:next-diagram` | ✅ | Ctrl+Shift+] (also reported as Ctrl+Shift+}), wraps to the first (src/ui.rs:1377, 953; src/app.rs:899) | resources/default/keymaps/linux.json |
-| `ctrl-shift-[` | `view:previous-diagram` | ✅ | Ctrl+Shift+[ (also reported as Ctrl+Shift+{), wraps to the last (src/ui.rs:1380, 957; src/app.rs:899) | resources/default/keymaps/linux.json |
-| `ctrl-plus` | `view:zoom-in` | ✅ | Ctrl+= / Ctrl++, keeps the screen centre (src/ui.rs:1347; src/canvas.rs:1548) | resources/default/keymaps/linux.json |
-| `ctrl-minus` | `view:zoom-out` | ✅ | Ctrl+-, keeps the screen centre (src/ui.rs:1350; src/canvas.rs:1548) | resources/default/keymaps/linux.json |
-| `ctrl-0` | `view:actual-size` | ✅ | Ctrl+0, keeps the screen centre (src/ui.rs:1353; src/canvas.rs:1548) | resources/default/keymaps/linux.json |
-| `ctrl-9` | `view:fit-to-window` | ✅ | Ctrl+9, centred on the bounding box (src/ui.rs:1356; src/canvas.rs:1560) | resources/default/keymaps/linux.json |
-| `ctrl-g` | `view:show-grid` | ✅ | Ctrl+G (src/ui.rs:1363) | resources/default/keymaps/linux.json |
-| `ctrl-shift-g` | `view:snap-to-grid` | ✅ | Ctrl+Shift+G, checked before Ctrl+G so it is not taken as Show Grid (src/ui.rs:1360) | resources/default/keymaps/linux.json |
-| `ctrl-1` | `view:sidebar` | 🟡 | View menu toggle, no Ctrl+1 (src/ui.rs:979) | resources/default/keymaps/linux.json |
-| `ctrl-2` | `view:navigator` | 🟡 | View menu toggle, no Ctrl+2 (src/ui.rs:980) | resources/default/keymaps/linux.json |
+| `f4` | `view:close-diagram` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:1485, 1259; src/app.rs:867) | resources/default/keymaps/linux.json |
+| `ctrl-f4` | `view:close-other-diagrams` | ✅ | Ctrl+F4, View menu and Working Diagrams menu (src/ui.rs:1482, 1259; src/app.rs:886) | resources/default/keymaps/linux.json |
+| `shift-f4` | `view:close-all-diagrams` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:1479, 1259; src/app.rs:892) | resources/default/keymaps/linux.json |
+| `ctrl-shift-]` | `view:next-diagram` | ✅ | Ctrl+Shift+] (also reported as Ctrl+Shift+}), wraps to the first (src/ui.rs:1489, 1065; src/app.rs:902) | resources/default/keymaps/linux.json |
+| `ctrl-shift-[` | `view:previous-diagram` | ✅ | Ctrl+Shift+[ (also reported as Ctrl+Shift+{), wraps to the last (src/ui.rs:1492, 1069; src/app.rs:902) | resources/default/keymaps/linux.json |
+| `ctrl-plus` | `view:zoom-in` | ✅ | Ctrl+= / Ctrl++, keeps the screen centre (src/ui.rs:1459; src/canvas.rs:1548) | resources/default/keymaps/linux.json |
+| `ctrl-minus` | `view:zoom-out` | ✅ | Ctrl+-, keeps the screen centre (src/ui.rs:1462; src/canvas.rs:1548) | resources/default/keymaps/linux.json |
+| `ctrl-0` | `view:actual-size` | ✅ | Ctrl+0, keeps the screen centre (src/ui.rs:1465; src/canvas.rs:1548) | resources/default/keymaps/linux.json |
+| `ctrl-9` | `view:fit-to-window` | ✅ | Ctrl+9, centred on the bounding box (src/ui.rs:1468; src/canvas.rs:1560) | resources/default/keymaps/linux.json |
+| `ctrl-g` | `view:show-grid` | ✅ | Ctrl+G (src/ui.rs:1475) | resources/default/keymaps/linux.json |
+| `ctrl-shift-g` | `view:snap-to-grid` | ✅ | Ctrl+Shift+G, checked before Ctrl+G so it is not taken as Show Grid (src/ui.rs:1472) | resources/default/keymaps/linux.json |
+| `ctrl-1` | `view:sidebar` | 🟡 | View menu toggle, no Ctrl+1 (src/ui.rs:1091) | resources/default/keymaps/linux.json |
+| `ctrl-2` | `view:navigator` | 🟡 | View menu toggle, no Ctrl+2 (src/ui.rs:1092) | resources/default/keymaps/linux.json |
 | `ctrl-3` | `view:toolbar` | ❌ | toolbar always shown, no Ctrl+3 | resources/default/keymaps/linux.json |
-| `ctrl-4` | `view:statusbar` | 🟡 | View menu toggle, no Ctrl+4 (src/ui.rs:981) | resources/default/keymaps/linux.json |
+| `ctrl-4` | `view:statusbar` | 🟡 | View menu toggle, no Ctrl+4 (src/ui.rs:1093) | resources/default/keymaps/linux.json |
 | `ctrl-5` | `view:toolbox` | ❌ | toolbox cannot be hidden on its own, no Ctrl+5 | resources/default/keymaps/linux.json |
 | `ctrl-6` | `view:editors` | ❌ | editors cannot be hidden on their own, no Ctrl+6 | resources/default/keymaps/linux.json |
 
@@ -86,8 +86,8 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 
 | Menu path | Command | Shortcut | UMLCraft | Notes | Source |
 |---|---|---|---|---|---|
-| Format › Alignment › Send To Back | `alignment:send-to-back` |  | ✅ | Format › Alignment › Send To Back moves the selected top-level views to the start of ownedViews (src/align.rs:146; src/ui.rs:1196) | extensions/default/alignment/menus/alignment.json |
-| Format › Alignment › Bring To Front | `alignment:bring-to-front` |  | ✅ | Format › Alignment › Bring To Front moves the selected top-level views to the end of ownedViews (src/align.rs:146; src/ui.rs:1196) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Send To Back | `alignment:send-to-back` |  | ✅ | Format › Alignment › Send To Back moves the selected top-level views to the start of ownedViews (src/align.rs:146; src/ui.rs:1308) | extensions/default/alignment/menus/alignment.json |
+| Format › Alignment › Bring To Front | `alignment:bring-to-front` |  | ✅ | Format › Alignment › Bring To Front moves the selected top-level views to the end of ownedViews (src/align.rs:146; src/ui.rs:1308) | extensions/default/alignment/menus/alignment.json |
 | Format › Alignment › Align Left | `alignment:align-left` |  | ✅ | left of every selected node set to the minimum left (src/align.rs:55) | extensions/default/alignment/menus/alignment.json |
 | Format › Alignment › Align Right | `alignment:align-right` |  | ✅ | right edges set to the maximum right (src/align.rs:58) | extensions/default/alignment/menus/alignment.json |
 | Format › Alignment › Align Center | `alignment:align-center` |  | ✅ | nodes centred on the midpoint of the horizontal extent (src/align.rs:60) | extensions/default/alignment/menus/alignment.json |
@@ -188,7 +188,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Model › Add › Property | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
 | Model › Add › Constraint Property | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
 | Model › Add › Flow Property | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Parameter | `factory:create-model` |  | ✅ | explorer Add (operations), Editors button (src/ui.rs:263) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Parameter | `factory:create-model` |  | ✅ | explorer Add (operations), Editors button (src/ui.rs:272) | extensions/essential/sysml/menus/sysml.json |
 | Format › Suppress Property Values | `format:suppress-property-values` |  | ❌ | SysML | extensions/essential/sysml/menus/sysml.json |
 | Format › Suppress Constraints | `format:suppress-constraints` |  | ❌ | SysML | extensions/essential/sysml/menus/sysml.json |
 | Format › Suppress Parts | `format:suppress-parts` |  | ❌ | SysML | extensions/essential/sysml/menus/sysml.json |
@@ -201,31 +201,31 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | File › New From Template › UML Conventional | `uml:new-from-template` |  | ❌ | no templates | extensions/essential/uml/menus/uml.json |
 | File › New From Template › 4+1 View Model | `uml:new-from-template` |  | ❌ | no templates | extensions/essential/uml/menus/uml.json |
 | File › New From Template › Rational | `uml:new-from-template` |  | ❌ | no templates | extensions/essential/uml/menus/uml.json |
-| Format › Stereotype Display › None | `format:stereotype-none` | `ctrl-shift-0` | ✅ | sets stereotypeDisplay to none on the selected views; the stereotype is hidden (src/ui.rs:1166, 1232; src/style.rs:110) | extensions/essential/uml/menus/uml.json |
-| Format › Stereotype Display › Label | `format:stereotype-label` | `ctrl-shift-1` | ✅ | sets stereotypeDisplay to label; the «stereotype» line is drawn (src/ui.rs:1166, 1232; src/style.rs:110) | extensions/essential/uml/menus/uml.json |
-| Format › Stereotype Display › Decoration | `format:stereotype-decoration` | `ctrl-shift-2` | 🟡 | the value is set, but UMLCraft draws no stereotype decoration icon (src/ui.rs:1166, 1232; src/style.rs:110) | extensions/essential/uml/menus/uml.json |
-| Format › Stereotype Display › Decoration with Label | `format:stereotype-decoration-label` | `ctrl-shift-3` | 🟡 | the value is set and the label drawn, but no decoration icon (src/ui.rs:1166, 1232; src/style.rs:110) | extensions/essential/uml/menus/uml.json |
-| Format › Stereotype Display › Icon | `format:stereotype-icon` | `ctrl-shift-4` | 🟡 | the value is set; only interfaces have an icon (the ball) (src/ui.rs:1166, 1232; src/style.rs:110) | extensions/essential/uml/menus/uml.json |
-| Format › Stereotype Display › Icon with Label | `format:stereotype-icon-label` | `ctrl-shift-5` | 🟡 | the value is set; only interfaces have an icon (the ball), and stereotype icons are not drawn (src/ui.rs:1166, 1232; src/style.rs:110) | extensions/essential/uml/menus/uml.json |
+| Format › Stereotype Display › None | `format:stereotype-none` | `ctrl-shift-0` | ✅ | sets stereotypeDisplay to none on the selected views; the stereotype is hidden (src/ui.rs:1278, 1344; src/style.rs:110) | extensions/essential/uml/menus/uml.json |
+| Format › Stereotype Display › Label | `format:stereotype-label` | `ctrl-shift-1` | ✅ | sets stereotypeDisplay to label; the «stereotype» line is drawn (src/ui.rs:1278, 1344; src/style.rs:110) | extensions/essential/uml/menus/uml.json |
+| Format › Stereotype Display › Decoration | `format:stereotype-decoration` | `ctrl-shift-2` | 🟡 | the value is set, but UMLCraft draws no stereotype decoration icon (src/ui.rs:1278, 1344; src/style.rs:110) | extensions/essential/uml/menus/uml.json |
+| Format › Stereotype Display › Decoration with Label | `format:stereotype-decoration-label` | `ctrl-shift-3` | 🟡 | the value is set and the label drawn, but no decoration icon (src/ui.rs:1278, 1344; src/style.rs:110) | extensions/essential/uml/menus/uml.json |
+| Format › Stereotype Display › Icon | `format:stereotype-icon` | `ctrl-shift-4` | 🟡 | the value is set; only interfaces have an icon (the ball) (src/ui.rs:1278, 1344; src/style.rs:110) | extensions/essential/uml/menus/uml.json |
+| Format › Stereotype Display › Icon with Label | `format:stereotype-icon-label` | `ctrl-shift-5` | 🟡 | the value is set; only interfaces have an icon (the ball), and stereotype icons are not drawn (src/ui.rs:1278, 1344; src/style.rs:110) | extensions/essential/uml/menus/uml.json |
 | Format › Word Wrap | `format:word-wrap` | `ctrl-shift-w` | ❌ |  | extensions/essential/uml/menus/uml.json |
-| Format › Show Visibility | `format:show-visibility` | `ctrl-shift-v` | ✅ | check item in Format (main and canvas menus): inverts the shared showVisibility of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) | extensions/essential/uml/menus/uml.json |
-| Format › Show Namespace | `format:show-namespace` | `ctrl-shift-n` | ✅ | check item in Format (main and canvas menus): inverts the shared showNamespace of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) | extensions/essential/uml/menus/uml.json |
+| Format › Show Visibility | `format:show-visibility` | `ctrl-shift-v` | ✅ | check item in Format (main and canvas menus): inverts the shared showVisibility of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) | extensions/essential/uml/menus/uml.json |
+| Format › Show Namespace | `format:show-namespace` | `ctrl-shift-n` | ✅ | check item in Format (main and canvas menus): inverts the shared showNamespace of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) | extensions/essential/uml/menus/uml.json |
 | Format › Show Property | `format:show-property` | `ctrl-shift-b` | ❌ |  | extensions/essential/uml/menus/uml.json |
 | Format › Show Type | `format:show-type` | `ctrl-shift-y` | ❌ |  | extensions/essential/uml/menus/uml.json |
-| Format › Show Multiplicity | `format:show-multiplicity` | `ctrl-shift-m` | ✅ | check item in Format (main and canvas menus): inverts the shared showMultiplicity of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) | extensions/essential/uml/menus/uml.json |
-| Format › Show Operation Signature | `format:show-operation-signature` | `ctrl-shift-j` | ✅ | check item in Format (main and canvas menus): inverts the shared showOperationSignature of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) | extensions/essential/uml/menus/uml.json |
+| Format › Show Multiplicity | `format:show-multiplicity` | `ctrl-shift-m` | ✅ | check item in Format (main and canvas menus): inverts the shared showMultiplicity of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) | extensions/essential/uml/menus/uml.json |
+| Format › Show Operation Signature | `format:show-operation-signature` | `ctrl-shift-j` | ✅ | check item in Format (main and canvas menus): inverts the shared showOperationSignature of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) | extensions/essential/uml/menus/uml.json |
 | Format › Show Diagram Name | `format:show-diagram-name` | `ctrl-shift-d` | ❌ |  | extensions/essential/uml/menus/uml.json |
-| Format › Suppress Attributes | `format:suppress-attributes` | `ctrl-shift-a` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressAttributes of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) | extensions/essential/uml/menus/uml.json |
-| Format › Suppress Operations | `format:suppress-operations` | `ctrl-shift-o` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressOperations of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) | extensions/essential/uml/menus/uml.json |
+| Format › Suppress Attributes | `format:suppress-attributes` | `ctrl-shift-a` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressAttributes of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) | extensions/essential/uml/menus/uml.json |
+| Format › Suppress Operations | `format:suppress-operations` | `ctrl-shift-o` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressOperations of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) | extensions/essential/uml/menus/uml.json |
 | Format › Suppress Receptions | `format:suppress-receptions` | `ctrl-shift-e` | ❌ |  | extensions/essential/uml/menus/uml.json |
-| Format › Suppress Literals | `format:suppress-literals` | `ctrl-shift-t` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressLiterals of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) | extensions/essential/uml/menus/uml.json |
-| Model › Add Diagram › Class Diagram | `factory:create-diagram` |  | ✅ | (src/ui.rs:295) | extensions/essential/uml/menus/uml.json |
+| Format › Suppress Literals | `format:suppress-literals` | `ctrl-shift-t` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressLiterals of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) | extensions/essential/uml/menus/uml.json |
+| Model › Add Diagram › Class Diagram | `factory:create-diagram` |  | ✅ | (src/ui.rs:304) | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Package Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Object Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Composite Structure Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Component Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Deployment Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
-| Model › Add Diagram › Use Case Diagram | `factory:create-diagram` |  | ✅ | (src/ui.rs:295) | extensions/essential/uml/menus/uml.json |
+| Model › Add Diagram › Use Case Diagram | `factory:create-diagram` |  | ✅ | (src/ui.rs:304) | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Sequence Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Communication Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Timing Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
@@ -236,28 +236,28 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Model › Add Diagram › Profile Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
 | Model › Add › Template Parameter | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
 | Model › Add › Template Parameter Substitution | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
-| Model › Add › Enumeration Literal | `factory:create-model` |  | ✅ | explorer Add, Model menu, Editors button (src/ui.rs:263) | extensions/essential/uml/menus/uml.json |
-| Model › Add › Attribute | `factory:create-model` |  | ✅ | explorer Add, Model menu, Editors button (src/ui.rs:263) | extensions/essential/uml/menus/uml.json |
-| Model › Add › Operation | `factory:create-model` |  | ✅ | explorer Add, Model menu, Editors button (src/ui.rs:263) | extensions/essential/uml/menus/uml.json |
+| Model › Add › Enumeration Literal | `factory:create-model` |  | ✅ | explorer Add, Model menu, Editors button (src/ui.rs:272) | extensions/essential/uml/menus/uml.json |
+| Model › Add › Attribute | `factory:create-model` |  | ✅ | explorer Add, Model menu, Editors button (src/ui.rs:272) | extensions/essential/uml/menus/uml.json |
+| Model › Add › Operation | `factory:create-model` |  | ✅ | explorer Add, Model menu, Editors button (src/ui.rs:272) | extensions/essential/uml/menus/uml.json |
 | Model › Add › Reception | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
 | Model › Add › Extension Point | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
 | Model › Add › Slot | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
 | Model › Add › Interaction Operand | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
-| Model › Add › Model | `factory:create-model` |  | ✅ | explorer Add (Project only) (src/ui.rs:263) | extensions/essential/uml/menus/uml.json |
+| Model › Add › Model | `factory:create-model` |  | ✅ | explorer Add (Project only) (src/ui.rs:272) | extensions/essential/uml/menus/uml.json |
 | Model › Add › Subsystem | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
-| Model › Add › Package | `factory:create-model` |  | ✅ | explorer Add (src/ui.rs:263) | extensions/essential/uml/menus/uml.json |
+| Model › Add › Package | `factory:create-model` |  | ✅ | explorer Add (src/ui.rs:272) | extensions/essential/uml/menus/uml.json |
 | Model › Add › Profile | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
-| Model › Add › Class | `factory:create-model` |  | ✅ | explorer Add (src/ui.rs:263) | extensions/essential/uml/menus/uml.json |
-| Model › Add › Interface | `factory:create-model` |  | ✅ | explorer Add (src/ui.rs:263) | extensions/essential/uml/menus/uml.json |
+| Model › Add › Class | `factory:create-model` |  | ✅ | explorer Add (src/ui.rs:272) | extensions/essential/uml/menus/uml.json |
+| Model › Add › Interface | `factory:create-model` |  | ✅ | explorer Add (src/ui.rs:272) | extensions/essential/uml/menus/uml.json |
 | Model › Add › Signal | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
-| Model › Add › DataType | `factory:create-model` |  | ✅ | explorer Add (src/ui.rs:263) | extensions/essential/uml/menus/uml.json |
+| Model › Add › DataType | `factory:create-model` |  | ✅ | explorer Add (src/ui.rs:272) | extensions/essential/uml/menus/uml.json |
 | Model › Add › PrimitiveType | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
-| Model › Add › Enumeration | `factory:create-model` |  | ✅ | explorer Add (src/ui.rs:263) | extensions/essential/uml/menus/uml.json |
+| Model › Add › Enumeration | `factory:create-model` |  | ✅ | explorer Add (src/ui.rs:272) | extensions/essential/uml/menus/uml.json |
 | Model › Add › Artifact | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
 | Model › Add › Component | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
 | Model › Add › Node | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
-| Model › Add › UseCase | `factory:create-model` |  | ✅ | explorer Add (Use Case) (src/ui.rs:263) | extensions/essential/uml/menus/uml.json |
-| Model › Add › Actor | `factory:create-model` |  | ✅ | explorer Add (src/ui.rs:263) | extensions/essential/uml/menus/uml.json |
+| Model › Add › UseCase | `factory:create-model` |  | ✅ | explorer Add (Use Case) (src/ui.rs:272) | extensions/essential/uml/menus/uml.json |
+| Model › Add › Actor | `factory:create-model` |  | ✅ | explorer Add (src/ui.rs:272) | extensions/essential/uml/menus/uml.json |
 | Model › Add › Stereotype | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
 | Model › Add › Information Item | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
 | Model › Add › Interaction | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
@@ -277,75 +277,75 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | File › New From Template › Wireframe Model | `wireframe:new-from-template` |  | ❌ | no templates | extensions/essential/wireframe/menus/wireframe.json |
 | Model › Add Diagram › Wireframe Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/wireframe/menus/wireframe.json |
 | Model › Add › Wireframe | `factory:create-model` |  | ❌ |  | extensions/essential/wireframe/menus/wireframe.json |
-| File › New | `application:new` | `ctrl-n` | ✅ | File › New, Ctrl+N (src/ui.rs:836, 1255) | resources/default/menus/linux.json |
+| File › New | `application:new` | `ctrl-n` | ✅ | File › New, Ctrl+N (src/ui.rs:948, 1367) | resources/default/menus/linux.json |
 | File › New From Template | `application:new-from-template` |  | ❌ | no templates | resources/default/menus/linux.json |
-| File › Open... | `project:open` | `ctrl-o` | ✅ | File › Open, Ctrl+O (src/ui.rs:840, 1258) | resources/default/menus/linux.json |
+| File › Open... | `project:open` | `ctrl-o` | ✅ | File › Open, Ctrl+O (src/ui.rs:952, 1370) | resources/default/menus/linux.json |
 | File › Open Recent |  |  | ❌ |  | resources/default/menus/linux.json |
-| File › Save | `project:save` | `ctrl-s` | ✅ | Ctrl+S (src/ui.rs:845, 1264) | resources/default/menus/linux.json |
-| File › Save As... | `project:save-as` | `ctrl-shift-s` | ✅ | Ctrl+Shift+S (src/ui.rs:849, 1261) | resources/default/menus/linux.json |
-| File › Close | `project:close` |  | 🟡 | File › Close starts a new blank project instead of closing (src/ui.rs:854) | resources/default/menus/linux.json |
+| File › Save | `project:save` | `ctrl-s` | ✅ | Ctrl+S (src/ui.rs:957, 1376) | resources/default/menus/linux.json |
+| File › Save As... | `project:save-as` | `ctrl-shift-s` | ✅ | Ctrl+Shift+S (src/ui.rs:961, 1373) | resources/default/menus/linux.json |
+| File › Close | `project:close` |  | 🟡 | File › Close starts a new blank project instead of closing (src/ui.rs:966) | resources/default/menus/linux.json |
 | File › Import › Fragment... | `project:import-fragment` |  | ❌ |  | resources/default/menus/linux.json |
 | File › Export › Fragment... | `project:export-fragment` |  | ❌ |  | resources/default/menus/linux.json |
-| File › Export Diagram As › PNG... | `project:export-diagram-to-png` |  | ✅ | File › Export Diagram As PNG and toolbar button (src/ui.rs:859, src/render.rs:456) | resources/default/menus/linux.json |
+| File › Export Diagram As › PNG... | `project:export-diagram-to-png` |  | ✅ | File › Export Diagram As PNG and toolbar button (src/ui.rs:971, src/render.rs:456) | resources/default/menus/linux.json |
 | File › Export Diagram As › JPEG... | `project:export-diagram-to-jpeg` |  | ❌ |  | resources/default/menus/linux.json |
-| File › Export Diagram As › SVG... | `project:export-diagram-to-svg` |  | ✅ | (src/ui.rs:863, src/render.rs:449) | resources/default/menus/linux.json |
+| File › Export Diagram As › SVG... | `project:export-diagram-to-svg` |  | ✅ | (src/ui.rs:975, src/render.rs:449) | resources/default/menus/linux.json |
 | File › Export Diagram As › All to PNGs... | `project:export-diagram-all-to-pngs` |  | ❌ |  | resources/default/menus/linux.json |
 | File › Export Diagram As › All to JPEGs... | `project:export-diagram-all-to-jpegs` |  | ❌ |  | resources/default/menus/linux.json |
 | File › Export Diagram As › All to SVGs... | `project:export-diagram-all-to-svgs` |  | ❌ |  | resources/default/menus/linux.json |
 | File › Preferences... | `application:preferences` |  | ❌ | no preferences dialog | resources/default/menus/linux.json |
 | File › Print to PDF... | `project:print-to-pdf` |  | ❌ |  | resources/default/menus/linux.json |
-| File › Exit |  |  | ✅ | File › Exit, Ctrl+Q, with unsaved-changes prompt (src/ui.rs:868, 1267, 1617) | resources/default/menus/linux.json |
-| Edit › Undo | `edit:undo` | `ctrl-z` | ✅ | Ctrl+Z (src/ui.rs:1281) | resources/default/menus/linux.json |
-| Edit › Redo | `edit:redo` | `ctrl-y` | ✅ | Ctrl+Y and Ctrl+Shift+Z (src/ui.rs:1278) | resources/default/menus/linux.json |
-| Edit › Cut | `edit:cut` | `ctrl-x` | ✅ | Ctrl+X, Edit, canvas and explorer menus: copies, then removes the views (canvas) or deletes the model (explorer) (src/clipboard.rs:198; src/ui.rs:1126, 1288) | resources/default/menus/linux.json |
-| Edit › Copy | `edit:copy` | `ctrl-c` | ✅ | Ctrl+C, Edit, canvas and explorer menus: views or one model as JSON on the system clipboard, in UMLCraft's own layout (src/clipboard.rs:108, 191; src/ui.rs:1126, 1288) | resources/default/menus/linux.json |
-| Edit › Copy Diagram As Image | `edit:copy-diagram-as-image` | `ctrl-shift-c` | ✅ | Ctrl+Shift+C and Edit menu: deselects, draws the diagram as PNG export does and puts the picture on the system clipboard, white background outside macOS (src/clipboard.rs:165; src/ui.rs:1136, 1299, 1414) | resources/default/menus/linux.json |
-| Edit › Paste | `edit:paste` | `ctrl-v` | ✅ | Ctrl+V, Edit, canvas and explorer menus: views as new views of the same models, centred on screen; a model as a deep copy into the selected element (src/clipboard.rs:251-332; src/ui.rs:1126, 1288) | resources/default/menus/linux.json |
-| Edit › Delete | `edit:delete` | `delete` | ✅ | Delete key and Edit menu (src/canvas.rs:560, src/ui.rs:884) | resources/default/menus/linux.json |
-| Edit › Delete From Model | `edit:delete-from-model` | `ctrl-delete` | ✅ | Ctrl+Delete (src/ui.rs:1305) | resources/default/menus/linux.json |
-| Edit › Move Up | `edit:move-up` | `ctrl-shift-up` | ✅ | Ctrl+Shift+Up, Edit and explorer menus: swaps with the previous sibling of the same explorer group (src/app.rs:920; src/ui.rs:1113, 1323) | resources/default/menus/linux.json |
-| Edit › Move Down | `edit:move-down` | `ctrl-shift-down` | ✅ | Ctrl+Shift+Down, Edit and explorer menus: swaps with the next sibling of the same explorer group (src/app.rs:920; src/ui.rs:1113, 1323) | resources/default/menus/linux.json |
-| Edit › Select All | `edit:select-all` | `ctrl-a` | ✅ | Ctrl+A (src/ui.rs:1308) | resources/default/menus/linux.json |
-| Edit › Select In Explorer | `edit:select-in-explorer` | `ctrl-e` | ✅ | Ctrl+E (src/ui.rs:1311) | resources/default/menus/linux.json |
-| Edit › Select In Diagram | `edit:select-in-diagram` | `ctrl-d` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:960; src/ui.rs:1320, 903, 308; src/canvas.rs:1474) | resources/default/menus/linux.json |
-| Edit › Open Sub-Diagram | `edit:open-sub-diagram` | `ctrl-shift-d` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:938; src/ui.rs:907, 1317; src/canvas.rs:1479) | resources/default/menus/linux.json |
-| Format › Font... | `format:font` | `ctrl-shift-f` | ✅ | Ctrl+Shift+F and Format › Font... (main and canvas menus) open the Font window: face, size and colour pre-filled with the merged values. The face is stored but drawn with the Arial-compatible font (src/ui.rs:1229, 915, 1516-1573; src/style.rs:74) | resources/default/menus/linux.json |
-| Format › Fill Color... | `format:fill-color` | `ctrl-shift-i` | ✅ | Ctrl+Shift+I opens a colour window; Format › Fill Color (main and canvas menus) has a colour picker; both apply the merged colour to the selected views (src/ui.rs:1238, 1081, 1583; src/style.rs:35) | resources/default/menus/linux.json |
-| Format › Line Color... | `format:line-color` | `ctrl-shift-l` | ✅ | Ctrl+Shift+L opens a colour window; Format › Line Color has a colour picker (src/ui.rs:1238, 1081, 1583; src/style.rs:35) | resources/default/menus/linux.json |
-| Format › Line Style › Rectilinear | `format:linestyle-rectilinear` | `ctrl-l` | ✅ | Ctrl+L and a check item in Format › Line Style (main and canvas menus) (src/app.rs:1018; src/ui.rs:1096, 1338) | resources/default/menus/linux.json |
-| Format › Line Style › Oblique | `format:linestyle-oblique` | `ctrl-b` | ✅ | Ctrl+B and a check item in Format › Line Style (src/app.rs:1018; src/ui.rs:1096, 1341) | resources/default/menus/linux.json |
-| Format › Line Style › RoundRect | `format:linestyle-roundrect` | `ctrl-alt-l` | ✅ | Ctrl+Alt+L and Format › Line Style › Rounded Rectilinear: routed like rectilinear, drawn with rounded corners (radius estimated) (src/ui.rs:1096, 1332; src/views.rs:860) | resources/default/menus/linux.json |
-| Format › Line Style › Curve | `format:linestyle-curve` | `ctrl-alt-b` | ✅ | Ctrl+Alt+B and Format › Line Style › Curve: drawn as a smooth curve bending towards each point (curve shape estimated) (src/ui.rs:1096, 1335; src/views.rs:860) | resources/default/menus/linux.json |
-| Format › Auto Resize | `format:auto-resize` | `ctrl-shift-r` | ✅ | Ctrl+Shift+R and a check item in Format (main and canvas menus) and Styles: inverts the shared autoResize, or sets it when mixed (src/ui.rs:1243, 1658; src/app.rs:1027-1058) | resources/default/menus/linux.json |
-| Format › Show Shadow | `format:show-shadow` | `ctrl-shift-h` | ✅ | Ctrl+Shift+H and a check item in Format (main and canvas menus): inverts the shared value, or sets it when mixed (src/app.rs:1049, 1065; src/ui.rs:1344, 1181) | resources/default/menus/linux.json |
+| File › Exit |  |  | ✅ | File › Exit, Ctrl+Q, with unsaved-changes prompt (src/ui.rs:980, 1379, 1729) | resources/default/menus/linux.json |
+| Edit › Undo | `edit:undo` | `ctrl-z` | ✅ | Ctrl+Z (src/ui.rs:1393) | resources/default/menus/linux.json |
+| Edit › Redo | `edit:redo` | `ctrl-y` | ✅ | Ctrl+Y and Ctrl+Shift+Z (src/ui.rs:1390) | resources/default/menus/linux.json |
+| Edit › Cut | `edit:cut` | `ctrl-x` | ✅ | Ctrl+X, Edit, canvas and explorer menus: copies, then removes the views (canvas) or deletes the model (explorer) (src/clipboard.rs:198; src/ui.rs:1238, 1400) | resources/default/menus/linux.json |
+| Edit › Copy | `edit:copy` | `ctrl-c` | ✅ | Ctrl+C, Edit, canvas and explorer menus: views or one model as JSON on the system clipboard, in UMLCraft's own layout (src/clipboard.rs:108, 191; src/ui.rs:1238, 1400) | resources/default/menus/linux.json |
+| Edit › Copy Diagram As Image | `edit:copy-diagram-as-image` | `ctrl-shift-c` | ✅ | Ctrl+Shift+C and Edit menu: deselects, draws the diagram as PNG export does and puts the picture on the system clipboard, white background outside macOS (src/clipboard.rs:165; src/ui.rs:1248, 1411, 1526) | resources/default/menus/linux.json |
+| Edit › Paste | `edit:paste` | `ctrl-v` | ✅ | Ctrl+V, Edit, canvas and explorer menus: views as new views of the same models, centred on screen; a model as a deep copy into the selected element (src/clipboard.rs:251-332; src/ui.rs:1238, 1400) | resources/default/menus/linux.json |
+| Edit › Delete | `edit:delete` | `delete` | ✅ | Delete key and Edit menu (src/canvas.rs:560, src/ui.rs:996) | resources/default/menus/linux.json |
+| Edit › Delete From Model | `edit:delete-from-model` | `ctrl-delete` | ✅ | Ctrl+Delete (src/ui.rs:1417) | resources/default/menus/linux.json |
+| Edit › Move Up | `edit:move-up` | `ctrl-shift-up` | ✅ | Ctrl+Shift+Up, Edit and explorer menus: swaps with the previous sibling of the same explorer group (src/app.rs:923; src/ui.rs:1225, 1435) | resources/default/menus/linux.json |
+| Edit › Move Down | `edit:move-down` | `ctrl-shift-down` | ✅ | Ctrl+Shift+Down, Edit and explorer menus: swaps with the next sibling of the same explorer group (src/app.rs:923; src/ui.rs:1225, 1435) | resources/default/menus/linux.json |
+| Edit › Select All | `edit:select-all` | `ctrl-a` | ✅ | Ctrl+A (src/ui.rs:1420) | resources/default/menus/linux.json |
+| Edit › Select In Explorer | `edit:select-in-explorer` | `ctrl-e` | ✅ | Ctrl+E (src/ui.rs:1423) | resources/default/menus/linux.json |
+| Edit › Select In Diagram | `edit:select-in-diagram` | `ctrl-d` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:963; src/ui.rs:1432, 1015, 317; src/canvas.rs:1474) | resources/default/menus/linux.json |
+| Edit › Open Sub-Diagram | `edit:open-sub-diagram` | `ctrl-shift-d` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:941; src/ui.rs:1019, 1429; src/canvas.rs:1479) | resources/default/menus/linux.json |
+| Format › Font... | `format:font` | `ctrl-shift-f` | ✅ | Ctrl+Shift+F and Format › Font... (main and canvas menus) open the Font window: face, size and colour pre-filled with the merged values. The face is stored but drawn with the Arial-compatible font (src/ui.rs:1341, 1027, 1628-1685; src/style.rs:74) | resources/default/menus/linux.json |
+| Format › Fill Color... | `format:fill-color` | `ctrl-shift-i` | ✅ | Ctrl+Shift+I opens a colour window; Format › Fill Color (main and canvas menus) has a colour picker; both apply the merged colour to the selected views (src/ui.rs:1350, 1193, 1695; src/style.rs:35) | resources/default/menus/linux.json |
+| Format › Line Color... | `format:line-color` | `ctrl-shift-l` | ✅ | Ctrl+Shift+L opens a colour window; Format › Line Color has a colour picker (src/ui.rs:1350, 1193, 1695; src/style.rs:35) | resources/default/menus/linux.json |
+| Format › Line Style › Rectilinear | `format:linestyle-rectilinear` | `ctrl-l` | ✅ | Ctrl+L and a check item in Format › Line Style (main and canvas menus) (src/app.rs:1021; src/ui.rs:1208, 1450) | resources/default/menus/linux.json |
+| Format › Line Style › Oblique | `format:linestyle-oblique` | `ctrl-b` | ✅ | Ctrl+B and a check item in Format › Line Style (src/app.rs:1021; src/ui.rs:1208, 1453) | resources/default/menus/linux.json |
+| Format › Line Style › RoundRect | `format:linestyle-roundrect` | `ctrl-alt-l` | ✅ | Ctrl+Alt+L and Format › Line Style › Rounded Rectilinear: routed like rectilinear, drawn with rounded corners (radius estimated) (src/ui.rs:1208, 1444; src/views.rs:860) | resources/default/menus/linux.json |
+| Format › Line Style › Curve | `format:linestyle-curve` | `ctrl-alt-b` | ✅ | Ctrl+Alt+B and Format › Line Style › Curve: drawn as a smooth curve bending towards each point (curve shape estimated) (src/ui.rs:1208, 1447; src/views.rs:860) | resources/default/menus/linux.json |
+| Format › Auto Resize | `format:auto-resize` | `ctrl-shift-r` | ✅ | Ctrl+Shift+R and a check item in Format (main and canvas menus) and Styles: inverts the shared autoResize, or sets it when mixed (src/ui.rs:1355, 1770; src/app.rs:1030-1061) | resources/default/menus/linux.json |
+| Format › Show Shadow | `format:show-shadow` | `ctrl-shift-h` | ✅ | Ctrl+Shift+H and a check item in Format (main and canvas menus): inverts the shared value, or sets it when mixed (src/app.rs:1052, 1068; src/ui.rs:1456, 1293) | resources/default/menus/linux.json |
 | Format › Inherit Style | `format:inherit-style` | `ctrl-shift-k` | ❌ |  | resources/default/menus/linux.json |
-| Model › Add Diagram | `model:add-diagram` |  | 🟡 | Class and Use Case diagrams only (src/ui.rs:294, 927) | resources/default/menus/linux.json |
-| Model › Add | `model:add` |  | 🟡 | explorer Add submenu with 8 kinds plus features (src/ui.rs:263) | resources/default/menus/linux.json |
+| Model › Add Diagram | `model:add-diagram` |  | 🟡 | Class and Use Case diagrams only (src/ui.rs:303, 1039) | resources/default/menus/linux.json |
+| Model › Add | `model:add` |  | 🟡 | explorer Add submenu with 8 kinds plus features (src/ui.rs:272) | resources/default/menus/linux.json |
 | Model › Tag Editor... | `model:tag-editor` | `ctrl-t` | ❌ |  | resources/default/menus/linux.json |
 | Tools › Extension Manager... | `tools:extension-manager` |  | ➖ | UMLCraft has no extension system | resources/default/menus/linux.json |
 | View › Quick Find... | `view:quick-find` | `ctrl-p` | ❌ |  | resources/default/menus/linux.json |
 | View › Command Palette... | `view:command-palette` | `ctrl-shift-p` | ❌ |  | resources/default/menus/linux.json |
-| View › Close Diagram | `view:close-diagram` | `f4` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:1373, 1147; src/app.rs:864) | resources/default/menus/linux.json |
-| View › Close Other Diagrams | `view:close-other-diagrams` | `ctrl-f4` | ✅ | Ctrl+F4, View menu and Working Diagrams menu (src/ui.rs:1370, 1147; src/app.rs:883) | resources/default/menus/linux.json |
-| View › Close All Diagrams | `view:close-all-diagrams` | `shift-f4` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:1367, 1147; src/app.rs:889) | resources/default/menus/linux.json |
-| View › Next Diagram | `view:next-diagram` | `ctrl-shift-]` | ✅ | Ctrl+Shift+] (also reported as Ctrl+Shift+}), wraps to the first (src/ui.rs:1377, 953; src/app.rs:899) | resources/default/menus/linux.json |
-| View › Previous Diagram | `view:previous-diagram` | `ctrl-shift-[` | ✅ | Ctrl+Shift+[ (also reported as Ctrl+Shift+{), wraps to the last (src/ui.rs:1380, 957; src/app.rs:899) | resources/default/menus/linux.json |
-| View › Zoom In | `view:zoom-in` | `ctrl-plus` | ✅ | Ctrl+= / Ctrl++, keeps the screen centre (src/ui.rs:1347; src/canvas.rs:1548) | resources/default/menus/linux.json |
-| View › Zoom Out | `view:zoom-out` | `ctrl-minus` | ✅ | Ctrl+-, keeps the screen centre (src/ui.rs:1350; src/canvas.rs:1548) | resources/default/menus/linux.json |
-| View › Actual Size | `view:actual-size` | `ctrl-0` | ✅ | Ctrl+0, keeps the screen centre (src/ui.rs:1353; src/canvas.rs:1548) | resources/default/menus/linux.json |
-| View › Fit To Window | `view:fit-to-window` | `ctrl-9` | ✅ | Ctrl+9, centred on the bounding box (src/ui.rs:1356; src/canvas.rs:1560) | resources/default/menus/linux.json |
-| View › Show Grid | `view:show-grid` | `ctrl-g` | ✅ | Ctrl+G (src/ui.rs:1363) | resources/default/menus/linux.json |
-| View › Snap to Grid | `view:snap-to-grid` | `ctrl-shift-g` | ✅ | Ctrl+Shift+G, checked before Ctrl+G so it is not taken as Show Grid (src/ui.rs:1360) | resources/default/menus/linux.json |
-| View › Sidebar | `view:sidebar` | `ctrl-1` | 🟡 | View menu toggle, no Ctrl+1 (src/ui.rs:979) | resources/default/menus/linux.json |
-| View › Navigator | `view:navigator` | `ctrl-2` | 🟡 | View menu toggle, no Ctrl+2 (src/ui.rs:980) | resources/default/menus/linux.json |
+| View › Close Diagram | `view:close-diagram` | `f4` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:1485, 1259; src/app.rs:867) | resources/default/menus/linux.json |
+| View › Close Other Diagrams | `view:close-other-diagrams` | `ctrl-f4` | ✅ | Ctrl+F4, View menu and Working Diagrams menu (src/ui.rs:1482, 1259; src/app.rs:886) | resources/default/menus/linux.json |
+| View › Close All Diagrams | `view:close-all-diagrams` | `shift-f4` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:1479, 1259; src/app.rs:892) | resources/default/menus/linux.json |
+| View › Next Diagram | `view:next-diagram` | `ctrl-shift-]` | ✅ | Ctrl+Shift+] (also reported as Ctrl+Shift+}), wraps to the first (src/ui.rs:1489, 1065; src/app.rs:902) | resources/default/menus/linux.json |
+| View › Previous Diagram | `view:previous-diagram` | `ctrl-shift-[` | ✅ | Ctrl+Shift+[ (also reported as Ctrl+Shift+{), wraps to the last (src/ui.rs:1492, 1069; src/app.rs:902) | resources/default/menus/linux.json |
+| View › Zoom In | `view:zoom-in` | `ctrl-plus` | ✅ | Ctrl+= / Ctrl++, keeps the screen centre (src/ui.rs:1459; src/canvas.rs:1548) | resources/default/menus/linux.json |
+| View › Zoom Out | `view:zoom-out` | `ctrl-minus` | ✅ | Ctrl+-, keeps the screen centre (src/ui.rs:1462; src/canvas.rs:1548) | resources/default/menus/linux.json |
+| View › Actual Size | `view:actual-size` | `ctrl-0` | ✅ | Ctrl+0, keeps the screen centre (src/ui.rs:1465; src/canvas.rs:1548) | resources/default/menus/linux.json |
+| View › Fit To Window | `view:fit-to-window` | `ctrl-9` | ✅ | Ctrl+9, centred on the bounding box (src/ui.rs:1468; src/canvas.rs:1560) | resources/default/menus/linux.json |
+| View › Show Grid | `view:show-grid` | `ctrl-g` | ✅ | Ctrl+G (src/ui.rs:1475) | resources/default/menus/linux.json |
+| View › Snap to Grid | `view:snap-to-grid` | `ctrl-shift-g` | ✅ | Ctrl+Shift+G, checked before Ctrl+G so it is not taken as Show Grid (src/ui.rs:1472) | resources/default/menus/linux.json |
+| View › Sidebar | `view:sidebar` | `ctrl-1` | 🟡 | View menu toggle, no Ctrl+1 (src/ui.rs:1091) | resources/default/menus/linux.json |
+| View › Navigator | `view:navigator` | `ctrl-2` | 🟡 | View menu toggle, no Ctrl+2 (src/ui.rs:1092) | resources/default/menus/linux.json |
 | View › Toolbar | `view:toolbar` | `ctrl-3` | ❌ | toolbar always shown, no Ctrl+3 | resources/default/menus/linux.json |
-| View › Statusbar | `view:statusbar` | `ctrl-4` | 🟡 | View menu toggle, no Ctrl+4 (src/ui.rs:981) | resources/default/menus/linux.json |
+| View › Statusbar | `view:statusbar` | `ctrl-4` | 🟡 | View menu toggle, no Ctrl+4 (src/ui.rs:1093) | resources/default/menus/linux.json |
 | View › Toolbox | `view:toolbox` | `ctrl-5` | ❌ | toolbox cannot be hidden on its own, no Ctrl+5 | resources/default/menus/linux.json |
 | View › Editors | `view:editors` | `ctrl-6` | ❌ | editors cannot be hidden on their own, no Ctrl+6 | resources/default/menus/linux.json |
 | Window › Minimize |  |  | 🟡 | left to the window manager | resources/default/menus/linux.json |
 | Window › Full Screen |  |  | 🟡 | left to the window manager | resources/default/menus/linux.json |
 | Window › Bring All to Front |  |  | 🟡 | left to the window manager | resources/default/menus/linux.json |
-| Help › About StarUML | `help:about` |  | ✅ | Help › About UMLCraft (src/ui.rs:983) | resources/default/menus/linux.json |
+| Help › About StarUML | `help:about` |  | ✅ | Help › About UMLCraft (src/ui.rs:1095) | resources/default/menus/linux.json |
 | Help › Check For Updates... | `help:check-for-updates` |  | ➖ | StarUML licence/update server | resources/default/menus/linux.json |
 | Help › License Activation... | `help:license-activation` |  | ➖ | StarUML licensing | resources/default/menus/linux.json |
 | Help › Documentation... | `help:documentation` |  | ❌ |  | resources/default/menus/linux.json |
@@ -356,8 +356,8 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Context | Item | Command | UMLCraft | Notes |
 |---|---|---|---|---|
 | diagram-canvas | *(the menu as a whole)* |  | 🟡 | the canvas menu has Cut, Copy, Copy Diagram As Image, Paste, Edit, Add Literal/Attribute/Operation, Line Style (four styles), Format (show/suppress toggles and Alignment), Select In Explorer, Select In Diagram, Open Sub-Diagram, Delete, Delete from Model; on empty canvas Paste, Select All and Fit To Window. Missing: the font, colour, stereotype-display, auto-resize and add-related items (src/canvas.rs:1418) |
-| diagram-canvas | Format › Alignment › Send To Back | `alignment:send-to-back` | ✅ | Format › Alignment › Send To Back moves the selected top-level views to the start of ownedViews (src/align.rs:146; src/ui.rs:1196) |
-| diagram-canvas | Format › Alignment › Bring To Front | `alignment:bring-to-front` | ✅ | Format › Alignment › Bring To Front moves the selected top-level views to the end of ownedViews (src/align.rs:146; src/ui.rs:1196) |
+| diagram-canvas | Format › Alignment › Send To Back | `alignment:send-to-back` | ✅ | Format › Alignment › Send To Back moves the selected top-level views to the start of ownedViews (src/align.rs:146; src/ui.rs:1308) |
+| diagram-canvas | Format › Alignment › Bring To Front | `alignment:bring-to-front` | ✅ | Format › Alignment › Bring To Front moves the selected top-level views to the end of ownedViews (src/align.rs:146; src/ui.rs:1308) |
 | diagram-canvas | Format › Alignment › Align Left | `alignment:align-left` | ✅ | left of every selected node set to the minimum left (src/align.rs:55) |
 | diagram-canvas | Format › Alignment › Align Right | `alignment:align-right` | ✅ | right edges set to the maximum right (src/align.rs:58) |
 | diagram-canvas | Format › Alignment › Align Center | `alignment:align-center` | ✅ | nodes centred on the midpoint of the horizontal extent (src/align.rs:60) |
@@ -384,45 +384,45 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | diagram-canvas | Model › Add › Exit Activity | `uml:create-model.exit-activity` | ❌ |  |
 | diagram-canvas | Model › Add › Effect | `uml:create-model.effect` | ❌ |  |
 | diagram-canvas | Model › Add › Constraint | `uml:create-model.constraint` | ❌ |  |
-| diagram-canvas | Format › Stereotype Display › None | `format:stereotype-none` | ✅ | sets stereotypeDisplay to none on the selected views; the stereotype is hidden (src/ui.rs:1166, 1232; src/style.rs:110) |
-| diagram-canvas | Format › Stereotype Display › Label | `format:stereotype-label` | ✅ | sets stereotypeDisplay to label; the «stereotype» line is drawn (src/ui.rs:1166, 1232; src/style.rs:110) |
-| diagram-canvas | Format › Stereotype Display › Decoration | `format:stereotype-decoration` | 🟡 | the value is set, but UMLCraft draws no stereotype decoration icon (src/ui.rs:1166, 1232; src/style.rs:110) |
-| diagram-canvas | Format › Stereotype Display › Decoration with Label | `format:stereotype-decoration-label` | 🟡 | the value is set and the label drawn, but no decoration icon (src/ui.rs:1166, 1232; src/style.rs:110) |
-| diagram-canvas | Format › Stereotype Display › Icon | `format:stereotype-icon` | 🟡 | the value is set; only interfaces have an icon (the ball) (src/ui.rs:1166, 1232; src/style.rs:110) |
-| diagram-canvas | Format › Stereotype Display › Icon with Label | `format:stereotype-icon-label` | 🟡 | the value is set; only interfaces have an icon (the ball), and stereotype icons are not drawn (src/ui.rs:1166, 1232; src/style.rs:110) |
+| diagram-canvas | Format › Stereotype Display › None | `format:stereotype-none` | ✅ | sets stereotypeDisplay to none on the selected views; the stereotype is hidden (src/ui.rs:1278, 1344; src/style.rs:110) |
+| diagram-canvas | Format › Stereotype Display › Label | `format:stereotype-label` | ✅ | sets stereotypeDisplay to label; the «stereotype» line is drawn (src/ui.rs:1278, 1344; src/style.rs:110) |
+| diagram-canvas | Format › Stereotype Display › Decoration | `format:stereotype-decoration` | 🟡 | the value is set, but UMLCraft draws no stereotype decoration icon (src/ui.rs:1278, 1344; src/style.rs:110) |
+| diagram-canvas | Format › Stereotype Display › Decoration with Label | `format:stereotype-decoration-label` | 🟡 | the value is set and the label drawn, but no decoration icon (src/ui.rs:1278, 1344; src/style.rs:110) |
+| diagram-canvas | Format › Stereotype Display › Icon | `format:stereotype-icon` | 🟡 | the value is set; only interfaces have an icon (the ball) (src/ui.rs:1278, 1344; src/style.rs:110) |
+| diagram-canvas | Format › Stereotype Display › Icon with Label | `format:stereotype-icon-label` | 🟡 | the value is set; only interfaces have an icon (the ball), and stereotype icons are not drawn (src/ui.rs:1278, 1344; src/style.rs:110) |
 | diagram-canvas | Format › Word Wrap | `format:word-wrap` | ❌ |  |
-| diagram-canvas | Format › Show Visibility | `format:show-visibility` | ✅ | check item in Format (main and canvas menus): inverts the shared showVisibility of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) |
-| diagram-canvas | Format › Show Namespace | `format:show-namespace` | ✅ | check item in Format (main and canvas menus): inverts the shared showNamespace of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) |
+| diagram-canvas | Format › Show Visibility | `format:show-visibility` | ✅ | check item in Format (main and canvas menus): inverts the shared showVisibility of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) |
+| diagram-canvas | Format › Show Namespace | `format:show-namespace` | ✅ | check item in Format (main and canvas menus): inverts the shared showNamespace of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) |
 | diagram-canvas | Format › Show Property | `format:show-property` | ❌ |  |
 | diagram-canvas | Format › Show Type | `format:show-type` | ❌ |  |
-| diagram-canvas | Format › Show Multiplicity | `format:show-multiplicity` | ✅ | check item in Format (main and canvas menus): inverts the shared showMultiplicity of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) |
-| diagram-canvas | Format › Show Operation Signature | `format:show-operation-signature` | ✅ | check item in Format (main and canvas menus): inverts the shared showOperationSignature of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) |
+| diagram-canvas | Format › Show Multiplicity | `format:show-multiplicity` | ✅ | check item in Format (main and canvas menus): inverts the shared showMultiplicity of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) |
+| diagram-canvas | Format › Show Operation Signature | `format:show-operation-signature` | ✅ | check item in Format (main and canvas menus): inverts the shared showOperationSignature of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) |
 | diagram-canvas | Format › Show Diagram Name | `format:show-diagram-name` | ❌ |  |
-| diagram-canvas | Format › Suppress Attributes | `format:suppress-attributes` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressAttributes of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) |
-| diagram-canvas | Format › Suppress Operations | `format:suppress-operations` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressOperations of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) |
+| diagram-canvas | Format › Suppress Attributes | `format:suppress-attributes` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressAttributes of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) |
+| diagram-canvas | Format › Suppress Operations | `format:suppress-operations` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressOperations of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) |
 | diagram-canvas | Format › Suppress Receptions | `format:suppress-receptions` | ❌ |  |
-| diagram-canvas | Format › Suppress Literals | `format:suppress-literals` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressLiterals of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1181-1193; src/app.rs:1035-1062) |
-| diagram-canvas | Add | `model:add` | 🟡 | explorer Add submenu with 8 kinds plus features (src/ui.rs:263) |
-| diagram-canvas | Add Diagram | `model:add-diagram` | 🟡 | Class and Use Case diagrams only (src/ui.rs:294, 927) |
-| diagram-canvas | Format › Font... | `format:font` | ✅ | Ctrl+Shift+F and Format › Font... (main and canvas menus) open the Font window: face, size and colour pre-filled with the merged values. The face is stored but drawn with the Arial-compatible font (src/ui.rs:1229, 915, 1516-1573; src/style.rs:74) |
-| diagram-canvas | Format › Fill Color... | `format:fill-color` | ✅ | Ctrl+Shift+I opens a colour window; Format › Fill Color (main and canvas menus) has a colour picker; both apply the merged colour to the selected views (src/ui.rs:1238, 1081, 1583; src/style.rs:35) |
-| diagram-canvas | Format › Line Color... | `format:line-color` | ✅ | Ctrl+Shift+L opens a colour window; Format › Line Color has a colour picker (src/ui.rs:1238, 1081, 1583; src/style.rs:35) |
-| diagram-canvas | Format › Line Style › Rectilinear | `format:linestyle-rectilinear` | ✅ | Ctrl+L and a check item in Format › Line Style (main and canvas menus) (src/app.rs:1018; src/ui.rs:1096, 1338) |
-| diagram-canvas | Format › Line Style › Oblique | `format:linestyle-oblique` | ✅ | Ctrl+B and a check item in Format › Line Style (src/app.rs:1018; src/ui.rs:1096, 1341) |
-| diagram-canvas | Format › Line Style › RoundRect | `format:linestyle-roundrect` | ✅ | Ctrl+Alt+L and Format › Line Style › Rounded Rectilinear: routed like rectilinear, drawn with rounded corners (radius estimated) (src/ui.rs:1096, 1332; src/views.rs:860) |
-| diagram-canvas | Format › Line Style › Curve | `format:linestyle-curve` | ✅ | Ctrl+Alt+B and Format › Line Style › Curve: drawn as a smooth curve bending towards each point (curve shape estimated) (src/ui.rs:1096, 1335; src/views.rs:860) |
-| diagram-canvas | Format › Auto Resize | `format:auto-resize` | ✅ | Ctrl+Shift+R and a check item in Format (main and canvas menus) and Styles: inverts the shared autoResize, or sets it when mixed (src/ui.rs:1243, 1658; src/app.rs:1027-1058) |
-| diagram-canvas | Format › Show Shadow | `format:show-shadow` | ✅ | Ctrl+Shift+H and a check item in Format (main and canvas menus): inverts the shared value, or sets it when mixed (src/app.rs:1049, 1065; src/ui.rs:1344, 1181) |
+| diagram-canvas | Format › Suppress Literals | `format:suppress-literals` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressLiterals of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:1293-1305; src/app.rs:1038-1065) |
+| diagram-canvas | Add | `model:add` | 🟡 | explorer Add submenu with 8 kinds plus features (src/ui.rs:272) |
+| diagram-canvas | Add Diagram | `model:add-diagram` | 🟡 | Class and Use Case diagrams only (src/ui.rs:303, 1039) |
+| diagram-canvas | Format › Font... | `format:font` | ✅ | Ctrl+Shift+F and Format › Font... (main and canvas menus) open the Font window: face, size and colour pre-filled with the merged values. The face is stored but drawn with the Arial-compatible font (src/ui.rs:1341, 1027, 1628-1685; src/style.rs:74) |
+| diagram-canvas | Format › Fill Color... | `format:fill-color` | ✅ | Ctrl+Shift+I opens a colour window; Format › Fill Color (main and canvas menus) has a colour picker; both apply the merged colour to the selected views (src/ui.rs:1350, 1193, 1695; src/style.rs:35) |
+| diagram-canvas | Format › Line Color... | `format:line-color` | ✅ | Ctrl+Shift+L opens a colour window; Format › Line Color has a colour picker (src/ui.rs:1350, 1193, 1695; src/style.rs:35) |
+| diagram-canvas | Format › Line Style › Rectilinear | `format:linestyle-rectilinear` | ✅ | Ctrl+L and a check item in Format › Line Style (main and canvas menus) (src/app.rs:1021; src/ui.rs:1208, 1450) |
+| diagram-canvas | Format › Line Style › Oblique | `format:linestyle-oblique` | ✅ | Ctrl+B and a check item in Format › Line Style (src/app.rs:1021; src/ui.rs:1208, 1453) |
+| diagram-canvas | Format › Line Style › RoundRect | `format:linestyle-roundrect` | ✅ | Ctrl+Alt+L and Format › Line Style › Rounded Rectilinear: routed like rectilinear, drawn with rounded corners (radius estimated) (src/ui.rs:1208, 1444; src/views.rs:860) |
+| diagram-canvas | Format › Line Style › Curve | `format:linestyle-curve` | ✅ | Ctrl+Alt+B and Format › Line Style › Curve: drawn as a smooth curve bending towards each point (curve shape estimated) (src/ui.rs:1208, 1447; src/views.rs:860) |
+| diagram-canvas | Format › Auto Resize | `format:auto-resize` | ✅ | Ctrl+Shift+R and a check item in Format (main and canvas menus) and Styles: inverts the shared autoResize, or sets it when mixed (src/ui.rs:1355, 1770; src/app.rs:1030-1061) |
+| diagram-canvas | Format › Show Shadow | `format:show-shadow` | ✅ | Ctrl+Shift+H and a check item in Format (main and canvas menus): inverts the shared value, or sets it when mixed (src/app.rs:1052, 1068; src/ui.rs:1456, 1293) |
 | diagram-canvas | Format › Inherit Style | `format:inherit-style` | ❌ |  |
-| diagram-canvas | Cut | `edit:cut` | ✅ | Ctrl+X, Edit, canvas and explorer menus: copies, then removes the views (canvas) or deletes the model (explorer) (src/clipboard.rs:198; src/ui.rs:1126, 1288) |
-| diagram-canvas | Copy | `edit:copy` | ✅ | Ctrl+C, Edit, canvas and explorer menus: views or one model as JSON on the system clipboard, in UMLCraft's own layout (src/clipboard.rs:108, 191; src/ui.rs:1126, 1288) |
-| diagram-canvas | Paste | `edit:paste` | ✅ | Ctrl+V, Edit, canvas and explorer menus: views as new views of the same models, centred on screen; a model as a deep copy into the selected element (src/clipboard.rs:251-332; src/ui.rs:1126, 1288) |
-| diagram-canvas | Select All | `edit:select-all` | ✅ | Ctrl+A (src/ui.rs:1308) |
-| diagram-canvas | Delete | `edit:delete` | ✅ | Delete key and Edit menu (src/canvas.rs:560, src/ui.rs:884) |
-| diagram-canvas | Delete From Model | `edit:delete-from-model` | ✅ | Ctrl+Delete (src/ui.rs:1305) |
-| diagram-canvas | Select In Explorer | `edit:select-in-explorer` | ✅ | Ctrl+E (src/ui.rs:1311) |
-| diagram-canvas | Select In Diagram | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:960; src/ui.rs:1320, 903, 308; src/canvas.rs:1474) |
-| diagram-canvas | Open Sub-Diagram | `edit:open-sub-diagram` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:938; src/ui.rs:907, 1317; src/canvas.rs:1479) |
+| diagram-canvas | Cut | `edit:cut` | ✅ | Ctrl+X, Edit, canvas and explorer menus: copies, then removes the views (canvas) or deletes the model (explorer) (src/clipboard.rs:198; src/ui.rs:1238, 1400) |
+| diagram-canvas | Copy | `edit:copy` | ✅ | Ctrl+C, Edit, canvas and explorer menus: views or one model as JSON on the system clipboard, in UMLCraft's own layout (src/clipboard.rs:108, 191; src/ui.rs:1238, 1400) |
+| diagram-canvas | Paste | `edit:paste` | ✅ | Ctrl+V, Edit, canvas and explorer menus: views as new views of the same models, centred on screen; a model as a deep copy into the selected element (src/clipboard.rs:251-332; src/ui.rs:1238, 1400) |
+| diagram-canvas | Select All | `edit:select-all` | ✅ | Ctrl+A (src/ui.rs:1420) |
+| diagram-canvas | Delete | `edit:delete` | ✅ | Delete key and Edit menu (src/canvas.rs:560, src/ui.rs:996) |
+| diagram-canvas | Delete From Model | `edit:delete-from-model` | ✅ | Ctrl+Delete (src/ui.rs:1417) |
+| diagram-canvas | Select In Explorer | `edit:select-in-explorer` | ✅ | Ctrl+E (src/ui.rs:1423) |
+| diagram-canvas | Select In Diagram | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:963; src/ui.rs:1432, 1015, 317; src/canvas.rs:1474) |
+| diagram-canvas | Open Sub-Diagram | `edit:open-sub-diagram` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:941; src/ui.rs:1019, 1429; src/canvas.rs:1479) |
 | diagram-canvas | Tag Editor... | `model:tag-editor` | ❌ |  |
 | mermaid-example-dropdown | Class Diagram | `mermaid:example-class-diagram` | ❌ |  |
 | mermaid-example-dropdown | Sequence Diagram | `mermaid:example-sequence-diagram` | ❌ |  |
@@ -433,30 +433,30 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | mermaid-example-dropdown | Mindmap | `mermaid:example-mindmap` | ❌ |  |
 | #relationship-view div.listview | Select Related Element | `relationship-view:select-related-element` | ❌ |  |
 | #relationship-view div.listview | Select Relationship | `relationship-view:select-relationship` | ❌ |  |
-| model-explorer | *(the menu as a whole)* |  | 🟡 | the explorer menu has Add, Add Diagram, Open Diagram, Delete from Model (src/ui.rs:263) |
+| model-explorer | *(the menu as a whole)* |  | 🟡 | the explorer menu has Add, Add Diagram, Open Diagram, Delete from Model (src/ui.rs:272) |
 | model-explorer | Model › Add › Tag | `common:tag` | 🟡 | Tags are listed in the explorer ("name = value", src/ui.rs:170) but cannot be added |
 | model-explorer | Model › Add › Entry Activity | `uml:create-model.entry-activity` | ❌ |  |
 | model-explorer | Model › Add › Do Activity | `uml:create-model.do-activity` | ❌ |  |
 | model-explorer | Model › Add › Exit Activity | `uml:create-model.exit-activity` | ❌ |  |
 | model-explorer | Model › Add › Effect | `uml:create-model.effect` | ❌ |  |
 | model-explorer | Model › Add › Constraint | `uml:create-model.constraint` | ❌ |  |
-| model-explorer | Add Diagram | `model:add-diagram` | 🟡 | Class and Use Case diagrams only (src/ui.rs:294, 927) |
-| model-explorer | Add | `model:add` | 🟡 | explorer Add submenu with 8 kinds plus features (src/ui.rs:263) |
-| model-explorer | Cut | `edit:cut` | ✅ | Ctrl+X, Edit, canvas and explorer menus: copies, then removes the views (canvas) or deletes the model (explorer) (src/clipboard.rs:198; src/ui.rs:1126, 1288) |
-| model-explorer | Copy | `edit:copy` | ✅ | Ctrl+C, Edit, canvas and explorer menus: views or one model as JSON on the system clipboard, in UMLCraft's own layout (src/clipboard.rs:108, 191; src/ui.rs:1126, 1288) |
-| model-explorer | Paste | `edit:paste` | ✅ | Ctrl+V, Edit, canvas and explorer menus: views as new views of the same models, centred on screen; a model as a deep copy into the selected element (src/clipboard.rs:251-332; src/ui.rs:1126, 1288) |
-| model-explorer | Delete From Model | `edit:delete-from-model` | ✅ | Ctrl+Delete (src/ui.rs:1305) |
-| model-explorer | Move Up | `edit:move-up` | ✅ | Ctrl+Shift+Up, Edit and explorer menus: swaps with the previous sibling of the same explorer group (src/app.rs:920; src/ui.rs:1113, 1323) |
-| model-explorer | Move Down | `edit:move-down` | ✅ | Ctrl+Shift+Down, Edit and explorer menus: swaps with the next sibling of the same explorer group (src/app.rs:920; src/ui.rs:1113, 1323) |
-| model-explorer | Select In Diagram | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:960; src/ui.rs:1320, 903, 308; src/canvas.rs:1474) |
-| working-diagrams | *(the menu as a whole)* |  | 🟡 | right-clicking a row opens Close Diagram, Close Other Diagrams and Close All Diagrams, acting on the current diagram; no Rename (src/ui.rs:664, 1147) |
-| working-diagrams | Close Diagram | `view:close-diagram` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:1373, 1147; src/app.rs:864) |
-| working-diagrams | Close Other Diagrams | `view:close-other-diagrams` | ✅ | Ctrl+F4, View menu and Working Diagrams menu (src/ui.rs:1370, 1147; src/app.rs:883) |
-| working-diagrams | Close All Diagrams | `view:close-all-diagrams` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:1367, 1147; src/app.rs:889) |
-| working-diagrams | Rename | `view:rename-diagram` | ❌ | the Working Diagrams menu has no Rename and there is no rename dialog (src/ui.rs:1147) |
-| model-explorer-settings | *(the menu as a whole)* |  | 🟡 | only a sort-by-name toggle button (src/ui.rs:337) |
-| model-explorer-settings | Sort By Added | `explorer:sort-by-added` | ✅ | sort toggle in the explorer header (src/ui.rs:337) |
-| model-explorer-settings | Sort By Name | `explorer:sort-by-name` | ✅ | (src/ui.rs:144, 337) |
-| model-explorer-settings | Show Stereotype Text | `explorer:show-stereotype-text` | ❌ |  |
-| model-explorer-settings | Expand All | `explorer:expand-all` | ❌ |  |
-| model-explorer-settings | Collapse All | `explorer:collapse-all` | ❌ |  |
+| model-explorer | Add Diagram | `model:add-diagram` | 🟡 | Class and Use Case diagrams only (src/ui.rs:303, 1039) |
+| model-explorer | Add | `model:add` | 🟡 | explorer Add submenu with 8 kinds plus features (src/ui.rs:272) |
+| model-explorer | Cut | `edit:cut` | ✅ | Ctrl+X, Edit, canvas and explorer menus: copies, then removes the views (canvas) or deletes the model (explorer) (src/clipboard.rs:198; src/ui.rs:1238, 1400) |
+| model-explorer | Copy | `edit:copy` | ✅ | Ctrl+C, Edit, canvas and explorer menus: views or one model as JSON on the system clipboard, in UMLCraft's own layout (src/clipboard.rs:108, 191; src/ui.rs:1238, 1400) |
+| model-explorer | Paste | `edit:paste` | ✅ | Ctrl+V, Edit, canvas and explorer menus: views as new views of the same models, centred on screen; a model as a deep copy into the selected element (src/clipboard.rs:251-332; src/ui.rs:1238, 1400) |
+| model-explorer | Delete From Model | `edit:delete-from-model` | ✅ | Ctrl+Delete (src/ui.rs:1417) |
+| model-explorer | Move Up | `edit:move-up` | ✅ | Ctrl+Shift+Up, Edit and explorer menus: swaps with the previous sibling of the same explorer group (src/app.rs:923; src/ui.rs:1225, 1435) |
+| model-explorer | Move Down | `edit:move-down` | ✅ | Ctrl+Shift+Down, Edit and explorer menus: swaps with the next sibling of the same explorer group (src/app.rs:923; src/ui.rs:1225, 1435) |
+| model-explorer | Select In Diagram | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:963; src/ui.rs:1432, 1015, 317; src/canvas.rs:1474) |
+| working-diagrams | *(the menu as a whole)* |  | 🟡 | right-clicking a row opens Close Diagram, Close Other Diagrams and Close All Diagrams, acting on the current diagram; no Rename (src/ui.rs:776, 1259) |
+| working-diagrams | Close Diagram | `view:close-diagram` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:1485, 1259; src/app.rs:867) |
+| working-diagrams | Close Other Diagrams | `view:close-other-diagrams` | ✅ | Ctrl+F4, View menu and Working Diagrams menu (src/ui.rs:1482, 1259; src/app.rs:886) |
+| working-diagrams | Close All Diagrams | `view:close-all-diagrams` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:1479, 1259; src/app.rs:892) |
+| working-diagrams | Rename | `view:rename-diagram` | ❌ | the Working Diagrams menu has no Rename and there is no rename dialog (src/ui.rs:1259) |
+| model-explorer-settings | *(the menu as a whole)* |  | ✅ | the header settings button opens Sort By Added, Sort By Name, Show Stereotype Text, Expand All and Collapse All (src/ui.rs:348, 385-407) |
+| model-explorer-settings | Sort By Added | `explorer:sort-by-added` | ✅ | radio item in the settings menu (src/ui.rs:386-389) |
+| model-explorer-settings | Sort By Name | `explorer:sort-by-name` | ✅ | radio item in the settings menu (src/ui.rs:390-393, 144) |
+| model-explorer-settings | Show Stereotype Text | `explorer:show-stereotype-text` | ✅ | check item, on by default; tree labels get «stereotype» first (src/ui.rs:395-397, 193-198) |
+| model-explorer-settings | Expand All | `explorer:expand-all` | ✅ | opens every element that has children (src/ui.rs:399-402, 410-417) |
+| model-explorer-settings | Collapse All | `explorer:collapse-all` | ✅ | closes every element, leaving only the project row (src/ui.rs:403-406) |
