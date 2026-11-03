@@ -420,9 +420,113 @@ impl App {
         views::create_node_view(&mut self.repo, d, m, rect)
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn create_view_of(&mut self, model: Eid, rect: R) -> Option<Eid> {
         let d = self.diagram?;
         views::create_node_view(&mut self.repo, d, model, rect)
+    }
+
+    /// The two ends of a relationship model: (tail, head) = (source, target) or (end1, end2) references.
+    pub fn rel_ends(&self, m: Eid) -> Option<(Eid, Eid)> {
+        let r = &self.repo;
+        if let (Some(s), Some(t)) = (r.refd(m, "source"), r.refd(m, "target")) {
+            return Some((s, t));
+        }
+        let end = |k: &str| r.child(m, k).and_then(|e| r.refd(e, "reference"));
+        Some((end("end1")?, end("end2")?))
+    }
+
+    /// The first visible top-level view of a model in the current diagram.
+    fn shown_view(&self, d: Eid, m: Eid) -> Option<Eid> {
+        self.repo
+            .list(d, "ownedViews")
+            .into_iter()
+            .find(|v| self.repo.refd(*v, "model") == Some(m) && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
+    }
+
+    /// Drop an element from the explorer at `p` (app-context.js:1145-1186, factory.js:871-1205). Returns
+    /// the views to select, or an alert.
+    pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
+        let Some(d) = self.diagram else { return Ok(vec![]) };
+        let ty = self.repo.ty(m).to_string();
+        if views::edge_view_of(&ty).is_some() && self.rel_ends(m).is_some() {
+            return self.drop_relationship(d, m, p);
+        }
+        if views::node_kind(&ty).is_none() {
+            return Ok(vec![]);
+        }
+        // a hidden view of it is shown again instead of a second one
+        let hidden = self.repo.list(d, "ownedViews").into_iter().find(|v| self.repo.refd(*v, "model") == Some(m) && matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))));
+        if let Some(v) = hidden {
+            self.change(|a| a.repo.set(v, "visible", json!(true)));
+            return Ok(vec![v]);
+        }
+        let v = self.change(|a| {
+            let v = a.place_node(d, m, p)?;
+            a.add_relationship_views(d, m, v);
+            Some(v)
+        });
+        Ok(v.into_iter().collect())
+    }
+
+    /// A view of a model at `p`, showing the namespace when the model lives elsewhere than the diagram.
+    fn place_node(&mut self, d: Eid, m: Eid, p: P) -> Option<Eid> {
+        let (w, h) = views::default_size(self.repo.ty(m));
+        let v = views::create_node_view(&mut self.repo, d, m, R { x: p.x, y: p.y, w, h })?;
+        if self.repo.parent(m) != self.repo.parent(d) && meta::order_of(self.repo.ty(v), "showNamespace").is_some() {
+            self.repo.set(v, "showNamespace", json!(true));
+        }
+        Some(v)
+    }
+
+    /// Lines from the new view `v` of `m` for every relationship to a model already shown, to each of
+    /// its views, self-relationships included (factory.js:871-1065).
+    fn add_relationship_views(&mut self, d: Eid, m: Eid, v: Eid) {
+        let rels: Vec<Eid> = self.repo.all().filter(|x| views::edge_view_of(self.repo.ty(*x)).is_some()).collect();
+        let views_of = |a: &App, x: Eid| -> Vec<Eid> {
+            a.repo
+                .list(d, "ownedViews")
+                .into_iter()
+                .filter(|w| *w != v && a.repo.refd(*w, "model") == Some(x) && !matches!(a.repo.raw(*w, "visible"), Some(serde_json::Value::Bool(false))))
+                .collect()
+        };
+        for rel in rels {
+            let Some((t, h)) = self.rel_ends(rel) else { continue };
+            let pairs: Vec<(Eid, Eid)> = if t == m && h == m {
+                vec![(v, v)]
+            } else if t == m {
+                views_of(self, h).into_iter().map(|w| (v, w)).collect()
+            } else if h == m {
+                views_of(self, t).into_iter().map(|w| (w, v)).collect()
+            } else {
+                vec![]
+            };
+            for (tv, hv) in pairs {
+                views::create_edge_view(&mut self.repo, d, Some(rel), tv, hv);
+            }
+        }
+    }
+
+    fn drop_relationship(&mut self, d: Eid, m: Eid, p: P) -> Result<Vec<Eid>, String> {
+        let (t, h) = self.rel_ends(m).unwrap();
+        if let Some(e) = self.shown_view(d, m) {
+            let mut sel = vec![e];
+            sel.extend([self.repo.refd(e, "tail"), self.repo.refd(e, "head")].into_iter().flatten());
+            self.select(sel);
+            return Err("Relationship View is already existed in this Diagram.".into());
+        }
+        let e = self.change(|a| {
+            let tv = match a.shown_view(d, t) {
+                Some(v) => v,
+                None => a.place_node(d, t, p)?,
+            };
+            let hv = match a.shown_view(d, h) {
+                Some(v) => v,
+                None => a.place_node(d, h, P { x: p.x, y: p.y + 100.0 })?,
+            };
+            views::create_edge_view(&mut a.repo, d, Some(m), tv, hv)
+        });
+        Ok(e.into_iter().collect())
     }
 
     pub fn can_connect(&self, tool: &Tool, tail: Eid, head: Eid) -> bool {

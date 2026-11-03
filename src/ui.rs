@@ -199,7 +199,7 @@ impl App {
         p.text(Pos2::new(tx, rect.center().y), Align2::LEFT_CENTER, &label, FontId::proportional(13.0), TEXT);
 
         let ty = self.repo.ty(e).to_string();
-        if views::node_kind(&ty).is_some() {
+        if views::node_kind(&ty).is_some() || views::edge_view_of(&ty).is_some() {
             resp.dnd_set_drag_payload(e);
         }
         if resp.clicked() || resp.secondary_clicked() {

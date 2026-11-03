@@ -413,11 +413,11 @@ impl App {
             if let Some(pos) = latest {
                 let p = self.to_diagram(origin, pos);
                 let m = *eid;
-                if self.repo.alive(m) && views::node_kind(self.repo.ty(m)).is_some() {
-                    let (w, h) = views::default_size(self.repo.ty(m));
-                    let r = R { x: self.snap_v(p.x), y: self.snap_v(p.y), w, h };
-                    if let Some(v) = self.change(|a| a.create_view_of(m, r)) {
-                        self.select(vec![v]);
+                if self.repo.alive(m) {
+                    match self.drop_model(m, P { x: self.snap_v(p.x), y: self.snap_v(p.y) }) {
+                        Ok(vs) if !vs.is_empty() => self.select(vs),
+                        Ok(_) => {}
+                        Err(msg) => self.message = Some(("UMLCraft".into(), msg)),
                     }
                 }
             }

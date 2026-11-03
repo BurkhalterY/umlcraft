@@ -954,3 +954,48 @@ fn reconnect_lines_and_tidy_bend_points() {
     assert_eq!((p[1].y, p[2].y), (240.0, 240.0));
     assert_eq!((p[1].x, p[2].x), (90.0, 450.0));
 }
+
+#[test]
+fn dropping_models_brings_their_relationships() {
+    use crate::views::{is_edge, P};
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let model = a.repo.children(a.repo.root)[0].1;
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(300.0, 40.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLGeneralization", AssocInit::Plain), c1, c2)).unwrap();
+    let (m1, m2) = (a.repo.refd(c1, "model").unwrap(), a.repo.refd(c2, "model").unwrap());
+    let rel = a.repo.refd(e, "model").unwrap();
+    let edges = |a: &App| a.repo.list(d, "ownedViews").into_iter().filter(|v| is_edge(&a.repo, *v)).count();
+
+    // a fresh diagram: drop c1, then c2 brings the generalization with it
+    let d2 = a.add_diagram(None, "UMLClassDiagram");
+    a.drop_model(m1, P { x: 40.0, y: 40.0 }).unwrap();
+    let vs = a.drop_model(m2, P { x: 300.0, y: 40.0 }).unwrap();
+    assert_eq!(vs.len(), 1);
+    let lines: Vec<_> = a.repo.list(d2, "ownedViews").into_iter().filter(|v| is_edge(&a.repo, *v)).collect();
+    assert_eq!(lines.len(), 1);
+    assert_eq!(a.repo.refd(lines[0], "model"), Some(rel));
+
+    // dropping a relationship already shown selects it and alerts
+    assert_eq!(a.drop_model(rel, P::default()).unwrap_err(), "Relationship View is already existed in this Diagram.");
+    assert_eq!(a.selection.len(), 3);
+    // dropping a relationship whose ends are missing creates them
+    let d3 = a.add_diagram(None, "UMLClassDiagram");
+    let vs = a.drop_model(rel, P { x: 40.0, y: 40.0 }).unwrap();
+    assert_eq!(vs.len(), 1);
+    assert_eq!(a.repo.list(d3, "ownedViews").len(), 3);
+    // a hidden view comes back instead of a second one
+    a.open_diagram(d);
+    a.change(|a| a.repo.set(c1, "visible", json!(false)));
+    let n = a.repo.list(d, "ownedViews").len();
+    assert_eq!(a.drop_model(m1, P::default()).unwrap(), vec![c1]);
+    assert_eq!(a.repo.list(d, "ownedViews").len(), n);
+    assert_eq!(edges(&a), 1);
+    // a model from another package shows its namespace
+    let pkg = a.change(|a| a.add_model(model, "UMLPackage"));
+    let other = a.change(|a| a.add_model(pkg, "UMLClass"));
+    let v = a.drop_model(other, P::default()).unwrap()[0];
+    assert!(a.repo.bool(v, "showNamespace"));
+    assert!(!a.repo.bool(c2, "showNamespace"));
+}
