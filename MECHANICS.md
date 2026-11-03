@@ -148,3 +148,4 @@ Read from the StarUML source through the feature inventory (`docs/features/`), w
 * The menu bar is drawn inside the window (22 px) instead of by the system, as egui apps do.
 * Only Class and Use Case diagrams have a toolbox; other diagram kinds are drawn as plain boxes and lines (estimated look).
 * Rectilinear routing is a simple elbow (estimated); the original's router was not read.
+* Line styles 2 (rounded rectilinear) and 3 (curve) are drawn from the points: rounded corners of radius 10, and quadratic curves through the segment midpoints that bend towards each point (estimated, `views.rs` drawn_points).

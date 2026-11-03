@@ -308,7 +308,8 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         dashed = false;
         head = None;
     }
-    c.polyline(&pts, line, dashed);
+    let style = r.val(e, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+    c.polyline(&views::drawn_points(&pts, style), line, dashed);
     let n = pts.len();
     end_shape(c, pts[n - 1], pts[n - 2], head, line);
     end_shape(c, pts[0], pts[1], tail, line);

@@ -790,6 +790,56 @@ fn end_rect(r: &Repo, v: Eid, info: &HashMap<Eid, Info>) -> R {
     nr
 }
 
+/// Line styles: 0 rectilinear, 1 oblique, 2 rounded rectilinear, 3 curve (core.js LS_*).
+pub fn rectilinear(style: i64) -> bool {
+    style == 0 || style == 2
+}
+
+/// The polyline actually drawn for a line's points: rounded corners for style 2 and a smooth curve
+/// for style 3 (both estimated: the original's drawing code was not read).
+pub fn drawn_points(pts: &[P], style: i64) -> Vec<P> {
+    if pts.len() < 3 || !(style == 2 || style == 3) {
+        return pts.to_vec();
+    }
+    let quad = |out: &mut Vec<P>, a: P, c: P, b: P| {
+        for k in 1..=8 {
+            let t = k as f64 / 8.0;
+            let u = 1.0 - t;
+            out.push(P { x: u * u * a.x + 2.0 * u * t * c.x + t * t * b.x, y: u * u * a.y + 2.0 * u * t * c.y + t * t * b.y });
+        }
+    };
+    let mid = |a: P, b: P| P { x: (a.x + b.x) / 2.0, y: (a.y + b.y) / 2.0 };
+    let mut out = vec![pts[0]];
+    let n = pts.len();
+    if style == 3 {
+        // through the middle of every segment, bending towards each point
+        let mut from = pts[0];
+        for i in 1..n - 1 {
+            let to = if i == n - 2 { pts[n - 1] } else { mid(pts[i], pts[i + 1]) };
+            quad(&mut out, from, pts[i], to);
+            from = to;
+        }
+        return out;
+    }
+    for i in 1..n - 1 {
+        let (a, c, b) = (pts[i - 1], pts[i], pts[i + 1]);
+        let len = |p: P, q: P| ((p.x - q.x).powi(2) + (p.y - q.y).powi(2)).sqrt();
+        let rad = ROUND_RADIUS.min(len(a, c) / 2.0).min(len(c, b) / 2.0);
+        let towards = |p: P, q: P, d: f64| {
+            let l = len(p, q).max(1e-9);
+            P { x: p.x + (q.x - p.x) * d / l, y: p.y + (q.y - p.y) * d / l }
+        };
+        let (s, e) = (towards(c, a, rad), towards(c, b, rad));
+        out.push(s);
+        quad(&mut out, s, c, e);
+    }
+    out.push(pts[n - 1]);
+    out
+}
+
+/// Corner radius of rounded rectilinear lines (estimated).
+pub const ROUND_RADIUS: f64 = 10.0;
+
 fn layout_edge(r: &mut Repo, ms: &dyn Measure, e: Eid, info: &HashMap<Eid, Info>) {
     let (Some(tail), Some(head)) = (r.refd(e, "tail"), r.refd(e, "head")) else { return };
     let tr = end_rect(r, tail, info);
@@ -802,9 +852,9 @@ fn layout_edge(r: &mut Repo, ms: &dyn Measure, e: Eid, info: &HashMap<Eid, Info>
             P { x: cx, y: tr.y - 1.0 }, P { x: cx, y: tr.y - 20.0 }, P { x: x2 + 30.0, y: tr.y - 20.0 },
             P { x: x2 + 30.0, y: cy }, P { x: x2 + 1.0, y: cy },
         ];
-    } else if pts.len() <= 2 || (style == 0 && pts.len() <= 3) {
+    } else if pts.len() <= 2 || (rectilinear(style) && pts.len() <= 3) {
         let (tc, hc) = (center(&tr), center(&hr));
-        if style == 0 {
+        if rectilinear(style) {
             // rectilinear: straight when the boxes overlap on one axis, else one elbow (estimated)
             let (ox1, ox2) = (tr.x.max(hr.x), (tr.x + tr.w).min(hr.x + hr.w));
             let (oy1, oy2) = (tr.y.max(hr.y), (tr.y + tr.h).min(hr.y + hr.h));

@@ -777,6 +777,13 @@ impl App {
         };
     }
 
+    /// The line style shared by the selected lines, if they agree.
+    pub fn line_style_state(&self) -> Option<i64> {
+        let mut it = self.selection.iter().filter(|v| self.repo.alive(**v) && views::is_edge(&self.repo, **v)).map(|v| self.repo.val(*v, "lineStyle").and_then(|x| x.as_i64()).unwrap_or(0));
+        let first = it.next()?;
+        it.all(|s| s == first).then_some(first)
+    }
+
     pub fn set_line_style(&mut self, style: i64) {
         let edges: Vec<Eid> = self.selection.iter().copied().filter(|v| views::is_edge(&self.repo, *v)).collect();
         if edges.is_empty() {

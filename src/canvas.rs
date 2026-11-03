@@ -1003,16 +1003,7 @@ impl App {
             }
         }
         if is_edge(&self.repo, v) {
-            ui.menu_button("Line Style", |ui| {
-                if ui.button("Rectilinear").clicked() {
-                    self.set_line_style(0);
-                    ui.close();
-                }
-                if ui.button("Oblique").clicked() {
-                    self.set_line_style(1);
-                    ui.close();
-                }
-            });
+            self.line_style_menu(ui);
         }
         ui.menu_button("Format", |ui| {
             self.format_toggles(ui);

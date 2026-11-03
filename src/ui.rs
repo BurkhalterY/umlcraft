@@ -850,16 +850,7 @@ impl App {
                 self.move_items(ui);
             });
             ui.menu_button("Format", |ui| {
-                ui.menu_button("Line Style", |ui| {
-                    if ui.button("Rectilinear   Ctrl+L").clicked() {
-                        self.set_line_style(0);
-                        ui.close();
-                    }
-                    if ui.button("Oblique       Ctrl+B").clicked() {
-                        self.set_line_style(1);
-                        ui.close();
-                    }
-                });
+                self.line_style_menu(ui);
                 self.format_toggles(ui);
                 ui.separator();
                 self.alignment_menu(ui);
@@ -925,6 +916,23 @@ impl App {
                 if ui.button("About UMLCraft").clicked() {
                     self.about_open = true;
                     ui.close();
+                }
+            });
+        });
+    }
+
+    /// Format > Line Style, with a check on the style the selected lines share (default-commands.js:993-1011, 1337-1342).
+    pub(crate) fn line_style_menu(&mut self, ui: &mut egui::Ui) {
+        let has = self.selection.iter().any(|v| self.repo.alive(*v) && views::is_edge(&self.repo, *v));
+        ui.add_enabled_ui(has, |ui| {
+            ui.menu_button("Line Style", |ui| {
+                let cur = self.line_style_state();
+                for (style, label) in [(0, "Rectilinear              Ctrl+L"), (1, "Oblique                    Ctrl+B"), (2, "Rounded Rectilinear  Ctrl+Alt+L"), (3, "Curve                        Ctrl+Alt+B")] {
+                    let mut on = cur == Some(style);
+                    if ui.checkbox(&mut on, label).clicked() {
+                        self.set_line_style(style);
+                        ui.close();
+                    }
                 }
             });
         });
@@ -1117,6 +1125,14 @@ impl App {
                     self.move_element(f, up);
                 }
             }
+        }
+        // Ctrl+Alt first: Ctrl+L and Ctrl+B also match when Alt is held
+        let ca = Modifiers::COMMAND | Modifiers::ALT;
+        if hit(sc(ca, Key::L)) {
+            self.set_line_style(2);
+        }
+        if hit(sc(ca, Key::B)) {
+            self.set_line_style(3);
         }
         if hit(sc(Modifiers::COMMAND, Key::L)) {
             self.set_line_style(0);

@@ -723,3 +723,34 @@ fn move_up_down_and_open_sub_diagram() {
     a.open_sub_diagram();
     assert_eq!(a.diagram, Some(d));
 }
+
+#[test]
+fn rounded_and_curved_line_styles() {
+    use crate::views::{drawn_points, P};
+    let pts = [P { x: 0.0, y: 0.0 }, P { x: 100.0, y: 0.0 }, P { x: 100.0, y: 100.0 }];
+    assert_eq!(drawn_points(&pts, 1), pts.to_vec());
+    let round = drawn_points(&pts, 2);
+    assert_eq!((round[0], *round.last().unwrap()), (pts[0], pts[2]));
+    assert!(!round.contains(&pts[1]), "the corner is cut");
+    assert!(round.iter().any(|p| p.x == 90.0 && p.y == 0.0), "the rounding starts one radius before the corner");
+    let curve = drawn_points(&pts, 3);
+    assert_eq!((curve[0], *curve.last().unwrap()), (pts[0], pts[2]));
+    assert!(curve.len() > 3);
+
+    let mut a = App::new(None);
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(240.0, 240.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let e2 = a.change(|a| a.create_edge(&tool("UMLDependency", AssocInit::Plain), c1, c2)).unwrap();
+    a.select(vec![e, e2, c1]);
+    a.set_line_style(3);
+    assert_eq!(a.line_style_state(), Some(3));
+    a.select(vec![e]);
+    a.set_line_style(2);
+    a.select(vec![e, e2]);
+    assert_eq!(a.line_style_state(), None, "mixed");
+    // rounded rectilinear is routed like rectilinear
+    let ms = measure();
+    crate::views::layout_diagram(&mut a.repo, &ms, a.diagram.unwrap());
+    assert_eq!(crate::views::points_of(&a.repo, e).len(), 3, "one elbow");
+}
