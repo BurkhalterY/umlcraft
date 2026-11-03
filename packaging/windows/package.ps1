@@ -54,6 +54,7 @@ Compress-Archive -Path $portable -DestinationPath $zip -Force
 $msi = "dist\release\UMLCraft-$version-windows-$Arch.msi"
 wix build -arch $Arch -d "Version=$msiVersion" -d "ExePath=$exe" -d "IconFile=packaging\icons\umlcraft.ico" -d "ReadmePath=README.md" -o $msi packaging\windows\umlcraft.wxs
 if ($LASTEXITCODE) { throw "wix build failed" }
+Remove-Item dist\release\*.wixpdb -ErrorAction SilentlyContinue   # WiX debug data, not for users
 Sign-File $msi
 
 if ($pfx) { Remove-Item $pfx }

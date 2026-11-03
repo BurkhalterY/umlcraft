@@ -7,6 +7,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 source packaging/env.sh
 ARCH="$(uname -m)"
+case "$ARCH" in amd64) ARCH=x86_64 ;; arm64) ARCH=aarch64 ;; esac   # same names as the other systems
 
 cargo build --release
 
