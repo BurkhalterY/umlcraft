@@ -665,7 +665,8 @@ impl App {
                         icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
                         fw -= 16.0 + ui.spacing().item_spacing.x;
                     }
-                    if var {
+                    let combo = field == "multiplicity";
+                    if var || combo {
                         fw -= 24.0 + ui.spacing().item_spacing.x;
                     }
                     let cur = self.display_value(obj, &field, kind);
@@ -677,6 +678,22 @@ impl App {
                     }
                     if var && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("…")).on_hover_text("Select Element").clicked() {
                         self.open_element_picker(obj, &field);
+                    }
+                    if combo {
+                        // an editable field plus the usual values (property-editor-view.js:445-479)
+                        let mut picked = None;
+                        ui.menu_button("▾", |ui| {
+                            for o in MULTIPLICITIES {
+                                if ui.button(o).clicked() {
+                                    picked = Some(o.to_string());
+                                    ui.close();
+                                }
+                            }
+                        });
+                        if let Some(o) = picked {
+                            self.prop_buf.insert(path.to_string(), o.clone());
+                            self.commit_text(obj, &field, kind, o);
+                        }
                     }
                 }
                 "bool" => {
@@ -2013,6 +2030,9 @@ impl App {
         }
     }
 }
+
+/// The multiplicity choices of the property editor and the inline editor (uml.json `uml.multiplicity`).
+pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
 const FORMAT_TOGGLES: [(&str, &str); 12] = [
