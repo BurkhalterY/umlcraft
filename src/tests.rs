@@ -1463,3 +1463,26 @@ fn export_jpeg_and_all_diagrams() {
     assert!(names.iter().any(|f| f.ends_with("_0.svg") && f.contains("!!")), "path joined with :: then made safe: {names:?}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn recent_files() {
+    let dir = std::env::temp_dir().join(format!("umlcraft-recent-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let ms = measure();
+    let mut a = App::new(None);
+    a.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
+    let f1 = dir.join("one.mdj");
+    let f2 = dir.join("two.mdj");
+    assert!(a.save_to(f1.clone(), &ms));
+    assert!(a.save_to(f2.clone(), &ms));
+    a.open_path(f1.clone());
+    let r = a.recent_files();
+    assert_eq!(r.len(), 2, "no duplicates");
+    assert!(r[0].ends_with("one.mdj"), "most recent first");
+    for i in 0..12 {
+        a.add_recent(&dir.join(format!("f{i}.mdj")));
+    }
+    assert_eq!(a.recent_files().len(), 10);
+    let _ = std::fs::remove_dir_all(&dir);
+}

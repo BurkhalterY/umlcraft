@@ -114,6 +114,26 @@ impl App {
         self.prefs.flush();
     }
 
+    /// File > Open Recent: most recent first, without duplicates, at most 10 (open-recent/main.js:39).
+    pub fn recent_files(&self) -> Vec<PathBuf> {
+        self.prefs.get("recent-files").and_then(|v| v.as_array()).map(|a| a.iter().filter_map(|x| x.as_str().map(PathBuf::from)).collect()).unwrap_or_default()
+    }
+
+    pub fn add_recent(&mut self, p: &std::path::Path) {
+        let full = std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+        let mut list = self.recent_files();
+        list.retain(|x| *x != full);
+        list.insert(0, full);
+        list.truncate(10);
+        self.set_recent(list);
+    }
+
+    pub fn set_recent(&mut self, list: Vec<PathBuf>) {
+        let v: Vec<Value> = list.iter().map(|p| json!(p.display().to_string())).collect();
+        self.prefs.set("recent-files", Value::Array(v));
+        self.prefs.flush();
+    }
+
     fn working_key(&self) -> Option<String> {
         let f = self.filename.as_ref()?;
         let full = std::fs::canonicalize(f).unwrap_or_else(|_| f.clone());

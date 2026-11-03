@@ -953,6 +953,17 @@ impl App {
                     self.cmd_open(&measure);
                     ui.close();
                 }
+                let recent = self.recent_files();
+                ui.add_enabled_ui(!recent.is_empty(), |ui| {
+                    ui.menu_button("Open Recent", |ui| {
+                        for p in recent {
+                            if ui.button(p.display().to_string()).clicked() {
+                                self.open_recent(&measure, p);
+                                ui.close();
+                            }
+                        }
+                    });
+                });
                 ui.separator();
                 if ui.button("Save                    Ctrl+S").clicked() {
                     self.save(&measure);
@@ -1541,6 +1552,32 @@ impl App {
         }
     }
 
+    /// Open a recent file; a file that is gone is dropped from the list with the toast
+    /// "File not found: <path>" (open-recent/main.js:59).
+    fn open_recent(&mut self, ms: &EguiMeasure, p: std::path::PathBuf) {
+        if !p.exists() {
+            self.toast(&format!("File not found: {}", p.display()));
+            let mut list = self.recent_files();
+            list.retain(|x| *x != p);
+            self.set_recent(list);
+            return;
+        }
+        if self.confirm_discard(ms) {
+            self.open_path(p);
+        }
+    }
+
+    /// A .mdj file dropped on the window is opened (app-context.js:546-565); other files are ignored.
+    fn dropped_files(&mut self, ctx: &egui::Context) {
+        let files: Vec<std::path::PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect());
+        if let Some(p) = files.into_iter().find(|p| p.extension().map(|e| e.eq_ignore_ascii_case("mdj")).unwrap_or(false)) {
+            let ms = EguiMeasure { ctx: ctx.clone() };
+            if self.confirm_discard(&ms) {
+                self.open_path(p);
+            }
+        }
+    }
+
     fn cmd_open(&mut self, ms: &EguiMeasure) {
         if !self.confirm_discard(ms) {
             return;
@@ -1892,6 +1929,7 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.handle_close(&ctx);
+        self.dropped_files(&ctx);
         self.shortcuts(&ctx);
         let title = self.title();
         if ctx.input(|i| i.viewport().title.as_deref() != Some(title.as_str())) {

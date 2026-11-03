@@ -286,6 +286,7 @@ impl App {
         match std::fs::read_to_string(&p).map_err(|e| e.to_string()).and_then(|t| Repo::parse(&t)) {
             Ok(repo) => {
                 self.save_working_diagrams();
+                self.add_recent(&p);
                 self.set_project(repo, Some(p));
                 self.restore_working_diagrams();
             }
@@ -310,6 +311,7 @@ impl App {
         self.prepare_for_save(ms);
         match std::fs::write(&p, self.repo.serialize()) {
             Ok(_) => {
+                self.add_recent(&p);
                 self.filename = Some(p);
                 self.modified = false;
                 self.save_working_diagrams();
