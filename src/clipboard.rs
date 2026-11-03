@@ -148,8 +148,44 @@ impl App {
     }
 
     /// The clipboard text, read from the system clipboard when possible.
-    pub fn get_clipboard(&self) -> Option<String> {
-        arboard::Clipboard::new().ok().and_then(|mut c| c.get_text().ok()).or_else(|| self.clipboard.clone())
+    pub fn get_clipboard(&mut self) -> Option<String> {
+        self.system_clipboard().and_then(|c| c.get_text().ok()).or_else(|| self.clipboard.clone())
+    }
+
+    fn system_clipboard(&mut self) -> Option<&mut arboard::Clipboard> {
+        if self.sys_clipboard.is_none() {
+            self.sys_clipboard = arboard::Clipboard::new().ok();
+        }
+        self.sys_clipboard.as_mut()
+    }
+
+    /// Edit > Copy Diagram As Image (Ctrl+Shift+C): deselect everything, draw the whole diagram the way
+    /// PNG export does and put the picture on the system clipboard. The original copies a PNG on macOS
+    /// and a JPEG elsewhere, so outside macOS the picture gets a white background (default-commands.js:678-700).
+    pub fn copy_diagram_image(&mut self, png: Result<Vec<u8>, String>) {
+        self.select(vec![]);
+        let img = png.and_then(|p| image::load_from_memory(&p).map_err(|e| e.to_string())).map(|i| i.to_rgba8());
+        let mut img = match img {
+            Ok(i) => i,
+            Err(e) => {
+                self.message = Some(("Failed to copy the diagram.".into(), e));
+                return;
+            }
+        };
+        if !cfg!(target_os = "macos") {
+            for p in img.pixels_mut() {
+                let a = p.0[3] as u32;
+                for c in 0..3 {
+                    p.0[c] = ((p.0[c] as u32 * a + 255 * (255 - a)) / 255) as u8;
+                }
+                p.0[3] = 255;
+            }
+        }
+        let data = arboard::ImageData { width: img.width() as usize, height: img.height() as usize, bytes: std::borrow::Cow::Owned(img.into_raw()) };
+        let ok = self.system_clipboard().map(|c| c.set_image(data).is_ok()).unwrap_or(false);
+        if !ok {
+            self.message = Some(("Failed to copy the diagram.".into(), "The system clipboard is not available.".into()));
+        }
     }
 
     pub fn cmd_copy(&mut self, ctx: Option<&egui::Context>) {

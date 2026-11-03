@@ -934,6 +934,10 @@ impl App {
             self.cmd_copy(Some(&ui.ctx().clone()));
             ui.close();
         }
+        if ui.add_enabled(self.diagram.is_some(), egui::Button::new("Copy Diagram As Image  Ctrl+Shift+C")).clicked() {
+            self.cmd_copy_diagram_image(&ui.ctx().clone());
+            ui.close();
+        }
         if ui.button("Paste               Ctrl+V").clicked() {
             self.cmd_paste();
             ui.close();
@@ -1060,7 +1064,10 @@ impl App {
             });
             out
         });
+        let shift = ctx.input(|i| i.modifiers.shift);
         match clip {
+            // Ctrl+Shift+C also arrives as a Copy event
+            Some(egui::Event::Copy) if shift => self.cmd_copy_diagram_image(ctx),
             Some(egui::Event::Copy) => self.cmd_copy(Some(ctx)),
             Some(egui::Event::Cut) => self.cmd_cut(Some(ctx)),
             Some(egui::Event::Paste(t)) => self.paste_text(&t),
@@ -1154,6 +1161,14 @@ impl App {
         if let Err(e) = result {
             self.message = Some(("Failed to export the diagram.".into(), e));
         }
+    }
+
+    pub(crate) fn cmd_copy_diagram_image(&mut self, ctx: &egui::Context) {
+        let Some(d) = self.diagram else { return };
+        let ms = EguiMeasure { ctx: ctx.clone() };
+        let info = views::layout_diagram(&mut self.repo, &ms, d);
+        let png = render::to_png(&self.repo, d, &info, &ms, 1.0);
+        self.copy_diagram_image(png);
     }
 
     fn export_svg(&mut self, ms: &EguiMeasure) {

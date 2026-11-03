@@ -140,6 +140,8 @@ pub struct App {
     pub diagram_picker: Option<(Vec<Eid>, Option<usize>)>,
     /// The last text UMLCraft put on the clipboard, used when the system clipboard cannot be read.
     pub clipboard: Option<String>,
+    /// The system clipboard, kept open: on Linux an image copied to it is served while it lives.
+    pub sys_clipboard: Option<arboard::Clipboard>,
 }
 
 impl App {
@@ -194,6 +196,7 @@ impl App {
             toasts: vec![],
             diagram_picker: None,
             clipboard: None,
+            sys_clipboard: None,
         };
         a.set_project(Repo::blank(), None);
         a

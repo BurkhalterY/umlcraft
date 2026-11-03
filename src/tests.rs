@@ -673,3 +673,24 @@ fn clipboard_shortcuts_arrive_as_events() {
     send(&mut a, egui::Event::Cut);
     assert_eq!(a.repo.list(d, "ownedViews").len(), 1);
 }
+
+#[test]
+fn copy_diagram_as_image_deselects_first() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    a.select(vec![c1]);
+    let d = a.diagram.unwrap();
+    let info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let png = crate::render::to_png(&a.repo, d, &info, &ms, 1.0);
+    assert!(png.is_ok());
+    a.copy_diagram_image(png);
+    assert!(a.selection.is_empty());
+    if std::env::var("DISPLAY").is_ok() {
+        assert!(a.message.is_none(), "{:?}", a.message);
+        let img = a.sys_clipboard.as_mut().unwrap().get_image().unwrap();
+        assert!(img.width > 100 && img.bytes[3] == 255, "an opaque picture of the diagram");
+    }
+    a.copy_diagram_image(Err("The diagram is empty.".into()));
+    assert!(a.message.is_some());
+}
