@@ -11,6 +11,24 @@ cargo test --release
 
 On Linux, install the GTK 3, xkbcommon and OpenGL development packages first. On Debian and Ubuntu these are `libgtk-3-dev libxkbcommon-dev libgl1-mesa-dev`.
 
+## Website
+
+The project website is in `website/`. It uses the same stack as the Crafting Apps pages on getartcraft.com: Next.js (App Router) with React, Tailwind CSS v4, TypeScript and `next/font`. It is exported as static files:
+
+```sh
+cd website
+npm ci
+npm run dev      # http://localhost:3000
+npm run build    # static site in website/out/; BASE_PATH=/umlcraft npm run build serves it from a sub-path
+```
+
+- **Where the data comes from:**
+  - the copy is in `website/src/lib/site.ts`, and follows the README;
+  - the screenshots and icons are copied at build time from `docs/images/` and `packaging/icons/`, so change them there, not in `website/public/`;
+  - the latest release is read from the GitHub API at build time;
+  - the "Progress" figures come from files 1–7 of `docs/features/`.
+- **Licensing:** the getartcraft.com source (`storytold/artcraft-services`) is under the ArtCraft licence, which only allows private personal use and forbids using the ArtCraft name and logo. Never copy its code, styles or images into this MIT repository. Follow its stack and layout, but write our own code.
+
 ## Commits
 
 Always use [Conventional Commits](https://www.conventionalcommits.org). The version of every release is computed from the commit messages, so a wrong type gives a wrong version.

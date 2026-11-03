@@ -1,0 +1,9 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+# copied from docs/images and packaging/icons by scripts/copy-assets.mjs
+public/images/
+src/app/icon.png
+src/app/apple-icon.png
