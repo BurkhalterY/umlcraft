@@ -217,6 +217,16 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             c.polyline(&[P { x: b.x + b.w - 3.0, y: b.y }, P { x: b.x + b.w - 3.0, y: b.y + b.h }], line, false);
         }
     }
+    // template parameters: a dashed box over the top-right corner
+    if let (Some(i), Some(tc)) = (info.filter(|i| i.templ.is_some()), r.refd(v, "templateParameterCompartment")) {
+        let t = node_rect(r, tc);
+        let pts = [P { x: t.x, y: t.y }, P { x: t.x + t.w, y: t.y }, P { x: t.x + t.w, y: t.y + t.h }, P { x: t.x, y: t.y + t.h }, P { x: t.x, y: t.y }];
+        c.polygon(&pts[..4], Some(fill), None);
+        c.polyline(&pts, line, true);
+        for row in &i.templ.as_ref().unwrap().rows {
+            draw_label(c, r, row.iv, fc);
+        }
+    }
     if r.has(v, "nameCompartment") {
         draw_name(c, r, v);
     } else if let Some(m) = r.refd(v, "model") {
@@ -357,11 +367,17 @@ pub fn bounds(r: &Repo, d: Eid) -> Option<R> {
                 y2 = y2.max(p.y);
             }
         } else if is_node(r, v) {
-            let b = node_rect(r, v);
-            x1 = x1.min(b.x);
-            y1 = y1.min(b.y);
-            x2 = x2.max(b.x + b.w);
-            y2 = y2.max(b.y + b.h);
+            let mut boxes = vec![node_rect(r, v)];
+            // a template parameter box sticks out of its class
+            if let Some(tc) = r.refd(v, "templateParameterCompartment").filter(|tc| shown(r, *tc) && !r.list(*tc, "subViews").is_empty()) {
+                boxes.push(node_rect(r, tc));
+            }
+            for b in boxes {
+                x1 = x1.min(b.x);
+                y1 = y1.min(b.y);
+                x2 = x2.max(b.x + b.w);
+                y2 = y2.max(b.y + b.h);
+            }
         }
     }
     if x1.is_finite() { Some(R { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }) } else { None }

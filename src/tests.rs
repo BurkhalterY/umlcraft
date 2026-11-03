@@ -1769,3 +1769,34 @@ fn auto_backup_and_recovery() {
     assert!(!c.recover_backup());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn template_parameters() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 160.0, 80.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    let t = a.change(|a| a.add_feature(m, "UMLTemplateParameter")).unwrap();
+    assert_eq!(a.repo.name(t), "TemplateParameter1");
+    crate::parse::apply_template_parameter(&mut a.repo, t, "T: Number = int");
+    assert_eq!((a.repo.name(t), a.repo.str(t, "parameterType"), a.repo.str(t, "defaultValue")), ("T".to_string(), "Number".to_string(), "int".to_string()));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let tc = a.repo.refd(c, "templateParameterCompartment").unwrap();
+    let tb = crate::views::node_rect(&a.repo, tc);
+    let cb = crate::views::node_rect(&a.repo, c);
+    assert!(tb.y < cb.y && tb.x + tb.w > cb.x + cb.w, "over the top-right corner: {tb:?} {cb:?}");
+    let row = a.repo.list(tc, "subViews")[0];
+    assert_eq!(a.repo.str(row, "text"), "T: Number = int");
+    // the export bounds include the box, and a double-click on it edits the parameter
+    let b = crate::render::bounds(&a.repo, d).unwrap();
+    assert!(b.y <= tb.y);
+    let rb = crate::views::node_rect(&a.repo, row);
+    a.edit_view(c, Some(crate::views::P { x: rb.x + 2.0, y: rb.y + 2.0 }));
+    assert_eq!(a.editing.as_ref().map(|e| e.kind.clone()), Some(crate::app::EditKind::Feature(t)));
+    a.editing.as_mut().unwrap().text = "K".into();
+    a.close_inline(true);
+    assert_eq!(a.repo.name(t), "K");
+    assert_eq!(a.repo.str(t, "parameterType"), "");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

@@ -180,3 +180,14 @@ pub fn apply_operation(r: &mut Repo, o: Eid, text: &str) {
         r.set_list(o, "parameters", keep);
     }
 }
+
+/// Template parameter expression `<<stereotype>> name : type = default`: the type is kept as text in
+/// parameterType (uml-templateparameter.pegjs; uml-commands.js:622-662).
+pub fn apply_template_parameter(r: &mut Repo, t: Eid, text: &str) {
+    let (st, rest) = split_stereotype(text.trim());
+    set_stereotype(r, t, st);
+    let (name, ty, _, default) = split_typed(rest);
+    r.set(t, "name", json!(name));
+    r.set(t, "parameterType", json!(ty));
+    r.set(t, "defaultValue", json!(default));
+}

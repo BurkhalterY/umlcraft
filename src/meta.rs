@@ -77,6 +77,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLDataType", Some("UMLClassifier"), vec![]);
     def("UMLPrimitiveType", Some("UMLDataType"), vec![]);
     def("UMLEnumerationLiteral", Some("UMLModelElement"), vec![]);
+    def("UMLTemplateParameter", Some("UMLModelElement"), vec![("parameterType", d(json!(""))), ("defaultValue", d(json!("")))]);
     def("UMLEnumeration", Some("UMLDataType"), vec![("literals", n())]);
     def("UMLDependency", Some("UMLDirectedRelationship"), vec![("mapping", d(json!("")))]);
     def("UMLAbstraction", Some("UMLDependency"), vec![]);

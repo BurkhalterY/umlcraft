@@ -182,7 +182,7 @@ impl App {
                 if !nodes_only && self.hit_edge(v, p) {
                     return Some(v);
                 }
-            } else if is_node(&self.repo, v) && in_rect(p, &node_rect(&self.repo, v)) {
+            } else if is_node(&self.repo, v) && (in_rect(p, &node_rect(&self.repo, v)) || self.in_template_box(v, p)) {
                 return Some(v);
             }
         }
@@ -214,6 +214,11 @@ impl App {
         } else {
             egui::CursorIcon::ResizeHorizontal
         })
+    }
+
+    /// Whether `p` is on the template parameter box of a view.
+    fn in_template_box(&self, v: Eid, p: P) -> bool {
+        self.repo.refd(v, "templateParameterCompartment").filter(|_| self.info.get(&v).map(|i| i.templ.is_some()).unwrap_or(false)).map(|tc| in_rect(p, &node_rect(&self.repo, tc))).unwrap_or(false)
     }
 
     fn hit_handle(&self, p: P) -> Option<usize> {
@@ -1067,6 +1072,15 @@ impl App {
     // ------------------------------------------------------------------ inline editing
     fn row_at(&self, v: Eid, p: P) -> Option<Eid> {
         let i = self.info.get(&v)?;
+        // a template parameter row is found by both coordinates, as its box sits over the corner
+        if let Some(t) = &i.templ {
+            for row in &t.rows {
+                let b = node_rect(&self.repo, row.iv);
+                if in_rect(p, &R { x: b.x - 1.0, y: b.y - 1.0, w: b.w + 2.0, h: b.h + 2.0 }) {
+                    return Some(row.iv);
+                }
+            }
+        }
         for c in &i.compartments {
             for row in &c.rows {
                 let b = node_rect(&self.repo, row.iv);
@@ -1153,6 +1167,15 @@ impl App {
         i.compartments.iter().flat_map(|c| c.rows.iter()).filter_map(|r| self.repo.refd(r.iv, "model").map(|m| (r.iv, m))).collect()
     }
 
+    /// The compartment rows and the template parameter rows of a box.
+    fn all_item_rows(&self, v: Eid) -> Vec<(Eid, Eid)> {
+        let mut rows = self.item_rows(v);
+        if let Some(t) = self.info.get(&v).and_then(|i| i.templ.as_ref()) {
+            rows.extend(t.rows.iter().filter_map(|r| self.repo.refd(r.iv, "model").map(|m| (r.iv, m))));
+        }
+        rows
+    }
+
     /// Open the queued item edit once its row is laid out, waiting a few frames at most.
     pub fn take_pending_item(&mut self) {
         let Some((v, item, left)) = self.pending_item.take() else { return };
@@ -1167,12 +1190,12 @@ impl App {
     }
 
     pub fn item_shown(&self, v: Eid, item: Eid) -> bool {
-        self.item_rows(v).iter().any(|(_, m)| *m == item)
+        self.all_item_rows(v).iter().any(|(_, m)| *m == item)
     }
 
     /// Edit this item inline: now if its row is laid out, else after the next layout.
     pub fn edit_item(&mut self, v: Eid, item: Eid) {
-        match self.item_rows(v).into_iter().find(|(_, m)| *m == item) {
+        match self.all_item_rows(v).into_iter().find(|(_, m)| *m == item) {
             Some((iv, _)) if self.repo.alive(iv) => {
                 self.edit_row(v, iv);
             }
@@ -1181,11 +1204,12 @@ impl App {
     }
 
     /// The suppress flag that hides a kind of item.
-    fn suppress_flag(ty: &str) -> &'static str {
+    fn suppress_flag(ty: &str) -> Option<&'static str> {
         match ty {
-            "UMLOperation" => "suppressOperations",
-            "UMLEnumerationLiteral" => "suppressLiterals",
-            _ => "suppressAttributes",
+            "UMLOperation" => Some("suppressOperations"),
+            "UMLEnumerationLiteral" => Some("suppressLiterals"),
+            "UMLTemplateParameter" => None,
+            _ => Some("suppressAttributes"),
         }
     }
 
@@ -1197,7 +1221,7 @@ impl App {
         }
         let flag = Self::suppress_flag(ty);
         let new = self.change(|a| {
-            if a.repo.bool(v, flag) {
+            if let Some(flag) = flag.filter(|f| a.repo.bool(v, f)) {
                 a.repo.set(v, flag, json!(false));
             }
             a.add_feature(owner, ty)
@@ -1299,6 +1323,8 @@ impl App {
                     self.change(|a| {
                         if ty == "UMLOperation" {
                             crate::parse::apply_operation(&mut a.repo, f, &e.text);
+                        } else if ty == "UMLTemplateParameter" {
+                            crate::parse::apply_template_parameter(&mut a.repo, f, &e.text);
                         } else {
                             crate::parse::apply_attribute(&mut a.repo, f, &e.text);
                         }

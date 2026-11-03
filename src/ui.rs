@@ -291,7 +291,7 @@ impl App {
                 adds.push((l, k, false));
             }
         }
-        for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter")] {
+        for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter")] {
             if self.can_add_feature(e, k) {
                 adds.push((l, k, true));
             }

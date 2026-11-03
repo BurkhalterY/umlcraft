@@ -415,6 +415,27 @@ pub fn attribute_text(r: &Repo, a: Eid, show_vis: bool) -> String {
     }
     s
 }
+/// How far the template parameter box reaches over the class's right and top edges (estimated).
+pub const TEMPLATE_OUT: f64 = 10.0;
+
+/// A template parameter's text: «stereotype» name: type = default.
+pub fn template_parameter_text(r: &Repo, t: Eid) -> String {
+    let mut s = stereotype_text(r, t);
+    if !s.is_empty() {
+        s.push(' ');
+    }
+    s += &r.name(t);
+    let ty = r.str(t, "parameterType");
+    if !ty.is_empty() {
+        s += &format!(": {ty}");
+    }
+    let d = r.str(t, "defaultValue");
+    if !d.is_empty() {
+        s += &format!(" = {d}");
+    }
+    s
+}
+
 pub fn operation_text(r: &Repo, o: Eid, show_vis: bool, show_sig: bool) -> String {
     let mut s = stereotype_text(r, o);
     if !s.is_empty() {
@@ -481,6 +502,8 @@ pub struct Comp {
 }
 #[derive(Clone, Debug, Default)]
 pub struct Info {
+    /// The template parameter box at the top-right corner, when there are template parameters.
+    pub templ: Option<Comp>,
     /// "interface", "actor", "usecase", "package", "subject" or ""
     pub shape: &'static str,
     pub compartments: Vec<Comp>,
@@ -761,6 +784,18 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
             comps.push((oc, w, h, rows));
         }
     }
+    // template parameters: a dashed box over the top-right corner (estimated placement)
+    let mut templ = None;
+    if let Some(tc) = r.refd(v, "templateParameterCompartment") {
+        let items = r.list(m, "templateParameters");
+        if items.is_empty() {
+            hide_comp(r, Some(tc));
+        } else {
+            r.remove(tc, "visible");
+            let texts: Vec<String> = items.iter().map(|t| template_parameter_text(r, *t)).collect();
+            templ = Some((tc, sync_list(r, ms, tc, &items, "UMLTemplateParameterView", &texts)));
+        }
+    }
     let mut min_w = name_min_width(r, ms, v, m, keyword, false);
     for c in &comps {
         min_w = min_w.max(c.1);
@@ -778,7 +813,12 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         out.push(Comp { y: cy, rows });
         cy += h;
     }
-    Info { shape: "", compartments: out, is_active: r.bool(m, "isActive") }
+    let templ = templ.map(|(tc, (tw, th, rows))| {
+        let (tx, ty) = (x + w - tw + TEMPLATE_OUT, y - th + TEMPLATE_OUT);
+        place_list(r, ms.size(), tc, tx, ty, tw, th, &rows);
+        Comp { y: ty, rows }
+    });
+    Info { shape: "", compartments: out, is_active: r.bool(m, "isActive"), templ }
 }
 
 fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {

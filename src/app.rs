@@ -466,6 +466,7 @@ impl App {
             "UMLOperation" => "Operation",
             "UMLEnumerationLiteral" => "Literal",
             "UMLParameter" => "Parameter",
+            "UMLTemplateParameter" => "TemplateParameter",
             "UMLClassDiagram" => "ClassDiagram",
             "UMLUseCaseDiagram" => "UseCaseDiagram",
             "UMLPackageDiagram" => "PackageDiagram",
@@ -788,6 +789,7 @@ impl App {
             "UMLOperation" => "operations",
             "UMLEnumerationLiteral" => "literals",
             "UMLParameter" => "parameters",
+            "UMLTemplateParameter" => "templateParameters",
             _ => return None,
         };
         let name = self.new_name(owner, ty);
@@ -799,6 +801,8 @@ impl App {
         match ty {
             "UMLEnumerationLiteral" => t == "UMLEnumeration",
             "UMLParameter" => t == "UMLOperation",
+            // template parameters on classes, interfaces and the other boxes with compartments
+            "UMLTemplateParameter" => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase" && t != "UMLEnumeration",
             _ => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase",
         }
     }
