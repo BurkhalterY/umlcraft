@@ -997,6 +997,10 @@ impl App {
                     if self.can_connect(&tool, tail, head) {
                         if let Some(v) = self.change(|a| a.create_edge(&tool, tail, head)) {
                             self.select(vec![v]);
+                            // its name edit opens, once the line is laid out (toolbox-view.js:196-208)
+                            if self.repo.has(v, "model") {
+                                self.pending_edit = Some(v);
+                            }
                         }
                     }
                 }
@@ -1072,6 +1076,27 @@ impl App {
         if is_edge(&self.repo, v) {
             let pts = points_of(&self.repo, v);
             let mid = pts.get(pts.len() / 2).copied().unwrap_or_default();
+            // on an association, a click nearer an end than the middle edits that end's role name
+            // (quickedit-manager.js:151-156, 589-624)
+            if let (Some(p), true, n) = (p, self.repo.has(m, "end1"), pts.len()) {
+                if n >= 2 {
+                    let mi = if n % 2 == 0 { n / 2 - 1 } else { n / 2 };
+                    let centre = if n % 2 == 0 { P { x: (pts[mi].x + pts[mi + 1].x) / 2.0, y: (pts[mi].y + pts[mi + 1].y) / 2.0 } } else { pts[mi] };
+                    let dist = |q: P| (q.x - p.x).powi(2) + (q.y - p.y).powi(2);
+                    let (dt, dh, dm) = (dist(pts[0]), dist(pts[n - 1]), dist(centre));
+                    let end = if dt < dh && dt < dm { Some(("end1", "tailRoleNameLabel", pts[0])) } else if dh < dt && dh < dm { Some(("end2", "headRoleNameLabel", pts[n - 1])) } else { None };
+                    if let Some((field, label, at)) = end {
+                        if let Some(e) = self.repo.child(m, field) {
+                            let rect = match self.repo.refd(v, label) {
+                                Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: 19.0 },
+                                _ => R { x: at.x - 50.0, y: at.y - 25.0, w: 100.0, h: 19.0 },
+                            };
+                            self.editing = Some(Editing { kind: EditKind::Name(e), text: crate::parse::name_text(&self.repo, e), rect, multiline: false, center: true, fresh: true, host: None });
+                            return;
+                        }
+                    }
+                }
+            }
             let lv = self.repo.refd(v, "nameLabel");
             let rect = match lv {
                 Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: 19.0 },

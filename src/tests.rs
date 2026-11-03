@@ -1168,3 +1168,29 @@ fn dragging_a_line_label_keeps_it_with_the_line() {
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     assert_eq!(crate::views::node_rect(&a.repo, l).x, b.x, "one undo step");
 }
+
+#[test]
+fn association_end_inline_edit_by_proximity() {
+    use crate::app::EditKind;
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let m = a.repo.refd(e, "model").unwrap();
+    let (e1, e2) = (a.repo.child(m, "end1").unwrap(), a.repo.child(m, "end2").unwrap());
+    let pts = crate::views::points_of(&a.repo, e);
+    let kind = |a: &App| a.editing.as_ref().map(|x| x.kind.clone());
+    a.edit_view(e, Some(crate::views::P { x: pts[0].x + 10.0, y: pts[0].y }));
+    assert_eq!(kind(&a), Some(EditKind::Name(e1)));
+    a.editing.as_mut().unwrap().text = "-owner".into();
+    a.close_inline(true);
+    assert_eq!((a.repo.name(e1), a.repo.str(e1, "visibility")), ("owner".to_string(), "private".to_string()));
+    a.edit_view(e, Some(crate::views::P { x: pts[1].x - 10.0, y: pts[1].y }));
+    assert_eq!(kind(&a), Some(EditKind::Name(e2)));
+    a.editing = None;
+    a.edit_view(e, Some(crate::views::P { x: (pts[0].x + pts[1].x) / 2.0, y: pts[0].y }));
+    assert_eq!(kind(&a), Some(EditKind::Name(m)), "the middle edits the association");
+}
