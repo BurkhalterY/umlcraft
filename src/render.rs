@@ -7,10 +7,9 @@ use std::collections::HashMap;
 pub const SHADOW_OFFSET: f64 = 7.0; // elements.js:57
 pub const SHADOW_ALPHA: f64 = 0.2; // elements.js:58
 pub const SHADOW_COLOR: Rgba = Rgba(0xC0, 0xC0, 0xC0, 255);
-pub const GRID_SIZE: f64 = 8.0; // diagramEditor.gridSize, default.json:117
-pub const GRID_STEP: f64 = 16.0; // grid lines every 2 x grid size (screenshot)
-pub const GRID_COLOR_HEX: &str = "#e0e0e0"; // default.json:141
-pub const GRID_COLOR: Rgba = Rgba(0xe0, 0xe0, 0xe0, 255); // = GRID_COLOR_HEX
+// grid size 8 and colour #e0e0e0 are the defaults of diagramEditor.gridSize / gridColor (default.json:117-141),
+// read through the preferences (prefs.rs); lines are drawn every 2 x grid size (screenshot)
+pub const GRID_COLOR: Rgba = Rgba(0xe0, 0xe0, 0xe0, 255);
 pub const SELECT_COLOR_HEX: &str = "#4f99ff"; // graphics.js:2723
 pub const SELECT_COLOR: Rgba = Rgba(0x4f, 0x99, 0xff, 255); // = SELECT_COLOR_HEX
 pub const HANDLE_SIZE: f64 = 8.0;

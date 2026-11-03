@@ -1413,3 +1413,32 @@ fn panel_toggles() {
     press(&mut a, Key::Num1, Modifiers::COMMAND);
     assert!(!a.show_sidebar);
 }
+
+#[test]
+fn preferences_set_new_view_defaults_and_the_grid() {
+    let mut a = App::new(None);
+    assert_eq!(a.grid_size(), 8.0);
+    a.prefs.set("diagramEditor.gridSize", json!(10));
+    assert_eq!(a.grid_size(), 10.0);
+    a.prefs.set("view.lineColor", json!("#ff0000"));
+    a.prefs.set("view.fontSize", json!(16));
+    a.prefs.set("uml.class.fillColor", json!("#ffffcc"));
+    a.prefs.set("uml.class.suppressOperations", json!(true));
+    a.prefs.set("view.lineStyle", json!(0));
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLInterface", rect(240.0, 40.0, 100.0, 60.0))).unwrap();
+    assert_eq!(a.repo.str(c1, "fillColor"), "#ffffcc");
+    assert_eq!(a.repo.str(c2, "fillColor"), "#ffffff", "the general fill when the kind has none");
+    assert_eq!(a.repo.str(c1, "lineColor"), "#ff0000");
+    assert_eq!(a.repo.str(c1, "font"), "Arial;16;0");
+    assert!(a.repo.bool(c1, "suppressOperations"));
+    assert_eq!(a.repo.str(c2, "stereotypeDisplay"), "icon");
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    assert_eq!(a.repo.f(e, "lineStyle"), 0.0);
+    // with the defaults nothing extra is written
+    let mut b = App::new(None);
+    let v = b.change(|b| b.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    for k in ["fillColor", "lineColor", "fontColor", "showShadow"] {
+        assert!(!b.repo.has(v, k), "{k} left at its default");
+    }
+}

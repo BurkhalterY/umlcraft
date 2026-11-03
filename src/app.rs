@@ -167,6 +167,8 @@ pub struct App {
     /// The Font window (Ctrl+Shift+F): face and size as typed, and the text colour.
     pub font_dialog: Option<(String, String, Option<crate::render::Rgba>)>,
     pub prefs: crate::prefs::Prefs,
+    /// The Preferences window, open on this section.
+    pub prefs_open: Option<String>,
 }
 
 impl App {
@@ -233,6 +235,7 @@ impl App {
             color_dialog: None,
             font_dialog: None,
             prefs: crate::prefs::Prefs::default(),
+            prefs_open: None,
         };
         a.set_project(Repo::blank(), None);
         a
@@ -445,12 +448,16 @@ impl App {
         let d = self.diagram?;
         if kind == "Note" || kind == "Text" {
             let ty = if kind == "Note" { "UMLNoteView" } else { "UMLTextView" };
-            return Some(views::create_note_view(&mut self.repo, d, rect, ty));
+            let v = views::create_note_view(&mut self.repo, d, rect, ty);
+            self.apply_view_defaults(v);
+            return Some(v);
         }
         let parent = self.package_for(Some(d));
         let name = self.new_name(parent, kind);
         let m = self.repo.create(kind, &[("name", json!(name))], Some((parent, "ownedElements")));
-        views::create_node_view(&mut self.repo, d, m, rect)
+        let v = views::create_node_view(&mut self.repo, d, m, rect)?;
+        self.apply_view_defaults(v);
+        Some(v)
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
@@ -574,6 +581,7 @@ impl App {
     fn place_node(&mut self, d: Eid, m: Eid, p: P) -> Option<Eid> {
         let (w, h) = views::default_size(self.repo.ty(m));
         let v = views::create_node_view(&mut self.repo, d, m, R { x: p.x, y: p.y, w, h })?;
+        self.apply_view_defaults(v);
         if self.repo.parent(m) != self.repo.parent(d) && meta::order_of(self.repo.ty(v), "showNamespace").is_some() {
             self.repo.set(v, "showNamespace", json!(true));
         }
@@ -664,6 +672,12 @@ impl App {
     }
 
     pub fn create_edge(&mut self, tool: &Tool, tail: Eid, head: Eid) -> Option<Eid> {
+        let e = self.create_edge_inner(tool, tail, head)?;
+        self.apply_view_defaults(e);
+        Some(e)
+    }
+
+    fn create_edge_inner(&mut self, tool: &Tool, tail: Eid, head: Eid) -> Option<Eid> {
         let d = self.diagram?;
         if tool.kind == "NoteLink" {
             return views::create_edge_view(&mut self.repo, d, None, tail, head);

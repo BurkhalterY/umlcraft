@@ -977,6 +977,11 @@ impl App {
                     ui.close();
                 }
                 ui.separator();
+                if ui.button("Preferences...").clicked() {
+                    self.prefs_open = Some("General".into());
+                    ui.close();
+                }
+                ui.separator();
                 if ui.button("Exit                    Ctrl+Q").clicked() {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     ui.close();
@@ -1584,6 +1589,7 @@ impl App {
         }
         self.diagram_picker_ui(ctx);
         self.color_dialog_ui(ctx);
+        self.preferences_ui(ctx);
         self.font_dialog_ui(ctx);
         if let Some((title, detail)) = self.message.clone() {
             egui::Window::new(title).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {

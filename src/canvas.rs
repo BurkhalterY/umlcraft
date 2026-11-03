@@ -225,7 +225,8 @@ impl App {
     }
 
     fn snap_v(&self, n: f64) -> f64 {
-        if self.snap { (n / render::GRID_SIZE).round() * render::GRID_SIZE } else { n.round() }
+        let g = self.grid_size();
+        if self.snap { (n / g).round() * g } else { n.round() }
     }
 
     fn to_diagram(&self, origin: Pos2, pos: Pos2) -> P {
@@ -286,11 +287,14 @@ impl App {
         }
 
         self.info = views::layout_diagram(&mut self.repo, &measure, d);
-        painter.rect_filled(rect, 0.0, Color32::WHITE);
+        // diagramEditor.backgroundColor and gridColor (default.json:135-141)
+        let pref_color = |a: &App, key: &str, def: render::Rgba| a.pref(key).as_str().map(|s| render::parse_color(s, def)).unwrap_or(def);
+        painter.rect_filled(rect, 0.0, c32(pref_color(self, "diagramEditor.backgroundColor", render::Rgba(255, 255, 255, 255))));
         let mut c = ScreenCanvas { painter: &painter, origin: rect.min, scroll: self.scroll, zoom: self.zoom, measure: EguiMeasure { ctx: ctx.clone() } };
         if self.show_grid {
-            let grid = Stroke::new(1.0, c32(render::parse_color(render::GRID_COLOR_HEX, render::GRID_COLOR)));
-            let step = render::GRID_STEP;
+            let grid = Stroke::new(1.0, c32(pref_color(self, "diagramEditor.gridColor", render::GRID_COLOR)));
+            // lines every two grid cells
+            let step = 2.0 * self.grid_size();
             let (vw, vh) = (rect.width() as f64 / self.zoom, rect.height() as f64 / self.zoom);
             let mut x = (self.scroll.x / step).floor() * step;
             while x <= self.scroll.x + vw {
@@ -571,7 +575,7 @@ impl App {
             let (l, r, u, dn, shift) = arrows;
             if (l || r || u || dn) && !self.selection.is_empty() {
                 // Shift moves by the grid factor: the grid size, or 1 with snap off (diagram-manager.js:761-765)
-                let step = if shift && self.snap { render::GRID_SIZE } else { 1.0 };
+                let step = if shift && self.snap { self.grid_size() } else { 1.0 };
                 let dx = if l { -step } else if r { step } else { 0.0 };
                 let dy = if u { -step } else if dn { step } else { 0.0 };
                 let sel = self.selection.clone();
