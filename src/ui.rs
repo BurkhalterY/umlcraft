@@ -326,7 +326,7 @@ impl App {
             }
             ui.add_space(8.0);
         });
-        if ui.ui_contains_pointer() && ui.input(|i| i.key_pressed(egui::Key::Delete)) && self.last_area == Area::Explorer && !ui.ctx().egui_wants_keyboard_input() {
+        if ui.ui_contains_pointer() && ui.input(|i| i.key_pressed(egui::Key::Delete)) && self.last_area == Area::Explorer && !text_field_focused(ui.ctx()) {
             if let Some(f) = self.focus.filter(|f| self.repo.ty(*f) != "Project" && !self.is_view(*f)) {
                 self.change(|a| a.delete_models(&[f]));
             }
@@ -903,9 +903,9 @@ impl App {
         });
     }
 
-    fn shortcuts(&mut self, ctx: &egui::Context) {
+    pub(crate) fn shortcuts(&mut self, ctx: &egui::Context) {
         use egui::{Key, KeyboardShortcut, Modifiers};
-        let typing = ctx.egui_wants_keyboard_input();
+        let typing = self.editing.is_some() || text_field_focused(ctx);
         let measure = EguiMeasure { ctx: ctx.clone() };
         let sc = |m: Modifiers, k: Key| KeyboardShortcut::new(m, k);
         let cs = Modifiers::COMMAND | Modifiers::SHIFT;
@@ -928,11 +928,11 @@ impl App {
         if typing {
             return;
         }
+        if hit(sc(Modifiers::COMMAND, Key::Y)) || hit(sc(cs, Key::Z)) {
+            self.do_redo();
+        }
         if hit(sc(Modifiers::COMMAND, Key::Z)) {
             self.do_undo();
-        }
-        if hit(sc(Modifiers::COMMAND, Key::Y)) {
-            self.do_redo();
         }
         if hit(sc(Modifiers::COMMAND, Key::Delete)) {
             self.delete_selection(true);
@@ -1085,6 +1085,12 @@ impl App {
             }
         }
     }
+}
+
+/// True while a text field has the keyboard (the diagram canvas can hold focus too, and then the
+/// editing shortcuts such as Ctrl+Z must still work).
+fn text_field_focused(ctx: &egui::Context) -> bool {
+    ctx.memory(|m| m.focused()).map(|id| egui::TextEdit::load_state(ctx, id).is_some()).unwrap_or(false)
 }
 
 fn save_png(path: &std::path::Path, img: &egui::ColorImage) {

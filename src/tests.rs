@@ -147,3 +147,29 @@ fn same_shape(a: &Value, b: &Value, path: &str) {
         _ => {}
     }
 }
+
+#[test]
+fn ctrl_z_undoes_while_the_canvas_has_focus() {
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0)));
+    assert_eq!(a.repo.all_of("UMLClass").len(), 1);
+    let canvas = egui::Id::new("canvas-under-test");
+    let frame = |a: &mut App, input: egui::RawInput, focus: bool| {
+        let mut out = ctx.run_ui(input, |ui| {
+            let r = ui.interact(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(100.0, 100.0)), canvas, egui::Sense::click());
+            if focus {
+                r.request_focus();
+            }
+            a.shortcuts(ui.ctx());
+        });
+        out.textures_delta.clear();
+    };
+    frame(&mut a, egui::RawInput::default(), true);
+    frame(&mut a, egui::RawInput::default(), false);
+    assert_eq!(ctx.memory(|m| m.focused()), Some(canvas));
+    let press = egui::Event::Key { key: egui::Key::Z, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::COMMAND };
+    frame(&mut a, egui::RawInput { events: vec![press], ..Default::default() }, false);
+    assert_eq!(a.repo.all_of("UMLClass").len(), 0, "Ctrl+Z should undo the new class");
+}
