@@ -88,6 +88,9 @@ It lists every StarUML feature that has been found, and each one has a UMLCraft 
 | `5-panels-and-dialogs.md` | Model Explorer, Editors, Working Diagrams, status bar, dialogs |
 | `6-engine-and-extensions.md` | files, export, print, CLI, HTTP API, validation rules, grammars, bundled extensions, notations |
 | `7-website-and-docs.md` | what staruml.io and docs.staruml.io say; items tagged `[V8]` exist only in StarUML 8 |
+| `8-beyond-staruml.md` | UMLCraft's own features, which StarUML does not have (the project website, for example) |
+
+Files 1–7 describe StarUML. Each of their items cites its StarUML source, and together they make up the parity totals. File 8 is the other kind of item: something UMLCraft adds. Its items cite their origin (who asked, and when) instead of a StarUML source, and they are counted separately. Put a new idea there, not in files 1–7. Don't use file 8 to change how a StarUML feature works: a deliberate difference from StarUML goes in the note of that feature's item in files 1–7.
 
 There are two formats. In files 4–7 an item is a bullet, with the StarUML part first and the UMLCraft status after it:
 
