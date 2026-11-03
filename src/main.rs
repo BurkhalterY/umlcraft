@@ -77,6 +77,13 @@ pub(crate) fn setup_fonts(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
 }
 
+/// The app icon shown by the window manager (packaging/icons, drawn for UMLCraft).
+fn window_icon() -> Option<egui::IconData> {
+    let img = image::load_from_memory(include_bytes!("../packaging/icons/umlcraft-256.png")).ok()?.to_rgba8();
+    let (width, height) = img.dimensions();
+    Some(egui::IconData { rgba: img.into_raw(), width, height })
+}
+
 fn setup_style(ctx: &egui::Context) {
     use ui::*;
     // the original's default theme is "dark" (index.html loads staruml-dark.css)
@@ -138,8 +145,12 @@ fn main() -> eframe::Result {
         }
     }
 
+    let mut viewport = egui::ViewportBuilder::default();
+    if let Some(icon) = window_icon() {
+        viewport = viewport.with_icon(icon);
+    }
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
+        viewport: viewport
             .with_title("Untitled — UMLCraft")
             .with_app_id("umlcraft")
             .with_inner_size([ui::WINDOW_WIDTH, ui::WINDOW_HEIGHT]),
