@@ -374,3 +374,60 @@ fn zoom_commands_keep_the_screen_centre() {
     let b = crate::render::bounds(&a.repo, a.diagram.unwrap()).unwrap();
     assert!(b.w * a.zoom <= 800.0 && b.h * a.zoom <= 600.0);
 }
+
+#[test]
+fn working_diagrams_cycle_and_close() {
+    let mut a = App::new(None);
+    let d1 = a.diagram.unwrap();
+    let d2 = a.add_diagram(None, "UMLClassDiagram");
+    let d3 = a.add_diagram(None, "UMLUseCaseDiagram");
+    assert_eq!(a.open, vec![d1, d2, d3]);
+    assert_eq!(a.diagram, Some(d3));
+    a.cycle_diagram(1);
+    assert_eq!(a.diagram, Some(d1), "next wraps to the first");
+    a.cycle_diagram(-1);
+    assert_eq!(a.diagram, Some(d3), "previous wraps to the last");
+    a.cycle_diagram(-1);
+    assert_eq!(a.diagram, Some(d2));
+    // closing the current diagram activates the one that slid into its place
+    a.close_diagram(None);
+    assert_eq!((a.open.clone(), a.diagram), (vec![d1, d3], Some(d3)));
+    // closing the last one in the list falls back to the first
+    a.close_diagram(None);
+    assert_eq!((a.open.clone(), a.diagram), (vec![d1], Some(d1)));
+    a.open_diagram(d2);
+    a.open_diagram(d3);
+    a.close_other_diagrams();
+    assert_eq!((a.open.clone(), a.diagram), (vec![d3], Some(d3)));
+    a.open_diagram(d1);
+    a.close_all_diagrams();
+    assert!(a.open.is_empty() && a.diagram.is_none());
+    a.cycle_diagram(1);
+    assert!(a.diagram.is_none());
+}
+
+#[test]
+fn diagram_navigation_shortcuts() {
+    use egui::{Key, Modifiers};
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let d1 = a.diagram.unwrap();
+    let d2 = a.add_diagram(None, "UMLClassDiagram");
+    let d3 = a.add_diagram(None, "UMLClassDiagram");
+    let mut press = |a: &mut App, key: Key, modifiers: Modifiers| {
+        let ev = egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers };
+        let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+        out.textures_delta.clear();
+    };
+    let cs = Modifiers::COMMAND | Modifiers::SHIFT;
+    press(&mut a, Key::CloseCurlyBracket, cs);
+    assert_eq!(a.diagram, Some(d1));
+    press(&mut a, Key::OpenBracket, cs);
+    assert_eq!(a.diagram, Some(d3));
+    press(&mut a, Key::F4, Modifiers::COMMAND);
+    assert_eq!(a.open, vec![d3], "Ctrl+F4 closes the others");
+    a.open_diagram(d2);
+    press(&mut a, Key::F4, Modifiers::SHIFT);
+    assert!(a.open.is_empty(), "Shift+F4 closes all");
+}

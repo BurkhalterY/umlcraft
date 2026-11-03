@@ -23,14 +23,14 @@ StarUML quirks and bugs are kept in the list and marked as such, so a port can d
 
 | File | ✅ | 🟡 | ❌ | ➖ | Items |
 |---|---|---|---|---|---|
-| [Menus and keyboard shortcuts](1-menus-and-shortcuts.md) | 96 | 64 | 276 | 8 | 444 |
+| [Menus and keyboard shortcuts](1-menus-and-shortcuts.md) | 106 | 65 | 265 | 8 | 444 |
 | [Toolbox items](2-toolbox.md) | 29 | 0 | 312 | 0 | 341 |
 | [Preferences](3-preferences.md) | 0 | 17 | 122 | 1 | 140 |
-| [Diagram canvas and editing](4-canvas.md) | 56 | 52 | 127 | 9 | 244 |
-| [Panels, views and dialogs](5-panels-and-dialogs.md) | 32 | 37 | 132 | 18 | 219 |
-| [Engine, files, export, CLI, validation and bundled extensions](6-engine-and-extensions.md) | 27 | 44 | 280 | 19 | 370 |
-| [Website and documentation](7-website-and-docs.md) | 22 | 60 | 199 | 34 | 315 |
-| **All** | **262** | **274** | **1448** | **89** | **2073** |
+| [Diagram canvas and editing](4-canvas.md) | 59 | 51 | 125 | 9 | 244 |
+| [Panels, views and dialogs](5-panels-and-dialogs.md) | 36 | 36 | 129 | 18 | 219 |
+| [Engine, files, export, CLI, validation and bundled extensions](6-engine-and-extensions.md) | 28 | 43 | 280 | 19 | 370 |
+| [Website and documentation](7-website-and-docs.md) | 24 | 59 | 198 | 34 | 315 |
+| **All** | **282** | **271** | **1431** | **89** | **2073** |
 
 Recount after editing (prints one line per mark):
 

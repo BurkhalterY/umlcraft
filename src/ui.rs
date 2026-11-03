@@ -620,6 +620,8 @@ impl App {
             if resp.hovered() {
                 p.text(close.center(), Align2::CENTER_CENTER, "×", FontId::proportional(14.0), DIM);
             }
+            // the menu acts on the current diagram; right-clicking a row does not make it current
+            resp.context_menu(|ui| self.diagram_close_items(ui));
             if resp.clicked() {
                 if resp.interact_pointer_pos().map(|q| close.contains(q)).unwrap_or(false) {
                     self.close_diagram(Some(d));
@@ -870,8 +872,15 @@ impl App {
                 }
             });
             ui.menu_button("View", |ui| {
-                if ui.button("Close Diagram       F4").clicked() {
-                    self.close_diagram(None);
+                self.diagram_close_items(ui);
+                ui.separator();
+                let many = self.open.len() > 1;
+                if ui.add_enabled(many, egui::Button::new("Next Diagram        Ctrl+Shift+]")).clicked() {
+                    self.cycle_diagram(1);
+                    ui.close();
+                }
+                if ui.add_enabled(many, egui::Button::new("Previous Diagram    Ctrl+Shift+[")).clicked() {
+                    self.cycle_diagram(-1);
                     ui.close();
                 }
                 ui.separator();
@@ -903,6 +912,23 @@ impl App {
                 }
             });
         });
+    }
+
+    /// Close Diagram, Close Other Diagrams and Close All Diagrams (View menu and Working Diagrams menu).
+    fn diagram_close_items(&mut self, ui: &mut egui::Ui) {
+        let has = self.diagram.is_some();
+        if ui.add_enabled(has, egui::Button::new("Close Diagram       F4")).clicked() {
+            self.close_diagram(None);
+            ui.close();
+        }
+        if ui.add_enabled(has, egui::Button::new("Close Other Diagrams  Ctrl+F4")).clicked() {
+            self.close_other_diagrams();
+            ui.close();
+        }
+        if ui.add_enabled(!self.open.is_empty(), egui::Button::new("Close All Diagrams  Shift+F4")).clicked() {
+            self.close_all_diagrams();
+            ui.close();
+        }
     }
 
     /// Format > Alignment, in the main menu and the canvas menu (alignment.json order).
@@ -999,8 +1025,22 @@ impl App {
         if hit(sc(cs, Key::G)) {
             self.snap = !self.snap;
         }
+        // Shift+F4 first: a plain F4 shortcut also matches when Shift is held
+        if hit(sc(Modifiers::SHIFT, Key::F4)) {
+            self.close_all_diagrams();
+        }
+        if hit(sc(Modifiers::COMMAND, Key::F4)) {
+            self.close_other_diagrams();
+        }
         if hit(sc(Modifiers::NONE, Key::F4)) {
             self.close_diagram(None);
+        }
+        // Ctrl+Shift+] and [: with Shift held most layouts report } and {
+        if hit(sc(cs, Key::CloseBracket)) || hit(sc(cs, Key::CloseCurlyBracket)) {
+            self.cycle_diagram(1);
+        }
+        if hit(sc(cs, Key::OpenBracket)) || hit(sc(cs, Key::OpenCurlyBracket)) {
+            self.cycle_diagram(-1);
         }
     }
 

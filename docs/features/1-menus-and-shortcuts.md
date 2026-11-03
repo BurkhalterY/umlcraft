@@ -64,11 +64,11 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | `ctrl-t` | `model:tag-editor` | ❌ |  | resources/default/keymaps/linux.json |
 | `ctrl-p` | `view:quick-find` | ❌ |  | resources/default/keymaps/linux.json |
 | `ctrl-shift-p` | `view:command-palette` | ❌ |  | resources/default/keymaps/linux.json |
-| `f4` | `view:close-diagram` | ✅ | F4 (src/ui.rs:975) | resources/default/keymaps/linux.json |
-| `ctrl-f4` | `view:close-other-diagrams` | ❌ |  | resources/default/keymaps/linux.json |
-| `shift-f4` | `view:close-all-diagrams` | ❌ |  | resources/default/keymaps/linux.json |
-| `ctrl-shift-]` | `view:next-diagram` | ❌ |  | resources/default/keymaps/linux.json |
-| `ctrl-shift-[` | `view:previous-diagram` | ❌ |  | resources/default/keymaps/linux.json |
+| `f4` | `view:close-diagram` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:1035, 918; src/app.rs:606) | resources/default/keymaps/linux.json |
+| `ctrl-f4` | `view:close-other-diagrams` | ✅ | Ctrl+F4, View menu and Working Diagrams menu (src/ui.rs:1032, 918; src/app.rs:624) | resources/default/keymaps/linux.json |
+| `shift-f4` | `view:close-all-diagrams` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:1029, 918; src/app.rs:630) | resources/default/keymaps/linux.json |
+| `ctrl-shift-]` | `view:next-diagram` | ✅ | Ctrl+Shift+] (also reported as Ctrl+Shift+}), wraps to the first (src/ui.rs:1039, 878; src/app.rs:640) | resources/default/keymaps/linux.json |
+| `ctrl-shift-[` | `view:previous-diagram` | ✅ | Ctrl+Shift+[ (also reported as Ctrl+Shift+{), wraps to the last (src/ui.rs:1042, 882; src/app.rs:640) | resources/default/keymaps/linux.json |
 | `ctrl-plus` | `view:zoom-in` | ✅ | Ctrl+= / Ctrl++, keeps the screen centre (src/ui.rs:984; src/canvas.rs:1014) | resources/default/keymaps/linux.json |
 | `ctrl-minus` | `view:zoom-out` | ✅ | Ctrl+-, keeps the screen centre (src/ui.rs:987; src/canvas.rs:1014) | resources/default/keymaps/linux.json |
 | `ctrl-0` | `view:actual-size` | ✅ | Ctrl+0, keeps the screen centre (src/ui.rs:990; src/canvas.rs:1014) | resources/default/keymaps/linux.json |
@@ -325,11 +325,11 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Tools › Extension Manager... | `tools:extension-manager` |  | ➖ | UMLCraft has no extension system | resources/default/menus/linux.json |
 | View › Quick Find... | `view:quick-find` | `ctrl-p` | ❌ |  | resources/default/menus/linux.json |
 | View › Command Palette... | `view:command-palette` | `ctrl-shift-p` | ❌ |  | resources/default/menus/linux.json |
-| View › Close Diagram | `view:close-diagram` | `f4` | ✅ | F4 (src/ui.rs:975) | resources/default/menus/linux.json |
-| View › Close Other Diagrams | `view:close-other-diagrams` | `ctrl-f4` | ❌ |  | resources/default/menus/linux.json |
-| View › Close All Diagrams | `view:close-all-diagrams` | `shift-f4` | ❌ |  | resources/default/menus/linux.json |
-| View › Next Diagram | `view:next-diagram` | `ctrl-shift-]` | ❌ |  | resources/default/menus/linux.json |
-| View › Previous Diagram | `view:previous-diagram` | `ctrl-shift-[` | ❌ |  | resources/default/menus/linux.json |
+| View › Close Diagram | `view:close-diagram` | `f4` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:1035, 918; src/app.rs:606) | resources/default/menus/linux.json |
+| View › Close Other Diagrams | `view:close-other-diagrams` | `ctrl-f4` | ✅ | Ctrl+F4, View menu and Working Diagrams menu (src/ui.rs:1032, 918; src/app.rs:624) | resources/default/menus/linux.json |
+| View › Close All Diagrams | `view:close-all-diagrams` | `shift-f4` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:1029, 918; src/app.rs:630) | resources/default/menus/linux.json |
+| View › Next Diagram | `view:next-diagram` | `ctrl-shift-]` | ✅ | Ctrl+Shift+] (also reported as Ctrl+Shift+}), wraps to the first (src/ui.rs:1039, 878; src/app.rs:640) | resources/default/menus/linux.json |
+| View › Previous Diagram | `view:previous-diagram` | `ctrl-shift-[` | ✅ | Ctrl+Shift+[ (also reported as Ctrl+Shift+{), wraps to the last (src/ui.rs:1042, 882; src/app.rs:640) | resources/default/menus/linux.json |
 | View › Zoom In | `view:zoom-in` | `ctrl-plus` | ✅ | Ctrl+= / Ctrl++, keeps the screen centre (src/ui.rs:984; src/canvas.rs:1014) | resources/default/menus/linux.json |
 | View › Zoom Out | `view:zoom-out` | `ctrl-minus` | ✅ | Ctrl+-, keeps the screen centre (src/ui.rs:987; src/canvas.rs:1014) | resources/default/menus/linux.json |
 | View › Actual Size | `view:actual-size` | `ctrl-0` | ✅ | Ctrl+0, keeps the screen centre (src/ui.rs:990; src/canvas.rs:1014) | resources/default/menus/linux.json |
@@ -449,11 +449,11 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | model-explorer | Move Up | `edit:move-up` | ❌ | no reordering in the explorer |
 | model-explorer | Move Down | `edit:move-down` | ❌ | no reordering in the explorer |
 | model-explorer | Select In Diagram | `edit:select-in-diagram` | 🟡 | clicking an explorer row selects its view in the current diagram (src/app.rs:624); no Ctrl+D, no search across diagrams |
-| working-diagrams | *(the menu as a whole)* |  | ❌ | no context menu on Working Diagrams rows; only an × close button (src/ui.rs:619) |
-| working-diagrams | Close Diagram | `view:close-diagram` | ✅ | F4 (src/ui.rs:975) |
-| working-diagrams | Close Other Diagrams | `view:close-other-diagrams` | ❌ |  |
-| working-diagrams | Close All Diagrams | `view:close-all-diagrams` | ❌ |  |
-| working-diagrams | Rename | `view:rename-diagram` | ❌ | working-diagrams context menu missing |
+| working-diagrams | *(the menu as a whole)* |  | 🟡 | right-clicking a row opens Close Diagram, Close Other Diagrams and Close All Diagrams, acting on the current diagram; no Rename (src/ui.rs:624, 918) |
+| working-diagrams | Close Diagram | `view:close-diagram` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:1035, 918; src/app.rs:606) |
+| working-diagrams | Close Other Diagrams | `view:close-other-diagrams` | ✅ | Ctrl+F4, View menu and Working Diagrams menu (src/ui.rs:1032, 918; src/app.rs:624) |
+| working-diagrams | Close All Diagrams | `view:close-all-diagrams` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:1029, 918; src/app.rs:630) |
+| working-diagrams | Rename | `view:rename-diagram` | ❌ | the Working Diagrams menu has no Rename and there is no rename dialog (src/ui.rs:918) |
 | model-explorer-settings | *(the menu as a whole)* |  | 🟡 | only a sort-by-name toggle button (src/ui.rs:309) |
 | model-explorer-settings | Sort By Added | `explorer:sort-by-added` | ✅ | sort toggle in the explorer header (src/ui.rs:309) |
 | model-explorer-settings | Sort By Name | `explorer:sort-by-name` | ✅ | (src/ui.rs:143, 309) |

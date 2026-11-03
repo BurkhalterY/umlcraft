@@ -601,15 +601,50 @@ impl App {
         self.tool = None;
     }
 
+    /// Close a working diagram. When it was the current one, the diagram that slid into its place
+    /// becomes current, or else the first one (diagram-manager.js:106-138).
     pub fn close_diagram(&mut self, d: Option<Eid>) {
         let Some(d) = d.or(self.diagram) else { return };
         if let Some(i) = self.open.iter().position(|x| *x == d) {
             self.open.remove(i);
+            // closing any working diagram clears the selection and the quick edit (app-context.js:1310-1317)
+            self.selection.clear();
+            self.editing = None;
             if self.diagram == Some(d) {
-                self.diagram = if self.open.is_empty() { None } else { Some(self.open[i.min(self.open.len() - 1)]) };
-                self.selection.clear();
+                let next = self.open.get(i).or(self.open.first()).copied();
+                self.diagram = None;
+                if let Some(n) = next {
+                    self.open_diagram(n);
+                }
             }
         }
+    }
+
+    /// View > Close Other Diagrams: keep only the current diagram open (diagram-manager.js:201-207).
+    pub fn close_other_diagrams(&mut self) {
+        self.open = self.diagram.into_iter().collect();
+        self.editing = None;
+    }
+
+    /// View > Close All Diagrams.
+    pub fn close_all_diagrams(&mut self) {
+        self.open.clear();
+        self.diagram = None;
+        self.selection.clear();
+        self.editing = None;
+        self.tool = None;
+    }
+
+    /// View > Next Diagram (`step` 1) and Previous Diagram (`step` -1), wrapping around the working
+    /// diagrams (diagram-manager.js:271-292).
+    pub fn cycle_diagram(&mut self, step: isize) {
+        let n = self.open.len() as isize;
+        if n == 0 {
+            return;
+        }
+        let i = self.diagram.and_then(|d| self.open.iter().position(|x| *x == d)).map(|i| i as isize).unwrap_or(-step.max(0));
+        let next = self.open[(i + step).rem_euclid(n) as usize];
+        self.open_diagram(next);
     }
 
     pub fn select(&mut self, views: Vec<Eid>) {
