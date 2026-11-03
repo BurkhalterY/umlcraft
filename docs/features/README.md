@@ -30,10 +30,11 @@ StarUML quirks and bugs are kept in the list and marked as such, so a port can d
 | [Panels, views and dialogs](5-panels-and-dialogs.md) | 37 | 38 | 126 | 18 | 219 |
 | [Engine, files, export, CLI, validation and bundled extensions](6-engine-and-extensions.md) | 29 | 42 | 280 | 19 | 370 |
 | [Website and documentation](7-website-and-docs.md) | 24 | 59 | 198 | 34 | 315 |
-| **All** | **319** | **246** | **1419** | **89** | **2073** |
+| **All StarUML features** | **319** | **246** | **1419** | **89** | **2073** |
+| [Beyond StarUML](8-beyond-staruml.md): UMLCraft's own features, not counted above | 0 | 1 | 0 | 0 | 1 |
 
-Recount after editing (prints one line per mark):
+Recount after editing (prints one line per mark). Use `[1-7]` for the StarUML totals, and `8` for UMLCraft's own features:
 
 ```sh
-grep -ohE '^(- .*UMLCraft:\*\* |\| .*\| )(✅|🟡|❌|➖)' docs/features/[0-9]*.md | grep -oE '(✅|🟡|❌|➖)$' | sort | uniq -c
+grep -ohE '^(- .*UMLCraft:\*\* |\| .*\| )(✅|🟡|❌|➖)' docs/features/[1-7]-*.md | grep -oE '(✅|🟡|❌|➖)$' | sort | uniq -c
 ```

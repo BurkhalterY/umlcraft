@@ -11,6 +11,25 @@ cargo test --release
 
 On Linux, install the GTK 3, xkbcommon and OpenGL development packages first. On Debian and Ubuntu these are `libgtk-3-dev libxkbcommon-dev libgl1-mesa-dev`.
 
+## Website
+
+The project website is in `website/`. It uses the same stack as the Crafting Apps pages on getartcraft.com: Next.js (App Router) with React, Tailwind CSS v4, TypeScript and `next/font`. It is exported as static files:
+
+```sh
+cd website
+npm ci
+npm run dev      # http://localhost:3000
+npm run build    # static site in website/out/; BASE_PATH=/umlcraft npm run build serves it from a sub-path
+```
+
+- **Where the data comes from:**
+  - the copy is in `website/src/lib/site.ts`, and follows the README;
+  - the screenshots and icons are copied at build time from `docs/images/` and `packaging/icons/`, so change them there, not in `website/public/`;
+  - the latest release is read from the GitHub API at build time;
+  - the "Progress" figures come from files 1–7 of `docs/features/`.
+- **Hosting:** `.github/workflows/website.yml` builds the site and publishes it on GitHub Pages (https://burkhaltery.github.io/umlcraft). It runs when `website/`, `docs/features/`, `docs/images/` or `packaging/icons/` change on `main`, after each successful release, and on demand.
+- **Licensing:** the getartcraft.com source (`storytold/artcraft-services`) is under the ArtCraft licence, which only allows private personal use and forbids using the ArtCraft name and logo. Never copy its code, styles or images into this MIT repository. Follow its stack and layout, but write our own code.
+
 ## Commits
 
 Always use [Conventional Commits](https://www.conventionalcommits.org). The version of every release is computed from the commit messages, so a wrong type gives a wrong version.
@@ -88,6 +107,9 @@ It lists every StarUML feature that has been found, and each one has a UMLCraft 
 | `5-panels-and-dialogs.md` | Model Explorer, Editors, Working Diagrams, status bar, dialogs |
 | `6-engine-and-extensions.md` | files, export, print, CLI, HTTP API, validation rules, grammars, bundled extensions, notations |
 | `7-website-and-docs.md` | what staruml.io and docs.staruml.io say; items tagged `[V8]` exist only in StarUML 8 |
+| `8-beyond-staruml.md` | UMLCraft's own features, which StarUML does not have (the project website, for example) |
+
+Files 1–7 describe StarUML. Each of their items cites its StarUML source, and together they make up the parity totals. File 8 is the other kind of item: something UMLCraft adds. Its items cite their origin (who asked, and when) instead of a StarUML source, and they are counted separately. Put a new idea there, not in files 1–7. Don't use file 8 to change how a StarUML feature works: a deliberate difference from StarUML goes in the note of that feature's item in files 1–7.
 
 There are two formats. In files 4–7 an item is a bullet, with the StarUML part first and the UMLCraft status after it:
 

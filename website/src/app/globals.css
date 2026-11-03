@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+/* Colours: a warm paper in light mode, near-black in dark mode, and UMLCraft's blue
+   (the README badge, #2f7bf5) as the one accent. Switches with the system setting. */
+:root {
+  --bg: #f3f2ef;
+  --bg-raised: #fbfaf8;
+  --bg-sunken: #e8e7e3;
+  --ink: #26282d;
+  --ink-strong: #0d0e11;
+  --muted: #5f636b;
+  --faint: #8b8f97;
+  --line: rgb(13 14 17 / 0.12);
+  --app: #2f7bf5;
+  --app-ink: #1a5bc4;
+  --app-soft: rgb(47 123 245 / 0.1);
+  --ok: #2f9e5b;
+  --warn: #c7871a;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111215;
+    --bg-raised: #17181c;
+    --bg-sunken: #0a0a0c;
+    --ink: #d9dbe0;
+    --ink-strong: #ffffff;
+    --muted: #9a9ea7;
+    --faint: #6c7079;
+    --line: rgb(255 255 255 / 0.1);
+    --app: #4d8ff7;
+    --app-ink: #7fb0ff;
+    --app-soft: rgb(77 143 247 / 0.14);
+    --ok: #5cc98a;
+    --warn: #f0b44c;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-raised: var(--bg-raised);
+  --color-bg-sunken: var(--bg-sunken);
+  --color-ink: var(--ink);
+  --color-ink-strong: var(--ink-strong);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-app: var(--app);
+  --color-app-ink: var(--app-ink);
+  --color-app-soft: var(--app-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+
+  --font-display: var(--font-archivo), system-ui, sans-serif;
+  --font-serif: var(--font-instrument), Georgia, serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 4rem;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: var(--app);
+    color: #fff;
+  }
+}
+
+/* The visitor's system, set on <html data-os> by components/os-script.tsx. */
+.os-only {
+  display: none;
+}
+[data-os="macOS"] .os-macOS,
+[data-os="Windows"] .os-Windows,
+[data-os="Linux"] .os-Linux,
+[data-os="FreeBSD"] .os-FreeBSD {
+  display: inline-flex;
+}
+[data-os] .os-unknown {
+  display: none;
+}
+
+@layer components {
+  /* Small uppercase mono labels: section numbers, captions, file names. */
+  .label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .display {
+    font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: -0.035em;
+    line-height: 1.02;
+    color: var(--ink-strong);
+  }
+  .accent {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--app);
+  }
+}
