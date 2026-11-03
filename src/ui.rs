@@ -1088,9 +1088,12 @@ impl App {
                 ui.checkbox(&mut self.show_grid, "Show Grid");
                 ui.checkbox(&mut self.snap, "Snap to Grid");
                 ui.separator();
-                ui.checkbox(&mut self.show_sidebar, "Sidebar");
-                ui.checkbox(&mut self.show_navigator, "Navigator");
-                ui.checkbox(&mut self.show_statusbar, "Statusbar");
+                for (i, label) in PANELS.iter().enumerate() {
+                    let mut on = *self.panel_flag(i);
+                    if ui.checkbox(&mut on, format!("{label:<14}Ctrl+{}", i + 1)).clicked() {
+                        *self.panel_flag(i) = on;
+                    }
+                }
             });
             ui.menu_button("Help", |ui| {
                 if ui.button("About UMLCraft").clicked() {
@@ -1479,6 +1482,13 @@ impl App {
         if hit(sc(Modifiers::COMMAND, Key::Minus)) {
             self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP);
         }
+        // View > Sidebar, Navigator, Toolbar, Statusbar, Toolbox, Editors (keymaps/linux.json)
+        for (i, key) in [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6].into_iter().enumerate() {
+            if hit(sc(Modifiers::COMMAND, key)) {
+                let f = self.panel_flag(i);
+                *f = !*f;
+            }
+        }
         if hit(sc(Modifiers::COMMAND, Key::Num0)) {
             self.zoom_keep_centre(1.0);
         }
@@ -1781,6 +1791,22 @@ impl App {
     }
 }
 
+/// View menu panels, in the order of their Ctrl+1…6 shortcuts.
+const PANELS: [&str; 6] = ["Sidebar", "Navigator", "Toolbar", "Statusbar", "Toolbox", "Editors"];
+
+impl App {
+    fn panel_flag(&mut self, i: usize) -> &mut bool {
+        match i {
+            0 => &mut self.show_sidebar,
+            1 => &mut self.show_navigator,
+            2 => &mut self.show_toolbar,
+            3 => &mut self.show_statusbar,
+            4 => &mut self.show_toolbox,
+            _ => &mut self.show_editors,
+        }
+    }
+}
+
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
 const FORMAT_TOGGLES: [(&str, &str); 9] = [
     ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
@@ -1858,17 +1884,23 @@ impl eframe::App for App {
         }
         if self.show_sidebar {
             Panel::left("sidebar").exact_size(SIDEBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(LAYER0)).show(ui, |ui| {
-                Panel::bottom("toolbox").exact_size(TOOLBOX_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.toolbox_ui(ui));
+                if self.show_toolbox {
+                    Panel::bottom("toolbox").exact_size(TOOLBOX_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.toolbox_ui(ui));
+                }
                 self.working_ui(ui);
             });
         }
         if self.show_navigator {
             Panel::right("navigator").exact_size(NAVIGATOR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(LAYER0)).show(ui, |ui| {
-                Panel::bottom("editors").exact_size(EDITORS_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.editors_ui(ui));
+                if self.show_editors {
+                    Panel::bottom("editors").exact_size(EDITORS_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.editors_ui(ui));
+                }
                 self.explorer_ui(ui);
             });
         }
-        Panel::right("toolbar").exact_size(TOOLBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(TOOLBAR)).show(ui, |ui| self.toolbar_ui(ui));
+        if self.show_toolbar {
+            Panel::right("toolbar").exact_size(TOOLBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(TOOLBAR)).show(ui, |ui| self.toolbar_ui(ui));
+        }
         egui::CentralPanel::no_frame().show(ui, |ui| {
             self.canvas_ui(ui);
         });

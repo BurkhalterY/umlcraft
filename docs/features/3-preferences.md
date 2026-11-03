@@ -141,8 +141,8 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | General | `view.fontColor` | Font Color | "#000000" | 🟡 black default, not configurable | resources/default/preferences/default.json |
 | General | `view.lineStyle` | Line Style | 1 | 🟡 oblique default (src/views.rs:23), not configurable | resources/default/preferences/default.json |
 | General | `view.showShadow` | Show Shadow | true | 🟡 shadow on by default, not configurable | resources/default/preferences/default.json |
-| General | `diagramEditor.showGrid` | Show Grid | true | ✅ on by default; toggled from the View menu and Ctrl+G and kept in the preferences file (src/prefs.rs:79, 94) | resources/default/preferences/default.json |
-| General | `diagramEditor.snapToGrid` | Snap to Grid | true | ✅ on by default; toggled from the View menu and Ctrl+Shift+G and kept in the preferences file (src/prefs.rs:80, 95) | resources/default/preferences/default.json |
+| General | `diagramEditor.showGrid` | Show Grid | true | ✅ on by default; toggled from the View menu and Ctrl+G and kept in the preferences file (src/prefs.rs:79, 97) | resources/default/preferences/default.json |
+| General | `diagramEditor.snapToGrid` | Snap to Grid | true | ✅ on by default; toggled from the View menu and Ctrl+Shift+G and kept in the preferences file (src/prefs.rs:80, 98) | resources/default/preferences/default.json |
 | General | `diagramEditor.gridSize` | Grid Size | 8 | 🟡 8 hard-coded (src/render.rs:10) | resources/default/preferences/default.json |
 | General | `diagramEditor.backgroundColor` | Background Color | "#ffffff" | 🟡 white hard-coded | resources/default/preferences/default.json |
 | General | `diagramEditor.gridColor` | Grid Color | "#e0e0e0" | 🟡 #e0e0e0 hard-coded (src/render.rs:12) | resources/default/preferences/default.json |

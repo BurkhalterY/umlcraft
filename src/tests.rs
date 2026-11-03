@@ -1390,3 +1390,26 @@ fn every_default_diagram_opens() {
     assert_eq!(b.open.len(), 2);
     assert_eq!(b.diagram.map(|d| b.repo.id(d)), Some(a.repo.id(d1)), "the first default is current");
 }
+
+#[test]
+fn panel_toggles() {
+    use egui::{Key, Modifiers};
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let mut press = |a: &mut App, key: Key, m: Modifiers| {
+        let ev = egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: m };
+        let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+        out.textures_delta.clear();
+    };
+    press(&mut a, Key::Num3, Modifiers::COMMAND);
+    assert!(!a.show_toolbar);
+    press(&mut a, Key::Num6, Modifiers::COMMAND);
+    assert!(!a.show_editors);
+    press(&mut a, Key::Num5, Modifiers::COMMAND);
+    assert!(!a.show_toolbox);
+    press(&mut a, Key::Num1, Modifiers::COMMAND | Modifiers::SHIFT);
+    assert!(a.show_sidebar, "Ctrl+Shift+1 is a stereotype display, not the sidebar");
+    press(&mut a, Key::Num1, Modifiers::COMMAND);
+    assert!(!a.show_sidebar);
+}

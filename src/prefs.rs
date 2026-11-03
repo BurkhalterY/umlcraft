@@ -83,6 +83,9 @@ impl App {
         self.show_sidebar = p.bool("_viewState.sidebar.visible", true);
         self.show_navigator = p.bool("_viewState.navigator.visible", true);
         self.show_statusbar = p.bool("_viewState.statusbar.visible", true);
+        self.show_toolbar = p.bool("_viewState.toolbar.visible", true);
+        self.show_toolbox = p.bool("_viewState.toolbox.visible", true);
+        self.show_editors = p.bool("_viewState.editors.visible", true);
         self.props_open = p.bool("_viewState.propertyEditor.visible", true);
         self.doc_open = p.bool("_viewState.documentationEditor.visible", true);
         self.style_open = p.bool("_viewState.styleEditor.visible", true);
@@ -98,6 +101,9 @@ impl App {
             ("_viewState.sidebar.visible", json!(self.show_sidebar)),
             ("_viewState.navigator.visible", json!(self.show_navigator)),
             ("_viewState.statusbar.visible", json!(self.show_statusbar)),
+            ("_viewState.toolbar.visible", json!(self.show_toolbar)),
+            ("_viewState.toolbox.visible", json!(self.show_toolbox)),
+            ("_viewState.editors.visible", json!(self.show_editors)),
             ("_viewState.propertyEditor.visible", json!(self.props_open)),
             ("_viewState.documentationEditor.visible", json!(self.doc_open)),
             ("_viewState.styleEditor.visible", json!(self.style_open)),
