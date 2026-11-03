@@ -2035,3 +2035,38 @@ fn small_drags_keep_off_grid_values() {
     a.snap = false;
     assert_eq!(a.snap_from(13.0, 17.4), 17.0);
 }
+
+#[test]
+fn broken_views_removed_on_open() {
+    // the examples have none
+    for f in std::fs::read_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples")).unwrap() {
+        let p = f.unwrap().path();
+        if p.extension().map(|e| e == "mdj").unwrap_or(false) {
+            let mut a = App::new(None);
+            a.open_path(p.clone());
+            for d in a.repo.all_of("Diagram") {
+                assert!(a.broken_views(d).is_empty(), "{p:?} {}", a.repo.name(d));
+            }
+        }
+    }
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(300.0, 40.0, 100.0, 60.0))).unwrap();
+    let tool = crate::app::Tool { label: "", kind: "UMLGeneralization", icon: "", line: true, init: crate::app::AssocInit::Plain };
+    let e = a.change(|a| a.create_edge(&tool, c1, c2)).unwrap();
+    let note = a.change(|a| a.create_node("Note", rect(40.0, 200.0, 100.0, 60.0))).unwrap();
+    assert!(a.broken_views(d).is_empty());
+    // the generalization loses its target: the line goes, the boxes and the note stay
+    let g = a.repo.refd(e, "model").unwrap();
+    a.repo.remove(g, "target");
+    assert_eq!(a.broken_views(d), vec![e]);
+    // a class view whose model is gone
+    let m2 = a.repo.refd(c2, "model").unwrap();
+    a.repo.detach(m2);
+    let other = a.add_diagram(None, "UMLClassDiagram");
+    assert_eq!(a.diagram, Some(other));
+    a.open_diagram(d);
+    assert!(!a.repo.alive(e) && !a.repo.alive(c2));
+    assert!(a.repo.alive(c1) && a.repo.alive(note));
+}

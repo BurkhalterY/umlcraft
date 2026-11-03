@@ -957,8 +957,46 @@ impl App {
             self.diagram = Some(d);
             self.selection.clear();
             self.scroll = self.scrolls.get(&d).copied().unwrap_or_default();
+            self.remove_broken_views(d);
         }
         self.tool = None;
+    }
+
+    /// The views of a diagram that cannot be drawn: a model reference that leads nowhere (or no model
+    /// where the kind needs one), a line missing an end, a line whose relationship is missing an end,
+    /// and a box or line without its name compartment or name label (diagram-manager.js:521-641).
+    pub fn broken_views(&self, d: Eid) -> Vec<Eid> {
+        let r = &self.repo;
+        let dangling = |v: Eid, k: &str| matches!(r.raw(v, k), Some(x) if r.by_ref(x).map(|t| !r.alive(t)).unwrap_or(true));
+        r.list(d, "ownedViews")
+            .into_iter()
+            .filter(|&v| {
+                let ty = r.ty(v);
+                let needs_model = ty.starts_with("UML") && !matches!(ty, "UMLNoteView" | "UMLTextView" | "UMLNoteLinkView" | "UMLContainmentView" | "UMLCustomTextView" | "UMLCustomNoteView");
+                if dangling(v, "model") || (needs_model && !r.has(v, "model") && crate::meta::known(ty)) {
+                    return true;
+                }
+                if views::is_edge(r, v) {
+                    if r.refd(v, "tail").is_none() || r.refd(v, "head").is_none() || dangling(v, "tail") || dangling(v, "head") {
+                        return true;
+                    }
+                    if let Some(m) = r.refd(v, "model") {
+                        if views::edge_view_of(r.ty(m)).is_some() && self.rel_ends(m).is_none() {
+                            return true;
+                        }
+                    }
+                }
+                ["nameCompartment", "nameLabel"].iter().any(|k| crate::meta::order_of(ty, k).is_some() && r.has(v, "model") && (r.refd(v, k).is_none() || dangling(v, k)))
+            })
+            .collect()
+    }
+
+    /// Silently drop the broken views of a diagram when it becomes current, with the lines on them.
+    pub fn remove_broken_views(&mut self, d: Eid) {
+        let broken = self.broken_views(d);
+        if !broken.is_empty() {
+            self.remove_views(&broken);
+        }
     }
 
     /// Close a working diagram. When it was the current one, the diagram that slid into its place
