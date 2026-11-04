@@ -3232,6 +3232,14 @@ fn object_diagrams() {
     let lm = a.repo.refd(e, "model").unwrap();
     let end2 = a.repo.child(lm, "end2").unwrap();
     assert_eq!((a.repo.ty(end2), a.repo.str(end2, "navigable").as_str()), ("UMLLinkEnd", "navigable"));
+    // its ends show role names and multiplicities, like an association's
+    a.repo.set(end2, "name", json!("copy"));
+    a.repo.set(end2, "multiplicity", json!("1"));
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let role = a.repo.refd(e, "headRoleNameLabel").unwrap();
+    assert_eq!(a.repo.str(role, "text"), "+copy");
+    assert!(a.repo.refd(e, "headQualifiersCompartment").is_none());
+    assert!(!a.fields_for(lm).iter().any(|f| f.0.ends_with("ownerAttribute")));
     assert!(a.broken_views(d).is_empty());
     // Add Linked Object: a new object to the right, with a link
     let b = crate::related::actions("UMLObject").into_iter().find(|b| b.label == "Add Linked Object").unwrap();

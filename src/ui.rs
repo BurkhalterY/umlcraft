@@ -706,6 +706,15 @@ impl App {
             f.extend(end("end2"));
             return f;
         }
+        // a link: its two ends, without the association-only owner attribute
+        if t == "UMLLink" {
+            let link_end = |p: &str| end(p).into_iter().filter(|x| !x.0.ends_with("ownerAttribute")).collect::<Vec<_>>();
+            let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("-", "")];
+            f.extend(link_end("end1"));
+            f.push(("-", ""));
+            f.extend(link_end("end2"));
+            return f;
+        }
         if r.has(e, "source") && r.has(e, "target") {
             let mut f = vec![("name", "text"), ("source", "ref"), ("target", "ref"), ("stereotype", "text"), ("visibility", "enum")];
             if t == "UMLGeneralization" {
@@ -727,12 +736,13 @@ impl App {
             ],
             "UMLParameter" => vec![("name", "text"), ("stereotype", "text"), ("type", "type"), ("multiplicity", "text"), ("defaultValue", "text"), ("direction", "enum")],
             "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
-            // a reception names the signal it receives (uml-commands.js:1484)
             "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
             "UMLObject" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("classifier", "type")],
             "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
+            // a reception names the signal it receives (uml-commands.js:1484)
             "UMLReception" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("signal", "type")],
             "UMLAssociationEnd" => end(""),
+            "UMLLinkEnd" => end("").into_iter().filter(|x| x.0 != "ownerAttribute").collect(),
             _ if r.kind_of(e, "UMLClassifier") => {
                 let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isAbstract", "bool"), ("isFinalSpecialization", "bool"), ("isLeaf", "bool")];
                 if t == "UMLClass" {

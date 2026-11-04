@@ -415,7 +415,8 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
     r.set_ref(e, "nameLabel", Some(nl));
     r.set_ref(e, "stereotypeLabel", Some(sl));
     r.set_ref(e, "propertyLabel", Some(pl));
-    if r.kind_of(m, "UMLAssociation") {
+    // associations and links have end labels; only associations have qualifiers
+    if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" {
         r.set_raw(e, "showEndOrder", json!("hide")); // as the original writes it (sample.mdj)
         let end1 = r.child(m, "end1");
         let end2 = r.child(m, "end2");
@@ -433,7 +434,8 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
             let l = edge_label(r, e, end, a, d, pos, false);
             r.set_ref(e, field, Some(l));
         }
-        for (field, end) in [("tailQualifiersCompartment", end1), ("headQualifiersCompartment", end2)] {
+        let quals = if r.kind_of(m, "UMLAssociation") { vec![("tailQualifiersCompartment", end1), ("headQualifiersCompartment", end2)] } else { vec![] };
+        for (field, end) in quals {
             let mut p: Vec<(&str, Value)> = vec![];
             if let Some(x) = end {
                 p.push(("model", r.ref_to(x)));
@@ -1332,7 +1334,7 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     };
     out.push(("stereotypeLabel", st));
     out.push(("propertyLabel", String::new()));
-    if r.kind_of(m, "UMLAssociation") {
+    if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" {
         let role = |end: Option<Eid>| end.map(|x| { let n = r.name(x); if n.is_empty() { n } else { vis(x) + &n } }).unwrap_or_default();
         let (e1, e2) = (r.child(m, "end1"), r.child(m, "end2"));
         let show_mult = r.bool(e, "showMultiplicity");

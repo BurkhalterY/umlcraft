@@ -1610,7 +1610,7 @@ impl App {
                 // (quickedits/uml.json "uml.association-end1/2")
                 let mut picked_end: Option<(&'static str, String)> = None;
                 if let EditKind::Name(end) = ed.kind {
-                    if self.repo.ty(end) == "UMLAssociationEnd" {
+                    if self.repo.ty(end) == "UMLAssociationEnd" || self.repo.ty(end) == "UMLLinkEnd" {
                         ui.horizontal(|ui| {
                             let fields: [(&'static str, &str, &[&str]); 3] = [
                                 ("aggregation", "Aggregation Kind", &["none", "shared", "composite"]),
