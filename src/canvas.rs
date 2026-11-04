@@ -890,7 +890,8 @@ impl App {
                 if let Some(d) = self.diagram {
                     // views whose box overlaps the band; a selected one counts 5 px larger (core.js:4162-4176)
                     for v in self.repo.list(d, "ownedViews") {
-                        if matches!(self.repo.raw(v, "visible"), Some(serde_json::Value::Bool(false))) || !(is_edge(&self.repo, v) || is_node(&self.repo, v)) {
+                        // a view that inherits its parent's style is left out (core.js:3895-3902)
+                        if matches!(self.repo.raw(v, "visible"), Some(serde_json::Value::Bool(false))) || self.repo.bool(v, "parentStyle") || !(is_edge(&self.repo, v) || is_node(&self.repo, v)) {
                             continue;
                         }
                         let mut b = self.view_bounds(v);

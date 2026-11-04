@@ -3746,3 +3746,28 @@ fn new_kinds_take_their_fill_colour_preference() {
     assert_eq!(a.repo.str(o, "fillColor"), "#ffeeaa");
     assert_eq!(a.repo.str(s, "fillColor"), "#aaeeff");
 }
+
+#[test]
+fn inherit_style_toggles_and_leaves_the_rubber_band() {
+    use egui::{Modifiers, Pos2};
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(200.0, 40.0, 100.0, 60.0))).unwrap();
+    a.select(vec![c1]);
+    a.toggle_flag("parentStyle");
+    assert!(a.repo.bool(c1, "parentStyle"));
+    a.select(vec![c1, c2]);
+    a.toggle_flag("parentStyle");
+    assert!(a.repo.bool(c1, "parentStyle") && a.repo.bool(c2, "parentStyle"), "a mixed selection is set");
+    a.toggle_flag("parentStyle");
+    assert!(!a.repo.bool(c1, "parentStyle") && !a.repo.bool(c2, "parentStyle"), "a shared value is inverted");
+    a.change(|a| a.repo.set(c1, "parentStyle", json!(true)));
+    a.select(vec![]);
+    a.on_press(canvas, Pos2::new(10.0, 10.0), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(400.0, 200.0));
+    a.on_release(canvas.min, Pos2::new(400.0, 200.0));
+    assert_eq!(a.selection, vec![c2], "a view inheriting its style is not taken by the band");
+    a.select_all();
+    assert_eq!(a.selection, vec![c1, c2], "but Select All takes the top-level views");
+}

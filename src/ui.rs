@@ -1809,30 +1809,34 @@ impl App {
         ui.spacing_mut().item_spacing.y = 4.0;
         // font face and size: merged, blank when the views differ (style-editor-view.js:180-227)
         let (face, size) = self.font_state();
-        ui.horizontal(|ui| {
-            let mut f = face.clone().unwrap_or_default();
-            let r = ui.add(egui::TextEdit::singleline(&mut f).hint_text("—").desired_width(110.0).font(FontId::proportional(12.0)));
-            if r.lost_focus() && !f.trim().is_empty() && Some(f.trim().to_string()) != face {
-                self.set_font(Some(f.trim()), None);
-            }
-            let label = size.map(|s| format!("{s}")).unwrap_or_else(|| "—".into());
-            egui::ComboBox::from_id_salt("style-size").selected_text(label).width(60.0).show_ui(ui, |ui| {
-                for s in crate::style::SIZES {
-                    if ui.selectable_label(size == Some(s), format!("{s}")).clicked() {
-                        self.set_font(None, Some(s));
+        // while the selection inherits its parent's style, font and colours are disabled (style-editor-view.js:741-764)
+        let inherit = self.flag_state("parentStyle") == Some(true);
+        ui.add_enabled_ui(!inherit, |ui| {
+            ui.horizontal(|ui| {
+                let mut f = face.clone().unwrap_or_default();
+                let r = ui.add(egui::TextEdit::singleline(&mut f).hint_text("—").desired_width(110.0).font(FontId::proportional(12.0)));
+                if r.lost_focus() && !f.trim().is_empty() && Some(f.trim().to_string()) != face {
+                    self.set_font(Some(f.trim()), None);
+                }
+                let label = size.map(|s| format!("{s}")).unwrap_or_else(|| "—".into());
+                egui::ComboBox::from_id_salt("style-size").selected_text(label).width(60.0).show_ui(ui, |ui| {
+                    for s in crate::style::SIZES {
+                        if ui.selectable_label(size == Some(s), format!("{s}")).clicked() {
+                            self.set_font(None, Some(s));
+                        }
                     }
+                });
+            });
+            ui.horizontal(|ui| {
+                for (field, label) in crate::style::COLORS {
+                    if self.color_views(field).is_empty() {
+                        continue;
+                    }
+                    self.color_swatch(ui, field, label);
+                    ui.label(egui::RichText::new(label.trim_end_matches(" Color")).size(12.0).color(DIM()));
+                    ui.add_space(6.0);
                 }
             });
-        });
-        ui.horizontal(|ui| {
-            for (field, label) in crate::style::COLORS {
-                if self.color_views(field).is_empty() {
-                    continue;
-                }
-                self.color_swatch(ui, field, label);
-                ui.label(egui::RichText::new(label.trim_end_matches(" Color")).size(12.0).color(DIM()));
-                ui.add_space(6.0);
-            }
         });
         if !self.flag_views("stereotypeDisplay").is_empty() {
             // the stereotype display dropdown, empty when mixed (style-editor-view.js)
@@ -2049,8 +2053,8 @@ impl App {
 
     pub(crate) fn format_toggles(&mut self, ui: &mut egui::Ui) {
         for (i, (field, label)) in FORMAT_TOGGLES.into_iter().enumerate() {
-            // UML display toggles after Auto Resize and Show Shadow, then the Suppress ones
-            if i == 2 || field == "suppressAttributes" {
+            // UML display toggles after Auto Resize, Show Shadow and Inherit Style, then the Suppress ones
+            if i == 3 || field == "suppressAttributes" {
                 ui.separator();
             }
             let has = !self.flag_views(field).is_empty();
@@ -2121,7 +2125,7 @@ impl App {
                     self.open_color_dialog(field);
                 }
             }
-            for (key, field) in [(Key::R, "autoResize"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals")] {
+            for (key, field) in [(Key::R, "autoResize"), (Key::K, "parentStyle"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals")] {
                 if hit(sc(cs, key)) {
                     self.toggle_flag(field);
                 }
@@ -2771,9 +2775,10 @@ pub struct WorkingRow(pub Eid);
 pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 13] = [
+const FORMAT_TOGGLES: [(&str, &str); 14] = [
     ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
     ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
+    ("parentStyle", "Inherit Style                     Ctrl+Shift+K"),
     ("wordWrap", "Word Wrap                         Ctrl+Shift+W"),
     ("showVisibility", "Show Visibility                 Ctrl+Shift+V"),
     ("showNamespace", "Show Namespace                  Ctrl+Shift+N"),
