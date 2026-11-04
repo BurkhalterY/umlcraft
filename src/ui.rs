@@ -269,7 +269,7 @@ pub(crate) fn order_rank(t: &str) -> u32 {
         "UMLAttribute" => 1105, "UMLOperation" => 1106, "UMLReception" => 1107, "UMLExtensionPoint" => 1108, "UMLSlot" => 1109,
         "UMLClass" => 1201, "UMLInterface" => 1202, "UMLSignal" => 1203, "UMLDataType" => 1204, "UMLPrimitiveType" => 1205,
         "UMLEnumeration" => 1206, "UMLArtifact" => 1207, "UMLComponent" => 1208, "UMLNode" => 1209, "UMLUseCase" => 1210, "UMLActor" => 1211,
-        "UMLInstance" => 1301, "UMLObject" => 1302, "UMLCollaboration" => 1401, "UMLStateMachine" => 1402, "UMLInteraction" => 1403, "UMLActivity" => 1404, "UMLRegion" => 1407, "UMLTemplateParameterSubstitution" => 1102,
+        "UMLInstance" => 1301, "UMLObject" => 1302, "UMLCollaboration" => 1401, "UMLStateMachine" => 1402, "UMLInteraction" => 1403, "UMLActivity" => 1404, "UMLRegion" => 1407, "UMLState" => 1409, "UMLTemplateParameterSubstitution" => 1102,
         "UMLAssociationEnd" => 1801, "UMLAssociation" => 1802, "UMLDependency" => 1806, "UMLGeneralization" => 1807, "UMLRealization" => 1808,
         "UMLInterfaceRealization" => 1809, "UMLComponentRealization" => 1810, "UMLAbstraction" => 1811, "UMLInclude" => 1816, "UMLExtend" => 1817,
         "UMLTransition" => 1819, "UMLMessage" => 1822, "UMLProfile" => 1901, "UMLStereotype" => 1903,
@@ -497,10 +497,18 @@ impl App {
         for (l, k) in [
             ("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Slot", "UMLSlot"), ("Literal", "UMLEnumerationLiteral"),
             ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter"), ("Template Parameter Substitution", "UMLTemplateParameterSubstitution"),
+            ("State", "UMLState"), ("Region", "UMLRegion"), ("Trigger", "UMLEvent"), ("Action", "UMLAction"),
         ] {
             if self.can_add_feature(e, k) {
                 adds.push((l, k, true));
             }
+        }
+        // a state's activities and a transition's effect ask which kind of behaviour (uml.json)
+        if t == "UMLState" {
+            adds.extend([("Entry Activity", "entryActivities", false), ("Do Activity", "doActivities", false), ("Exit Activity", "exitActivities", false)]);
+        }
+        if t == "UMLTransition" {
+            adds.push(("Effect", "effects", false));
         }
         adds
     }
@@ -517,6 +525,25 @@ impl App {
             return;
         }
         for (l, k, feature) in self.add_kinds(e) {
+            // a behaviour of a state or a transition: which kind, in a Select One dialog (uml-commands.js:109-190)
+            if matches!(k, "entryActivities" | "doActivities" | "exitActivities" | "effects") {
+                if ui.button(l).clicked() {
+                    let what = match k {
+                        "entryActivities" => "an entry Activity",
+                        "doActivities" => "an do Activity",
+                        "exitActivities" => "an exit Activity",
+                        _ => "an effect Behavior",
+                    };
+                    self.select_one = Some(crate::app::SelectOne {
+                        message: format!("Select one to create as {what}"),
+                        options: crate::app::BEHAVIOR_KINDS.iter().map(|x| x.0).collect(),
+                        selected: 0,
+                        purpose: crate::app::SelectPurpose::BehaviorKind(e, k),
+                    });
+                    ui.close();
+                }
+                continue;
+            }
             // a constraint on an operation: which kind, in a Select One dialog (uml-commands.js:185)
             if k == "UMLConstraint" && self.repo.ty(e) == "UMLOperation" {
                 if ui.button(l).clicked() {
@@ -838,6 +865,10 @@ impl App {
             if t == "UMLRoleBinding" {
                 f.push(("roleName", "text"));
             }
+            if t == "UMLTransition" {
+                f.push(("kind", "enum"));
+                f.push(("guard", "text"));
+            }
             // the items an information flow conveys, edited in the Element List Editor
             if t == "UMLInformationFlow" {
                 f.push(("conveyed", "reflist"));
@@ -864,6 +895,10 @@ impl App {
             // a stereotype's icon: its minimum size and its icon script (uml/metamodel.json UMLImage)
             "UMLImage" => vec![("width", "int"), ("height", "int"), ("image", "image"), ("content", "multiline")],
             "UMLCollaborationUse" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type")],
+            // the visible attributes of states, events and actions (uml/metamodel.json)
+            "UMLState" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("submachine", "ref")],
+            "UMLEvent" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("value", "text"), ("expression", "text"), ("targetOperation", "ref"), ("targetSignal", "ref")],
+            "UMLAction" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("isLocallyReentrant", "bool"), ("isSynchronous", "bool"), ("language", "text")],
             "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
             "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
             // a reception names the signal it receives (uml-commands.js:1484)
@@ -929,7 +964,15 @@ impl App {
         });
     }
 
-    fn enum_options(field: &str) -> &'static [&'static str] {
+    fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
+        match (ty, field) {
+            ("UMLTransition", "kind") => return &["external", "internal", "local"],
+            ("UMLEvent", "kind") => return &["signal", "call", "change", "time", "anyReceive"],
+            ("UMLAction", "kind") => {
+                return &["opaque", "create", "destroy", "read", "write", "insert", "delete", "sendSignal", "acceptSignal", "triggerEvent", "acceptEvent", "structured", "timeEvent", "callBehavior", "callOperation"]
+            }
+            _ => {}
+        }
         match field {
             "visibility" => &["public", "protected", "private", "package"],
             "aggregation" => &["none", "shared", "composite"],
@@ -1049,7 +1092,7 @@ impl App {
                     let mut sel = cur.clone();
                     let shown = if merged.is_some() { sel.clone() } else { "—".to_string() };
                     egui::ComboBox::from_id_salt(path).selected_text(shown).width(w).show_ui(ui, |ui| {
-                        for o in Self::enum_options(&field) {
+                        for o in Self::enum_options(self.repo.ty(obj), &field) {
                             ui.selectable_value(&mut sel, o.to_string(), *o);
                         }
                     });

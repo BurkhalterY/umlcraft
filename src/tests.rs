@@ -4449,3 +4449,34 @@ fn composite_structure_diagrams_are_editable() {
     assert!(a.create_feature_box("UMLPart", crate::views::P { x: 60.0, y: 60.0 }, rect(50.0, 60.0, 80.0, 30.0)).is_ok());
     let _ = v;
 }
+
+#[test]
+fn states_activities_triggers_and_actions_from_model_add() {
+    use crate::app::{SelectOne, SelectPurpose};
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.package_for(Some(d));
+    let sm = a.change(|a| a.add_model(pkg, "UMLStateMachine"));
+    let region = a.repo.list(sm, "regions")[0];
+    let kinds = |a: &App, e| a.add_kinds(e).into_iter().map(|k| k.1).collect::<Vec<_>>();
+    assert!(kinds(&a, region).contains(&"UMLState"));
+    let st = a.change(|a| a.add_feature(region, "UMLState")).unwrap();
+    assert_eq!((a.repo.name(st), a.repo.field_of(st).as_deref()), ("State1".to_string(), Some("vertices")));
+    let on_state = kinds(&a, st);
+    for k in ["UMLRegion", "entryActivities", "doActivities", "exitActivities"] {
+        assert!(on_state.contains(&k), "a state takes {k}");
+    }
+    // Entry Activity: the kind is asked, then the behaviour goes in entryActivities
+    a.select_one_ok(SelectOne { message: String::new(), options: vec![], selected: 1, purpose: SelectPurpose::BehaviorKind(st, "entryActivities") });
+    let entry = a.repo.list(st, "entryActivities");
+    assert_eq!(entry.len(), 1);
+    assert_eq!(a.repo.ty(entry[0]), "UMLActivity");
+    // an activity takes actions, an action takes triggers
+    let act = a.change(|a| a.add_model(pkg, "UMLActivity"));
+    let action = a.change(|a| a.add_feature(act, "UMLAction")).unwrap();
+    assert_eq!(a.repo.field_of(action).as_deref(), Some("nodes"));
+    let ev = a.change(|a| a.add_feature(action, "UMLEvent")).unwrap();
+    assert_eq!(a.repo.field_of(ev).as_deref(), Some("triggers"));
+    assert!(a.fields_for(ev).iter().any(|f| f.0 == "kind"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

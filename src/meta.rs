@@ -122,6 +122,16 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLInteraction", Some("UMLInteractionFragment"), vec![("messages", n()), ("participants", n()), ("fragments", n())]);
     def("UMLStateMachine", Some("UMLBehavior"), vec![("regions", n())]);
     def("UMLRegion", Some("UMLModelElement"), vec![("vertices", n()), ("transitions", n())]);
+    // states, transitions, events and actions, for the explorer (uml/metamodel.json)
+    def("UMLVertex", Some("UMLModelElement"), vec![]);
+    def("UMLState", Some("UMLVertex"), vec![("regions", n()), ("entryActivities", n()), ("doActivities", n()), ("exitActivities", n()), ("submachine", n()), ("connections", n())]);
+    def("UMLTransition", Some("UMLDirectedRelationship"), vec![("kind", d(json!("external"))), ("guard", d(json!(""))), ("triggers", n()), ("effects", n())]);
+    def("UMLEvent", Some("UMLModelElement"), vec![("kind", d(json!("anyReceive"))), ("value", d(json!(""))), ("expression", d(json!(""))), ("targetOperation", n()), ("targetSignal", n())]);
+    def("UMLActivityNode", Some("UMLModelElement"), vec![]);
+    def("UMLAction", Some("UMLActivityNode"), vec![
+        ("kind", d(json!("opaque"))), ("inputs", n()), ("outputs", n()), ("triggers", n()), ("target", n()), ("subactivity", n()), ("isLocallyReentrant", d(json!(false))),
+        ("isSynchronous", d(json!(true))), ("language", d(json!(""))), ("body", n()), ("localPreconditions", n()), ("localPostconditions", n()),
+    ]);
     def("UMLActivity", Some("UMLBehavior"), vec![("isReadOnly", d(json!(false))), ("isSingleExecution", d(json!(false))), ("nodes", n()), ("edges", n()), ("groups", n())]);
     def("UMLTemplateParameterSubstitution", Some("UMLModelElement"), vec![("formal", n()), ("actual", n())]);
     def("UMLExtensionPoint", Some("UMLModelElement"), vec![("location", d(json!("")))]);

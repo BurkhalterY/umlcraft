@@ -74,7 +74,13 @@ pub struct SelectOne {
 pub enum SelectPurpose {
     /// Model › Add › Constraint on an operation: the field the constraint goes in.
     ConstraintKind(Eid),
+    /// Model › Add › Entry, Do or Exit Activity on a state, or Effect on a transition: the kind of
+    /// behaviour, created in that field (uml-commands.js:109-190).
+    BehaviorKind(Eid, &'static str),
 }
+
+/// The behaviour kinds of an entry, do or exit activity or an effect (uml-commands.js:111-116).
+pub const BEHAVIOR_KINDS: [(&str, &str); 4] = [("OpaqueBehavior", "UMLOpaqueBehavior"), ("Activity", "UMLActivity"), ("StateMachine", "UMLStateMachine"), ("Interaction", "UMLInteraction")];
 
 /// The constraint kinds of an operation and the field each goes in (uml-commands.js:185).
 pub const OPERATION_CONSTRAINTS: [(&str, &str); 4] = [("Typical", "ownedElements"), ("Precondition", "preconditions"), ("BodyCondition", "bodyConditions"), ("Postcondition", "postconditions")];
@@ -690,6 +696,19 @@ impl App {
                 self.focus = Some(c);
                 self.reveal(c);
             }
+            SelectPurpose::BehaviorKind(owner, field) if self.repo.alive(owner) => {
+                let ty = BEHAVIOR_KINDS.get(d.selected).map(|x| x.1).unwrap_or("UMLOpaqueBehavior");
+                let b = self.change(|a| {
+                    let name = a.new_name(owner, ty);
+                    let b = a.repo.create(ty, &[("name", json!(name))], Some((owner, field)));
+                    if ty == "UMLStateMachine" {
+                        a.repo.create("UMLRegion", &[], Some((b, "regions")));
+                    }
+                    b
+                });
+                self.expanded.insert(owner);
+                self.reveal(b);
+            }
             _ => {}
         }
     }
@@ -1292,6 +1311,12 @@ impl App {
             "UMLParameter" => "parameters",
             "UMLTemplateParameter" => "templateParameters",
             "UMLTemplateParameterSubstitution" => "parameterSubstitutions",
+            // states into a region, regions into a state, triggers, actions into an activity
+            // (StarUML's menu files the first two in ownedElements; the metamodel's fields are used here)
+            "UMLState" => "vertices",
+            "UMLRegion" => "regions",
+            "UMLEvent" => "triggers",
+            "UMLAction" => "nodes",
             _ => return None,
         };
         let name = self.new_name(owner, ty);
@@ -1304,6 +1329,10 @@ impl App {
             "UMLEnumerationLiteral" => t == "UMLEnumeration",
             "UMLParameter" => t == "UMLOperation",
             "UMLTemplateParameterSubstitution" => t == "UMLTemplateBinding",
+            "UMLState" => t == "UMLRegion",
+            "UMLRegion" => t == "UMLState",
+            "UMLEvent" => t == "UMLAction" || t == "UMLTransition",
+            "UMLAction" => t == "UMLActivity",
             "UMLExtensionPoint" => t == "UMLUseCase",
             "UMLSlot" => self.repo.kind_of(owner, "UMLInstance"),
             // template parameters on classes, interfaces and the other boxes with compartments
