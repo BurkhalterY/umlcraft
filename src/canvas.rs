@@ -314,6 +314,24 @@ impl App {
         }
 
         self.info = views::layout_diagram(&mut self.repo, &measure, d);
+        // a left or top resize below the content's minimum keeps the opposite edge where it was
+        // (diagram-editor.js:1455-1493): the layout grew the box to the right or bottom, so shift it back
+        if let Some(Drag::Resize { handle, orig, view, changed: true, .. }) = self.drag.as_ref() {
+            let (h, o, v) = (*handle, *orig, *view);
+            let b = node_rect(&self.repo, v);
+            let mut moved = false;
+            if [0, 6, 7].contains(&h) && b.x + b.w > o.x + o.w + 0.5 {
+                self.repo.set(v, "left", crate::model::num((o.x + o.w - b.w).max(0.0)));
+                moved = true;
+            }
+            if [0, 1, 2].contains(&h) && b.y + b.h > o.y + o.h + 0.5 {
+                self.repo.set(v, "top", crate::model::num((o.y + o.h - b.h).max(0.0)));
+                moved = true;
+            }
+            if moved {
+                self.info = views::layout_diagram(&mut self.repo, &measure, d);
+            }
+        }
         // diagramEditor.backgroundColor and gridColor (default.json:135-141)
         let pref_color = |a: &App, key: &str, def: render::Rgba| a.pref(key).as_str().map(|s| render::parse_color(s, def)).unwrap_or(def);
         painter.rect_filled(rect, 0.0, c32(pref_color(self, "diagramEditor.backgroundColor", render::Rgba(255, 255, 255, 255))));

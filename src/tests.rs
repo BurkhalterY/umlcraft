@@ -2512,3 +2512,29 @@ fn robustness_tools() {
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     assert_eq!(a.info.get(&v).map(|i| i.shape), Some(""));
 }
+
+#[test]
+fn left_resize_keeps_the_right_edge() {
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let v = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 160.0, 100.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    a.repo.set(m, "name", json!("AQuiteLongClassName"));
+    let mut frame = |a: &mut App| {
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            egui::CentralPanel::default().show_inside(ui, |ui| a.canvas_ui(ui));
+        });
+        out.textures_delta.clear();
+    };
+    frame(&mut a);
+    let o = crate::views::node_rect(&a.repo, v);
+    // the left edge dragged far right, past the content's minimum width
+    a.drag = Some(crate::app::Drag::Resize { handle: 7, start: crate::views::P { x: o.x, y: o.y }, orig: o, view: v, changed: true });
+    a.repo.set(v, "left", json!(o.x + o.w - 20.0));
+    a.repo.set(v, "width", json!(20));
+    frame(&mut a);
+    let b = crate::views::node_rect(&a.repo, v);
+    assert!(b.w > 20.0, "grown back to the content");
+    assert_eq!(b.x + b.w, o.x + o.w, "the right edge stays: {b:?} {o:?}");
+}
