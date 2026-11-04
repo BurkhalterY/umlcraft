@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile and statechart diagrams; every other diagram kind gets Annotations only (src/ui.rs:1518-1531).
+UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile and statechart diagrams; every other diagram kind gets Annotations only (src/ui.rs:1520-1533).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -276,25 +276,25 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Merge | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Decision | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Control Flow | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Simple State | ✅ | in the Statechart (Basic) group: a UMLState "State1" in the first region's vertices, drawn as a rounded box with its name and its entry/do/exit activities under a line (src/ui.rs:246-274; src/app.rs:749-790; src/views.rs:495-517; src/render.rs:393-412) | extensions/essential/uml/toolbox/uml.json |
+| Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Simple State | ✅ | in the Statechart (Basic) group: a UMLState "State1" in the first region's vertices, drawn as a rounded box with its name and its entry/do/exit activities under a line (src/ui.rs:246-276; src/app.rs:749-790; src/views.rs:495-517; src/render.rs:393-412) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Initial State | ✅ | a UMLPseudostate of kind initial in the first region, a filled 20 px circle (size estimated) (src/views.rs:264-279, 1671-1688; src/render.rs:420-447) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Choice | ✅ | a pseudostate of kind choice, a 20 px diamond (src/views.rs:264-279; src/render.rs:420-447) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Join | ✅ | a pseudostate of kind join, a filled bar that keeps its drawn size (8 × 60 on a click, estimated) (src/views.rs:264-279; src/render.rs:420-447) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Fork | ✅ | a pseudostate of kind fork, a filled bar like Join (src/views.rs:264-279; src/render.rs:420-447) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Final State | ✅ | a UMLFinalState in the first region, a 26 px circle around a filled one (src/views.rs:1671-1688; src/render.rs:413-419) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Transition | ✅ | a UMLTransition between two vertices, owned by the source's region, a solid line with an open arrow and the label `triggers [guard] / effect` (src/app.rs:1174, 1230-1235; src/views.rs:1957-1976) | extensions/essential/uml/toolbox/uml.json |
-| Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Self Transition | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Self Transition | ✅ | a click on a state makes a transition from it to itself, drawn as a loop at its top right (src/ui.rs:258-259; src/canvas.rs:1298-1302) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Composite State | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Submachine State | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Orthogonal State | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Junction | ✅ | in the Statechart (Advanced) group: a pseudostate of kind junction, a small filled circle (src/ui.rs:246-274; src/render.rs:420-447) | extensions/essential/uml/toolbox/uml.json |
+| Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Junction | ✅ | in the Statechart (Advanced) group: a pseudostate of kind junction, a small filled circle (src/ui.rs:246-276; src/render.rs:420-447) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Shallow History | ✅ | a pseudostate of kind shallowHistory, a circle with "H" (src/render.rs:420-447) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Deep History | ✅ | a pseudostate of kind deepHistory, a circle with "H*" (src/render.rs:420-447) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Entry Point | 🟡 | a pseudostate of kind entryPoint, an empty circle; it is placed freely, not on a state's or frame's border (src/render.rs:420-447) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Exit Point | 🟡 | a pseudostate of kind exitPoint, a circle with an X; placed freely like Entry Point (src/render.rs:420-447) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Terminate | ✅ | a pseudostate of kind terminate, an X (src/render.rs:420-447) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Connection Point Reference | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Frame | ✅ | in the Statechart (Advanced) group, the same Frame tool as on other diagrams (src/ui.rs:246-274) | extensions/essential/uml/toolbox/uml.json |
+| Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Frame | ✅ | in the Statechart (Advanced) group, the same Frame tool as on other diagrams (src/ui.rs:246-276) | extensions/essential/uml/toolbox/uml.json |
 | Activities (Basic) `uml.activity` | UMLActivityDiagram | Action | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Basic) `uml.activity` | UMLActivityDiagram | Initial | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Basic) `uml.activity` | UMLActivityDiagram | Final | ❌ | extensions/essential/uml/toolbox/uml.json |

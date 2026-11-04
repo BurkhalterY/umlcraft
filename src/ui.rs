@@ -255,6 +255,8 @@ const STATECHART_GROUPS: &[Group] = &[
             node("Fork", "Fork", "fork"),
             node("Final State", "UMLFinalState", "final"),
             line("Transition", "UMLTransition", "dependency", AssocInit::Plain),
+            // a click on a state makes a transition to itself (uml.json "self-connection")
+            line("Self Transition", "UMLTransition", "dependency", AssocInit::Plain),
         ],
     },
     Group {

@@ -1295,7 +1295,10 @@ impl App {
             }
             Drag::CreateEdge { tail, .. } => {
                 let Some(tool) = self.tool else { return };
-                if let Some(head) = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject")) {
+                // a self-connection tool joins the view under the release point to itself (factory.js:273-277)
+                let hit = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject"));
+                let (tail, hit) = if tool.label == "Self Transition" { (hit.unwrap_or(tail), hit) } else { (tail, hit) };
+                if let Some(head) = hit.map(|h| if tool.label == "Self Transition" { tail } else { h }) {
                     if !self.can_connect(&tool, tail, head) {
                         // a refused link is reported (uml-factory.js:19-146, toolbox-view.js:209-216)
                         self.toast_error(&format!("Invalid connection ({})", tool.kind.trim_start_matches("UML")));
@@ -1684,6 +1687,8 @@ impl App {
         match kind {
             EditKind::Text(_) => None,
             EditKind::Name(m) if self.repo.kind_of(*m, "UMLInstance") => Some(Grammar::Object),
+            // a transition's expression is split by hand (uml-transition.pegjs)
+            EditKind::Name(m) if self.repo.ty(*m) == "UMLTransition" => None,
             EditKind::Name(_) => Some(Grammar::Name),
             EditKind::Feature(f) => match self.repo.ty(*f) {
                 "UMLOperation" => Some(Grammar::Operation),
@@ -1755,6 +1760,11 @@ impl App {
                             a.repo.set_ref(m, "classifier", Some(x));
                         }
                     });
+                }
+            }
+            EditKind::Name(m) if self.repo.ty(m) == "UMLTransition" => {
+                if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
+                    self.change(|a| crate::parse::apply_transition(&mut a.repo, m, &e.text));
                 }
             }
             EditKind::Name(m) => {

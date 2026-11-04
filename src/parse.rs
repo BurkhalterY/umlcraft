@@ -52,7 +52,54 @@ fn take_visibility<'a>(r: &mut Repo, e: Eid, s: &'a str) -> &'a str {
 }
 
 /// The text a name edit starts with: `<<stereotype>> name`.
+/// `trigger1, trigger2 [guard] / effect` on a transition (uml-transition.pegjs, uml-commands.js:3496-3557):
+/// the triggers become its UMLEvents, renamed, created or deleted by position; the guard is set only
+/// when given; with an effect, the first effect is renamed (or a UMLOpaqueBehavior made) and the
+/// others deleted. Without "/" the effects are kept (UMLCraft's choice).
+pub fn apply_transition(r: &mut Repo, t: Eid, text: &str) {
+    let (head, effect) = match text.split_once('/') {
+        Some((h, e)) => (h, Some(e.trim())),
+        None => (text, None),
+    };
+    let (trig, guard) = match (head.find('['), head.rfind(']')) {
+        (Some(i), Some(j)) if j > i => (&head[..i], Some(head[i + 1..j].trim())),
+        _ => (head, None),
+    };
+    let names: Vec<&str> = trig.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+    let events: Vec<Eid> = r.list(t, "triggers").into_iter().filter(|e| r.alive(*e)).collect();
+    for (i, n) in names.iter().enumerate() {
+        match events.get(i) {
+            Some(&ev) => r.set(ev, "name", json!(n)),
+            None => {
+                r.create("UMLEvent", &[("name", json!(n))], Some((t, "triggers")));
+            }
+        }
+    }
+    for &ev in events.iter().skip(names.len()) {
+        r.detach(ev);
+    }
+    if let Some(g) = guard {
+        r.set(t, "guard", json!(g));
+    }
+    if let Some(name) = effect {
+        let effects: Vec<Eid> = r.list(t, "effects").into_iter().filter(|e| r.alive(*e)).collect();
+        match effects.first() {
+            Some(&e) => r.set(e, "name", json!(name)),
+            None => {
+                r.create("UMLOpaqueBehavior", &[("name", json!(name))], Some((t, "effects")));
+            }
+        }
+        for &e in effects.iter().skip(1) {
+            r.detach(e);
+        }
+    }
+}
+
 pub fn name_text(r: &Repo, e: Eid) -> String {
+    // a transition's edit holds its expression (uml-transition.pegjs)
+    if r.ty(e) == "UMLTransition" {
+        return crate::views::transition_text(r, e);
+    }
     let st = crate::views::type_name(r, e, "stereotype");
     // an object's edit also holds its classifier: "name : Class" (uml-object.pegjs)
     let name = crate::views::display_name(r, e);

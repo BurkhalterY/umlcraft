@@ -4632,3 +4632,34 @@ fn a_statechart_diagram_with_states_and_a_transition() {
     assert_eq!(a.info[&s1].shape, "state");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn a_transition_expression_is_edited_inline() {
+    use crate::parse::{apply_transition, name_text};
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let s1 = a.change(|a| a.create_node("UMLState", rect(40.0, 40.0, 100.0, 40.0))).unwrap();
+    let s2 = a.change(|a| a.create_node("UMLState", rect(300.0, 40.0, 100.0, 40.0))).unwrap();
+    let t = tool("UMLTransition", AssocInit::Plain);
+    let e = a.change(|a| a.create_edge(&t, s1, s2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    apply_transition(&mut a.repo, m, "start, resume [ready] / go");
+    let names = |a: &App, f: &str| a.repo.list(m, f).into_iter().map(|x| a.repo.name(x)).collect::<Vec<_>>();
+    assert_eq!(names(&a, "triggers"), ["start", "resume"]);
+    assert_eq!(a.repo.str(m, "guard"), "ready");
+    assert_eq!(names(&a, "effects"), ["go"]);
+    assert_eq!(a.repo.ty(a.repo.list(m, "effects")[0]), "UMLOpaqueBehavior");
+    assert_eq!(name_text(&a.repo, m), "start, resume [ready] / go");
+    // by position: the first trigger renamed, the second deleted; the guard kept when not given
+    let first = a.repo.list(m, "triggers")[0];
+    apply_transition(&mut a.repo, m, "begin / stop");
+    assert_eq!(a.repo.list(m, "triggers"), vec![first]);
+    assert_eq!(names(&a, "triggers"), ["begin"]);
+    assert_eq!(a.repo.str(m, "guard"), "ready");
+    assert_eq!(names(&a, "effects"), ["stop"]);
+    // a self transition: both ends on one state
+    let st = a.change(|a| a.create_edge(&t, s1, s1)).unwrap();
+    assert_eq!(a.repo.refd(st, "tail"), a.repo.refd(st, "head"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
