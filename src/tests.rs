@@ -4801,3 +4801,22 @@ fn a_state_inline_edit_adds_regions_and_activities() {
     assert_eq!(d.message, "Select one to create as an do Activity");
     assert!(matches!(d.purpose, crate::app::SelectPurpose::BehaviorKind(x, "doActivities") if x == m));
 }
+
+#[test]
+fn internal_transitions_need_a_composite_state() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let s = a.change(|a| a.create_node("UMLState", rect(100.0, 100.0, 100.0, 40.0))).unwrap();
+    let m = a.repo.refd(s, "model").unwrap();
+    a.item_key(s, EditKind::Name(m), ItemKey::InternalTransition);
+    assert_eq!(a.toasts.last().map(|t| t.0.as_str()), Some("Simple State cannot have Internal Transitions."));
+    let c = a.change(|a| a.create_node("CompositeState", rect(300.0, 100.0, 200.0, 150.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    let t = a.add_internal_transition(cm).unwrap();
+    let rg = a.repo.list(cm, "regions")[0];
+    assert_eq!(a.repo.parent(t), Some(rg));
+    assert_eq!((a.repo.refd(t, "source"), a.repo.refd(t, "target"), a.repo.str(t, "kind")), (Some(cm), Some(cm), "internal".to_string()));
+}

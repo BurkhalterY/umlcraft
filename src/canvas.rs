@@ -181,6 +181,7 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                     ("+ Entry", "Add Entry Activity", "", ItemKey::Activity("entryActivities")),
                     ("+ Do", "Add Do Activity", "", ItemKey::Activity("doActivities")),
                     ("+ Exit", "Add Exit Activity", "", ItemKey::Activity("exitActivities")),
+                    ("+ Internal", "Add Internal Transition", "", ItemKey::InternalTransition),
                     ("+ Choice", "Add Choice", "", ItemKey::Scaffold("Choice")),
                     ("+ Fork", "Add Fork", "", ItemKey::Scaffold("Fork")),
                 ],
@@ -242,6 +243,8 @@ pub enum ItemKey {
     Scaffold(&'static str),
     /// A state's Add Region
     AddRegion,
+    /// A composite state's Add Internal Transition
+    InternalTransition,
     /// A state's Add Entry, Do or Exit Activity: asks which kind of behaviour
     Activity(&'static str),
 }
@@ -1654,6 +1657,10 @@ impl App {
                 }
             }
             (ItemKey::Activity(field), _) => self.ask_behavior_kind(m, field),
+            (ItemKey::InternalTransition, _) => match self.add_internal_transition(m) {
+                Ok(t) => self.reveal(t),
+                Err(e) => self.toast_error(&e),
+            },
             (ItemKey::Scaffold(kind), _) => {
                 if let Some(p) = self.add_scaffold(host, kind) {
                     self.select(vec![p]);

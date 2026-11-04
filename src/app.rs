@@ -1427,6 +1427,16 @@ impl App {
         Some(self.repo.create(ty, &[("name", json!(name))], Some((owner, field))))
     }
 
+    /// Add Internal Transition on a state: a transition of kind internal from the state to itself, in
+    /// its first region; a state without regions is refused (uml-commands.js:3098).
+    pub fn add_internal_transition(&mut self, s: Eid) -> Result<Eid, String> {
+        let Some(rg) = self.repo.list(s, "regions").into_iter().find(|x| self.repo.alive(*x)) else {
+            return Err("Simple State cannot have Internal Transitions.".into());
+        };
+        let r = self.repo.ref_to(s);
+        Ok(self.change(|a| a.repo.create("UMLTransition", &[("source", r.clone()), ("target", r), ("kind", json!("internal"))], Some((rg, "transitions")))))
+    }
+
     /// Add Qualifier on an association end: a new attribute in its qualifiers, drawn in a box at
     /// that end of the line.
     pub fn add_qualifier(&mut self, end: Eid) -> Eid {
