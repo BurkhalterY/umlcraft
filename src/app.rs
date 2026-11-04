@@ -931,7 +931,20 @@ impl App {
 
     /// Remove views and every line that hangs on them.
     pub fn remove_views(&mut self, views: &[Eid]) {
-        let mut gone: HashSet<String> = views.iter().filter(|v| self.repo.alive(**v)).map(|v| self.repo.id(*v)).collect();
+        // the views inside a removed box go with it (engine.js:281-330)
+        let mut all: Vec<Eid> = views.iter().copied().filter(|v| self.repo.alive(*v)).collect();
+        let mut i = 0;
+        while i < all.len() {
+            if let Some(serde_json::Value::Array(cs)) = self.repo.raw(all[i], "containedViews").cloned() {
+                for c in cs.iter().filter_map(|x| self.repo.by_ref(x)) {
+                    if self.repo.alive(c) && !all.contains(&c) {
+                        all.push(c);
+                    }
+                }
+            }
+            i += 1;
+        }
+        let mut gone: HashSet<String> = all.iter().map(|v| self.repo.id(*v)).collect();
         loop {
             let mut grew = false;
             for d in self.repo.all_of("Diagram") {

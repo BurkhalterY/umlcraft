@@ -2701,3 +2701,17 @@ fn subsystems() {
     assert!(a.can_contain_view(s, c), "it holds boxes like a package");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn deleting_a_box_deletes_its_contained_views() {
+    let mut a = App::new(None);
+    let pkg = a.change(|a| a.create_node("UMLPackage", rect(40.0, 40.0, 300.0, 200.0))).unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(500.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    let inner = a.drop_model(m, crate::views::P { x: 100.0, y: 100.0 }).unwrap()[0];
+    assert_eq!(a.repo.refd(inner, "containerView"), Some(pkg));
+    a.select(vec![pkg]);
+    a.delete_selection(false);
+    assert!(!a.repo.alive(pkg) && !a.repo.alive(inner), "the contained view goes too");
+    assert!(a.repo.alive(c) && a.repo.alive(m), "other views and the models stay");
+}
