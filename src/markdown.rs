@@ -217,9 +217,18 @@ impl App {
                     let text = self.md_buf.clone();
                     preview(ui, &text);
                 } else {
+                    let mut layouter = |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap: f32| {
+                        let mut job = highlight(text.as_str());
+                        job.wrap.max_width = wrap;
+                        ui.fonts_mut(|f| f.layout_job(job))
+                    };
                     let r = ui.add_enabled(
                         subject.is_some(),
-                        egui::TextEdit::multiline(&mut self.md_buf).code_editor().desired_width(f32::INFINITY).min_size(egui::vec2(0.0, (ui.available_height() - 8.0).max(40.0))),
+                        egui::TextEdit::multiline(&mut self.md_buf)
+                            .code_editor()
+                            .layouter(&mut layouter)
+                            .desired_width(f32::INFINITY)
+                            .min_size(egui::vec2(0.0, (ui.available_height() - 8.0).max(40.0))),
                     );
                     self.md_editing = r.has_focus();
                     if let (true, Some(e)) = (r.lost_focus(), subject) {
@@ -237,4 +246,63 @@ impl App {
             self.show_markdown = false;
         }
     }
+}
+
+/// Markdown source with colours, for the editor: headings, quotes, list marks, fenced code, `code`,
+/// **bold** and *italic* (the original uses CodeMirror's markdown mode; the colours are UMLCraft's).
+pub fn highlight(text: &str) -> LayoutJob {
+    let mono = FontId::monospace(12.0);
+    let fmt = |c: Color32| TextFormat { font_id: mono.clone(), color: c, ..Default::default() };
+    let (plain, heading, mark, code, strong) = (crate::ui::TEXT(), Color32::from_rgb(0x4f, 0x99, 0xff), Color32::from_rgb(0xd8, 0xa0, 0x3c), Color32::from_rgb(0x8f, 0xbf, 0x6f), Color32::from_rgb(0xe0, 0x7a, 0x9a));
+    let mut job = LayoutJob::default();
+    let mut fenced = false;
+    for line in text.split_inclusive('\n') {
+        let t = line.trim_start();
+        if t.starts_with("```") {
+            fenced = !fenced;
+            job.append(line, 0.0, fmt(code));
+            continue;
+        }
+        if fenced {
+            job.append(line, 0.0, fmt(code));
+            continue;
+        }
+        if t.starts_with('#') {
+            job.append(line, 0.0, fmt(heading));
+            continue;
+        }
+        if t.starts_with('>') {
+            job.append(line, 0.0, fmt(mark));
+            continue;
+        }
+        // a list mark, then the inline spans
+        let indent = line.len() - t.len();
+        let mut rest = line;
+        let list = ["- ", "* ", "+ "].iter().any(|m| t.starts_with(m)) || t.split_once(". ").map(|(n, _)| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit())).unwrap_or(false);
+        if list {
+            let end = indent + t.find(' ').unwrap_or(0) + 1;
+            job.append(&line[..end], 0.0, fmt(mark));
+            rest = &line[end..];
+        }
+        // inline: `code`, **bold**, *italic*
+        let mut i = 0;
+        let b = rest.as_bytes();
+        let mut start = 0;
+        while i < b.len() {
+            let (open, color) = if b[i] == b'`' { ("`", code) } else if rest[i..].starts_with("**") { ("**", strong) } else if b[i] == b'*' || b[i] == b'_' { (&rest[i..i + 1], strong) } else { ("", plain) };
+            if !open.is_empty() {
+                if let Some(k) = rest[i + open.len()..].find(open).filter(|k| *k > 0) {
+                    let end = i + open.len() + k + open.len();
+                    job.append(&rest[start..i], 0.0, fmt(plain));
+                    job.append(&rest[i..end], 0.0, fmt(color));
+                    i = end;
+                    start = end;
+                    continue;
+                }
+            }
+            i += rest[i..].chars().next().map(|c| c.len_utf8()).unwrap_or(1);
+        }
+        job.append(&rest[start..], 0.0, fmt(plain));
+    }
+    job
 }

@@ -3657,3 +3657,22 @@ fn create_type_makes_a_class_and_sets_it() {
     assert_eq!((a.repo.ty(t), a.repo.name(t).as_str()), ("UMLClass", "Money"));
     assert_eq!(a.repo.parent(t), a.repo.parent(m), "next to the class that uses it");
 }
+
+#[test]
+fn markdown_highlight_keeps_the_text() {
+    use crate::markdown::highlight;
+    let src = "# Title\n\nSome *em* and **strong** with `code` — é ü\n- item\n1. first\n> quote\n```\nfn x() {}\n```\nunclosed *star and `tick\n";
+    let job = highlight(src);
+    assert_eq!(job.text, src);
+    let color_at = |needle: &str| {
+        let at = job.text.find(needle).unwrap();
+        job.sections.iter().find(|s| s.byte_range.start.0 <= at && at < s.byte_range.end.0).unwrap().format.color
+    };
+    assert_ne!(color_at("Title"), color_at("Some"));
+    assert_ne!(color_at("`code`"), color_at("Some"));
+    assert_eq!(color_at("unclosed"), color_at("Some"), "an unclosed mark stays plain");
+    // never panics, whatever the text
+    for s in ["*", "**", "`", "é*é", "1. ", "```", "- ", "\n\n", "*é*", "_x_"] {
+        assert_eq!(highlight(s).text, s);
+    }
+}
