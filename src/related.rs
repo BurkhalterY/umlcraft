@@ -81,6 +81,8 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             r("Add Provided Interface", "UMLInterface", "UMLInterfaceRealization", Plain, false, Above),
             r("Add Required Interface", "UMLInterface", "UMLDependency", Plain, false, Above),
         ],
+        // an object: a linked object to the right (uml-commands.js:1675)
+        "UMLObject" => vec![r("Add Linked Object", "UMLObject", "UMLLink", Plain, false, Right)],
         "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" | "UMLEnumeration" => vec![
             r("Add Sub-Type", model_ty_static(model_ty), "UMLGeneralization", Plain, true, Below),
             r("Add Super-Type", model_ty_static(model_ty), "UMLGeneralization", Plain, false, Above),

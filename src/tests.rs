@@ -3233,6 +3233,12 @@ fn object_diagrams() {
     let end2 = a.repo.child(lm, "end2").unwrap();
     assert_eq!((a.repo.ty(end2), a.repo.str(end2, "navigable").as_str()), ("UMLLinkEnd", "navigable"));
     assert!(a.broken_views(d).is_empty());
+    // Add Linked Object: a new object to the right, with a link
+    let b = crate::related::actions("UMLObject").into_iter().find(|b| b.label == "Add Linked Object").unwrap();
+    let o3 = a.add_related(o2, b).unwrap();
+    assert_eq!(a.repo.ty(o3), "UMLObjectView");
+    assert!(crate::views::node_rect(&a.repo, o3).x >= 300.0 + 100.0 + 70.0);
+    assert_eq!(a.repo.all_of("UMLLink").len(), 2);
     // it all reads back
     let text = a.repo.serialize();
     let b = Repo::parse(&text).unwrap();
