@@ -3735,3 +3735,14 @@ fn tag_dialog_keys() {
     frame(&mut a, egui::Key::Escape);
     assert!(a.tag_editor.is_none());
 }
+
+#[test]
+fn new_kinds_take_their_fill_colour_preference() {
+    let mut a = App::new(None);
+    a.prefs.set("uml.object.fillColor", json!("#ffeeaa"));
+    a.prefs.set("uml.stereotype.fillColor", json!("#aaeeff"));
+    let o = a.change(|a| a.create_node("UMLObject", rect(40.0, 40.0, 100.0, 40.0))).unwrap();
+    let s = a.change(|a| a.create_node("UMLStereotype", rect(240.0, 40.0, 100.0, 60.0))).unwrap();
+    assert_eq!(a.repo.str(o, "fillColor"), "#ffeeaa");
+    assert_eq!(a.repo.str(s, "fillColor"), "#aaeeff");
+}
