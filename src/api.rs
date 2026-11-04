@@ -63,6 +63,7 @@ fn serve(stream: TcpStream, tx: &Sender<ApiRequest>, ctx: &egui::Context) -> std
     let (method, path) = (parts.next().unwrap_or("").to_string(), parts.next().unwrap_or("/").to_string());
     let mut len = 0usize;
     let mut json_body = false;
+    let mut local_host = false;
     loop {
         let mut h = String::new();
         if r.read_line(&mut h)? == 0 || h.trim().is_empty() {
@@ -72,6 +73,10 @@ fn serve(stream: TcpStream, tx: &Sender<ApiRequest>, ctx: &egui::Context) -> std
             if k.trim().eq_ignore_ascii_case("content-length") {
                 len = v.trim().parse().unwrap_or(0);
             }
+            if k.trim().eq_ignore_ascii_case("host") {
+                let host = v.trim().rsplit_once(':').map(|x| x.0).unwrap_or(v.trim()).to_ascii_lowercase();
+                local_host = matches!(host.as_str(), "127.0.0.1" | "localhost" | "[::1]");
+            }
             if k.trim().eq_ignore_ascii_case("content-type") {
                 json_body = v.trim().to_ascii_lowercase().starts_with("application/json");
             }
@@ -79,6 +84,10 @@ fn serve(stream: TcpStream, tx: &Sender<ApiRequest>, ctx: &egui::Context) -> std
     }
     let mut body = vec![0u8; len.min(16 * 1024 * 1024)];
     r.read_exact(&mut body)?;
+    // a name other than localhost would be a page reaching it through DNS rebinding
+    if !local_host {
+        return respond(&stream, 400, "application/json", &json!({"error": "Host must be localhost"}).to_string());
+    }
     if method == "GET" && path == "/" {
         return respond(&stream, 200, "text/plain", "Hello from UMLCraft API Server!");
     }

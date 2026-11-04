@@ -2585,7 +2585,7 @@ fn http_api() {
     let client = std::thread::spawn(move || {
         let mut s = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
         let body = "{}";
-        write!(s, "POST /get_current_diagram_info HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()).unwrap();
+        write!(s, "POST /get_current_diagram_info HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()).unwrap();
         let mut out = String::new();
         s.read_to_string(&mut out).unwrap();
         out
