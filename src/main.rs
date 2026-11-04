@@ -32,6 +32,7 @@ mod related;
 mod relview;
 mod render;
 mod selector;
+mod splitter;
 mod style;
 mod tags;
 mod templates;
