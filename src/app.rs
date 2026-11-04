@@ -1178,6 +1178,13 @@ impl App {
             Some(p) if self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" || self.repo.kind_of(p, "UMLClassifier") => p,
             _ => self.package_for(self.diagram),
         };
+        // a structural diagram made right under the Project goes in a new model "Model" (uml-factory.js:150-180)
+        let structural = matches!(ty, "UMLClassDiagram" | "UMLPackageDiagram" | "UMLObjectDiagram" | "UMLComponentDiagram" | "UMLDeploymentDiagram" | "UMLUseCaseDiagram");
+        let target = if structural && self.repo.ty(target) == "Project" {
+            self.repo.create("UMLModel", &[("name", json!("Model"))], Some((target, "ownedElements")))
+        } else {
+            target
+        };
         let name = self.new_name(target, ty);
         let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
         self.open_diagram(d);

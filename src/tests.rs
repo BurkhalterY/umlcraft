@@ -3516,3 +3516,15 @@ fn operation_constraint_kinds() {
         assert_eq!(a.repo.ty(list[0]), "UMLConstraint");
     }
 }
+
+#[test]
+fn structural_diagrams_under_the_project_get_a_model() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLClassDiagram"));
+    let m = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(m), a.repo.name(m).as_str(), a.repo.parent(m)), ("UMLModel", "Model", Some(root)));
+    // inside a package it goes in directly
+    let d2 = a.change(|a| a.add_diagram(Some(m), "UMLUseCaseDiagram"));
+    assert_eq!(a.repo.parent(d2), Some(m));
+}
