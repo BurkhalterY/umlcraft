@@ -978,7 +978,17 @@ impl App {
             if !self.repo.alive(d) {
                 continue;
             }
-            let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 30.0), Sense::click());
+            let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 30.0), Sense::click_and_drag());
+            // rows can be dragged into a new order (working-diagrams-view.js:204-205)
+            resp.dnd_set_drag_payload(WorkingRow(d));
+            if let Some(src) = resp.dnd_hover_payload::<WorkingRow>() {
+                if src.0 != d {
+                    ui.painter().hline(rect.x_range(), rect.top(), Stroke::new(2.0, ACCENT()));
+                }
+            }
+            if let Some(src) = resp.dnd_release_payload::<WorkingRow>() {
+                self.move_working(src.0, d);
+            }
             let current = self.diagram == Some(d);
             let p = ui.painter();
             if current {
@@ -1016,6 +1026,17 @@ impl App {
                 }
             }
         }
+    }
+
+    /// Move a working diagram to the place of another (dropped on its row), keeping the current one.
+    pub fn move_working(&mut self, d: Eid, before: Eid) {
+        if d == before {
+            return;
+        }
+        let Some(from) = self.open.iter().position(|x| *x == d) else { return };
+        let Some(to) = self.open.iter().position(|x| *x == before) else { return };
+        let item = self.open.remove(from);
+        self.open.insert(to, item);
     }
 
     fn toolbox_ui(&mut self, ui: &mut egui::Ui) {
@@ -2319,6 +2340,10 @@ impl App {
         }
     }
 }
+
+/// The drag payload of a Working Diagrams row.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorkingRow(pub Eid);
 
 /// The multiplicity choices of the property editor and the inline editor (uml.json `uml.multiplicity`).
 pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];

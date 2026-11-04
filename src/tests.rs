@@ -2538,3 +2538,17 @@ fn left_resize_keeps_the_right_edge() {
     assert!(b.w > 20.0, "grown back to the content");
     assert_eq!(b.x + b.w, o.x + o.w, "the right edge stays: {b:?} {o:?}");
 }
+
+#[test]
+fn reorder_working_diagrams() {
+    let mut a = App::new(None);
+    let d1 = a.diagram.unwrap();
+    let d2 = a.add_diagram(None, "UMLClassDiagram");
+    let d3 = a.add_diagram(None, "UMLUseCaseDiagram");
+    assert_eq!(a.open, vec![d1, d2, d3]);
+    a.move_working(d3, d1);
+    assert_eq!(a.open, vec![d3, d1, d2]);
+    a.move_working(d3, d2);
+    assert_eq!(a.open, vec![d1, d2, d3]);
+    assert_eq!(a.diagram, Some(d3), "the current diagram stays current");
+}
