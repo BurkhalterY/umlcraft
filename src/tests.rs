@@ -4159,3 +4159,29 @@ fn a_diagram_accepts_the_kinds_its_type_allows() {
     assert_eq!(a.diagram, Some(prof));
     assert!(a.can_drop_model(st) && !a.can_drop_model(actor), "a profile diagram takes stereotypes, not actors");
 }
+
+#[test]
+fn views_paste_into_any_diagram_that_takes_their_kinds() {
+    use crate::app::Area;
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let n = a.change(|a| a.create_node("Note", rect(300.0, 300.0, 100.0, 50.0))).unwrap();
+    a.last_area = Area::Canvas;
+    a.select(vec![c]);
+    let class_text = a.copy_text().unwrap();
+    a.select(vec![n]);
+    let note_text = a.copy_text().unwrap();
+    let pkg = a.package_for(Some(d));
+    let uc = a.change(|a| a.add_diagram(Some(pkg), "UMLUseCaseDiagram"));
+    assert_eq!(a.diagram, Some(uc));
+    a.paste_text(&class_text);
+    assert!(a.message.is_none(), "a class view pastes into a use case diagram");
+    assert_eq!(a.repo.list(uc, "ownedViews").len(), 1);
+    let inf = a.change(|a| a.add_diagram(Some(pkg), "UMLInformationFlowDiagram"));
+    assert_eq!(a.diagram, Some(inf));
+    a.paste_text(&class_text);
+    assert!(a.message.take().is_some(), "an information flow diagram takes only the general views");
+    a.paste_text(&note_text);
+    assert!(a.message.is_none() && a.repo.list(inf, "ownedViews").len() == 1, "such as a note");
+}
