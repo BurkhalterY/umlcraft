@@ -80,6 +80,9 @@ fn build() -> HashMap<&'static str, Kind> {
     // profiles: a metaclass names a UML type; an extension joins a stereotype to it (names estimated)
     def("UMLMetaClass", Some("UMLModelElement"), vec![]);
     def("UMLExtension", Some("UMLDirectedRelationship"), vec![]);
+    // a collaboration, and a use of one typed by it (uml/metamodel.json)
+    def("UMLCollaboration", Some("UMLClassifier"), vec![]);
+    def("UMLCollaborationUse", Some("UMLModelElement"), vec![("type", n())]);
     // the diamond an n-ary association's ends meet at (elements.js:2096)
     def("UMLNaryAssociationNode", Some("UMLClassifier"), vec![]);
     def("UMLInterface", Some("UMLClassifier"), vec![]);
@@ -176,6 +179,8 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLUseCaseView", Some("UMLClassifierView"), vec![("extensionPointCompartment", n())]);
     def("UMLUseCaseSubjectView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLObjectView", Some("UMLGeneralNodeView"), vec![("slotCompartment", n())]);
+    def("UMLCollaborationView", Some("UMLGeneralNodeView"), vec![("templateParameterCompartment", n())]);
+    def("UMLCollaborationUseView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLMetaClassView", Some("UMLGeneralNodeView"), vec![]);
     // artifact, component and node instances: drawn like their classifiers (base type estimated)
     for name in ["UMLArtifactInstanceView", "UMLComponentInstanceView", "UMLNodeInstanceView"] {

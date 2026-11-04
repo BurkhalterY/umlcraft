@@ -93,6 +93,13 @@ const ANNOTATIONS: Group = Group {
         node("Ellipse", "Ellipse", "ellipse"),
     ],
 };
+// the Composite Structure group (uml.json "uml.compositestructure": class, composite structure and
+// component diagrams), with the items UMLCraft has: no ports, parts, connectors or role bindings
+const COMPOSITE: Group = Group {
+    id: "compositestructure",
+    label: "Composite Structure",
+    items: &[node("Collaboration", "UMLCollaboration", "collaboration"), node("Collaboration Use", "UMLCollaborationUse", "collaboration"), line("Realization", "UMLRealization", "realization", AssocInit::Plain)],
+};
 const CLASS_GROUPS: &[Group] = &[
     Group {
         id: "class",
@@ -129,6 +136,7 @@ const CLASS_GROUPS: &[Group] = &[
         label: "Packages",
         items: &[node("Package", "UMLPackage", "package"), node("Model", "UMLModel", "model"), node("Subsystem", "UMLSubsystem", "package"), line("Dependency", "UMLDependency", "dependency", AssocInit::Plain), line("Containment", "Containment", "containment", AssocInit::Plain)],
     },
+    COMPOSITE,
     INSTANCES,
     // the robustness extension's group (robustness/toolbox/robustness.json)
     Group { id: "robustness", label: "Robustness", items: &[node("Boundary", "Boundary", "boundary"), node("Entity", "Entity", "entity"), node("Control", "Control", "control")] },
@@ -180,6 +188,7 @@ const COMPONENT_GROUPS: &[Group] = &[
             line("Communication Path", "UMLCommunicationPath", "association", AssocInit::Plain),
         ],
     },
+    COMPOSITE,
     INSTANCES,
     ANNOTATIONS,
 ];
@@ -837,6 +846,7 @@ impl App {
             "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
             "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
             "UMLObject" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("classifier", "type")],
+            "UMLCollaborationUse" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type")],
             "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
             "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
             // a reception names the signal it receives (uml-commands.js:1484)

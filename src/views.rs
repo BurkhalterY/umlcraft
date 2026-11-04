@@ -183,6 +183,9 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         "UMLInformationItem" => k("UMLInformationItemView", true, true, false),
         "UMLStereotype" => k("UMLStereotypeView", true, false, false),
         "UMLMetaClass" => k("UMLMetaClassView", false, false, false),
+        // dashed ellipses with their name (elements.js:7022-7280)
+        "UMLCollaboration" => k("UMLCollaborationView", false, false, false),
+        "UMLCollaborationUse" => k("UMLCollaborationUseView", false, false, false),
         "UMLArtifactInstance" => k("UMLArtifactInstanceView", false, false, false),
         "UMLComponentInstance" => k("UMLComponentInstanceView", false, false, false),
         "UMLNodeInstance" => k("UMLNodeInstanceView", false, false, false),
@@ -224,7 +227,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLInterface" => (140.0, 80.0),
         "UMLEnumeration" | "UMLPackage" | "UMLModel" | "UMLSubsystem" => (140.0, 100.0),
         "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" => (160.0, 80.0),
-        "UMLUseCase" => (120.0, 40.0),
+        "UMLUseCase" | "UMLCollaboration" | "UMLCollaborationUse" => (120.0, 40.0),
         "UMLActor" => (40.0, 80.0),
         "UMLComponent" => (160.0, 60.0),
         "UMLArtifact" => (80.0, 70.0),
@@ -368,6 +371,11 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
     }
     let nc = name_compartment(r, v, model);
     r.set_ref(v, "nameCompartment", Some(nc));
+    // a collaboration keeps a template parameter compartment, hidden while it has none (elements.js:7022-7050)
+    if r.ty(model) == "UMLCollaboration" {
+        let tp = list_compartment(r, v, model, "UMLTemplateParameterCompartmentView", false);
+        r.set_ref(v, "templateParameterCompartment", Some(tp));
+    }
     if r.kind_of(model, "UMLInstance") {
         let s = list_compartment(r, v, model, "UMLSlotCompartmentView", true);
         r.set_ref(v, "slotCompartment", Some(s));
@@ -414,6 +422,26 @@ pub fn create_frame_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, rect: R
     r.set_ref(v, "nameLabel", Some(nm));
     r.set_ref(v, "frameTypeLabel", Some(ty));
     v
+}
+
+/// A collaboration or collaboration use: at least √2 times its name (the ellipse around it) and the
+/// use case minimum, the name centred; a use shows "name: Collaboration" once typed
+/// (elements.js:7076-7134, 7238-7279).
+fn layout_collaboration(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    let typed = (r.ty(m) == "UMLCollaborationUse").then(|| r.refd(m, "type").map(|t| r.name(t))).flatten().filter(|n| !n.is_empty());
+    let mut min_w = name_min_width(r, ms, v, m, None, false);
+    if let Some(t) = &typed {
+        min_w = min_w.max((ms.width(&format!("{}: {t}", r.name(m)), name_style(r, m)) + 2.0 * PAD).ceil());
+    }
+    grow(r, v, (std::f64::consts::SQRT_2 * min_w).floor().max(UC_MIN_W), (std::f64::consts::SQRT_2 * NAME_MIN_H).floor().max(UC_MIN_H));
+    let (x, y, w, h) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"), r.f(v, "height"));
+    // lay the name out once to learn its height, then centre it
+    let nh = layout_name(r, ms, v, m, x, y, w, None, false);
+    layout_name(r, ms, v, m, x, y + (h - nh) / 2.0, w, None, false);
+    if let (Some(t), Some(nm)) = (typed, r.refd(v, "nameCompartment").and_then(|nc| r.refd(nc, "nameLabel"))) {
+        let text = format!("{}: {t}", r.name(m));
+        r.set(nm, "text", json!(text));
+    }
 }
 
 /// An n-ary association node's diamond, with its name, stereotype and property labels floating
@@ -858,7 +886,7 @@ pub struct Comp {
 pub struct Info {
     /// The template parameter box at the top-right corner, when there are template parameters.
     pub templ: Option<Comp>,
-    /// "interface", "actor", "usecase", "package", "subject", "frame", "hyperlink", "nary" or ""
+    /// "interface", "actor", "usecase", "package", "subject", "frame", "hyperlink", "nary", "collaboration" or ""
     pub shape: &'static str,
     pub compartments: Vec<Comp>,
     pub is_active: bool,
@@ -1380,6 +1408,12 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
     if t == "UMLFrameView" {
         layout_frame(r, ms, v);
         return Info { shape: "frame", ..Default::default() };
+    }
+    if t == "UMLCollaborationView" || t == "UMLCollaborationUseView" {
+        if let Some(m) = m {
+            layout_collaboration(r, ms, v, m);
+        }
+        return Info { shape: "collaboration", ..Default::default() };
     }
     if t == "UMLUseCaseSubjectView" {
         if let Some(m) = m {

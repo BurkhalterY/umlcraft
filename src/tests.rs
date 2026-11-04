@@ -4070,3 +4070,26 @@ fn the_wheel_moves_the_origin_in_diagram_units() {
     a.wheel_scroll(egui::vec2(500.0, 500.0), false);
     assert_eq!((a.scroll.x, a.scroll.y), (0.0, 0.0), "never past the origin");
 }
+
+#[test]
+fn collaborations_and_their_uses() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLCollaboration", rect(40.0, 40.0, 10.0, 10.0))).unwrap();
+    let u = a.change(|a| a.create_node("UMLCollaborationUse", rect(300.0, 40.0, 10.0, 10.0))).unwrap();
+    assert_eq!((a.repo.ty(c), a.repo.ty(u)), ("UMLCollaborationView", "UMLCollaborationUseView"));
+    let (cm, um) = (a.repo.refd(c, "model").unwrap(), a.repo.refd(u, "model").unwrap());
+    assert_eq!((a.repo.name(cm), a.repo.name(um)), ("Collaboration1".to_string(), "CollaborationUse1".to_string()));
+    assert!(a.repo.refd(c, "templateParameterCompartment").is_some());
+    a.change(|a| a.repo.set_ref(um, "type", Some(cm)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.repo.f(c, "width") >= crate::views::UC_MIN_W && a.repo.f(c, "height") >= crate::views::UC_MIN_H, "grown to the minimum");
+    let nl = a.repo.refd(a.repo.refd(u, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "CollaborationUse1: Collaboration1");
+    assert_eq!(crate::parse::name_text(&a.repo, um), "CollaborationUse1", "the name edit holds the name only");
+    assert_eq!(a.fields_for(um).iter().map(|f| f.0).collect::<Vec<_>>(), ["name", "stereotype", "visibility", "type"]);
+    let svg = crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap();
+    assert!(svg.contains("Collaboration1"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

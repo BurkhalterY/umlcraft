@@ -270,6 +270,19 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             draw_label(c, r, nl, fc);
             return;
         }
+        "collaboration" => {
+            // a dashed ellipse (elements.js:7214-7227, 7275-7279)
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+            shadow_ellipse(c, r, v, ctr, b.w / 2.0, b.h / 2.0);
+            c.ellipse(ctr, b.w / 2.0, b.h / 2.0, Some(fill), None);
+            let pts: Vec<P> = (0..=72).map(|i| {
+                let a = std::f64::consts::TAU * i as f64 / 72.0;
+                P { x: ctr.x + b.w / 2.0 * a.cos(), y: ctr.y + b.h / 2.0 * a.sin() }
+            }).collect();
+            dashes(c, &pts, line, 5.0, 5.0);
+            draw_name(c, r, v);
+            return;
+        }
         "nary" => {
             // a diamond touching the middle of each side, with its shadow (elements.js:6619-6652)
             let (cx, cy) = (b.x + b.w / 2.0, b.y + b.h / 2.0);
