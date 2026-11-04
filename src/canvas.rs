@@ -603,19 +603,33 @@ impl App {
                 let step = if shift && self.snap { self.grid_size() } else { 1.0 };
                 let dx = if l { -step } else if r { step } else { 0.0 };
                 let dy = if u { -step } else if dn { step } else { 0.0 };
-                let sel = self.selection.clone();
-                self.change(|a| {
-                    for v in sel {
-                        if !is_edge(&a.repo, v) {
-                            let (x, y) = (a.repo.f(v, "left"), a.repo.f(v, "top"));
-                            a.repo.set(v, "left", crate::model::num(x + dx));
-                            a.repo.set(v, "top", crate::model::num(y + dy));
-                        }
-                    }
-                });
+                self.nudge_selection(dx, dy);
             }
         }
         let _ = d;
+    }
+
+    /// Move the selected boxes by (dx, dy) as one undo step; contained views follow their box, and a
+    /// box inside a selected one moves only once (diagram-manager.js:755-814).
+    pub fn nudge_selection(&mut self, dx: f64, dy: f64) {
+        let sel = self.selection.clone();
+        // contained views follow their box; a box inside a selected one moves only once
+        let inside_selected = |a: &App, v: Eid| {
+            let mut c = a.repo.refd(v, "containerView");
+            while let Some(x) = c {
+                if sel.contains(&x) {
+                    return true;
+                }
+                c = a.repo.refd(x, "containerView");
+            }
+            false
+        };
+        let movers: Vec<Eid> = sel.iter().copied().filter(|v| !is_edge(&self.repo, *v) && !inside_selected(self, *v)).collect();
+        self.change(|a| {
+            for v in movers {
+                a.shift_view(v, dx, dy);
+            }
+        });
     }
 
     pub(crate) fn on_press(&mut self, rect: Rect, pos: Pos2, mods: egui::Modifiers) {

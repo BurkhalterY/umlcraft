@@ -2453,3 +2453,20 @@ fn dialogs_swallow_shortcuts() {
     press(&mut a);
     assert_ne!(a.show_grid, grid);
 }
+
+#[test]
+fn nudge_moves_contained_views() {
+    let mut a = App::new(None);
+    let pkg = a.change(|a| a.create_node("UMLPackage", rect(40.0, 40.0, 300.0, 200.0))).unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(500.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    let v = a.drop_model(m, crate::views::P { x: 100.0, y: 100.0 }).unwrap()[0];
+    assert_eq!(a.repo.refd(v, "containerView"), Some(pkg));
+    let before = (a.repo.f(v, "left"), a.repo.f(pkg, "left"));
+    a.select(vec![pkg, v]);
+    let undo = a.undo.len();
+    a.nudge_selection(3.0, 0.0);
+    assert_eq!(a.undo.len(), undo + 1);
+    let after = (a.repo.f(v, "left"), a.repo.f(pkg, "left"));
+    assert_eq!(after.0 - before.0, after.1 - before.1, "the contained class moves with its package, once");
+}

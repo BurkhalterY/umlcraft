@@ -446,7 +446,7 @@ impl App {
     }
 
     /// Move a box, the boxes it contains and its labels by (dx, dy).
-    fn shift_view(&mut self, v: Eid, dx: f64, dy: f64) {
+    pub(crate) fn shift_view(&mut self, v: Eid, dx: f64, dy: f64) {
         if dx == 0.0 && dy == 0.0 {
             return;
         }
