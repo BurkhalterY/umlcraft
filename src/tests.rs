@@ -3991,7 +3991,7 @@ fn inline_edit_buttons_carry_their_keys() {
     let e = a.change(|a| a.create_node("UMLEnumeration", rect(300.0, 40.0, 160.0, 100.0))).unwrap();
     let (cm, em) = (a.repo.refd(c, "model").unwrap(), a.repo.refd(e, "model").unwrap());
     let hints = |k: &EditKind, a: &App| item_buttons(&a.repo, k).into_iter().map(|b| if b.2.is_empty() { b.1.to_string() } else { format!("{} ({})", b.1, b.2) }).collect::<Vec<_>>();
-    assert_eq!(hints(&EditKind::Name(cm), &a), ["Add Attribute (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)", "Add Reception"]);
+    assert_eq!(hints(&EditKind::Name(cm), &a), ["Add Attribute (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)", "Add Reception", "Add Port", "Add Part"]);
     assert_eq!(hints(&EditKind::Name(em), &a), ["Add Literal (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)"]);
     let keys: Vec<ItemKey> = item_buttons(&a.repo, &EditKind::Feature(cm)).into_iter().map(|b| b.3).collect();
     assert_eq!(keys, [ItemKey::Add, ItemKey::Delete, ItemKey::Move(true), ItemKey::Move(false)]);
@@ -4338,4 +4338,42 @@ fn image_annotation_from_a_file() {
     let back = Repo::parse(&a.repo.serialize()).unwrap();
     assert_eq!(back.all_of("ImageView").len(), 2);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn port_and_part_quick_edit_actions() {
+    use crate::app::EditKind;
+    use crate::canvas::{item_buttons, ItemKey};
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    a.item_key(c, EditKind::Name(cm), ItemKey::AddPort);
+    a.item_key(c, EditKind::Name(cm), ItemKey::AddPart);
+    a.item_key(c, EditKind::Name(cm), ItemKey::AddPart);
+    let views_of = |a: &App, ty: &str| a.repo.list(d, "ownedViews").into_iter().filter(|v| a.repo.ty(*v) == ty).collect::<Vec<_>>();
+    let (ports, parts) = (views_of(&a, "UMLPortView"), views_of(&a, "UMLPartView"));
+    assert_eq!((ports.len(), parts.len()), (1, 2));
+    assert_eq!(a.repo.list(cm, "attributes").len(), 3);
+    assert_eq!((a.repo.f(parts[0], "left"), a.repo.f(parts[0], "top")), (110.0, 130.0), "the first part at +10, +30");
+    assert!(a.repo.f(parts[1], "left") > a.repo.f(parts[0], "left"), "the next one to its right");
+    // a port's edit: Select Type, Create Type, Add Connected Part
+    let pm = a.repo.refd(ports[0], "model").unwrap();
+    let labels: Vec<&str> = item_buttons(&a.repo, &EditKind::Name(pm)).into_iter().map(|b| b.1).collect();
+    assert_eq!(labels, ["Select Type", "Create Type", "Add Connected Part"]);
+    a.item_key(ports[0], EditKind::Name(pm), ItemKey::AddConnectedPart);
+    assert_eq!(views_of(&a, "UMLPartView").len(), 3);
+    let conn = a.repo.all().find(|e| a.repo.ty(*e) == "UMLConnector").expect("joined by a connector");
+    assert_eq!(a.repo.child(conn, "end1").and_then(|e| a.repo.refd(e, "reference")), Some(pm));
+    let newest = *views_of(&a, "UMLPartView").last().unwrap();
+    assert!(a.repo.f(newest, "left") < a.repo.f(ports[0], "left"), "inside, away from the right border");
+    a.item_key(ports[0], EditKind::Name(pm), ItemKey::SelectType);
+    assert!(a.element_picker.is_some());
+    a.element_picker = None;
+    a.item_key(ports[0], EditKind::Name(pm), ItemKey::CreateType);
+    let dialog = a.input_dialog.take().unwrap();
+    assert_eq!(dialog.message, "Enter a type name to create");
+    a.apply_input(dialog.action, "Plug".into());
+    let ty = a.repo.refd(pm, "type").unwrap();
+    assert_eq!((a.repo.name(ty), a.repo.parent(ty)), ("Plug".to_string(), Some(cm)), "the new type goes in the classifier");
 }

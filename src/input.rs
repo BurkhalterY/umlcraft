@@ -12,6 +12,9 @@ pub enum InputAction {
     RenameDiagram(Eid),
     /// "Create Type": a new class of that name, set as the element's type (uml-commands.js:1606).
     CreateType(Eid),
+    /// A port's or part's Create Type: the new class goes into the classifier that owns it
+    /// (uml-commands.js:1606-1630).
+    CreatePartType(Eid),
 }
 
 #[derive(Clone, Debug)]
@@ -37,6 +40,16 @@ impl App {
                 if self.repo.alive(d) && self.repo.name(d) != text {
                     self.change(|a| a.repo.set(d, "name", json!(text)));
                 }
+            }
+            InputAction::CreatePartType(e) => {
+                let name = text.trim().to_string();
+                let Some(owner) = self.repo.parent(e).filter(|_| self.repo.alive(e) && !name.is_empty()) else { return };
+                let c = self.change(|a| {
+                    let c = a.repo.create("UMLClass", &[("name", json!(name))], Some((owner, "ownedElements")));
+                    a.repo.set_ref(e, "type", Some(c));
+                    c
+                });
+                self.reveal(c);
             }
             InputAction::CreateType(e) => {
                 let name = text.trim().to_string();

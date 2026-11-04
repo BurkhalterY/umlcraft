@@ -160,7 +160,14 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
     match kind {
         EditKind::Name(m) => {
             let t = r.ty(*m);
+            // a port or a part (quickedits/uml.json "uml.port", "uml.part")
+            if t == "UMLPort" || t == "UMLAttribute" {
+                return vec![("Type…", "Select Type", "", ItemKey::SelectType), ("+ Type", "Create Type", "", ItemKey::CreateType), ("+ Part", "Add Connected Part", "", ItemKey::AddConnectedPart)];
+            }
+            let ports = ("+ Port", "Add Port", "", ItemKey::AddPort);
+            let parts = ("+ Part", "Add Part", "", ItemKey::AddPart);
             match t {
+                "UMLClass" | "UMLComponent" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP, ("+ Rec", "Add Reception", "", ItemKey::AddReception), ports, parts],
                 "UMLEnumeration" => vec![("+ Lit", "Add Literal", "Ctrl+Enter", ItemKey::Add), ADD_OP],
                 "UMLUseCase" => vec![("+ Ext", "Add Extension Point", "Ctrl+Enter", ItemKey::Add)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
@@ -198,6 +205,13 @@ pub enum ItemKey {
     AddTemplateParameter,
     /// The Add Reception button of a classifier's name edit (no key)
     AddReception,
+    /// Add Port and Add Part on a class's or component's name edit
+    AddPort,
+    AddPart,
+    /// A port's or part's Select Type, Create Type and Add Connected Part
+    SelectType,
+    CreateType,
+    AddConnectedPart,
 }
 
 impl App {
@@ -1485,6 +1499,58 @@ impl App {
 
     /// Add an item of this kind to the box's model, show its compartment and edit it
     /// (uml-commands.js:784-823).
+    /// Add Port and Add Part on a box's name edit: a port on the right border, under the ones there
+    /// (the original picks a random point on the box), or a part inside, right of the last part or
+    /// at +10, +30 (uml-commands.js:1411-1459). The new one's name edit opens.
+    fn add_port_or_part(&mut self, host: Eid, port: bool) {
+        let Some(d) = self.diagram else { return };
+        let b = node_rect(&self.repo, host);
+        let inside: Vec<Eid> = self.repo.list(d, "ownedViews").into_iter().filter(|v| self.repo.refd(*v, "containerView") == Some(host)).collect();
+        let made = if port {
+            let n = inside.iter().filter(|v| self.repo.ty(**v) == "UMLPortView").count() as f64;
+            let at = P { x: b.x + b.w, y: (b.y + 30.0 + 20.0 * n).min(b.y + b.h - views::PORT_SIZE) };
+            self.change(|a| a.create_feature_on(host, "UMLPort", at, R::default()).ok())
+        } else {
+            let last = inside.iter().filter(|v| self.repo.ty(**v) == "UMLPartView").map(|v| node_rect(&self.repo, *v)).max_by(|a, b| (a.x + a.w).total_cmp(&(b.x + b.w)));
+            let at = match last {
+                Some(l) => P { x: l.x + l.w + 10.0, y: l.y },
+                None => P { x: b.x + 10.0, y: b.y + 30.0 },
+            };
+            self.change(|a| a.create_feature_on(host, "UMLPart", at, R { x: at.x, y: at.y, w: 0.0, h: 0.0 }).ok())
+        };
+        if let Some(v) = made {
+            self.select(vec![v]);
+            self.pending_edit = Some(v);
+        }
+    }
+
+    /// Add Connected Part on a port or part: a new part in the same box, away from the border the
+    /// port sits on (or under the part), joined to it by a connector (uml-commands.js:1636-1673).
+    fn add_connected_part(&mut self, v: Eid) {
+        let Some(container) = self.repo.refd(v, "containerView").filter(|c| self.repo.alive(*c)) else { return };
+        let (b, c) = (node_rect(&self.repo, v), node_rect(&self.repo, container));
+        let (w, h, gap) = (80.0, views::NAME_MIN_H, 30.0);
+        let at = if b.x + b.w > c.x + c.w {
+            P { x: b.x - gap - w, y: b.y + b.h / 2.0 - h / 2.0 }
+        } else if b.x < c.x {
+            P { x: b.x + b.w + gap, y: b.y + b.h / 2.0 - h / 2.0 }
+        } else if b.y + b.h > c.y + c.h {
+            P { x: b.x + b.w / 2.0 - w / 2.0, y: b.y - gap - h }
+        } else {
+            P { x: b.x, y: b.y + b.h + gap }
+        };
+        let conn = crate::app::Tool { label: "", kind: "UMLConnector", icon: "", line: true, init: crate::app::AssocInit::Plain };
+        let made = self.change(|a| {
+            let p = a.create_feature_on(container, "UMLPart", at, R { x: at.x, y: at.y, w, h }).ok()?;
+            a.create_edge(&conn, v, p)?;
+            Some(p)
+        });
+        if let Some(p) = made {
+            self.select(vec![p]);
+            self.pending_edit = Some(p);
+        }
+    }
+
     fn add_item(&mut self, v: Eid, owner: Eid, ty: &str) {
         if !self.can_add_feature(owner, ty) {
             return;
@@ -1528,6 +1594,15 @@ impl App {
             (ItemKey::AddOperation, _) => self.add_item(host, m, "UMLOperation"),
             (ItemKey::AddTemplateParameter, _) => self.add_item(host, m, "UMLTemplateParameter"),
             (ItemKey::AddReception, _) => self.add_item(host, m, "UMLReception"),
+            (ItemKey::AddPort, _) | (ItemKey::AddPart, _) => self.add_port_or_part(host, key == ItemKey::AddPort),
+            (ItemKey::SelectType, _) => {
+                // the Element Picker for the port's or part's type (uml-commands.js:1589-1600)
+                self.open_element_picker(m, "type");
+            }
+            (ItemKey::CreateType, _) => {
+                self.input_dialog = Some(crate::input::InputDialog { message: "Enter a type name to create".into(), text: String::new(), action: crate::input::InputAction::CreatePartType(m), fresh: true });
+            }
+            (ItemKey::AddConnectedPart, _) => self.add_connected_part(host),
             (ItemKey::Delete, Some(f)) => {
                 let (Some(owner), Some(field)) = (self.repo.parent(f), self.repo.field_of(f)) else { return };
                 let i = self.repo.list(owner, &field).iter().position(|x| *x == f).unwrap_or(0);

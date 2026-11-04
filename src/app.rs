@@ -1325,6 +1325,13 @@ impl App {
                 at.x >= b.x && at.y >= b.y && at.x <= b.x + b.w && at.y <= b.y + b.h
             })
             .ok_or(refused.clone())?;
+        self.create_feature_on(host, kind, at, rect)
+    }
+
+    /// A port or part on a given box (see `create_feature_box`).
+    pub fn create_feature_on(&mut self, host: Eid, kind: &str, at: P, rect: R) -> Result<Eid, String> {
+        let d = self.diagram.ok_or_else(String::new)?;
+        let refused = format!("{} cannot be placed here.", if kind == "UMLPort" { "UMLPort" } else { "UMLAttribute" });
         let hm = self.repo.refd(host, "model").ok_or(refused.clone())?;
         let owner = if self.repo.ty(hm) == "UMLAttribute" {
             match self.repo.refd(hm, "type").filter(|t| self.repo.kind_of(*t, "UMLClassifier")) {
