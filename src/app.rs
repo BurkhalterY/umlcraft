@@ -1098,6 +1098,8 @@ impl App {
             "UMLAssociation" => classifier(tm) && classifier(hm),
             // a connector joins two features: ports, parts or attributes (uml-factory.js:32-38)
             "UMLConnector" => r.kind_of(tm, "UMLFeature") && r.kind_of(hm, "UMLFeature"),
+            // a role binding: from a collaboration use to a part or attribute (uml-factory.js:48-54)
+            "UMLRoleBinding" => r.ty(tm) == "UMLCollaborationUse" && r.kind_of(hm, "UMLAttribute"),
             // a link joins two objects (uml-factory.js)
             "UMLLink" => r.kind_of(tm, "UMLInstance") && r.kind_of(hm, "UMLInstance"),
             // deployment diagrams: a path joins two nodes, a deployment puts a classifier on a node and a

@@ -94,7 +94,7 @@ const ANNOTATIONS: Group = Group {
     ],
 };
 // the Composite Structure group (uml.json "uml.compositestructure": class, composite structure and
-// component diagrams), with the items UMLCraft has: no role bindings
+// component diagrams)
 const COMPOSITE: Group = Group {
     id: "compositestructure",
     label: "Composite Structure",
@@ -104,6 +104,7 @@ const COMPOSITE: Group = Group {
         node("Part", "UMLPart", "part"),
         line("Connector", "UMLConnector", "association", AssocInit::Plain),
         node("Collaboration Use", "UMLCollaborationUse", "collaboration"),
+        line("Role Binding", "UMLRoleBinding", "dependency", AssocInit::Plain),
         line("Realization", "UMLRealization", "realization", AssocInit::Plain),
     ],
 };
@@ -829,6 +830,9 @@ impl App {
             }
             if t == "UMLExtend" {
                 f.push(("condition", "text"));
+            }
+            if t == "UMLRoleBinding" {
+                f.push(("roleName", "text"));
             }
             // the items an information flow conveys, edited in the Element List Editor
             if t == "UMLInformationFlow" {

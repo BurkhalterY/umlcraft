@@ -4282,3 +4282,25 @@ fn ports_parts_and_connectors() {
     assert_eq!(a.repo.f(part, "left"), before + 20.0);
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn role_binding_from_a_collaboration_use_to_a_part() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let part = a.change(|a| a.create_feature_box("UMLPart", crate::views::P { x: 151.0, y: 151.0 }, rect(150.0, 150.0, 100.0, 40.0))).unwrap();
+    let u = a.change(|a| a.create_node("UMLCollaborationUse", rect(500.0, 100.0, 120.0, 40.0))).unwrap();
+    let rb = tool("UMLRoleBinding", AssocInit::Plain);
+    assert!(a.can_connect(&rb, u, part));
+    assert!(!a.can_connect(&rb, part, u) && !a.can_connect(&rb, u, c), "from the use, to an attribute");
+    let e = a.change(|a| a.create_edge(&rb, u, part)).unwrap();
+    assert_eq!(a.repo.ty(e), "UMLRoleBindingView");
+    let m = a.repo.refd(e, "model").unwrap();
+    assert!(a.fields_for(m).iter().any(|f| f.0 == "roleName"));
+    a.change(|a| a.repo.set(m, "roleName", json!("buyer")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let l = a.repo.refd(e, "roleNameLabel").unwrap();
+    assert_eq!(a.repo.str(l, "text"), "buyer");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

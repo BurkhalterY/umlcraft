@@ -212,6 +212,7 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "UMLConnector" => "UMLConnectorView",
         "UMLGeneralization" => "UMLGeneralizationView",
         "UMLDependency" => "UMLDependencyView",
+        "UMLRoleBinding" => "UMLRoleBindingView",
         "UMLRealization" => "UMLRealizationView",
         "UMLInterfaceRealization" => "UMLInterfaceRealizationView",
         "UMLInclude" => "UMLIncludeView",
@@ -227,8 +228,8 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 20] = [
-    "UMLConnectorView",
+const KNOWN_EDGE_VIEWS: [&str; 21] = [
+    "UMLConnectorView", "UMLRoleBindingView",
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
@@ -809,6 +810,11 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
     r.set_ref(e, "nameLabel", Some(nl));
     r.set_ref(e, "stereotypeLabel", Some(sl));
     r.set_ref(e, "propertyLabel", Some(pl));
+    // a role binding names the role near its head (UMLRoleBindingView, elements.js:7289-7300)
+    if r.ty(m) == "UMLRoleBinding" {
+        let l = edge_label(r, e, Some(m), -std::f64::consts::FRAC_PI_6, 30.0, 0, false);
+        r.set_ref(e, "roleNameLabel", Some(l));
+    }
     // associations and links have end labels; only associations have qualifiers
     if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" || r.ty(m) == "UMLConnector" {
         r.set_raw(e, "showEndOrder", json!("hide")); // as the original writes it (sample.mdj)
@@ -1816,6 +1822,9 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     };
     out.push(("stereotypeLabel", st));
     out.push(("propertyLabel", String::new()));
+    if r.ty(m) == "UMLRoleBinding" {
+        out.push(("roleNameLabel", r.str(m, "roleName")));
+    }
     if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" || r.ty(m) == "UMLConnector" {
         let role = |end: Option<Eid>| end.map(|x| { let n = r.name(x); if n.is_empty() { n } else { vis(x) + &n } }).unwrap_or_default();
         let (e1, e2) = (r.child(m, "end1"), r.child(m, "end2"));

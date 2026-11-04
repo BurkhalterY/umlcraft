@@ -98,6 +98,8 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLTemplateParameter", Some("UMLModelElement"), vec![("parameterType", d(json!(""))), ("defaultValue", d(json!("")))]);
     def("UMLEnumeration", Some("UMLDataType"), vec![("literals", n())]);
     def("UMLDependency", Some("UMLDirectedRelationship"), vec![("mapping", d(json!("")))]);
+    // a role binding: from a collaboration use to the part that plays a role (uml/metamodel.json)
+    def("UMLRoleBinding", Some("UMLDependency"), vec![("roleName", d(json!("")))]);
     def("UMLAbstraction", Some("UMLDependency"), vec![]);
     def("UMLRealization", Some("UMLAbstraction"), vec![]);
     def("UMLGeneralization", Some("UMLDirectedRelationship"), vec![("discriminator", d(json!("")))]);
@@ -235,6 +237,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLCommunicationPathView", Some("UMLAssociationView"), vec![]);
     def("UMLLinkView", Some("UMLUndirectedRelationshipView"), vec![]);
     def("UMLConnectorView", Some("UMLUndirectedRelationshipView"), vec![]);
+    def("UMLRoleBindingView", Some("UMLGeneralEdgeView"), vec![("roleNameLabel", n())]);
     t
 }
 
