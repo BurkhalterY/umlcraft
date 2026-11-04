@@ -549,6 +549,22 @@ impl App {
         adds
     }
 
+    /// Ask which kind of behaviour to create in a state's activities or a transition's effects.
+    pub fn ask_behavior_kind(&mut self, e: Eid, field: &'static str) {
+        let what = match field {
+            "entryActivities" => "an entry Activity",
+            "doActivities" => "an do Activity",
+            "exitActivities" => "an exit Activity",
+            _ => "an effect Behavior",
+        };
+        self.select_one = Some(crate::app::SelectOne {
+            message: format!("Select one to create as {what}"),
+            options: crate::app::BEHAVIOR_KINDS.iter().map(|x| x.0).collect(),
+            selected: 0,
+            purpose: crate::app::SelectPurpose::BehaviorKind(e, field),
+        });
+    }
+
     /// The items of an Add submenu for an element.
     fn add_items(&mut self, ui: &mut egui::Ui, e: Eid) {
         // Model › Add › Tag on any element that can hold tags (common/menus)
@@ -564,18 +580,7 @@ impl App {
             // a behaviour of a state or a transition: which kind, in a Select One dialog (uml-commands.js:109-190)
             if matches!(k, "entryActivities" | "doActivities" | "exitActivities" | "effects") {
                 if ui.button(l).clicked() {
-                    let what = match k {
-                        "entryActivities" => "an entry Activity",
-                        "doActivities" => "an do Activity",
-                        "exitActivities" => "an exit Activity",
-                        _ => "an effect Behavior",
-                    };
-                    self.select_one = Some(crate::app::SelectOne {
-                        message: format!("Select one to create as {what}"),
-                        options: crate::app::BEHAVIOR_KINDS.iter().map(|x| x.0).collect(),
-                        selected: 0,
-                        purpose: crate::app::SelectPurpose::BehaviorKind(e, k),
-                    });
+                    self.ask_behavior_kind(e, k);
                     ui.close();
                 }
                 continue;

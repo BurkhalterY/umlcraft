@@ -4784,3 +4784,20 @@ fn an_orthogonal_state_files_states_by_region() {
     assert_eq!(a.repo.parent(a.repo.refd(up, "model").unwrap()), Some(rs[0]));
     assert_eq!(a.repo.parent(a.repo.refd(down, "model").unwrap()), Some(rs[1]));
 }
+
+#[test]
+fn a_state_inline_edit_adds_regions_and_activities() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let s = a.change(|a| a.create_node("UMLState", rect(100.0, 100.0, 100.0, 40.0))).unwrap();
+    let m = a.repo.refd(s, "model").unwrap();
+    a.item_key(s, EditKind::Name(m), ItemKey::AddRegion);
+    assert_eq!(a.repo.list(m, "regions").len(), 1);
+    a.item_key(s, EditKind::Name(m), ItemKey::Activity("doActivities"));
+    let d = a.select_one.as_ref().unwrap();
+    assert_eq!(d.message, "Select one to create as an do Activity");
+    assert!(matches!(d.purpose, crate::app::SelectPurpose::BehaviorKind(x, "doActivities") if x == m));
+}

@@ -176,7 +176,14 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                 "UMLClass" | "UMLComponent" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP, ("+ Rec", "Add Reception", "", ItemKey::AddReception), ports, parts],
                 "UMLEnumeration" => vec![("+ Lit", "Add Literal", "Ctrl+Enter", ItemKey::Add), ADD_OP],
                 // a state's choice and fork scaffolds (uml-commands.js:3244, 3386)
-                "UMLState" => vec![("+ Choice", "Add Choice", "", ItemKey::Scaffold("Choice")), ("+ Fork", "Add Fork", "", ItemKey::Scaffold("Fork"))],
+                "UMLState" => vec![
+                    ("+ Region", "Add Region", "", ItemKey::AddRegion),
+                    ("+ Entry", "Add Entry Activity", "", ItemKey::Activity("entryActivities")),
+                    ("+ Do", "Add Do Activity", "", ItemKey::Activity("doActivities")),
+                    ("+ Exit", "Add Exit Activity", "", ItemKey::Activity("exitActivities")),
+                    ("+ Choice", "Add Choice", "", ItemKey::Scaffold("Choice")),
+                    ("+ Fork", "Add Fork", "", ItemKey::Scaffold("Fork")),
+                ],
                 "UMLUseCase" => vec![("+ Ext", "Add Extension Point", "Ctrl+Enter", ItemKey::Add)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
                 // classes, interfaces, signals, data types, components, nodes, artifacts: Add Reception
@@ -233,6 +240,10 @@ pub enum ItemKey {
     SelectSignal,
     /// A state's Add Choice or Add Fork: the pseudostate and two branch states
     Scaffold(&'static str),
+    /// A state's Add Region
+    AddRegion,
+    /// A state's Add Entry, Do or Exit Activity: asks which kind of behaviour
+    Activity(&'static str),
 }
 
 impl App {
@@ -1637,6 +1648,12 @@ impl App {
             }
             (ItemKey::AddConnectedPart, _) => self.add_connected_part(host),
             (ItemKey::SelectSignal, Some(f)) => self.open_element_picker(f, "signal"),
+            (ItemKey::AddRegion, _) => {
+                if let Some(rg) = self.change(|a| a.add_feature(m, "UMLRegion")) {
+                    self.reveal(rg);
+                }
+            }
+            (ItemKey::Activity(field), _) => self.ask_behavior_kind(m, field),
             (ItemKey::Scaffold(kind), _) => {
                 if let Some(p) = self.add_scaffold(host, kind) {
                     self.select(vec![p]);
