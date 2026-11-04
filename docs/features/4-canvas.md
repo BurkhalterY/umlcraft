@@ -168,7 +168,7 @@ Source: the extracted `app/` tree. Paths below are relative to `app/`. Each bull
 - **Double-click an image**: opens a file picker (.png, .jpg, .jpeg, .svg), replaces the image data, and resizes the view to the image's natural size. (src/app-context.js:1360-1382) — **UMLCraft:** ❌ missing no images
 - **Double-click an inline interaction**: an Interaction (Inline) in an interaction overview opens its target diagram and selects it in the explorer. (extensions/essential/uml/main.js:84-89) — **UMLCraft:** ❌ missing interaction overview diagrams are read-only drawings
 - **Double-click an interaction use**: selects the referenced interaction (or the action's target `refersTo`) in the explorer. The generic quick edit also opens. (extensions/essential/uml/main.js:90-96; src/app-context.js:1395) — **UMLCraft:** ❌ missing no interaction-use handling
-- **Enter does a keyboard double-click**: Enter on the canvas triggers the double-click action on the first selected view, at the node's top-left (or with no position for edges). (src/ui/diagram-manager.js:712-725) — **UMLCraft:** 🟡 partial Enter (or F2) opens the inline edit at the name, but only when exactly one view is selected (src/canvas.rs:612, 629-632)
+- **Enter does a keyboard double-click**: Enter on the canvas triggers the double-click action on the first selected view, at the node's top-left (or with no position for edges). (src/ui/diagram-manager.js:712-725) — **UMLCraft:** ✅ present Enter (or F2) runs the double-click action, the inline edit, on the first selected view, with no click position: a node edits its name and an edge its middle label (src/canvas.rs:612, 629-632, 1172)
 
 ## Keyboard on the canvas (hidden behaviour beyond the keymap)
 

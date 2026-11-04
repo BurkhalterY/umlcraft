@@ -626,8 +626,8 @@ impl App {
                 self.tool = None;
                 self.select(vec![]);
             }
-            if enter && self.selection.len() == 1 {
-                let v = self.selection[0];
+            // a keyboard double-click on the first selected view (diagram-manager.js:712-725)
+            if let Some(v) = self.selection.first().copied().filter(|v| enter && self.repo.alive(*v)) {
                 self.edit_view(v, None);
             }
             let (l, r, u, dn, shift) = arrows;
