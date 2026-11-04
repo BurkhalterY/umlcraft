@@ -325,7 +325,8 @@ impl App {
         let defaults: Vec<Eid> = diagrams.iter().copied().filter(|d| self.repo.bool(*d, "defaultDiagram")).collect();
         self.open = if defaults.is_empty() { diagrams.first().copied().into_iter().collect() } else { defaults };
         self.diagram = self.open.first().copied();
-        self.focus = None;
+        // the project is selected in the explorer (app-context.js:680-682)
+        self.focus = Some(self.repo.root);
         self.zoom = 1.0;
         self.scroll = P::default();
         self.scrolls.clear();
