@@ -325,11 +325,11 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Exception Handler | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Activity Interrupt | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Activity Edge Connector | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Profiles `uml.profile` | UMLProfileDiagram | MetaClass | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Profiles `uml.profile` | UMLProfileDiagram | Stereotype | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Profiles `uml.profile` | UMLProfileDiagram | Enumeration | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Profiles `uml.profile` | UMLProfileDiagram | Extension | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Profiles `uml.profile` | UMLProfileDiagram | Generalization | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Profiles `uml.profile` | UMLProfileDiagram | MetaClass | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Profiles `uml.profile` | UMLProfileDiagram | Stereotype | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Profiles `uml.profile` | UMLProfileDiagram | Enumeration | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Profiles `uml.profile` | UMLProfileDiagram | Extension | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Profiles `uml.profile` | UMLProfileDiagram | Generalization | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
 | Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame (Mobile) | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
 | Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame (Web) | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |

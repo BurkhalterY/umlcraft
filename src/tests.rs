@@ -3548,3 +3548,38 @@ fn information_flow_diagrams() {
     let fm = a.repo.refd(e, "model").unwrap();
     assert!(a.fields_for(fm).contains(&("conveyed", "reflist")));
 }
+
+#[test]
+fn profile_diagrams() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLProfileDiagram"));
+    let p = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(p), a.repo.name(p).as_str()), ("UMLProfile", "Profile"));
+    // inside a profile it goes in directly
+    let d2 = a.change(|a| a.add_diagram(Some(p), "UMLProfileDiagram"));
+    assert_eq!(a.repo.parent(d2), Some(p));
+    a.open_diagram(d);
+    let st = a.change(|a| a.create_node("UMLStereotype", rect(40.0, 40.0, 120.0, 60.0))).unwrap();
+    let mc = a.change(|a| a.create_node("UMLMetaClass", rect(40.0, 240.0, 120.0, 40.0))).unwrap();
+    let mm = a.repo.refd(mc, "model").unwrap();
+    a.repo.set(mm, "name", json!("Class"));
+    assert_eq!(a.repo.parent(a.repo.refd(st, "model").unwrap()), Some(p), "owned by the profile (UML018)");
+    let t = tool("UMLExtension", AssocInit::Plain);
+    assert!(a.can_connect(&t, st, mc) && !a.can_connect(&t, mc, st));
+    let e = a.change(|a| a.create_edge(&t, st, mc)).unwrap();
+    assert_eq!(a.repo.ty(e), "UMLExtensionView");
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let lbl = |v| a.repo.str(a.repo.refd(a.repo.refd(v, "nameCompartment").unwrap(), "stereotypeLabel").unwrap(), "text");
+    assert_eq!(lbl(st), "«stereotype»");
+    assert_eq!(lbl(mc), "«metaclass»");
+    assert!(!crate::validate::validate(&a.repo).iter().any(|x| x.rule == "UML018"));
+    // a metaclass's Add Stereotype: a stereotype below, extending it
+    let b = crate::related::actions("UMLMetaClass").into_iter().find(|b| b.label == "Add Stereotype").unwrap();
+    let s2 = a.add_related(mc, b).unwrap();
+    assert_eq!(a.repo.ty(s2), "UMLStereotypeView");
+    let ext = a.repo.all_of("UMLExtension");
+    assert_eq!(ext.len(), 2);
+    assert!(ext.iter().any(|x| a.repo.refd(*x, "source") == a.repo.refd(s2, "model") && a.repo.refd(*x, "target") == Some(mm)));
+}

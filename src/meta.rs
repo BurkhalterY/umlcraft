@@ -75,6 +75,9 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLProfile", Some("UMLPackage"), vec![]);
     def("UMLClass", Some("UMLClassifier"), vec![("isActive", d(json!(false)))]);
     def("UMLStereotype", Some("UMLClass"), vec![("icon", n())]);
+    // profiles: a metaclass names a UML type; an extension joins a stereotype to it (names estimated)
+    def("UMLMetaClass", Some("UMLModelElement"), vec![]);
+    def("UMLExtension", Some("UMLDirectedRelationship"), vec![]);
     def("UMLInterface", Some("UMLClassifier"), vec![]);
     def("UMLSignal", Some("UMLClassifier"), vec![]);
     def("UMLDataType", Some("UMLClassifier"), vec![]);
@@ -126,6 +129,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLDeploymentDiagram", Some("UMLDiagram"), vec![]);
     def("UMLObjectDiagram", Some("UMLDiagram"), vec![]);
     def("UMLInformationFlowDiagram", Some("UMLDiagram"), vec![]);
+    def("UMLProfileDiagram", Some("UMLDiagram"), vec![]);
 
     // UML views
     def("UMLCompartmentView", Some("NodeView"), vec![]);
@@ -149,7 +153,7 @@ fn build() -> HashMap<&'static str, Kind> {
         ("showOperationSignature", d(json!(true))), ("attributeCompartment", n()), ("operationCompartment", n()), ("receptionCompartment", n()),
         ("templateParameterCompartment", n()),
     ]);
-    for name in ["UMLInformationItemView", "UMLClassView", "UMLInterfaceView", "UMLDataTypeView", "UMLPrimitiveTypeView", "UMLSignalView", "UMLActorView", "UMLComponentView", "UMLArtifactView", "UMLNodeView"] {
+    for name in ["UMLStereotypeView", "UMLInformationItemView", "UMLClassView", "UMLInterfaceView", "UMLDataTypeView", "UMLPrimitiveTypeView", "UMLSignalView", "UMLActorView", "UMLComponentView", "UMLArtifactView", "UMLNodeView"] {
         def(name, Some("UMLClassifierView"), vec![]);
     }
     def("UMLEnumerationView", Some("UMLClassifierView"), vec![("suppressLiterals", d(json!(false))), ("enumerationLiteralCompartment", n())]);
@@ -158,6 +162,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLUseCaseView", Some("UMLClassifierView"), vec![("extensionPointCompartment", n())]);
     def("UMLUseCaseSubjectView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLObjectView", Some("UMLGeneralNodeView"), vec![("slotCompartment", n())]);
+    def("UMLMetaClassView", Some("UMLGeneralNodeView"), vec![]);
     // artifact, component and node instances: drawn like their classifiers (base type estimated)
     for name in ["UMLArtifactInstanceView", "UMLComponentInstanceView", "UMLNodeInstanceView"] {
         def(name, Some("UMLObjectView"), vec![]);
@@ -182,7 +187,7 @@ fn build() -> HashMap<&'static str, Kind> {
         ("tailMultiplicityLabel", n()), ("headRoleNameLabel", n()), ("headPropertyLabel", n()), ("headMultiplicityLabel", n()),
     ]);
     def("UMLAssociationView", Some("UMLUndirectedRelationshipView"), vec![("tailQualifiersCompartment", n()), ("headQualifiersCompartment", n())]);
-    for name in ["UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView", "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLComponentRealizationView", "UMLDeploymentView", "UMLTemplateBindingView", "UMLInformationFlowView"] {
+    for name in ["UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView", "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLComponentRealizationView", "UMLDeploymentView", "UMLTemplateBindingView", "UMLInformationFlowView", "UMLExtensionView"] {
         def(name, Some("UMLGeneralEdgeView"), vec![]);
     }
     def("UMLCommunicationPathView", Some("UMLAssociationView"), vec![]);

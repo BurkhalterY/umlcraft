@@ -81,6 +81,12 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             r("Add Provided Interface", "UMLInterface", "UMLInterfaceRealization", Plain, false, Above),
             r("Add Required Interface", "UMLInterface", "UMLDependency", Plain, false, Above),
         ],
+        // profiles (uml-commands.js:4069-4127)
+        "UMLMetaClass" => vec![r("Add Stereotype", "UMLStereotype", "UMLExtension", Plain, true, Below)],
+        "UMLStereotype" => vec![
+            r("Add Sub-Stereotype", "UMLStereotype", "UMLGeneralization", Plain, true, Below),
+            r("Add Super-Stereotype", "UMLStereotype", "UMLGeneralization", Plain, false, Above),
+        ],
         // an object: a linked object to the right (uml-commands.js:1675)
         "UMLObject" => vec![r("Add Linked Object", "UMLObject", "UMLLink", Plain, false, Right)],
         "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" | "UMLEnumeration" => vec![

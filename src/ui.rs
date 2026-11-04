@@ -189,6 +189,21 @@ const INSTANCES: Group = Group {
     ],
 };
 const OBJECT_GROUPS: &[Group] = &[INSTANCES, ANNOTATIONS];
+// profile diagrams (uml.json "uml.profile")
+const PROFILE_GROUPS: &[Group] = &[
+    Group {
+        id: "profile",
+        label: "Profiles",
+        items: &[
+            node("MetaClass", "UMLMetaClass", "class"),
+            node("Stereotype", "UMLStereotype", "class"),
+            node("Enumeration", "UMLEnumeration", "enumeration"),
+            line("Extension", "UMLExtension", "generalization", AssocInit::Plain),
+            line("Generalization", "UMLGeneralization", "generalization", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
 // information flow diagrams: their own group, then the use case and basic class tools (uml.json)
 const INFO_FLOW_GROUPS: &[Group] = &[
     Group {
@@ -204,7 +219,7 @@ const INFO_FLOW_GROUPS: &[Group] = &[
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 7] = [
+const DIAGRAM_KINDS: [(&str, &str); 8] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -212,6 +227,7 @@ const DIAGRAM_KINDS: [(&str, &str); 7] = [
     ("Deployment Diagram", "UMLDeploymentDiagram"),
     ("Use Case Diagram", "UMLUseCaseDiagram"),
     ("Information Flow Diagram", "UMLInformationFlowDiagram"),
+    ("Profile Diagram", "UMLProfileDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -417,6 +433,10 @@ impl App {
             ] {
                 adds.push((l, k, false));
             }
+        }
+        // a metaclass goes in a profile
+        if t == "UMLProfile" {
+            adds.push(("MetaClass", "UMLMetaClass", false));
         }
         // Model › Add › Constraint on any model element (uml.json)
         if self.repo.kind_of(e, "UMLModelElement") {
@@ -1254,6 +1274,7 @@ impl App {
                 Some("UMLDeploymentDiagram") => self.open_groups.insert("deployment"),
                 Some("UMLObjectDiagram") => self.open_groups.insert("instance"),
                 Some("UMLInformationFlowDiagram") => self.open_groups.insert("information-flow"),
+                Some("UMLProfileDiagram") => self.open_groups.insert("profile"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1276,6 +1297,7 @@ impl App {
             Some("UMLPackageDiagram") => PACKAGE_GROUPS,
             Some("UMLObjectDiagram") => OBJECT_GROUPS,
             Some("UMLInformationFlowDiagram") => INFO_FLOW_GROUPS,
+            Some("UMLProfileDiagram") => PROFILE_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

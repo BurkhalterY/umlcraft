@@ -172,6 +172,8 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         // an object: its name and classifier underlined, then its slots
         "UMLObject" => k("UMLObjectView", false, false, false),
         "UMLInformationItem" => k("UMLInformationItemView", true, true, false),
+        "UMLStereotype" => k("UMLStereotypeView", true, false, false),
+        "UMLMetaClass" => k("UMLMetaClassView", false, false, false),
         "UMLArtifactInstance" => k("UMLArtifactInstanceView", false, false, false),
         "UMLComponentInstance" => k("UMLComponentInstanceView", false, false, false),
         "UMLNodeInstance" => k("UMLNodeInstanceView", false, false, false),
@@ -194,15 +196,16 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "UMLCommunicationPath" => "UMLCommunicationPathView",
         "UMLLink" => "UMLLinkView",
         "UMLInformationFlow" => "UMLInformationFlowView",
+        "UMLExtension" => "UMLExtensionView",
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 17] = [
+const KNOWN_EDGE_VIEWS: [&str; 18] = [
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
-    "UMLTemplateBindingView", "UMLConstraintLinkView", "UMLLinkView", "UMLInformationFlowView",
+    "UMLTemplateBindingView", "UMLConstraintLinkView", "UMLLinkView", "UMLInformationFlowView", "UMLExtensionView",
 ];
 
 /// Size used when the person clicks instead of dragging (estimated).
@@ -838,6 +841,8 @@ fn keyword_of(ty: &str) -> Option<&'static str> {
         "UMLPrimitiveType" => Some("primitive"),
         "UMLSignal" => Some("signal"),
         "UMLInformationItem" => Some("information"),
+        "UMLStereotype" => Some("stereotype"),
+        "UMLMetaClass" => Some("metaclass"),
         _ => None,
     }
 }
@@ -1101,6 +1106,17 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
                 return layout_classifier(r, ms, v, m);
             }
         }
+    }
+    // a metaclass: a box with «metaclass» and its name (estimated)
+    if t == "UMLMetaClassView" {
+        if let Some(m) = m {
+            let min_w = name_min_width(r, ms, v, m, Some("metaclass"), false);
+            grow(r, v, min_w, NAME_MIN_H);
+            let (x, y, w) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"));
+            let nh = layout_name(r, ms, v, m, x, y, w, Some("metaclass"), false);
+            grow(r, v, min_w, nh);
+        }
+        return Info::default();
     }
     if t == "UMLObjectView" || t.ends_with("InstanceView") {
         if let Some(m) = m {

@@ -1003,6 +1003,8 @@ impl App {
             "UMLDeployment" => classifier(tm) && r.ty(hm) == "UMLNode" && tm != hm,
             "UMLComponentRealization" => classifier(tm) && r.ty(hm) == "UMLComponent" && tm != hm,
             "UMLInformationFlow" => tm != hm,
+            // a stereotype extends a metaclass
+            "UMLExtension" => r.ty(tm) == "UMLStereotype" && r.ty(hm) == "UMLMetaClass",
             // the bound classifier points at its template
             "UMLTemplateBinding" => classifier(tm) && classifier(hm) && tm != hm,
             "UMLGeneralization" => classifier(tm) && classifier(hm) && tm != hm,
@@ -1178,6 +1180,12 @@ impl App {
         let target = match parent {
             Some(p) if self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" || self.repo.kind_of(p, "UMLClassifier") => p,
             _ => self.package_for(self.diagram),
+        };
+        // a profile diagram goes in a profile: the target if it is one, else a new profile "Profile" (uml-factory.js:184)
+        let target = if ty == "UMLProfileDiagram" && self.repo.ty(target) != "UMLProfile" {
+            self.repo.create("UMLProfile", &[("name", json!("Profile"))], Some((target, "ownedElements")))
+        } else {
+            target
         };
         // a structural diagram made right under the Project goes in a new model "Model" (uml-factory.js:150-180)
         let structural = matches!(ty, "UMLClassDiagram" | "UMLPackageDiagram" | "UMLObjectDiagram" | "UMLComponentDiagram" | "UMLDeploymentDiagram" | "UMLUseCaseDiagram" | "UMLInformationFlowDiagram");

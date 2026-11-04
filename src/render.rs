@@ -379,6 +379,8 @@ pub enum End {
     CirclePlus,
     /// A filled arrow head, a free line's "Solid Arrow" end.
     SolidArrow,
+    /// A filled triangle, at the metaclass end of an extension.
+    FilledTriangle,
 }
 
 const CIRCLE_PLUS_R: f64 = 7.0;
@@ -399,6 +401,7 @@ fn end_shape(c: &mut dyn Canvas, p0: P, p1: P, end: Option<End>, line: Rgba) {
         End::Arrow => c.polyline(&[a1, p0, a2], line, false),
         End::SolidArrow => c.polygon(&[a1, p0, a2], Some(line), Some(line)),
         End::Triangle => c.polygon(&[t1, p0, t2], Some(WHITE), Some(line)),
+        End::FilledTriangle => c.polygon(&[t1, p0, t2], Some(line), Some(line)),
         End::Diamond => c.polygon(&[a1, p0, a2, tip3], Some(WHITE), Some(line)),
         End::FilledDiamond => c.polygon(&[a1, p0, a2, tip3], Some(line), Some(line)),
         End::ArrowDiamond | End::ArrowFilledDiamond => {
@@ -511,6 +514,8 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     let (mut head, mut tail) = (None, None);
     match ty.as_str() {
         "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLComponentRealizationView" => head = Some(End::Triangle),
+        // an extension: a solid line with a filled triangle at the metaclass
+        "UMLExtensionView" => head = Some(End::FilledTriangle),
         "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" => head = Some(End::Arrow),
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
