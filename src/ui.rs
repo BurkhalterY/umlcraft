@@ -1461,6 +1461,10 @@ impl App {
                         self.export_html_dialog(&measure);
                         ui.close();
                     }
+                    if ui.button("XMI Export (v2.1)...").clicked() {
+                        self.export_xmi_dialog();
+                        ui.close();
+                    }
                 });
                 if ui.button("Print to PDF...").clicked() {
                     self.print_open = true;

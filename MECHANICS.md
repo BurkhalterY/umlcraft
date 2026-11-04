@@ -134,6 +134,10 @@ returned nothing).
 
 * Only `classDiagram` code is generated (the original also reads sequence, state, flowchart, ER, requirement and mindmap code, which UMLCraft cannot edit). The container is a new "Package by Mermaid" unless a package is the base; the diagram is "Class Diagram by Mermaid". Members are `Type name`; visibility `+ # - ~`, none is package. `<|--` generalization, `..|>` realization, `()--` lollipop realization, `o` shared, `*` composite, `<`/`>` navigable, other dashed links dependencies. Layout uses `direction` (default TB) with separations 50 (`extensions/default/mermaid/factory/class-factory.js:40-540`, `utils.js:1-21`).
 
+## XMI export
+
+File › Export › XMI Export (v2.1) writes OMG XMI 2.1 (`xmlns:uml="http://schema.omg.org/spec/UML/2.1"`), model elements only. The layout is UMLCraft's own, as StarUML's XMI extension was not read: packages hold `packagedElement`s; a classifier holds `ownedAttribute`, `ownedOperation` (with `ownedParameter`), `ownedLiteral`, `generalization` (`general`) and `interfaceRealization` (`client`, `supplier`, `contract`); associations, dependencies and other relationships go in the nearest package, an association with its two `ownedEnd`s; use cases hold `include` (`addition`) and `extend` (`extendedCase`); multiplicities become `lowerValue`/`upperValue`; documentation becomes an `ownedComment`. Types given as text are left out.
+
 ## HTML Docs
 
 * File › Export › HTML Docs writes `<folder>/html-docs`: `index.html` (frameset 25%/75%), `contents/navigation.html`, `contents/diagrams.html`, `contents/element_index.html`, `contents/<md5(_id)>.html` per element and `diagrams/<md5(_id)>.svg` per diagram; the diagram page's image map is offset by the SVG's 10 px margin; the navigation tree goes 8 levels deep (`extensions/default/html-export/main.js:159-224`, `templates/navigation.ejs`, `templates/content.ejs:42`). UMLCraft writes its own HTML and style sheet.

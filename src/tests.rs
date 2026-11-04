@@ -3333,3 +3333,31 @@ fn uml_standard_profile() {
     let t = crate::templates::project(&crate::templates::TEMPLATES[0]);
     assert!(t.all().any(|e| t.ty(e) == "UMLProfile"));
 }
+
+#[test]
+fn xmi_export() {
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let x = crate::xmi::export(&a.repo);
+    assert!(x.starts_with("<?xml") && x.contains("xmi:version=\"2.1\""));
+    // classes, their members and the relationships, but no diagrams
+    let book = a.repo.all().find(|e| a.repo.name(*e) == "Book" && a.repo.ty(*e) == "UMLClass").unwrap();
+    assert!(x.contains(&format!("xmi:type=\"uml:Class\" xmi:id=\"{}\" name=\"Book\"", a.repo.id(book))));
+    assert!(x.contains("<generalization xmi:type=\"uml:Generalization\""));
+    assert!(x.contains("xmi:type=\"uml:Association\"") && x.contains("<ownedEnd xmi:type=\"uml:Property\""));
+    assert!(x.contains("<ownedAttribute xmi:type=\"uml:Property\"") && x.contains("<ownedOperation xmi:type=\"uml:Operation\""));
+    assert!(x.contains("xmi:type=\"uml:UseCase\"") && x.contains("xmi:type=\"uml:Actor\""));
+    assert!(!x.contains("Diagram\""), "no diagrams");
+    // every id is defined once, and every reference points at one
+    let ids: Vec<&str> = x.split("xmi:id=\"").skip(1).map(|s| s.split('"').next().unwrap()).collect();
+    let set: std::collections::HashSet<&str> = ids.iter().copied().collect();
+    assert_eq!(ids.len(), set.len(), "unique ids");
+    for attr in [" type=\"", " general=\"", " client=\"", " supplier=\"", " association=\"", " addition=\""] {
+        for v in x.split(attr).skip(1).map(|s| s.split('"').next().unwrap()) {
+            assert!(set.contains(v), "{attr}{v} points nowhere");
+        }
+    }
+    // tags open and close in step
+    let opens = x.matches("<packagedElement").count();
+    assert_eq!(opens, x.matches("</packagedElement>").count() + x.split("<packagedElement").skip(1).filter(|s| s.split('>').next().unwrap().ends_with('/')).count());
+}
