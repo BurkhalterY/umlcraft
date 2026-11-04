@@ -646,9 +646,9 @@ impl App {
         let r = &self.repo;
         let t = r.ty(e);
         let end = |p: &str| -> Vec<(&'static str, &'static str)> {
-            let names: [(&'static str, &'static str); 13] = [
+            let names: [(&'static str, &'static str); 14] = [
                 ("name", "text"), ("reference", "ref"), ("stereotype", "text"), ("visibility", "enum"), ("navigable", "enum"), ("aggregation", "enum"), ("multiplicity", "text"),
-                ("defaultValue", "text"), ("isReadOnly", "bool"), ("isOrdered", "bool"), ("isUnique", "bool"), ("isDerived", "bool"), ("isID", "bool"),
+                ("defaultValue", "text"), ("isReadOnly", "bool"), ("isOrdered", "bool"), ("isUnique", "bool"), ("isDerived", "bool"), ("isID", "bool"), ("ownerAttribute", "owner"),
             ];
             names
                 .iter()
@@ -874,6 +874,34 @@ impl App {
                     });
                     if sel != cur {
                         self.change_all(&targets, |a, o, f| a.repo.set(o, f, json!(sel)));
+                    }
+                }
+                "owner" => {
+                    // an attribute of the classifier at the other end (uml-commands.js:1465)
+                    let other = self.repo.parent(obj).and_then(|a| {
+                        let mine = self.repo.field_of(obj);
+                        let k = if mine.as_deref() == Some("end1") { "end2" } else { "end1" };
+                        self.repo.child(a, k).and_then(|x| self.repo.refd(x, "reference"))
+                    });
+                    let attrs: Vec<Eid> = other.map(|c| self.repo.list(c, "attributes")).unwrap_or_default();
+                    let cur = self.repo.refd(obj, &field);
+                    let shown = cur.map(|c| self.repo.name(c)).unwrap_or_else(|| "—".to_string());
+                    let mut pick: Option<Option<Eid>> = None;
+                    ui.add_enabled_ui(single, |ui| {
+                        egui::ComboBox::from_id_salt(path).selected_text(shown).width(w).show_ui(ui, |ui| {
+                            if ui.selectable_label(cur.is_none(), "(none)").clicked() {
+                                pick = Some(None);
+                            }
+                            for a in attrs {
+                                if ui.selectable_label(cur == Some(a), self.repo.name(a)).clicked() {
+                                    pick = Some(Some(a));
+                                }
+                            }
+                        });
+                    });
+                    if let Some(p) = pick.filter(|p| *p != cur) {
+                        let f = field.clone();
+                        self.change(|a| a.repo.set_ref(obj, &f, p));
                     }
                 }
                 "ref" => {

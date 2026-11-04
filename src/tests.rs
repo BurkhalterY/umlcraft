@@ -2755,3 +2755,22 @@ fn add_note_to_a_line() {
     let n2 = a.add_related(c1, note).unwrap();
     assert_eq!(crate::views::node_rect(&a.repo, n2).w, 100.0);
 }
+
+#[test]
+fn ownership_dot() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 60.0))).unwrap();
+    let m1 = a.repo.refd(c1, "model").unwrap();
+    let at = a.change(|a| a.add_feature(m1, "UMLAttribute")).unwrap();
+    let tool = crate::app::Tool { label: "", kind: "UMLAssociation", icon: "", line: true, init: crate::app::AssocInit::Plain };
+    let e = a.change(|a| a.create_edge(&tool, c1, c2)).unwrap();
+    let asc = a.repo.refd(e, "model").unwrap();
+    let end2 = a.repo.child(asc, "end2").unwrap();
+    let before = String::from_utf8(crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap()).unwrap();
+    a.repo.set_ref(end2, "ownerAttribute", Some(at));
+    let after = String::from_utf8(crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap()).unwrap();
+    assert_eq!(after.matches("<ellipse").count(), before.matches("<ellipse").count() + 1, "one dot");
+}

@@ -463,6 +463,17 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     let n = pts.len();
     end_shape(c, pts[n - 1], pts[n - 2], head, line);
     end_shape(c, pts[0], pts[1], tail, line);
+    // the ownership dot: an end owned by the classifier at the other end (its ownerAttribute) gets a
+    // small filled circle at its tip (UML 2.5; size estimated)
+    if let Some(m) = r.refd(e, "model").filter(|m| r.has(*m, "end1")) {
+        for (k, tip, next) in [("end1", pts[0], pts[1]), ("end2", pts[n - 1], pts[n - 2])] {
+            if r.child(m, k).and_then(|end| r.refd(end, "ownerAttribute")).is_some() {
+                let len = ((next.x - tip.x).powi(2) + (next.y - tip.y).powi(2)).sqrt().max(1.0);
+                let at = P { x: tip.x + (next.x - tip.x) / len * 6.0, y: tip.y + (next.y - tip.y) / len * 6.0 };
+                c.ellipse(at, 3.0, 3.0, Some(line), Some(line));
+            }
+        }
+    }
     let fc = color(r, e, "fontColor", BLACK);
     for sv in r.list(e, "subViews") {
         if r.kind_of(sv, "LabelView") || r.ty(sv) == "EdgeLabelView" {
