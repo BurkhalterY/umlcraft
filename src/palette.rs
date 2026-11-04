@@ -248,7 +248,7 @@ impl App {
             "application:new" => self.cmd_new(&ms),
             "project:open" => {
                 if self.confirm_discard(&ms) {
-                    if let Some(p) = rfd::FileDialog::new().set_title("Open Model").add_filter("Models", &["mdj"]).pick_file() {
+                    if let Some(p) = rfd::FileDialog::new().set_title("Open Model").add_filter("Models", &["mdj"]).add_filter("All Files", &["*"]).pick_file() {
                         self.open_path(p);
                     }
                 }

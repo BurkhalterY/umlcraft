@@ -485,7 +485,7 @@ impl App {
             .and_then(|p| p.file_name())
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_else(|| format!("{}.mdj", self.repo.name(self.repo.root)));
-        let Some(mut p) = rfd::FileDialog::new().set_title("Save As").set_file_name(&name).add_filter("Models", &["mdj"]).save_file() else {
+        let Some(mut p) = rfd::FileDialog::new().set_title("Save As").set_file_name(&name).add_filter("Models", &["mdj"]).add_filter("All Files", &["*"]).save_file() else {
             return false;
         };
         if p.extension().map(|e| e != "mdj").unwrap_or(true) {
