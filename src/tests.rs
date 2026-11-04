@@ -4669,7 +4669,9 @@ fn state_buttons_add_states_with_transitions() {
     let mut a = App::new(None);
     let root = a.repo.root;
     let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    a.prefs.set("uml.state.fillColor", json!("#eeffee"));
     let s = a.change(|a| a.create_node("UMLState", rect(200.0, 200.0, 100.0, 40.0))).unwrap();
+    assert_eq!(a.repo.str(s, "fillColor"), "#eeffee", "uml.state.fillColor");
     let sm = a.repo.refd(s, "model").unwrap();
     let act = |l: &str| crate::related::actions("UMLState").into_iter().find(|x| x.label == l).unwrap();
     let ends = |a: &App, n: crate::model::Eid| {

@@ -292,7 +292,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | File › Export Diagram As › All to PNGs... | `project:export-diagram-all-to-pngs` |  | ✅ | every diagram into <folder>/png/ as filenamify(path)_<index> (src/ui.rs:2573-2586; src/export.rs:73-96) | resources/default/menus/linux.json |
 | File › Export Diagram As › All to JPEGs... | `project:export-diagram-all-to-jpegs` |  | ✅ | every diagram into <folder>/jpg/ as filenamify(path)_<index> (src/ui.rs:2573-2586; src/export.rs:73-96) | resources/default/menus/linux.json |
 | File › Export Diagram As › All to SVGs... | `project:export-diagram-all-to-svgs` |  | ✅ | every diagram into <folder>/svg/ as filenamify(path)_<index> (src/ui.rs:2573-2586; src/export.rs:73-96) | resources/default/menus/linux.json |
-| File › Preferences... | `application:preferences` |  | ✅ | File › Preferences... opens the Preferences window (src/ui.rs:1791; src/prefs.rs:368) | resources/default/menus/linux.json |
+| File › Preferences... | `application:preferences` |  | ✅ | File › Preferences... opens the Preferences window (src/ui.rs:1791; src/prefs.rs:370) | resources/default/menus/linux.json |
 | File › Print to PDF... | `project:print-to-pdf` |  | ✅ | opens the Print to PDF dialog (src/ui.rs:1786-1787; src/pdf.rs:210) | resources/default/menus/linux.json |
 | File › Exit |  |  | ✅ | File › Exit, Ctrl+Q, with unsaved-changes prompt (src/ui.rs:1796, 2339, 2913) | resources/default/menus/linux.json |
 | Edit › Undo | `edit:undo` | `ctrl-z` | ✅ | Ctrl+Z (src/ui.rs:2353) | resources/default/menus/linux.json |
