@@ -62,8 +62,8 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | `ctrl-shift-h` | `format:show-shadow` | ✅ | Ctrl+Shift+H and a check item in Format (main and canvas menus): inverts the shared value, or sets it when mixed (src/app.rs:1606, 1622; src/ui.rs:2189, 2011) | resources/default/keymaps/linux.json |
 | `ctrl-shift-k` | `format:inherit-style` | ❌ |  | resources/default/keymaps/linux.json |
 | `ctrl-t` | `model:tag-editor` | ✅ | Ctrl+T, Model › Tag Editor..., and the canvas and explorer menus (src/ui.rs:1664, 2209; src/tags.rs:171-272) | resources/default/keymaps/linux.json |
-| `ctrl-p` | `view:quick-find` | ✅ | Ctrl+P and View › Quick Find... (src/ui.rs:1695, 2212; src/palette.rs:153-188, 317) | resources/default/keymaps/linux.json |
-| `ctrl-shift-p` | `view:command-palette` | ✅ | Ctrl+Shift+P and View › Command Palette... (src/ui.rs:2083; src/palette.rs:36-145, 198-315) | resources/default/keymaps/linux.json |
+| `ctrl-p` | `view:quick-find` | ✅ | Ctrl+P and View › Quick Find... (src/ui.rs:1695, 2212; src/palette.rs:180-215, 344) | resources/default/keymaps/linux.json |
+| `ctrl-shift-p` | `view:command-palette` | ✅ | Ctrl+Shift+P and View › Command Palette... (src/ui.rs:2083; src/palette.rs:63-172, 225-342) | resources/default/keymaps/linux.json |
 | `f4` | `view:close-diagram` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:2243, 1977; src/app.rs:1373) | resources/default/keymaps/linux.json |
 | `ctrl-f4` | `view:close-other-diagrams` | ✅ | Ctrl+F4, View menu and Working Diagrams menu (src/ui.rs:2240, 1977; src/app.rs:1434) | resources/default/keymaps/linux.json |
 | `shift-f4` | `view:close-all-diagrams` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:2230, 1977; src/app.rs:1439) | resources/default/keymaps/linux.json |
@@ -323,8 +323,8 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Model › Add | `model:add` |  | 🟡 | Model › Add and the explorer Add menu offer Model, Package, Profile, Class, Interface, Signal, DataType, PrimitiveType, Enumeration, Stereotype, Actor, Use Case and the features that apply (src/ui.rs:422-489) | resources/default/menus/linux.json |
 | Model › Tag Editor... | `model:tag-editor` | `ctrl-t` | ✅ | Ctrl+T, Model › Tag Editor..., and the canvas and explorer menus (src/ui.rs:1664, 2209; src/tags.rs:171-272) | resources/default/menus/linux.json |
 | Tools › Extension Manager... | `tools:extension-manager` |  | ➖ | UMLCraft has no extension system | resources/default/menus/linux.json |
-| View › Quick Find... | `view:quick-find` | `ctrl-p` | ✅ | Ctrl+P and View › Quick Find... (src/ui.rs:1695, 2212; src/palette.rs:153-188, 317) | resources/default/menus/linux.json |
-| View › Command Palette... | `view:command-palette` | `ctrl-shift-p` | ✅ | Ctrl+Shift+P and View › Command Palette... (src/ui.rs:2083; src/palette.rs:36-145, 198-315) | resources/default/menus/linux.json |
+| View › Quick Find... | `view:quick-find` | `ctrl-p` | ✅ | Ctrl+P and View › Quick Find... (src/ui.rs:1695, 2212; src/palette.rs:180-215, 344) | resources/default/menus/linux.json |
+| View › Command Palette... | `view:command-palette` | `ctrl-shift-p` | ✅ | Ctrl+Shift+P and View › Command Palette... (src/ui.rs:2083; src/palette.rs:63-172, 225-342) | resources/default/menus/linux.json |
 | View › Close Diagram | `view:close-diagram` | `f4` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:2243, 1977; src/app.rs:1373) | resources/default/menus/linux.json |
 | View › Close Other Diagrams | `view:close-other-diagrams` | `ctrl-f4` | ✅ | Ctrl+F4, View menu and Working Diagrams menu (src/ui.rs:2240, 1977; src/app.rs:1434) | resources/default/menus/linux.json |
 | View › Close All Diagrams | `view:close-all-diagrams` | `shift-f4` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:2230, 1977; src/app.rs:1439) | resources/default/menus/linux.json |
@@ -345,10 +345,10 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Window › Minimize |  |  | ✅ | Window › Minimize (src/ui.rs:1746-1749) | resources/default/menus/linux.json |
 | Window › Full Screen |  |  | ✅ | Window › Full Screen, toggling (src/ui.rs:1750-1754) | resources/default/menus/linux.json |
 | Window › Bring All to Front |  |  | ✅ | Window › Bring All to Front focuses the window (src/ui.rs:1756-1759) | resources/default/menus/linux.json |
-| Help › About StarUML | `help:about` |  | ✅ | Help › About UMLCraft, also in the Command Palette (src/ui.rs:1772; src/palette.rs:134, 309) | resources/default/menus/linux.json |
+| Help › About StarUML | `help:about` |  | ✅ | Help › About UMLCraft, also in the Command Palette (src/ui.rs:1772; src/palette.rs:161, 336) | resources/default/menus/linux.json |
 | Help › Check For Updates... | `help:check-for-updates` |  | ➖ | StarUML licence/update server | resources/default/menus/linux.json |
 | Help › License Activation... | `help:license-activation` |  | ➖ | StarUML licensing | resources/default/menus/linux.json |
-| Help › Documentation... | `help:documentation` |  | ✅ | Help › Documentation... opens the project README on GitHub, also in the Command Palette (src/ui.rs:1763-1766; src/palette.rs:132, 307) | resources/default/menus/linux.json |
+| Help › Documentation... | `help:documentation` |  | ✅ | Help › Documentation... opens the project README on GitHub, also in the Command Palette (src/ui.rs:1763-1766; src/palette.rs:159, 334) | resources/default/menus/linux.json |
 | Help › Forum... | `help:forum` |  | ➖ |  | resources/default/menus/linux.json |
 
 ## Context menus

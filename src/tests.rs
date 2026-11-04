@@ -3624,3 +3624,13 @@ fn link_object_tool() {
     assert!(a.broken_views(d).is_empty());
     assert!(!crate::validate::validate(&a.repo).iter().any(|p| p.rule == "UML001" && a.repo.ty(p.elem) == "UMLLinkObjectLink"));
 }
+
+#[test]
+fn shortcut_labels_per_platform() {
+    use crate::palette::shortcut_label;
+    assert_eq!(shortcut_label("Ctrl+Shift+P", false), "Ctrl+Shift+P");
+    assert_eq!(shortcut_label("Ctrl+Shift+P", true), "⌘⇧P");
+    assert_eq!(shortcut_label("Alt+Up", true), "⌥↑");
+    assert_eq!(shortcut_label("Ctrl+Up", false), "Ctrl+↑");
+    assert_eq!(shortcut_label("", true), "");
+}

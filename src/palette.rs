@@ -28,6 +28,33 @@ pub struct Command {
     pub key: &'static str,
 }
 
+/// A shortcut as the platform shows it (keymap-manager.js:75-152): on macOS concatenated symbols
+/// (Ctrl, the command key, becomes ⌘; Shift ⇧; Alt ⌥; arrows and Backspace as symbols), elsewhere
+/// "Ctrl+Shift+X" with arrows as symbols.
+pub fn shortcut_label(key: &str, mac: bool) -> String {
+    let arrow = |k: &str| match k {
+        "Up" => "↑".to_string(),
+        "Down" => "↓".to_string(),
+        "Left" => "←".to_string(),
+        "Right" => "→".to_string(),
+        "Backspace" if mac => "⌫".to_string(),
+        _ => k.to_string(),
+    };
+    let parts: Vec<&str> = key.split('+').filter(|p| !p.is_empty()).collect();
+    if !mac {
+        return parts.iter().map(|p| arrow(p)).collect::<Vec<_>>().join("+");
+    }
+    parts
+        .iter()
+        .map(|p| match *p {
+            "Ctrl" | "Cmd" => "⌘".to_string(),
+            "Shift" => "⇧".to_string(),
+            "Alt" => "⌥".to_string(),
+            k => arrow(k),
+        })
+        .collect()
+}
+
 const fn c(id: &'static str, name: &'static str, key: &'static str) -> Command {
     Command { id, name, key }
 }
@@ -321,7 +348,7 @@ impl App {
             Mode::Find => "Find models, views and diagrams...",
         };
         let rows: Vec<(String, String, Option<Hit>, Option<&'static str>)> = match pal.mode {
-            Mode::Commands => matching(&pal.query).into_iter().map(|c| (c.name.to_string(), c.key.to_string(), None, Some(c.id))).collect(),
+            Mode::Commands => matching(&pal.query).into_iter().map(|c| (c.name.to_string(), shortcut_label(c.key, cfg!(target_os = "macos")), None, Some(c.id))).collect(),
             Mode::Find => self
                 .find_hits(&pal.query)
                 .into_iter()

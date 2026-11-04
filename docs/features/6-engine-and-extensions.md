@@ -88,7 +88,7 @@ Source root: `staruml/app/`. Paths below are relative to it. Main menus, keymaps
 
 - **Auto-update via electron-updater** — the feed is `https://update.staruml.io/releases-v6`. Updates are checked on start when `checkUpdate.checkUpdateOnStart` is set (never in CLI mode). The states are no-update, available, downloading (with progress) and ready. (src/main-process/application.js:38, 261-266, 309-313, 472-491, src/engine/update-manager.js:34-58, src/app-context.js:746-750) — **UMLCraft:** ➖ n/a auto-update against staruml.io
 - **Check for Updates dialog** — triggers a check if the state is "no-update" and shows the dialog. "Install and restart" runs `quitAndInstall`. When an update has downloaded, an "update available" icon appears. (src/engine/default-commands.js:1156-1161, src/app-context.js:732-734) — **UMLCraft:** ➖ n/a auto-update against staruml.io
-- **Help links** — Documentation (docs.staruml.io), Forum, Release Notes and About. (src/engine/default-commands.js:1152-1178, package.json config) — **UMLCraft:** 🟡 partial Help has Documentation... (the README on GitHub), Release Notes... (the GitHub releases) and About UMLCraft; there is no forum (src/ui.rs:1761-1776; src/palette.rs:132-134, 307-309)
+- **Help links** — Documentation (docs.staruml.io), Forum, Release Notes and About. (src/engine/default-commands.js:1152-1178, package.json config) — **UMLCraft:** 🟡 partial Help has Documentation... (the README on GitHub), Release Notes... (the GitHub releases) and About UMLCraft; there is no forum (src/ui.rs:1761-1776; src/palette.rs:159-161, 334-336)
 
 ## Command-line interface (`staruml <cmd>`)
 
