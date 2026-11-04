@@ -2470,3 +2470,27 @@ fn nudge_moves_contained_views() {
     let after = (a.repo.f(v, "left"), a.repo.f(pkg, "left"));
     assert_eq!(after.0 - before.0, after.1 - before.1, "the contained class moves with its package, once");
 }
+
+#[test]
+fn core_validation_rules() {
+    use crate::validate::validate;
+    let mut a = App::new(None);
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(300.0, 40.0, 100.0, 60.0))).unwrap();
+    let tool = crate::app::Tool { label: "", kind: "UMLGeneralization", icon: "", line: true, init: crate::app::AssocInit::Plain };
+    let ge = a.change(|a| a.create_edge(&tool, c1, c2)).unwrap();
+    let g = a.repo.refd(ge, "model").unwrap();
+    let tool = crate::app::Tool { label: "", kind: "UMLAssociation", icon: "", line: true, init: crate::app::AssocInit::Plain };
+    let ae = a.change(|a| a.create_edge(&tool, c1, c2)).unwrap();
+    let asc = a.repo.refd(ae, "model").unwrap();
+    let rules = |a: &App| validate(&a.repo).into_iter().map(|p| p.rule).filter(|r| r.starts_with("CORE")).collect::<Vec<_>>();
+    assert!(rules(&a).is_empty());
+    a.repo.remove(g, "target");
+    let end2 = a.repo.child(asc, "end2").unwrap();
+    a.repo.remove(end2, "reference");
+    let root = a.repo.root;
+    a.repo.set(root, "name", json!(""));
+    let mut got = rules(&a);
+    got.sort();
+    assert_eq!(got, vec!["CORE001", "CORE002", "CORE003"]);
+}

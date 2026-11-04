@@ -146,5 +146,5 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | General | `diagramEditor.gridSize` | Grid Size | 8 | ✅ Grid Size in Preferences › General; snapping, Shift+arrow and the grid lines follow it at once (src/prefs.rs:281-284; src/canvas.rs:238, 322) | resources/default/preferences/default.json |
 | General | `diagramEditor.backgroundColor` | Background Color | "#ffffff" | ✅ Background Color in Preferences › General, used for the canvas at once (src/canvas.rs:315-317) | resources/default/preferences/default.json |
 | General | `diagramEditor.gridColor` | Grid Color | "#e0e0e0" | ✅ Grid Color in Preferences › General, used for the grid lines at once (src/canvas.rs:315-322) | resources/default/preferences/default.json |
-| General | `validation.validateModel` | Validate Model | true | ✅ in Preferences › General, on by default; validates after load and save (src/prefs.rs:218; src/validate.rs:198) | resources/default/preferences/default.json |
+| General | `validation.validateModel` | Validate Model | true | ✅ in Preferences › General, on by default; validates after load and save (src/prefs.rs:218; src/validate.rs:208) | resources/default/preferences/default.json |
 | General | `checkUpdate.checkUpdateOnStart` | Check Updates on Start | true | ➖ StarUML update server | resources/default/preferences/default.json |

@@ -67,6 +67,16 @@ pub fn validate(r: &Repo) -> Vec<Problem> {
     let all: Vec<Eid> = r.all().collect();
     for &e in &all {
         let t = r.ty(e);
+        // core rules (validator.js core rules, main-process/application.js:316-320)
+        if (t == "Project" || t == "Tag") && r.name(e).trim().is_empty() {
+            fail(e, "CORE001", "Name expected.");
+        }
+        if kind(r, e, "DirectedRelationship") && (r.refd(e, "source").is_none() || r.refd(e, "target").is_none()) {
+            fail(e, "CORE002", "[Critical] DirectedRelationship should have source and target.");
+        }
+        if kind(r, e, "UndirectedRelationship") && [r.child(e, "end1"), r.child(e, "end2")].iter().any(|x| x.and_then(|end| r.refd(end, "reference")).is_none()) {
+            fail(e, "CORE003", "[Critical] UndirectedRelationship should have two ends.");
+        }
         // UML001 Name expected (rules.js:27)
         if kind(r, e, "UMLModelElement") {
             let exempt = ["UMLRegion", "UMLPseudostate", "UMLFinalState", "UMLControlNode", "UMLEndpoint", "UMLGate", "UMLAction", "UMLObjectNode", "UMLImage", "UMLLifeline", "UMLInstance", "UMLConnector", "UMLAssociationClassLink"]
