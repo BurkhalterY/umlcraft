@@ -878,6 +878,13 @@ impl App {
                         dy = self.snap_from(o.y, o.y + dy) - o.y;
                     }
                 }
+                // the group stops at the canvas origin (diagram-editor.js:1287-1323)
+                let min_x = orig.iter().map(|(_, o)| o.x).fold(f64::INFINITY, f64::min);
+                let min_y = orig.iter().map(|(_, o)| o.y).fold(f64::INFINITY, f64::min);
+                if min_x.is_finite() {
+                    dx = dx.max(-min_x.max(0.0));
+                    dy = dy.max(-min_y.max(0.0));
+                }
                 for (n, o) in orig.iter() {
                     self.repo.set(*n, "left", crate::model::num(o.x + dx));
                     self.repo.set(*n, "top", crate::model::num(o.y + dy));
