@@ -2383,3 +2383,19 @@ fn explorer_rename_in_place() {
     assert!(a.tree_rename.is_none());
     assert_eq!(a.repo.name(book), "Novel");
 }
+
+#[test]
+fn note_text_alignment() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let n = a.change(|a| a.create_node("Note", rect(40.0, 40.0, 200.0, 100.0))).unwrap();
+    a.repo.set(n, "text", json!("hi"));
+    let undo = a.undo.len();
+    a.set_text_align(&[n], "horzAlign", 1);
+    a.set_text_align(&[n], "vertAlign", 4);
+    assert_eq!(a.undo.len(), undo + 2);
+    let svg = String::from_utf8(crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap()).unwrap();
+    let t = svg.lines().find(|l| l.contains(">hi<")).unwrap();
+    assert!(t.contains("text-anchor=\"end\""), "right aligned: {t}");
+}

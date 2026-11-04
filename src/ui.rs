@@ -472,6 +472,17 @@ impl App {
         }
     }
 
+    /// Set the text alignment of notes and texts (horzAlign 0/2/1, vertAlign 3/5/4), one undo step.
+    pub fn set_text_align(&mut self, views: &[Eid], field: &str, value: i64) {
+        let views = views.to_vec();
+        let field = field.to_string();
+        self.change(|a| {
+            for v in views {
+                a.repo.set(v, &field, json!(value));
+            }
+        });
+    }
+
     /// Start renaming the selected element in the tree, its name selected.
     pub fn start_tree_rename(&mut self) {
         if let Some(f) = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f) && self.repo.ty(*f) != "Project" && crate::meta::order_of(self.repo.ty(*f), "name").is_some()) {
@@ -1527,6 +1538,21 @@ impl App {
             let short = label.split("  ").next().unwrap_or(label).trim();
             if ui.checkbox(&mut on, egui::RichText::new(short).size(12.0)).clicked() {
                 self.toggle_flag(field);
+            }
+        }
+        // text alignment, only when every selected view is a note or text (style-editor-view.js:477-483)
+        let texts: Vec<Eid> = self.selection.iter().copied().filter(|v| self.repo.alive(*v)).collect();
+        if !texts.is_empty() && texts.iter().all(|v| self.repo.kind_of(*v, "UMLCustomTextView")) {
+            for (field, opts) in [("horzAlign", [(0, "Left"), (2, "Center"), (1, "Right")]), ("vertAlign", [(3, "Top"), (5, "Middle"), (4, "Bottom")])] {
+                let vals: Vec<i64> = texts.iter().map(|v| self.repo.val(*v, field).and_then(|x| x.as_i64()).unwrap_or(-1)).collect();
+                let shared = vals.iter().all(|x| *x == vals[0]).then_some(vals[0]);
+                ui.horizontal(|ui| {
+                    for (value, label) in opts {
+                        if ui.selectable_label(shared == Some(value), egui::RichText::new(label).size(11.0)).clicked() {
+                            self.set_text_align(&texts, field, value);
+                        }
+                    }
+                });
             }
         }
         ui.horizontal_wrapped(|ui| {

@@ -113,18 +113,30 @@ pub fn wrap_lines(c: &dyn Measure, text: &str, width: f64) -> Vec<String> {
 }
 
 /// A note or text in the view's font size, word-wrapped unless its wordWrap is off.
-fn draw_wrapped(c: &mut dyn Canvas, text: &str, b: R, fc: Rgba, size: f64, wrap: bool) {
+fn draw_wrapped(c: &mut dyn Canvas, text: &str, b: R, fc: Rgba, size: f64, wrap: bool, align: (i64, i64), overflow: f64) {
     let lh = (size * 1.15).round();
     let scaled = views::Scaled { ms: &*c, face: "Arial".into(), size };
     let lines = wrap_lines(&scaled, text, if wrap { b.w } else { f64::INFINITY });
-    let mut y = b.y;
+    // horzAlign 0 left, 2 centre, 1 right; vertAlign 3 top, 5 middle, 4 bottom (style-editor-view.js:477-483)
+    let total = lines.len() as f64 * lh;
+    let mut y = match align.1 {
+        5 => b.y + ((b.h - total) / 2.0).max(0.0),
+        4 => b.y + (b.h - total).max(0.0),
+        _ => b.y,
+    };
     for l in lines {
-        if y + lh > b.y + b.h + 1.0 {
+        if y + lh > b.y + b.h + overflow + 1.0 {
             break;
         }
-        c.text(&l, R { x: b.x, y, w: b.w, h: lh }, 0, 0, size, fc, false);
+        c.text(&l, R { x: b.x, y, w: b.w, h: lh }, align.0, 0, size, fc, false);
         y += lh;
     }
+}
+
+/// A text view's horizontal and vertical alignment.
+fn text_align(r: &Repo, v: Eid) -> (i64, i64) {
+    let g = |k: &str, d: i64| r.val(v, k).and_then(|x| x.as_i64()).unwrap_or(d);
+    (g("horzAlign", 0), g("vertAlign", 3))
 }
 
 fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
@@ -189,11 +201,11 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         }
         c.polygon(&pts, Some(fill), Some(line));
         c.polyline(&[P { x: b.x + b.w - f, y: b.y }, P { x: b.x + b.w - f, y: b.y + f }, P { x: b.x + b.w, y: b.y + f }], line, false);
-        draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"));
+        draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 0.0);
         return;
     }
     if ty == "UMLTextView" || ty == "UMLCustomTextView" || ty == "UMLTextBoxView" {
-        draw_wrapped(c, &r.str(v, "text"), R { x: b.x, y: b.y, w: b.w.max(10.0), h: b.h.max(15.0) + 100.0 }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"));
+        draw_wrapped(c, &r.str(v, "text"), R { x: b.x, y: b.y, w: b.w.max(10.0), h: b.h.max(15.0) }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 100.0);
         return;
     }
     // a box: classifier, subject, or any kind UMLCraft does not draw itself
