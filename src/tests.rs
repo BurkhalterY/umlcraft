@@ -3361,3 +3361,52 @@ fn xmi_export() {
     let opens = x.matches("<packagedElement").count();
     assert_eq!(opens, x.matches("</packagedElement>").count() + x.split("<packagedElement").skip(1).filter(|s| s.split('>').next().unwrap().ends_with('/')).count());
 }
+
+#[test]
+fn xmi_import() {
+    use crate::xmi::{export, import, parse_xml};
+    // the reader
+    let n = parse_xml("<?xml version=\"1.0\"?><!-- c --><a x='1' y=\"&lt;b&gt;\"><b/><c>t &amp; u<![CDATA[<raw>]]></c></a>").unwrap();
+    assert_eq!((n.tag.as_str(), n.attr("x"), n.attr("y")), ("a", Some("1"), Some("<b>")));
+    assert_eq!(n.children.len(), 2);
+    assert_eq!(n.children[1].text, "t & u<raw>");
+    assert!(parse_xml("<a><b></a>").is_err());
+    // a round trip through the exporter
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let x = export(&a.repo);
+    let mut b = App::new(None);
+    let m = import(&mut b.repo, &x).unwrap();
+    assert_eq!(b.repo.name(m), "XMIImported");
+    let count = |r: &crate::model::Repo, t: &str| r.all().filter(|e| r.ty(*e) == t).count();
+    for t in ["UMLClass", "UMLInterface", "UMLEnumeration", "UMLAttribute", "UMLOperation", "UMLParameter", "UMLGeneralization", "UMLInterfaceRealization", "UMLAssociation", "UMLActor", "UMLUseCase", "UMLInclude", "UMLEnumerationLiteral"] {
+        assert_eq!(count(&b.repo, t), count(&a.repo, t), "{t}");
+    }
+    // references are resolved to the new elements
+    let book = b.repo.all().find(|e| b.repo.name(*e) == "Book" && b.repo.ty(*e) == "UMLClass").unwrap();
+    let g = b.repo.list(book, "ownedElements").into_iter().find(|e| b.repo.ty(*e) == "UMLGeneralization").unwrap();
+    assert_eq!(b.repo.refd(g, "source"), Some(book));
+    assert_eq!(b.repo.refd(g, "target").map(|t| b.repo.name(t)), Some("LibraryItem".to_string()));
+    let assoc = b.repo.all_of("UMLAssociation")[0];
+    assert!(b.repo.child(assoc, "end1").and_then(|e| b.repo.refd(e, "reference")).is_some());
+    assert_eq!(b.repo.all_of("Diagram").len(), 1, "only the blank project's diagram: none is imported");
+    // memberEnd associations from other tools
+    let other = r#"<xmi:XMI xmi:version="2.1" xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.1">
+      <uml:Model xmi:id="m" name="M">
+        <packagedElement xmi:type="uml:Class" xmi:id="A" name="A">
+          <ownedAttribute xmi:id="pa" name="b" type="B" association="as"><upperValue xmi:type="uml:LiteralUnlimitedNatural" value="*"/></ownedAttribute>
+          <ownedAttribute xmi:id="x" name="size"><type href="http://www.omg.org/spec/UML/20090901/UMLPrimitiveTypes.xmi#Integer"/></ownedAttribute>
+        </packagedElement>
+        <packagedElement xmi:type="uml:Class" xmi:id="B" name="B"/>
+        <packagedElement xmi:type="uml:Association" xmi:id="as" memberEnd="pa pb"><ownedEnd xmi:id="pb" type="A" association="as"/></packagedElement>
+      </uml:Model></xmi:XMI>"#;
+    let mut c = App::new(None);
+    import(&mut c.repo, other).unwrap();
+    let ca = c.repo.all().find(|e| c.repo.name(*e) == "A").unwrap();
+    let attrs = c.repo.list(ca, "attributes");
+    assert_eq!(attrs.len(), 1, "the association end is not an attribute");
+    assert_eq!(c.repo.str(attrs[0], "type"), "Integer");
+    let ass = c.repo.all_of("UMLAssociation")[0];
+    let e1 = c.repo.child(ass, "end1").unwrap();
+    assert_eq!((c.repo.name(e1).as_str(), c.repo.str(e1, "multiplicity").as_str()), ("b", "*"));
+}

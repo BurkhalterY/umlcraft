@@ -137,7 +137,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/layout.rs`, `src/generate.rs` | Format › Layout (the layered automatic layout) and Tools › Diagram Generator |
 | `src/mermaid.rs` | Tools › Generate Diagram by Mermaid: class diagrams from Mermaid code |
 | `src/html.rs` | File › Export › HTML Docs: one page per element, an SVG and image map per diagram |
-| `src/xmi.rs` | File › Export › XMI Export (v2.1): the model elements as OMG XMI 2.1, without diagrams |
+| `src/xmi.rs` | File › Export › XMI Export and File › Import › XMI Import (v2.1): the model elements as OMG XMI 2.1, without diagrams, and a small XML reader |
 | `src/markdown.rs` | View › Markdown Documentation: the editor and a small Markdown preview |
 | `src/thumbs.rs` | View › Diagram Thumbnails |
 | `src/relview.rs` | View › Relationships: the relationships of the selected element |

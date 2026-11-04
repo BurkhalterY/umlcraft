@@ -1451,6 +1451,10 @@ impl App {
                         self.import_fragment_dialog();
                         ui.close();
                     }
+                    if ui.button("XMI Import (v2.1)...").clicked() {
+                        self.import_xmi_dialog();
+                        ui.close();
+                    }
                 });
                 ui.menu_button("Export", |ui| {
                     if ui.button("Fragment...").clicked() {
