@@ -451,6 +451,7 @@ impl App {
     }
 
     pub(crate) fn explorer_ui(&mut self, ui: &mut egui::Ui) {
+        let mut search_rect: Option<Rect> = None;
         ui.horizontal(|ui| {
             ui.set_height(HEADER_HEIGHT);
             ui.add_space(13.0);
@@ -458,7 +459,10 @@ impl App {
             ui.add_space(8.0);
             let w = ui.available_width() - 30.0;
             let r = ui.add_sized(Vec2::new(w, 23.0), egui::TextEdit::singleline(&mut self.search).hint_text("🔍").margin(Margin::symmetric(10, 3)));
-            let _ = r;
+            search_rect = Some(r.rect);
+            if r.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                self.search.clear();
+            }
             let (r, resp) = ui.allocate_exact_size(Vec2::new(14.0, 20.0), Sense::click());
             let c = r.center();
             let p = ui.painter();
@@ -470,26 +474,46 @@ impl App {
         });
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
-            let q = self.search.trim().to_lowercase();
-            if q.is_empty() {
-                let root = self.repo.root;
-                self.tree(ui, root, 0);
-            } else {
-                // quick search: names containing the text, at most 99, with " — parent" (model-explorer-view.js:644-686)
-                let all: Vec<Eid> = self.repo.all().filter(|e| !self.is_view(*e) && self.repo.name(*e).to_lowercase().contains(&q)).take(99).collect();
-                for e in all {
-                    let parent = self.repo.parent(e).map(|p| self.repo.name(p)).filter(|n| !n.is_empty());
-                    let before = self.focus;
-                    self.tree_row(ui, e, 0, false, false, parent);
-                    // picking a result jumps to it in the tree
-                    if self.focus == Some(e) && before != Some(e) {
-                        self.search.clear();
-                        self.reveal(e);
-                    }
-                }
-            }
+            let root = self.repo.root;
+            self.tree(ui, root, 0);
             ui.add_space(8.0);
         });
+        // quick search: an autocomplete under the box, names containing the text, at most 99, each with
+        // its icon, label and " — parent"; picking one selects it in the tree (model-explorer-view.js:644-686)
+        let q = self.search.trim().to_lowercase();
+        if let (false, Some(sr)) = (q.is_empty(), search_rect) {
+            let hits: Vec<Eid> = self.repo.all().filter(|e| !self.is_view(*e) && self.repo.name(*e).to_lowercase().contains(&q)).take(99).collect();
+            let mut picked = None;
+            egui::Area::new(egui::Id::new("explorer-search")).order(egui::Order::Foreground).fixed_pos(sr.left_bottom() + Vec2::new(0.0, 2.0)).show(ui.ctx(), |ui| {
+                Frame::NONE.fill(LAYER1()).stroke(Stroke::new(1.0, INPUT_BORDER())).inner_margin(Margin::same(4)).show(ui, |ui| {
+                    ui.set_width(sr.width().max(220.0));
+                    egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                        if hits.is_empty() {
+                            ui.label(egui::RichText::new("No results").color(DIM()).size(12.0));
+                        }
+                        for e in hits {
+                            ui.horizontal(|ui| {
+                                let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                                icons::draw(ui.painter(), ir, icons::key_for(&self.repo, e));
+                                let parent = self.repo.parent(e).map(|p| self.repo.name(p)).filter(|n| !n.is_empty());
+                                let text = match parent {
+                                    Some(p) => format!("{} — {p}", self.label_of(e)),
+                                    None => self.label_of(e),
+                                };
+                                if ui.selectable_label(false, egui::RichText::new(text).size(12.0)).clicked() {
+                                    picked = Some(e);
+                                }
+                            });
+                        }
+                    });
+                });
+            });
+            if let Some(e) = picked {
+                self.search.clear();
+                self.reveal(e);
+                self.last_area = Area::Explorer;
+            }
+        }
         // arrow keys walk the tree while it is the last area used
         if self.last_area == Area::Explorer && self.editing.is_none() && !text_field_focused(ui.ctx()) && self.search.trim().is_empty() {
             let keys = ui.input(|i| (i.key_pressed(egui::Key::ArrowUp), i.key_pressed(egui::Key::ArrowDown), i.key_pressed(egui::Key::ArrowLeft), i.key_pressed(egui::Key::ArrowRight)));
