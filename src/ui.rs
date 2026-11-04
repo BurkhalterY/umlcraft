@@ -1191,20 +1191,30 @@ impl App {
             self.prefs.set("theme.default", json!(next));
             self.prefs.flush();
         }
-        // left side: where the focused element sits
+        // left side: the focused element's ownership path, each owner with its icon and name (the project
+        // with its icon only), then [Type]; blank with several views selected (statusbar-view.js:78-120)
         let Some(f) = self.focus.filter(|f| self.repo.alive(*f)) else { return };
-        let mut chain = self.repo.path(f);
-        if chain.len() > 3 {
-            chain = chain.split_off(chain.len() - 3);
+        if self.selection.len() > 1 {
+            return;
+        }
+        let chain = self.repo.path(f);
+        let label = |e: Eid| if e == self.repo.root { String::new() } else { self.label_of(e) };
+        let widths: Vec<f32> = chain.iter().map(|e| { let l = label(*e); if l.is_empty() { 28.0 } else { 36.0 + text_galley_width(ui, &l, 13.0) } }).collect();
+        // the path drops its outer owners when it does not fit before the right-hand indicators
+        let room = (rect.width() - 200.0).max(0.0);
+        let mut first = 0;
+        while first + 1 < chain.len() && widths[first..].iter().sum::<f32>() > room {
+            first += 1;
         }
         let mut x = rect.left();
-        for e in chain {
-            let label = self.label_of(e);
-            let tw = text_galley_width(ui, &label, 13.0);
+        for (i, e) in chain.iter().enumerate().skip(first) {
+            let l = label(*e);
             let p = ui.painter();
-            icons::draw(p, Rect::from_min_size(Pos2::new(x + 8.0, rect.center().y - 8.0), Vec2::splat(16.0)), icons::key_for(&self.repo, e));
-            p.text(Pos2::new(x + 28.0, rect.center().y), Align2::LEFT_CENTER, &label, FontId::proportional(13.0), TEXT());
-            x += 36.0 + tw;
+            icons::draw(p, Rect::from_min_size(Pos2::new(x + 8.0, rect.center().y - 8.0), Vec2::splat(16.0)), icons::key_for(&self.repo, *e));
+            if !l.is_empty() {
+                p.text(Pos2::new(x + 28.0, rect.center().y), Align2::LEFT_CENTER, &l, FontId::proportional(13.0), TEXT());
+            }
+            x += widths[i];
             p.vline(x, rect.y_range(), Stroke::new(1.0, BORDER()));
         }
         ui.painter().text(Pos2::new(x + 8.0, rect.center().y), Align2::LEFT_CENTER, format!("[{}]", self.repo.ty(f)), FontId::proportional(11.0), DIM());
