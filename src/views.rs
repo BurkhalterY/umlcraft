@@ -1001,10 +1001,19 @@ pub fn junction(r: &R, p: P) -> P {
     P { x: (c.x + dx * t).round(), y: (c.y + dy * t).round() }
 }
 
+/// The middle of a line: its middle point, or the middle of its central segment when it has an even
+/// number of points (as edge labels are anchored, diagram-editor.js:2071-2097).
+pub fn edge_middle(pts: &[P]) -> P {
+    match pts.len() {
+        0 => P::default(),
+        n if n % 2 == 1 => pts[n / 2],
+        n => P { x: (pts[n / 2 - 1].x + pts[n / 2].x) / 2.0, y: (pts[n / 2 - 1].y + pts[n / 2].y) / 2.0 },
+    }
+}
+
 fn end_rect(r: &Repo, v: Eid, info: &HashMap<Eid, Info>) -> R {
     if is_edge(r, v) {
-        let pts = points_of(r, v);
-        let mid = pts.get(pts.len() / 2).copied().unwrap_or_default();
+        let mid = edge_middle(&points_of(r, v));
         return R { x: mid.x, y: mid.y, w: 0.0, h: 0.0 };
     }
     let nr = node_rect(r, v);
