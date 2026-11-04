@@ -824,6 +824,15 @@ fn inline_item_keys() {
     assert_eq!(editing(&a), Some(EditKind::Feature(op)));
     a.item_key(v, EditKind::Feature(at1), ItemKey::Nav(true));
     assert_eq!(editing(&a), Some(EditKind::Name(m)));
+    // template parameters come before the name
+    let tp = a.change(|a| a.add_feature(m, "UMLTemplateParameter")).unwrap();
+    lay(&mut a);
+    a.item_key(v, EditKind::Name(m), ItemKey::Nav(true));
+    assert_eq!(editing(&a), Some(EditKind::Feature(tp)));
+    a.item_key(v, EditKind::Feature(tp), ItemKey::Nav(false));
+    assert_eq!(editing(&a), Some(EditKind::Name(m)));
+    a.delete_models(&[tp]);
+    lay(&mut a);
     // Ctrl+Up reorders
     a.item_key(v, EditKind::Feature(at2), ItemKey::Move(true));
     assert_eq!(a.repo.list(m, "attributes"), vec![at2, at1]);

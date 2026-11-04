@@ -1355,22 +1355,16 @@ impl App {
                 self.edit_item(host, f);
             }
             (ItemKey::Nav(up), _) => {
-                let rows = self.item_rows(host);
-                let at = item.and_then(|f| rows.iter().position(|(_, x)| *x == f));
-                let next = match (at, up) {
-                    (None, false) => rows.first().copied(),
-                    (None, true) => None,
-                    (Some(0), true) => {
-                        self.edit_view(host, None);
-                        return;
-                    }
-                    (Some(i), true) => rows.get(i - 1).copied(),
-                    (Some(i), false) => rows.get(i + 1).copied(),
-                };
-                match next {
-                    Some((iv, _)) => {
+                // template parameters, then the name, then the compartment items (uml-commands.js:896, 962)
+                let templ: Vec<(Eid, Eid)> = self.info.get(&host).and_then(|i| i.templ.as_ref()).map(|t| t.rows.iter().filter_map(|r| self.repo.refd(r.iv, "model").map(|m| (r.iv, m))).collect()).unwrap_or_default();
+                let seq: Vec<Option<(Eid, Eid)>> = templ.into_iter().map(Some).chain(std::iter::once(None)).chain(self.item_rows(host).into_iter().map(Some)).collect();
+                let at = seq.iter().position(|x| x.map(|r| r.1) == item).unwrap_or(0);
+                let next = if up { at.checked_sub(1) } else { Some(at + 1).filter(|i| *i < seq.len()) };
+                match next.map(|i| seq[i]) {
+                    Some(Some((iv, _))) => {
                         self.edit_row(host, iv);
                     }
+                    Some(None) => self.edit_view(host, None),
                     // nothing further: stay on the same item or name
                     None => match item {
                         Some(f) => self.edit_item(host, f),
