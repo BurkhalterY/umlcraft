@@ -74,7 +74,13 @@ pub struct SelectOne {
 pub enum SelectPurpose {
     /// Model › Add › Constraint on an operation: the field the constraint goes in.
     ConstraintKind(Eid),
+    /// Model › Add › Entry, Do or Exit Activity on a state, or Effect on a transition: the kind of
+    /// behaviour, created in that field (uml-commands.js:109-190).
+    BehaviorKind(Eid, &'static str),
 }
+
+/// The behaviour kinds of an entry, do or exit activity or an effect (uml-commands.js:111-116).
+pub const BEHAVIOR_KINDS: [(&str, &str); 4] = [("OpaqueBehavior", "UMLOpaqueBehavior"), ("Activity", "UMLActivity"), ("StateMachine", "UMLStateMachine"), ("Interaction", "UMLInteraction")];
 
 /// The constraint kinds of an operation and the field each goes in (uml-commands.js:185).
 pub const OPERATION_CONSTRAINTS: [(&str, &str); 4] = [("Typical", "ownedElements"), ("Precondition", "preconditions"), ("BodyCondition", "bodyConditions"), ("Postcondition", "postconditions")];
@@ -641,12 +647,18 @@ impl App {
     pub fn add_constraint_to(&mut self, v: Eid) -> Option<Eid> {
         let d = self.diagram?;
         let m = self.repo.refd(v, "model")?;
-        let b = views::node_rect(&self.repo, v);
+        // a line's constraint goes left of its name label, like its note goes right (uml-commands.js:727-782)
+        let edge = views::is_edge(&self.repo, v);
+        let b = if edge { self.edge_anchor(v) } else { views::node_rect(&self.repo, v) };
         let cv = self.change(|a| {
             let name = a.new_name(m, "UMLConstraint");
             let c = a.repo.create("UMLConstraint", &[("name", json!(name))], Some((m, "ownedElements")));
-            let p = P { x: (b.x - 50.0 - CONSTRAINT_GAP).max(0.0), y: b.y };
-            Some(a.place_constraint(d, c, p))
+            let p = P { x: (b.x - 50.0 - CONSTRAINT_GAP).max(0.0).round(), y: (if edge { b.y - 20.0 } else { b.y }).max(0.0).round() };
+            let cv = a.place_constraint(d, c, p);
+            if edge {
+                a.link_constraint(d, cv, v);
+            }
+            Some(cv)
         })?;
         self.select(vec![cv]);
         self.pending_edit = Some(cv);
@@ -690,6 +702,19 @@ impl App {
                 self.focus = Some(c);
                 self.reveal(c);
             }
+            SelectPurpose::BehaviorKind(owner, field) if self.repo.alive(owner) => {
+                let ty = BEHAVIOR_KINDS.get(d.selected).map(|x| x.1).unwrap_or("UMLOpaqueBehavior");
+                let b = self.change(|a| {
+                    let name = a.new_name(owner, ty);
+                    let b = a.repo.create(ty, &[("name", json!(name))], Some((owner, field)));
+                    if ty == "UMLStateMachine" {
+                        a.repo.create("UMLRegion", &[], Some((b, "regions")));
+                    }
+                    b
+                });
+                self.expanded.insert(owner);
+                self.reveal(b);
+            }
             _ => {}
         }
     }
@@ -719,19 +744,68 @@ impl App {
         Some(v)
     }
 
+    /// The region a statechart diagram's states go in: the first region of the state machine that
+    /// owns the diagram, made if it has none.
+    pub fn statechart_region(&mut self, d: Eid) -> Option<Eid> {
+        let sm = self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLStateMachine")?;
+        match self.repo.list(sm, "regions").into_iter().find(|x| self.repo.alive(*x)) {
+            Some(rg) => Some(rg),
+            None => Some(self.repo.create("UMLRegion", &[], Some((sm, "regions")))),
+        }
+    }
+
     pub fn create_node(&mut self, kind: &str, rect: R) -> Option<Eid> {
         let d = self.diagram?;
-        if matches!(kind, "Note" | "Text" | "TextBox" | "Rect" | "RoundRect" | "Ellipse") {
+        if matches!(kind, "Note" | "Text" | "TextBox" | "Rect" | "RoundRect" | "Ellipse" | "Image") {
             let ty = match kind {
                 "Note" => "UMLNoteView",
                 "TextBox" => "UMLTextBoxView",
                 "Rect" => "RectangleView",
                 "RoundRect" => "RoundRectView",
                 "Ellipse" => "EllipseView",
+                "Image" => "ImageView",
                 _ => "UMLTextView",
             };
             let v = views::create_note_view(&mut self.repo, d, rect, ty);
             self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // a statechart's states go in the first region of its state machine (uml-factory.js:2005)
+        let pseudo = views::pseudostate_kind(kind);
+        if pseudo.is_some() || matches!(kind, "UMLState" | "UMLFinalState" | "CompositeState" | "SubmachineState" | "OrthogonalState") {
+            let region = self.statechart_region(d)?;
+            let ty = if pseudo.is_some() { "UMLPseudostate" } else if kind == "UMLFinalState" { kind } else { "UMLState" };
+            let name = self.new_name(region, ty);
+            let m = self.repo.create(ty, &[("name", json!(name))], Some((region, "vertices")));
+            if let Some(k) = pseudo {
+                self.repo.set(m, "kind", json!(k));
+            }
+            // a composite state has one region, an orthogonal state two
+            let regions = match kind {
+                "CompositeState" => 1,
+                "OrthogonalState" => 2,
+                _ => 0,
+            };
+            for _ in 0..regions {
+                self.repo.create("UMLRegion", &[], Some((m, "regions")));
+            }
+            // a submachine state comes with a new state machine of its own, with one region, next to
+            // the diagram's state machine (uml-factory.js:2046; where it goes is estimated)
+            if kind == "SubmachineState" {
+                let sm = self.repo.parent(d)?;
+                let owner = self.repo.parent(sm).unwrap_or(self.repo.root);
+                let name = self.new_name(owner, "UMLStateMachine");
+                let sub = self.repo.create("UMLStateMachine", &[("name", json!(name))], Some((owner, "ownedElements")));
+                self.repo.create("UMLRegion", &[], Some((sub, "regions")));
+                self.repo.set_ref(m, "submachine", Some(sub));
+            }
+            let v = views::create_node_view(&mut self.repo, d, m, rect)?;
+            self.apply_view_defaults(v);
+            // drawn inside a state: it goes in that state (its first region)
+            let host = self.repo.list(d, "ownedViews").into_iter().rev().find(|c| *c != v && self.repo.ty(*c) == "UMLStateView" && { let b = views::node_rect(&self.repo, *c); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h });
+            if let Some(c) = host {
+                self.set_container(&[v], Some(c));
+            }
             return Some(v);
         }
         let parent = self.package_for(Some(d));
@@ -784,7 +858,12 @@ impl App {
     /// hold boxes, and never themselves or a box that contains them.
     pub fn can_contain_view(&self, container: Eid, v: Eid) -> bool {
         let ct = self.repo.ty(container);
-        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView") || !views::is_node(&self.repo, v) {
+        // a state holds states and pseudostates, which then belong to its first region
+        let vertex = |x: Eid| self.repo.refd(x, "model").map(|m| self.repo.kind_of(m, "UMLVertex")).unwrap_or(false);
+        if ct == "UMLStateView" && !vertex(v) {
+            return false;
+        }
+        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView" || ct == "UMLStateView") || !views::is_node(&self.repo, v) {
             return false;
         }
         // not the view itself or anything inside it
@@ -830,6 +909,27 @@ impl App {
                 };
                 a.push(self.repo.ref_to(v));
                 self.repo.set_raw(c, "containedViews", json!(a));
+            }
+            // a state or pseudostate goes in the first region of the state it is put in, or of the
+            // diagram's state machine when released (uml/main.js:24-41)
+            if let Some(vm) = self.repo.refd(v, "model").filter(|m| self.repo.kind_of(*m, "UMLVertex")) {
+                let region = match to.and_then(|c| self.repo.refd(c, "model").map(|s| (c, s))).filter(|(_, s)| self.repo.kind_of(*s, "UMLState")) {
+                    Some((c, s)) => {
+                        // regions split the state's height evenly, top to bottom (estimated)
+                        let rs: Vec<Eid> = self.repo.list(s, "regions").into_iter().filter(|x| self.repo.alive(*x)).collect();
+                        let (cb, vb) = (views::node_rect(&self.repo, c), views::node_rect(&self.repo, v));
+                        let i = if rs.len() > 1 { (((vb.y - cb.y) / cb.h.max(1.0) * rs.len() as f64).floor().max(0.0) as usize).min(rs.len() - 1) } else { 0 };
+                        Some(match rs.get(i) {
+                            Some(&rg) => rg,
+                            None => self.repo.create("UMLRegion", &[], Some((s, "regions"))),
+                        })
+                    }
+                    None => self.statechart_region(d),
+                };
+                if let Some(rg) = region.filter(|rg| self.repo.parent(vm) != Some(*rg)) {
+                    self.repo.relocate(vm, rg, "vertices");
+                }
+                continue;
             }
             let target = match to {
                 Some(c) if self.repo.ty(c) == "UMLUseCaseSubjectView" => None,
@@ -883,7 +983,12 @@ impl App {
             // component and deployment diagrams: the class diagram's list without slots
             "UMLComponentDiagram" | "UMLDeploymentDiagram" => CLASS.iter().copied().filter(|k| *k != "UMLSlot").collect(),
             "UMLPackageDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLSubsystem", "UMLClassifier", "UMLInstance", "UMLDependency"],
+            "UMLCompositeStructureDiagram" => vec![
+                "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLPort", "UMLTemplateParameter", "UMLAttribute", "UMLOperation", "UMLReception",
+                "UMLEnumerationLiteral", "UMLCollaborationUse", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
+            ],
             "UMLObjectDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier", "UMLInstance", "UMLSlot", "UMLDependency", "UMLLink"],
+            "UMLStatechartDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLVertex", "UMLTransition", "UMLStateMachine"],
             "UMLUseCaseDiagram" => vec![
                 "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
@@ -900,7 +1005,7 @@ impl App {
         }
         let ty = self.repo.ty(m);
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
-        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLStateMachine" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
@@ -933,6 +1038,21 @@ impl App {
         // a constraint gets its view and links to its owner's boxes (factory.js:899-918)
         if ty == "UMLConstraint" {
             let v = self.change(|a| Some(a.place_constraint(d, m, p)));
+            return Ok(v.into_iter().collect());
+        }
+        // a state machine dropped on a statechart becomes a submachine state that refers to it
+        // (uml-factory.js:3407)
+        if ty == "UMLStateMachine" {
+            let v = self.change(|a| {
+                let (w, h) = views::default_size("UMLState");
+                let v = a.create_node("UMLState", views::R { x: p.x, y: p.y, w, h })?;
+                let s = a.repo.refd(v, "model")?;
+                a.repo.set_ref(s, "submachine", Some(m));
+                Some(v)
+            });
+            if let Some(s) = v.and_then(|v| self.repo.refd(v, "model")) {
+                self.reveal(s);
+            }
             return Ok(v.into_iter().collect());
         }
         if views::node_kind(&ty).is_none() {
@@ -1096,6 +1216,10 @@ impl App {
         let classifier = |m: Eid| r.kind_of(m, "UMLClassifier");
         match kind {
             "UMLAssociation" => classifier(tm) && classifier(hm),
+            // a connector joins two features: ports, parts or attributes (uml-factory.js:32-38)
+            "UMLConnector" => r.kind_of(tm, "UMLFeature") && r.kind_of(hm, "UMLFeature"),
+            // a role binding: from a collaboration use to a part or attribute (uml-factory.js:48-54)
+            "UMLRoleBinding" => r.ty(tm) == "UMLCollaborationUse" && r.kind_of(hm, "UMLAttribute"),
             // a link joins two objects (uml-factory.js)
             "UMLLink" => r.kind_of(tm, "UMLInstance") && r.kind_of(hm, "UMLInstance"),
             // deployment diagrams: a path joins two nodes, a deployment puts a classifier on a node and a
@@ -1111,6 +1235,8 @@ impl App {
             "UMLGeneralization" => classifier(tm) && classifier(hm) && tm != hm,
             "UMLInterfaceRealization" => classifier(tm) && r.ty(hm) == "UMLInterface",
             "UMLInclude" | "UMLExtend" => r.ty(tm) == "UMLUseCase" && r.ty(hm) == "UMLUseCase",
+            // a transition joins two vertices: states and pseudostates
+            "UMLTransition" => r.kind_of(tm, "UMLVertex") && r.kind_of(hm, "UMLVertex"),
             _ => true,
         }
     }
@@ -1143,11 +1269,15 @@ impl App {
         }
         let tm = self.repo.refd(tail, "model")?;
         let hm = self.repo.refd(head, "model")?;
-        let m = if tool.kind == "UMLAssociation" || tool.kind == "UMLCommunicationPath" || tool.kind == "UMLLink" {
+        let m = if tool.kind == "UMLAssociation" || tool.kind == "UMLCommunicationPath" || tool.kind == "UMLLink" || tool.kind == "UMLConnector" {
             let m = self.repo.create(tool.kind, &[], Some((tm, "ownedElements")));
             let (r1, r2) = (self.repo.ref_to(tm), self.repo.ref_to(hm));
             // a link joins two objects through link ends
-            let end = if tool.kind == "UMLLink" { "UMLLinkEnd" } else { "UMLAssociationEnd" };
+            let end = match tool.kind {
+                "UMLLink" => "UMLLinkEnd",
+                "UMLConnector" => "UMLConnectorEnd",
+                _ => "UMLAssociationEnd",
+            };
             let e1 = self.repo.create(end, &[("reference", r1)], Some((m, "end1")));
             let e2 = self.repo.create(end, &[("reference", r2)], Some((m, "end2")));
             match tool.init {
@@ -1162,7 +1292,12 @@ impl App {
             m
         } else {
             let (s, t) = (self.repo.ref_to(tm), self.repo.ref_to(hm));
-            self.repo.create(tool.kind, &[("source", s), ("target", t)], Some((tm, "ownedElements")))
+            // a transition belongs to the region of its source state
+            let owner = match self.repo.parent(tm) {
+                Some(rg) if tool.kind == "UMLTransition" && self.repo.ty(rg) == "UMLRegion" => (rg, "transitions"),
+                _ => (tm, "ownedElements"),
+            };
+            self.repo.create(tool.kind, &[("source", s), ("target", t)], Some(owner))
         };
         views::create_edge_view(&mut self.repo, d, Some(m), tail, head)
     }
@@ -1279,10 +1414,34 @@ impl App {
             "UMLParameter" => "parameters",
             "UMLTemplateParameter" => "templateParameters",
             "UMLTemplateParameterSubstitution" => "parameterSubstitutions",
+            // states into a region, regions into a state, triggers, actions into an activity
+            // (StarUML's menu files the first two in ownedElements; the metamodel's fields are used here)
+            "UMLState" => "vertices",
+            "UMLRegion" => "regions",
+            "UMLEvent" => "triggers",
+            "UMLAction" => "nodes",
+            "UMLInteractionOperand" => "operands",
             _ => return None,
         };
         let name = self.new_name(owner, ty);
         Some(self.repo.create(ty, &[("name", json!(name))], Some((owner, field))))
+    }
+
+    /// Add Internal Transition on a state: a transition of kind internal from the state to itself, in
+    /// its first region; a state without regions is refused (uml-commands.js:3098).
+    pub fn add_internal_transition(&mut self, s: Eid) -> Result<Eid, String> {
+        let Some(rg) = self.repo.list(s, "regions").into_iter().find(|x| self.repo.alive(*x)) else {
+            return Err("Simple State cannot have Internal Transitions.".into());
+        };
+        let r = self.repo.ref_to(s);
+        Ok(self.change(|a| a.repo.create("UMLTransition", &[("source", r.clone()), ("target", r), ("kind", json!("internal"))], Some((rg, "transitions")))))
+    }
+
+    /// Add Qualifier on an association end: a new attribute in its qualifiers, drawn in a box at
+    /// that end of the line.
+    pub fn add_qualifier(&mut self, end: Eid) -> Eid {
+        let name = self.new_name(end, "UMLAttribute");
+        self.repo.create("UMLAttribute", &[("name", json!(name))], Some((end, "qualifiers")))
     }
 
     pub fn can_add_feature(&self, owner: Eid, ty: &str) -> bool {
@@ -1291,12 +1450,102 @@ impl App {
             "UMLEnumerationLiteral" => t == "UMLEnumeration",
             "UMLParameter" => t == "UMLOperation",
             "UMLTemplateParameterSubstitution" => t == "UMLTemplateBinding",
+            "UMLState" => t == "UMLRegion",
+            "UMLRegion" => t == "UMLState",
+            "UMLEvent" => t == "UMLAction" || t == "UMLTransition",
+            "UMLAction" => t == "UMLActivity",
+            "UMLInteractionOperand" => t == "UMLCombinedFragment",
             "UMLExtensionPoint" => t == "UMLUseCase",
             "UMLSlot" => self.repo.kind_of(owner, "UMLInstance"),
             // template parameters on classes, interfaces and the other boxes with compartments
             "UMLTemplateParameter" => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase" && t != "UMLEnumeration",
             _ => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase",
         }
+    }
+
+    /// The Port and Part tools: a port on the border of the classifier box under the point, or a part
+    /// inside it, its model a new attribute of that classifier (a composite one for a part). On a part,
+    /// they go to the part's type. Elsewhere they are refused (uml-factory.js:996-1100).
+    pub fn create_feature_box(&mut self, kind: &str, at: P, rect: R) -> Result<Eid, String> {
+        let d = self.diagram.ok_or_else(String::new)?;
+        let refused = format!("{} cannot be placed here.", if kind == "UMLPort" { "UMLPort" } else { "UMLAttribute" });
+        let host = self
+            .repo
+            .list(d, "ownedViews")
+            .into_iter()
+            .rev()
+            .filter(|v| views::is_node(&self.repo, *v) && self.repo.ty(*v) != "UMLPortView" && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
+            .find(|v| {
+                let b = views::node_rect(&self.repo, *v);
+                at.x >= b.x && at.y >= b.y && at.x <= b.x + b.w && at.y <= b.y + b.h
+            })
+            .ok_or(refused.clone())?;
+        self.create_feature_on(host, kind, at, rect)
+    }
+
+    /// A port or part on a given box (see `create_feature_box`).
+    pub fn create_feature_on(&mut self, host: Eid, kind: &str, at: P, rect: R) -> Result<Eid, String> {
+        let d = self.diagram.ok_or_else(String::new)?;
+        let refused = format!("{} cannot be placed here.", if kind == "UMLPort" { "UMLPort" } else { "UMLAttribute" });
+        let hm = self.repo.refd(host, "model").ok_or(refused.clone())?;
+        let owner = if self.repo.ty(hm) == "UMLAttribute" {
+            match self.repo.refd(hm, "type").filter(|t| self.repo.kind_of(*t, "UMLClassifier")) {
+                Some(t) => t,
+                None => return Err(if kind == "UMLPort" { "Type should be assigned to have Ports".into() } else { "Type should be assigned to have internal Parts".into() }),
+            }
+        } else if self.repo.kind_of(hm, "UMLClassifier") {
+            hm
+        } else {
+            return Err(refused);
+        };
+        let prefix = if kind == "UMLPort" { "Port" } else { "Part" };
+        let names: HashSet<String> = self.repo.list(owner, "attributes").into_iter().map(|a| self.repo.name(a)).collect();
+        let name = (1..).map(|i| format!("{prefix}{i}")).find(|n| !names.contains(n)).unwrap();
+        let v = if kind == "UMLPort" {
+            let m = self.repo.create("UMLPort", &[("name", json!(name))], Some((owner, "attributes")));
+            views::create_port_view(&mut self.repo, d, m, host, at)
+        } else {
+            let m = self.repo.create("UMLAttribute", &[("name", json!(name)), ("aggregation", json!("composite"))], Some((owner, "attributes")));
+            views::create_part_view(&mut self.repo, d, m, host, rect)
+        };
+        self.apply_view_defaults(v);
+        Ok(v)
+    }
+
+    /// Put the picture from a file into an Image view and give the view the picture's natural size,
+    /// as one undo step (app-context.js:1360-1382).
+    pub fn set_image_file(&mut self, v: Eid, path: &std::path::Path) -> Result<(), String> {
+        let (data, w, h) = crate::picture::load_file(path)?;
+        self.change(|a| {
+            for (k, val) in [("imageData", json!(data)), ("imageWidth", json!(w)), ("imageHeight", json!(h)), ("width", json!(w)), ("height", json!(h))] {
+                a.repo.set(v, k, val);
+            }
+        });
+        Ok(())
+    }
+
+    /// The Image view's file picker (.png, .jpg, .jpeg, .svg); a picture that cannot be read is an
+    /// error toast.
+    pub fn pick_image(&mut self, v: Eid) {
+        let Some(path) = rfd::FileDialog::new().add_filter("Image files", &["png", "jpeg", "jpg", "svg"]).pick_file() else { return };
+        if let Err(e) = self.set_image_file(v, &path) {
+            self.toast_error(&e);
+        }
+    }
+
+    /// A picture file dropped on the canvas: an Image view at the picture's natural size, centred on
+    /// the drop point (app-context.js:1404-1427).
+    pub fn drop_image_file(&mut self, path: &std::path::Path, at: P) -> Result<Eid, String> {
+        let (data, w, h) = crate::picture::load_file(path)?;
+        let rect = R { x: (at.x - (w as f64 / 2.0).round()).max(0.0), y: (at.y - (h as f64 / 2.0).round()).max(0.0), w: w as f64, h: h as f64 };
+        let v = self.change(|a| {
+            let v = a.create_node("Image", rect)?;
+            for (k, val) in [("imageData", json!(data)), ("imageWidth", json!(w)), ("imageHeight", json!(h))] {
+                a.repo.set(v, k, val);
+            }
+            Some(v)
+        });
+        v.ok_or_else(String::new)
     }
 
     pub fn add_model(&mut self, parent: Eid, ty: &str) -> Eid {
@@ -1328,7 +1577,26 @@ impl App {
         } else {
             target
         };
-        let name = self.new_name(target, ty);
+        // a composite structure diagram outside a classifier goes in a new collaboration, named
+        // "Composite Structures1"… (uml-factory.js:213-244)
+        // a statechart diagram goes in a state machine: the target if it is one, else a new one with
+        // one region (uml-factory.js:529-571, 606)
+        let target = if ty == "UMLStatechartDiagram" && self.repo.ty(target) != "UMLStateMachine" {
+            let name = self.new_name(target, "UMLStateMachine");
+            let sm = self.repo.create("UMLStateMachine", &[("name", json!(name))], Some((target, "ownedElements")));
+            self.repo.create("UMLRegion", &[], Some((sm, "regions")));
+            sm
+        } else {
+            target
+        };
+        let (target, name) = if ty == "UMLCompositeStructureDiagram" && !self.repo.kind_of(target, "UMLClassifier") {
+            let names: HashSet<String> = self.repo.children(target).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+            let name = (1..).map(|i| format!("Composite Structures{i}")).find(|n| !names.contains(n)).unwrap();
+            let cname = self.new_name(target, "UMLCollaboration");
+            (self.repo.create("UMLCollaboration", &[("name", json!(cname))], Some((target, "ownedElements"))), name)
+        } else {
+            (target, self.new_name(target, ty))
+        };
         let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
         self.open_diagram(d);
         // selected and scrolled to in the explorer (app-context.js:941-944)

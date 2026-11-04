@@ -91,14 +91,23 @@ const ANNOTATIONS: Group = Group {
         node("Rectangle", "Rect", "rect"),
         node("Rounded Rectangle", "RoundRect", "roundrect"),
         node("Ellipse", "Ellipse", "ellipse"),
+        node("Image", "Image", "picture"),
     ],
 };
 // the Composite Structure group (uml.json "uml.compositestructure": class, composite structure and
-// component diagrams), with the items UMLCraft has: no ports, parts, connectors or role bindings
+// component diagrams)
 const COMPOSITE: Group = Group {
     id: "compositestructure",
     label: "Composite Structure",
-    items: &[node("Collaboration", "UMLCollaboration", "collaboration"), node("Collaboration Use", "UMLCollaborationUse", "collaboration"), line("Realization", "UMLRealization", "realization", AssocInit::Plain)],
+    items: &[
+        node("Collaboration", "UMLCollaboration", "collaboration"),
+        node("Port", "UMLPort", "port"),
+        node("Part", "UMLPart", "part"),
+        line("Connector", "UMLConnector", "association", AssocInit::Plain),
+        node("Collaboration Use", "UMLCollaborationUse", "collaboration"),
+        line("Role Binding", "UMLRoleBinding", "dependency", AssocInit::Plain),
+        line("Realization", "UMLRealization", "realization", AssocInit::Plain),
+    ],
 };
 const CLASS_GROUPS: &[Group] = &[
     Group {
@@ -233,19 +242,58 @@ const INFO_FLOW_GROUPS: &[Group] = &[
     CLASS_GROUPS[0],
     ANNOTATIONS,
 ];
+// statechart diagrams (uml.json "uml.statechart", "uml.statechart-adv")
+const STATECHART_GROUPS: &[Group] = &[
+    Group {
+        id: "statechart",
+        label: "Statechart (Basic)",
+        items: &[
+            node("Simple State", "UMLState", "state"),
+            node("Initial State", "Initial", "initial"),
+            node("Choice", "Choice", "choice"),
+            node("Join", "Join", "fork"),
+            node("Fork", "Fork", "fork"),
+            node("Final State", "UMLFinalState", "final"),
+            line("Transition", "UMLTransition", "dependency", AssocInit::Plain),
+            // a click on a state makes a transition to itself (uml.json "self-connection")
+            line("Self Transition", "UMLTransition", "dependency", AssocInit::Plain),
+        ],
+    },
+    Group {
+        id: "statechart-adv",
+        label: "Statechart (Advanced)",
+        items: &[
+            node("Composite State", "CompositeState", "state"),
+            node("Submachine State", "SubmachineState", "state"),
+            node("Orthogonal State", "OrthogonalState", "state"),
+            node("Junction", "Junction", "initial"),
+            node("Shallow History", "ShallowHistory", "history"),
+            node("Deep History", "DeepHistory", "history"),
+            node("Entry Point", "EntryPoint", "final"),
+            node("Exit Point", "ExitPoint", "final"),
+            node("Terminate", "Terminate", "terminate"),
+            node("Frame", "Frame", "frame"),
+        ],
+    },
+    ANNOTATIONS,
+];
+// a composite structure diagram: the two class groups and Composite Structure (uml.json)
+const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE, ANNOTATIONS];
 // a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 8] = [
+const DIAGRAM_KINDS: [(&str, &str); 10] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
+    ("Composite Structure Diagram", "UMLCompositeStructureDiagram"),
     ("Component Diagram", "UMLComponentDiagram"),
     ("Deployment Diagram", "UMLDeploymentDiagram"),
     ("Use Case Diagram", "UMLUseCaseDiagram"),
     ("Information Flow Diagram", "UMLInformationFlowDiagram"),
     ("Profile Diagram", "UMLProfileDiagram"),
+    ("Statechart Diagram", "UMLStatechartDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -257,7 +305,7 @@ pub(crate) fn order_rank(t: &str) -> u32 {
         "UMLAttribute" => 1105, "UMLOperation" => 1106, "UMLReception" => 1107, "UMLExtensionPoint" => 1108, "UMLSlot" => 1109,
         "UMLClass" => 1201, "UMLInterface" => 1202, "UMLSignal" => 1203, "UMLDataType" => 1204, "UMLPrimitiveType" => 1205,
         "UMLEnumeration" => 1206, "UMLArtifact" => 1207, "UMLComponent" => 1208, "UMLNode" => 1209, "UMLUseCase" => 1210, "UMLActor" => 1211,
-        "UMLInstance" => 1301, "UMLObject" => 1302, "UMLCollaboration" => 1401, "UMLStateMachine" => 1402, "UMLInteraction" => 1403, "UMLActivity" => 1404, "UMLRegion" => 1407, "UMLTemplateParameterSubstitution" => 1102,
+        "UMLInstance" => 1301, "UMLObject" => 1302, "UMLCollaboration" => 1401, "UMLStateMachine" => 1402, "UMLInteraction" => 1403, "UMLActivity" => 1404, "UMLRegion" => 1407, "UMLState" => 1409, "UMLTemplateParameterSubstitution" => 1102,
         "UMLAssociationEnd" => 1801, "UMLAssociation" => 1802, "UMLDependency" => 1806, "UMLGeneralization" => 1807, "UMLRealization" => 1808,
         "UMLInterfaceRealization" => 1809, "UMLComponentRealization" => 1810, "UMLAbstraction" => 1811, "UMLInclude" => 1816, "UMLExtend" => 1817,
         "UMLTransition" => 1819, "UMLMessage" => 1822, "UMLProfile" => 1901, "UMLStereotype" => 1903,
@@ -485,12 +533,36 @@ impl App {
         for (l, k) in [
             ("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Slot", "UMLSlot"), ("Literal", "UMLEnumerationLiteral"),
             ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter"), ("Template Parameter Substitution", "UMLTemplateParameterSubstitution"),
+            ("State", "UMLState"), ("Region", "UMLRegion"), ("Trigger", "UMLEvent"), ("Action", "UMLAction"), ("Interaction Operand", "UMLInteractionOperand"),
         ] {
             if self.can_add_feature(e, k) {
                 adds.push((l, k, true));
             }
         }
+        // a state's activities and a transition's effect ask which kind of behaviour (uml.json)
+        if t == "UMLState" {
+            adds.extend([("Entry Activity", "entryActivities", false), ("Do Activity", "doActivities", false), ("Exit Activity", "exitActivities", false)]);
+        }
+        if t == "UMLTransition" {
+            adds.push(("Effect", "effects", false));
+        }
         adds
+    }
+
+    /// Ask which kind of behaviour to create in a state's activities or a transition's effects.
+    pub fn ask_behavior_kind(&mut self, e: Eid, field: &'static str) {
+        let what = match field {
+            "entryActivities" => "an entry Activity",
+            "doActivities" => "an do Activity",
+            "exitActivities" => "an exit Activity",
+            _ => "an effect Behavior",
+        };
+        self.select_one = Some(crate::app::SelectOne {
+            message: format!("Select one to create as {what}"),
+            options: crate::app::BEHAVIOR_KINDS.iter().map(|x| x.0).collect(),
+            selected: 0,
+            purpose: crate::app::SelectPurpose::BehaviorKind(e, field),
+        });
     }
 
     /// The items of an Add submenu for an element.
@@ -505,6 +577,14 @@ impl App {
             return;
         }
         for (l, k, feature) in self.add_kinds(e) {
+            // a behaviour of a state or a transition: which kind, in a Select One dialog (uml-commands.js:109-190)
+            if matches!(k, "entryActivities" | "doActivities" | "exitActivities" | "effects") {
+                if ui.button(l).clicked() {
+                    self.ask_behavior_kind(e, k);
+                    ui.close();
+                }
+                continue;
+            }
             // a constraint on an operation: which kind, in a Select One dialog (uml-commands.js:185)
             if k == "UMLConstraint" && self.repo.ty(e) == "UMLOperation" {
                 if ui.button(l).clicked() {
@@ -823,6 +903,13 @@ impl App {
             if t == "UMLExtend" {
                 f.push(("condition", "text"));
             }
+            if t == "UMLRoleBinding" {
+                f.push(("roleName", "text"));
+            }
+            if t == "UMLTransition" {
+                f.push(("kind", "enum"));
+                f.push(("guard", "text"));
+            }
             // the items an information flow conveys, edited in the Element List Editor
             if t == "UMLInformationFlow" {
                 f.push(("conveyed", "reflist"));
@@ -847,8 +934,13 @@ impl App {
             "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
             "UMLObject" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("classifier", "type")],
             // a stereotype's icon: its minimum size and its icon script (uml/metamodel.json UMLImage)
-            "UMLImage" => vec![("width", "int"), ("height", "int"), ("content", "multiline")],
+            "UMLImage" => vec![("width", "int"), ("height", "int"), ("image", "image"), ("content", "multiline")],
             "UMLCollaborationUse" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type")],
+            // the visible attributes of states, events and actions (uml/metamodel.json)
+            "UMLState" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("submachine", "ref")],
+            "UMLInteractionOperand" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("guard", "text")],
+            "UMLEvent" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("value", "text"), ("expression", "text"), ("targetOperation", "ref"), ("targetSignal", "ref")],
+            "UMLAction" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("isLocallyReentrant", "bool"), ("isSynchronous", "bool"), ("language", "text")],
             "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
             "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
             // a reception names the signal it receives (uml-commands.js:1484)
@@ -914,7 +1006,15 @@ impl App {
         });
     }
 
-    fn enum_options(field: &str) -> &'static [&'static str] {
+    fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
+        match (ty, field) {
+            ("UMLTransition", "kind") => return &["external", "internal", "local"],
+            ("UMLEvent", "kind") => return &["signal", "call", "change", "time", "anyReceive"],
+            ("UMLAction", "kind") => {
+                return &["opaque", "create", "destroy", "read", "write", "insert", "delete", "sendSignal", "acceptSignal", "triggerEvent", "acceptEvent", "structured", "timeEvent", "callBehavior", "callOperation"]
+            }
+            _ => {}
+        }
         match field {
             "visibility" => &["public", "protected", "private", "package"],
             "aggregation" => &["none", "shared", "composite"],
@@ -1034,7 +1134,7 @@ impl App {
                     let mut sel = cur.clone();
                     let shown = if merged.is_some() { sel.clone() } else { "—".to_string() };
                     egui::ComboBox::from_id_salt(path).selected_text(shown).width(w).show_ui(ui, |ui| {
-                        for o in Self::enum_options(&field) {
+                        for o in Self::enum_options(self.repo.ty(obj), &field) {
                             ui.selectable_value(&mut sel, o.to_string(), *o);
                         }
                     });
@@ -1085,6 +1185,33 @@ impl App {
                     if let Some(p) = pick.filter(|p| *p != cur) {
                         let f = field.clone();
                         self.change(|a| a.repo.set_ref(obj, &f, p));
+                    }
+                }
+                // a picture: "(Image)" or "—", a browse button and a delete button (property-editor-view.js:342-402)
+                "image" => {
+                    let set = !self.repo.str(obj, &field).is_empty();
+                    ui.label(egui::RichText::new(if set { "(Image)" } else { "—" }).size(12.0).color(if set { TEXT() } else { DIM() }));
+                    if single && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("…")).on_hover_text("Select an image").clicked() {
+                        if let Some(path) = rfd::FileDialog::new().set_title("Select an image").add_filter("Images", &["jpg", "jpeg", "png", "gif"]).pick_file() {
+                            match crate::picture::load_icon_picture(&path) {
+                                Ok((data, w, h, ow, oh)) => {
+                                    if ow > crate::picture::ICON_MAX || oh > crate::picture::ICON_MAX {
+                                        self.message = Some(("Image".into(), "Image is too large, so it will be resized smaller.".into()));
+                                    }
+                                    let value = json!({ "width": w, "height": h, "data": data }).to_string();
+                                    let f = field.clone();
+                                    self.change(|a| a.repo.set(obj, &f, json!(value)));
+                                }
+                                Err(e) => self.toast_error(&e),
+                            }
+                        }
+                    }
+                    if set && single && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("×")).on_hover_text("Delete the image").clicked() {
+                        let ok = rfd::MessageDialog::new().set_description("Do you want to delete this image?").set_buttons(rfd::MessageButtons::OkCancel).show();
+                        if ok == rfd::MessageDialogResult::Ok {
+                            let f = field.clone();
+                            self.change(|a| a.repo.remove(obj, &f));
+                        }
                     }
                 }
                 // an integer: a typed value that is not a whole number is ignored (property-editor-view.js:274-330)
@@ -1380,6 +1507,8 @@ impl App {
                 Some("UMLObjectDiagram") => self.open_groups.insert("instance"),
                 Some("UMLInformationFlowDiagram") => self.open_groups.insert("information-flow"),
                 Some("UMLProfileDiagram") => self.open_groups.insert("profile"),
+                Some("UMLCompositeStructureDiagram") => self.open_groups.insert("compositestructure"),
+                Some("UMLStatechartDiagram") => self.open_groups.insert("statechart"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1403,6 +1532,8 @@ impl App {
             Some("UMLObjectDiagram") => OBJECT_GROUPS,
             Some("UMLInformationFlowDiagram") => INFO_FLOW_GROUPS,
             Some("UMLProfileDiagram") => PROFILE_GROUPS,
+            Some("UMLCompositeStructureDiagram") => COMPOSITE_GROUPS,
+            Some("UMLStatechartDiagram") => STATECHART_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

@@ -357,7 +357,7 @@ pub fn pastable_views(diagram_ty: &str) -> Option<Vec<&'static str>> {
         "UMLExtensionView", "UMLMetaClassView", "UMLStereotypeView",
     ];
     match diagram_ty {
-        "UMLClassDiagram" | "UMLPackageDiagram" | "UMLObjectDiagram" | "UMLComponentDiagram" | "UMLDeploymentDiagram" | "UMLUseCaseDiagram" | "UMLProfileDiagram" => {
+        "UMLClassDiagram" | "UMLPackageDiagram" | "UMLObjectDiagram" | "UMLCompositeStructureDiagram" | "UMLComponentDiagram" | "UMLDeploymentDiagram" | "UMLUseCaseDiagram" | "UMLProfileDiagram" => {
             Some(GENERAL.iter().chain(STRUCTURAL.iter()).copied().collect())
         }
         "UMLInformationFlowDiagram" => Some(GENERAL.to_vec()),

@@ -65,6 +65,23 @@ impl Measure for ScreenCanvas<'_> {
 }
 
 impl Canvas for ScreenCanvas<'_> {
+    fn image(&mut self, b: R, data_url: &str) {
+        // one texture per picture, decoded once and kept in egui's memory
+        let ctx = self.painter.ctx().clone();
+        let id = egui::Id::new(("picture", data_url.len(), data_url.get(data_url.len().saturating_sub(64)..).unwrap_or(""), data_url.get(..96).unwrap_or("")));
+        let tex = ctx.data_mut(|d| d.get_temp::<Option<egui::TextureHandle>>(id)).unwrap_or_else(|| {
+            let t = crate::picture::decode(data_url).map(|img| {
+                let size = [img.width() as usize, img.height() as usize];
+                ctx.load_texture("picture", egui::ColorImage::from_rgba_unmultiplied(size, img.as_raw()), egui::TextureOptions::LINEAR)
+            });
+            ctx.data_mut(|d| d.insert_temp(id, t.clone()));
+            t
+        });
+        if let Some(t) = tex {
+            let r = Rect::from_two_pos(self.pos(P { x: b.x, y: b.y }), self.pos(P { x: b.x + b.w, y: b.y + b.h }));
+            self.painter.image(t.id(), r, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
+        }
+    }
     fn polyline(&mut self, pts: &[P], color: Rgba, dashed: bool) {
         let ps: Vec<Pos2> = pts.iter().map(|p| self.pos(*p)).collect();
         let st = self.stroke(color);
@@ -143,8 +160,31 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
     match kind {
         EditKind::Name(m) => {
             let t = r.ty(*m);
+            // a port or a part (quickedits/uml.json "uml.port", "uml.part")
+            if t == "UMLPort" || t == "UMLAttribute" {
+                let mut v = vec![("Type…", "Select Type", "", ItemKey::SelectType), ("+ Type", "Create Type", "", ItemKey::CreateType)];
+                if t == "UMLPort" {
+                    v.push(("+ Prov", "Add Provided Interface", "", ItemKey::PortInterface(true)));
+                    v.push(("+ Req", "Add Required Interface", "", ItemKey::PortInterface(false)));
+                }
+                v.push(("+ Part", "Add Connected Part", "", ItemKey::AddConnectedPart));
+                return v;
+            }
+            let ports = ("+ Port", "Add Port", "", ItemKey::AddPort);
+            let parts = ("+ Part", "Add Part", "", ItemKey::AddPart);
             match t {
+                "UMLClass" | "UMLComponent" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP, ("+ Rec", "Add Reception", "", ItemKey::AddReception), ports, parts],
                 "UMLEnumeration" => vec![("+ Lit", "Add Literal", "Ctrl+Enter", ItemKey::Add), ADD_OP],
+                // a state's choice and fork scaffolds (uml-commands.js:3244, 3386)
+                "UMLState" => vec![
+                    ("+ Region", "Add Region", "", ItemKey::AddRegion),
+                    ("+ Entry", "Add Entry Activity", "", ItemKey::Activity("entryActivities")),
+                    ("+ Do", "Add Do Activity", "", ItemKey::Activity("doActivities")),
+                    ("+ Exit", "Add Exit Activity", "", ItemKey::Activity("exitActivities")),
+                    ("+ Internal", "Add Internal Transition", "", ItemKey::InternalTransition),
+                    ("+ Choice", "Add Choice", "", ItemKey::Scaffold("Choice")),
+                    ("+ Fork", "Add Fork", "", ItemKey::Scaffold("Fork")),
+                ],
                 "UMLUseCase" => vec![("+ Ext", "Add Extension Point", "Ctrl+Enter", ItemKey::Add)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
                 // classes, interfaces, signals, data types, components, nodes, artifacts: Add Reception
@@ -154,12 +194,19 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                 _ => vec![],
             }
         }
-        EditKind::Feature(_) => vec![
-            ("+", "Add", "Ctrl+Enter", ItemKey::Add),
-            ("✕", "Delete", "Ctrl+Delete", ItemKey::Delete),
-            ("▲", "Move Up", "Ctrl+Up", ItemKey::Move(true)),
-            ("▼", "Move Down", "Ctrl+Down", ItemKey::Move(false)),
-        ],
+        EditKind::Feature(f) => {
+            let mut v = vec![
+                ("+", "Add", "Ctrl+Enter", ItemKey::Add),
+                ("✕", "Delete", "Ctrl+Delete", ItemKey::Delete),
+                ("▲", "Move Up", "Ctrl+Up", ItemKey::Move(true)),
+                ("▼", "Move Down", "Ctrl+Down", ItemKey::Move(false)),
+            ];
+            // a reception's Select Signal opens the Element Picker on UMLSignal (uml-commands.js:1484)
+            if r.ty(*f) == "UMLReception" {
+                v.push(("Signal…", "Select Signal", "", ItemKey::SelectSignal));
+            }
+            v
+        }
         EditKind::Text(_) => vec![],
     }
 }
@@ -181,6 +228,25 @@ pub enum ItemKey {
     AddTemplateParameter,
     /// The Add Reception button of a classifier's name edit (no key)
     AddReception,
+    /// Add Port and Add Part on a class's or component's name edit
+    AddPort,
+    AddPart,
+    /// A port's or part's Select Type, Create Type and Add Connected Part
+    SelectType,
+    CreateType,
+    AddConnectedPart,
+    /// A port's Add Provided Interface (true) and Add Required Interface (false)
+    PortInterface(bool),
+    /// A reception's Select Signal
+    SelectSignal,
+    /// A state's Add Choice or Add Fork: the pseudostate and two branch states
+    Scaffold(&'static str),
+    /// A state's Add Region
+    AddRegion,
+    /// A composite state's Add Internal Transition
+    InternalTransition,
+    /// A state's Add Entry, Do or Exit Activity: asks which kind of behaviour
+    Activity(&'static str),
 }
 
 impl App {
@@ -542,6 +608,18 @@ impl App {
         let origin = rect.min;
         let latest = pointer.latest_pos();
 
+        // a picture file dropped on the canvas: only the first file counts (diagram-editor.js:2289-2294)
+        let dropped = ui.input(|i| i.raw.dropped_files.first().map(|f| f.path().to_path_buf()).filter(|p| !p.as_os_str().is_empty()));
+        if let (Some(path), Some(pos), true) = (dropped, latest, self.diagram.is_some()) {
+            if rect.contains(pos) {
+                let p = self.to_diagram(origin, pos);
+                match self.drop_image_file(&path, p) {
+                    Ok(v) => self.select(vec![v]),
+                    Err(e) if !e.is_empty() => self.toast_error(&e),
+                    Err(_) => {}
+                }
+            }
+        }
         // drop from the explorer: the cursor says whether the diagram takes it (model-explorer-view.js:161-224)
         if let Some(eid) = resp.dnd_hover_payload::<Eid>() {
             ui.ctx().set_cursor_icon(if self.can_drop_model(*eid) { egui::CursorIcon::Copy } else { egui::CursorIcon::NotAllowed });
@@ -1067,7 +1145,15 @@ impl App {
                 }
                 let mut pts = points_of(&self.repo, *edge);
                 if *index < pts.len() {
-                    pts[*index] = P { x: self.snap_v(p.x).max(0.0), y: self.snap_v(p.y).max(0.0) };
+                    let to = P { x: self.snap_v(p.x).max(0.0), y: self.snap_v(p.y).max(0.0) };
+                    // on a rectilinear line the neighbours follow on the axis they share with the point,
+                    // so the path stays orthogonal (diagram-editor.js:1887-1922)
+                    let style = self.repo.val(*edge, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+                    if views::rectilinear(style) {
+                        views::move_orthogonal(&mut pts, *index, to);
+                    } else {
+                        pts[*index] = to;
+                    }
                     self.repo.set(*edge, "points", json!(views::format_points(&pts)));
                 }
             }
@@ -1170,6 +1256,25 @@ impl App {
                     let (mw, mh) = views::tool_min_size(tool.kind).unwrap_or((1.0, 1.0));
                     R { x: x1, y: y1, w: (x2 - x1).max(mw), h: (y2 - y1).max(mh) }
                 };
+                if tool.kind == "UMLPort" || tool.kind == "UMLPart" {
+                    // a port is placed at the point (a "point" tool), a part takes the box; both go on the
+                    // classifier box under the point (toolbox/uml.json "parasitic")
+                    if !self.tool_sticky {
+                        self.tool = None;
+                    }
+                    let at = P { x: self.snap_v(p.x), y: self.snap_v(p.y) };
+                    let rect = if tool.kind == "UMLPart" && (raw.w >= 10.0 || raw.h >= 10.0) { r } else { R { x: at.x, y: at.y, w: 80.0, h: 30.0 } };
+                    let kind = tool.kind;
+                    let made = self.change(|a| a.create_feature_box(kind, if kind == "UMLPart" { P { x: rect.x + 1.0, y: rect.y + 1.0 } } else { at }, rect).map_err(|e| { a.toast_error(&e); e }).ok());
+                    if let Some(v) = made {
+                        self.select(vec![v]);
+                        if let Some(m) = self.repo.refd(v, "model") {
+                            self.reveal(m);
+                        }
+                        self.pending_edit = Some(v);
+                    }
+                    return;
+                }
                 if tool.kind == "Frame" {
                     // a frame first asks which element it shows (uml-commands.js:244-262)
                     if !self.tool_sticky {
@@ -1208,7 +1313,10 @@ impl App {
             }
             Drag::CreateEdge { tail, .. } => {
                 let Some(tool) = self.tool else { return };
-                if let Some(head) = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject")) {
+                // a self-connection tool joins the view under the release point to itself (factory.js:273-277)
+                let hit = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject"));
+                let (tail, hit) = if tool.label == "Self Transition" { (hit.unwrap_or(tail), hit) } else { (tail, hit) };
+                if let Some(head) = hit.map(|h| if tool.label == "Self Transition" { tail } else { h }) {
                     if !self.can_connect(&tool, tail, head) {
                         // a refused link is reported (uml-factory.js:19-146, toolbox-view.js:209-216)
                         self.toast_error(&format!("Invalid connection ({})", tool.kind.trim_start_matches("UML")));
@@ -1295,6 +1403,11 @@ impl App {
 
     pub fn edit_view(&mut self, v: Eid, p: Option<P>) {
         let t = self.repo.ty(v).to_string();
+        // an image picks its picture again (app-context.js:1360-1382)
+        if t == "ImageView" {
+            self.pick_image(v);
+            return;
+        }
         // frames and hyperlinks have no inline edit
         if t == "UMLFrameView" || t == "HyperlinkView" {
             return;
@@ -1350,7 +1463,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| self.repo.ty(v) == "UMLNaryAssociationNodeView"));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView")));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
@@ -1432,6 +1545,59 @@ impl App {
 
     /// Add an item of this kind to the box's model, show its compartment and edit it
     /// (uml-commands.js:784-823).
+    /// An inline-edit command that fails shows its message as an error toast (quickedit-manager.js:547-553).
+    /// Add Port and Add Part on a box's name edit: a port on the right border, under the ones there
+    /// (the original picks a random point on the box), or a part inside, right of the last part or
+    /// at +10, +30 (uml-commands.js:1411-1459). The new one's name edit opens.
+    fn add_port_or_part(&mut self, host: Eid, port: bool) {
+        let Some(d) = self.diagram else { return };
+        let b = node_rect(&self.repo, host);
+        let inside: Vec<Eid> = self.repo.list(d, "ownedViews").into_iter().filter(|v| self.repo.refd(*v, "containerView") == Some(host)).collect();
+        let made = if port {
+            let n = inside.iter().filter(|v| self.repo.ty(**v) == "UMLPortView").count() as f64;
+            let at = P { x: b.x + b.w, y: (b.y + 30.0 + 20.0 * n).min(b.y + b.h - views::PORT_SIZE) };
+            self.change(|a| a.create_feature_on(host, "UMLPort", at, R::default()).map_err(|e| a.toast_error(&e)).ok())
+        } else {
+            let last = inside.iter().filter(|v| self.repo.ty(**v) == "UMLPartView").map(|v| node_rect(&self.repo, *v)).max_by(|a, b| (a.x + a.w).total_cmp(&(b.x + b.w)));
+            let at = match last {
+                Some(l) => P { x: l.x + l.w + 10.0, y: l.y },
+                None => P { x: b.x + 10.0, y: b.y + 30.0 },
+            };
+            self.change(|a| a.create_feature_on(host, "UMLPart", at, R { x: at.x, y: at.y, w: 0.0, h: 0.0 }).map_err(|e| a.toast_error(&e)).ok())
+        };
+        if let Some(v) = made {
+            self.select(vec![v]);
+            self.pending_edit = Some(v);
+        }
+    }
+
+    /// Add Connected Part on a port or part: a new part in the same box, away from the border the
+    /// port sits on (or under the part), joined to it by a connector (uml-commands.js:1636-1673).
+    fn add_connected_part(&mut self, v: Eid) {
+        let Some(container) = self.repo.refd(v, "containerView").filter(|c| self.repo.alive(*c)) else { return };
+        let (b, c) = (node_rect(&self.repo, v), node_rect(&self.repo, container));
+        let (w, h, gap) = (80.0, views::NAME_MIN_H, 30.0);
+        let at = if b.x + b.w > c.x + c.w {
+            P { x: b.x - gap - w, y: b.y + b.h / 2.0 - h / 2.0 }
+        } else if b.x < c.x {
+            P { x: b.x + b.w + gap, y: b.y + b.h / 2.0 - h / 2.0 }
+        } else if b.y + b.h > c.y + c.h {
+            P { x: b.x + b.w / 2.0 - w / 2.0, y: b.y - gap - h }
+        } else {
+            P { x: b.x, y: b.y + b.h + gap }
+        };
+        let conn = crate::app::Tool { label: "", kind: "UMLConnector", icon: "", line: true, init: crate::app::AssocInit::Plain };
+        let made = self.change(|a| {
+            let p = a.create_feature_on(container, "UMLPart", at, R { x: at.x, y: at.y, w, h }).map_err(|e| a.toast_error(&e)).ok()?;
+            a.create_edge(&conn, v, p)?;
+            Some(p)
+        });
+        if let Some(p) = made {
+            self.select(vec![p]);
+            self.pending_edit = Some(p);
+        }
+    }
+
     fn add_item(&mut self, v: Eid, owner: Eid, ty: &str) {
         if !self.can_add_feature(owner, ty) {
             return;
@@ -1475,6 +1641,34 @@ impl App {
             (ItemKey::AddOperation, _) => self.add_item(host, m, "UMLOperation"),
             (ItemKey::AddTemplateParameter, _) => self.add_item(host, m, "UMLTemplateParameter"),
             (ItemKey::AddReception, _) => self.add_item(host, m, "UMLReception"),
+            (ItemKey::AddPort, _) | (ItemKey::AddPart, _) => self.add_port_or_part(host, key == ItemKey::AddPort),
+            (ItemKey::SelectType, _) => {
+                // the Element Picker for the port's or part's type (uml-commands.js:1589-1600)
+                self.open_element_picker(m, "type");
+            }
+            (ItemKey::CreateType, _) => {
+                self.input_dialog = Some(crate::input::InputDialog { message: "Enter a type name to create".into(), text: String::new(), action: crate::input::InputAction::CreatePartType(m), fresh: true });
+            }
+            (ItemKey::AddConnectedPart, _) => self.add_connected_part(host),
+            (ItemKey::SelectSignal, Some(f)) => self.open_element_picker(f, "signal"),
+            (ItemKey::AddRegion, _) => {
+                if let Some(rg) = self.change(|a| a.add_feature(m, "UMLRegion")) {
+                    self.reveal(rg);
+                }
+            }
+            (ItemKey::Activity(field), _) => self.ask_behavior_kind(m, field),
+            (ItemKey::InternalTransition, _) => match self.add_internal_transition(m) {
+                Ok(t) => self.reveal(t),
+                Err(e) => self.toast_error(&e),
+            },
+            (ItemKey::Scaffold(kind), _) => {
+                if let Some(p) = self.add_scaffold(host, kind) {
+                    self.select(vec![p]);
+                }
+            }
+            (ItemKey::PortInterface(provided), _) => {
+                self.add_port_interface(host, provided);
+            }
             (ItemKey::Delete, Some(f)) => {
                 let (Some(owner), Some(field)) = (self.repo.parent(f), self.repo.field_of(f)) else { return };
                 let i = self.repo.list(owner, &field).iter().position(|x| *x == f).unwrap_or(0);
@@ -1526,6 +1720,8 @@ impl App {
         match kind {
             EditKind::Text(_) => None,
             EditKind::Name(m) if self.repo.kind_of(*m, "UMLInstance") => Some(Grammar::Object),
+            // a transition's expression is split by hand (uml-transition.pegjs)
+            EditKind::Name(m) if self.repo.ty(*m) == "UMLTransition" => None,
             EditKind::Name(_) => Some(Grammar::Name),
             EditKind::Feature(f) => match self.repo.ty(*f) {
                 "UMLOperation" => Some(Grammar::Operation),
@@ -1599,6 +1795,11 @@ impl App {
                     });
                 }
             }
+            EditKind::Name(m) if self.repo.ty(m) == "UMLTransition" => {
+                if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
+                    self.change(|a| crate::parse::apply_transition(&mut a.repo, m, &e.text));
+                }
+            }
             EditKind::Name(m) => {
                 if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
                     self.change(|a| crate::parse::apply_name(&mut a.repo, m, &e.text));
@@ -1664,6 +1865,7 @@ impl App {
         let mut key: Option<ItemKey> = None;
         let mut related: Option<crate::related::Related> = None;
         let mut edge_note: Option<Eid> = None;
+        let mut edge_constraint: Option<Eid> = None;
         let mut add_subst: Option<Eid> = None;
         let mut picked_order: Option<(Eid, &'static str)> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
@@ -1776,6 +1978,7 @@ impl App {
                 // (quickedits/uml.json "uml.association-end1/2")
                 let mut picked_end: Option<(&'static str, String)> = None;
                 let mut picked_owner: Option<Option<Eid>> = None;
+                let mut add_qualifier = false;
                 if let EditKind::Name(end) = ed.kind {
                     if self.repo.ty(end) == "UMLAssociationEnd" || self.repo.ty(end) == "UMLLinkEnd" {
                         ui.horizontal(|ui| {
@@ -1816,9 +2019,20 @@ impl App {
                                 })
                                 .response
                                 .on_hover_text("Owner Attribute");
+                                // Add Qualifier: a new attribute in the end's qualifiers (quickedits/uml.json "uml.association-end1/2")
+                                let b = ui.add(egui::Button::new(egui::RichText::new("+ Qual").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Qualifier");
+                                if b.clicked() {
+                                    add_qualifier = true;
+                                }
                             }
                         });
                     }
+                }
+                if let (true, EditKind::Name(end)) = (add_qualifier, &ed.kind) {
+                    let end = *end;
+                    let q = self.change(|a| a.add_qualifier(end));
+                    self.reveal(q);
+                    ed.fresh = true;
                 }
                 if let (Some(owner), EditKind::Name(end)) = (picked_owner, &ed.kind) {
                     let end = *end;
@@ -1870,6 +2084,10 @@ impl App {
                         if b.is_pointer_button_down_on() {
                             edge_note = Some(e);
                         }
+                        let b = ui.add(egui::Button::new(egui::RichText::new("+ Constraint").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Constraint");
+                        if b.is_pointer_button_down_on() {
+                            edge_constraint = Some(e);
+                        }
                     }
                     // an association's Order of Ends, a property of its line (quickedits/uml.json "uml.end-order")
                     if let (Some(e), true) = (edge, self.repo.ty(*m) == "UMLAssociation") {
@@ -1901,7 +2119,7 @@ impl App {
                     ed.fresh = true;
                 }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if key.is_some() || related.is_some() || edge_note.is_some() || add_subst.is_some() {
+                if key.is_some() || related.is_some() || edge_note.is_some() || edge_constraint.is_some() || add_subst.is_some() {
                     commit = Some(true);
                 } else if esc {
                     commit = Some(false);
@@ -1928,6 +2146,9 @@ impl App {
         }
         if let Some(e) = edge_note.filter(|e| self.repo.alive(*e)) {
             self.add_note_to_edge(e);
+        }
+        if let Some(e) = edge_constraint.filter(|e| self.repo.alive(*e)) {
+            self.add_constraint_to(e);
         }
         // the new substitution is selected in the explorer (uml-commands.js:1026-1034)
         if let Some(b) = add_subst.filter(|b| self.repo.alive(*b)) {

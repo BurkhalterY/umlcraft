@@ -26,6 +26,7 @@ mod model;
 mod palette;
 mod parse;
 mod pdf;
+mod picture;
 mod picker;
 mod prefs;
 mod related;

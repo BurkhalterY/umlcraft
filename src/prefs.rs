@@ -230,7 +230,7 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("General", "validation.validateModel", "Validate Model", Kind::Check, json!(true)),
     ];
     // per element kind: fill colour (null = the general one), stereotype display and compartments
-    let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 23] = [
+    let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 26] = [
         ("Package", "package", None),
         ("Model", "model", None),
         ("Class", "class", Some(("label", false, false, None))),
@@ -239,6 +239,8 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("DataType", "datatype", None),
         ("PrimitiveType", "primitivetype", None),
         ("Enumeration", "enumeration", Some(("label", true, true, Some(false)))),
+        ("Port", "port", None),
+        ("Part", "part", None),
         ("Collaboration", "collaboration", None),
         ("Collaboration Use", "collaborationuse", None),
         ("Use Case", "usecase", Some(("label", true, true, None))),
@@ -253,6 +255,7 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("Node Instance", "nodeinstance", None),
         ("MetaClass", "metaclass", None),
         ("Stereotype", "stereotype", None),
+        ("State", "state", None),
         ("Note", "note", None),
     ];
     for (label, id, more) in kinds {
@@ -276,6 +279,10 @@ fn kind_id(view_ty: &str, model_ty: Option<&str>) -> Option<&'static str> {
     if view_ty == "UMLNoteView" {
         return Some("note");
     }
+    // a part's model is a plain attribute
+    if view_ty == "UMLPartView" {
+        return Some("part");
+    }
     Some(match model_ty? {
         "UMLPackage" => "package",
         "UMLModel" => "model",
@@ -287,8 +294,10 @@ fn kind_id(view_ty: &str, model_ty: Option<&str>) -> Option<&'static str> {
         "UMLEnumeration" => "enumeration",
         "UMLUseCase" => "usecase",
         "UMLActor" => "actor",
+        "UMLPort" => "port",
         "UMLCollaboration" => "collaboration",
         "UMLCollaborationUse" => "collaborationuse",
+        "UMLState" => "state",
         "UMLUseCaseSubject" => "subsystem",
         "UMLArtifact" => "artifact",
         "UMLComponent" => "component",

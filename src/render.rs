@@ -55,6 +55,8 @@ pub trait Canvas: Measure {
     fn ellipse(&mut self, c: P, rx: f64, ry: f64, fill: Option<Rgba>, stroke: Option<Rgba>);
     /// align: 0 left, 1 right, 2 centre; text is centred vertically in the box
     fn text(&mut self, t: &str, b: R, align: i64, style: u8, size: f64, color: Rgba, underline: bool);
+    /// A picture given as a data URL, stretched over the box; surfaces that cannot show one skip it.
+    fn image(&mut self, _b: R, _data_url: &str) {}
     fn rect(&mut self, r: R, fill: Option<Rgba>, stroke: Option<Rgba>) {
         let pts = [P { x: r.x, y: r.y }, P { x: r.x + r.w, y: r.y }, P { x: r.x + r.w, y: r.y + r.h }, P { x: r.x, y: r.y + r.h }];
         self.polygon(&pts, fill, stroke);
@@ -106,6 +108,18 @@ fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid) {
     for f in ["stereotypeLabel", "nameLabel", "namespaceLabel", "propertyLabel"] {
         if let Some(lv) = r.refd(nc, f) {
             draw_label(c, r, lv, fc);
+        }
+    }
+}
+
+/// A stereotype's icon in its box: the script drawn, or the picture fitted to its own ratio and
+/// centred (drawStereotypeIcon, elements.js:270-330).
+pub fn draw_stereotype_icon(c: &mut dyn Canvas, b: R, icon: &views::StereotypeIcon, line: Rgba, fill: Rgba) {
+    match icon {
+        views::StereotypeIcon::Script(s) => draw_icon_script(c, b, s, line, fill),
+        views::StereotypeIcon::Picture(data, w, h) => {
+            let f = fit_ratio(b, w.max(1.0), h.max(1.0));
+            c.image(R { x: b.x + ((b.w - f.w) / 2.0).round(), y: b.y + ((b.h - f.h) / 2.0).round(), ..f }, data);
         }
     }
 }
@@ -361,10 +375,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         "stereotype-icon" => {
             // the stereotype's icon in the square above the name, then the compartments' rows
             // without a box (drawAsIconicForm and drawIcon, elements.js:4723-4740, 5107-5120)
-            if let (Some((script, iw, ih)), Some(nc)) = (r.refd(v, "model").and_then(|m| views::stereotype_icon(r, m)), r.refd(v, "nameCompartment")) {
+            if let (Some((icon, iw, ih)), Some(nc)) = (r.refd(v, "model").and_then(|m| views::stereotype_icon(r, m)), r.refd(v, "nameCompartment")) {
                 let area = fit_ratio(R { x: b.x, y: b.y, w: b.w, h: (r.f(nc, "top") - b.y).max(0.0) }, 100.0, 100.0);
                 let square = R { x: b.x + (b.w - area.w) / 2.0, ..area };
-                draw_icon_script(c, fit_ratio(square, iw.max(1.0), ih.max(1.0)), &script, line, fill);
+                draw_stereotype_icon(c, fit_ratio(square, iw.max(1.0), ih.max(1.0)), &icon, line, fill);
             }
             draw_name(c, r, v);
             if let Some(i) = info {
@@ -373,6 +387,74 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
                         draw_label(c, r, row.iv, fc);
                     }
                 }
+            }
+            return;
+        }
+        "state" => {
+            // a rounded box, the name on top and the activities under a line (estimated)
+            let pts = round_rect(b, 10.0);
+            c.polygon(&pts, Some(fill), Some(line));
+            draw_name(c, r, v);
+            if let Some(m) = r.refd(v, "model") {
+                let rows = views::state_activity_rows(r, m);
+                // a composite state: its regions under a line below the name and activities (estimated)
+                if r.list(m, "regions").iter().any(|x| r.alive(*x)) {
+                    let nh = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "height")).unwrap_or(views::NAME_MIN_H);
+                    let size = views::view_font(r, v).1;
+                    let y = b.y + nh + if rows.is_empty() { 0.0 } else { rows.len() as f64 * size + 2.0 * views::PAD };
+                    c.polyline(&[P { x: b.x, y }, P { x: b.x + b.w, y }], line, false);
+                    // further regions: dashed lines splitting the state's height evenly (estimated)
+                    let n = r.list(m, "regions").iter().filter(|x| r.alive(**x)).count();
+                    for i in 1..n {
+                        let ry = b.y + b.h * i as f64 / n as f64;
+                        c.polyline(&[P { x: b.x, y: ry }, P { x: b.x + b.w, y: ry }], line, true);
+                    }
+                }
+                if !rows.is_empty() {
+                    let nh = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "height")).unwrap_or(views::NAME_MIN_H);
+                    let y = b.y + nh;
+                    c.polyline(&[P { x: b.x, y }, P { x: b.x + b.w, y }], line, false);
+                    let size = views::view_font(r, v).1;
+                    let fc = color(r, v, "fontColor", BLACK);
+                    for (i, t) in rows.iter().enumerate() {
+                        c.text(t, R { x: b.x + views::PAD, y: y + views::PAD + i as f64 * size, w: b.w - 2.0 * views::PAD, h: size }, 0, 0, size, fc, false);
+                    }
+                }
+            }
+            return;
+        }
+        "final" => {
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+            let rad = b.w.min(b.h) / 2.0;
+            c.ellipse(ctr, rad, rad, Some(fill), Some(line));
+            c.ellipse(ctr, rad - 5.0, rad - 5.0, Some(line), None);
+            return;
+        }
+        "pseudostate" => {
+            let kind = r.refd(v, "model").map(|m| r.str(m, "kind")).unwrap_or_default();
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+            let rad = b.w.min(b.h) / 2.0;
+            match kind.as_str() {
+                "choice" => c.polygon(&[P { x: ctr.x, y: b.y }, P { x: b.x + b.w, y: ctr.y }, P { x: ctr.x, y: b.y + b.h }, P { x: b.x, y: ctr.y }], Some(fill), Some(line)),
+                "fork" | "join" => c.rect(b, Some(line), Some(line)),
+                "junction" => c.ellipse(ctr, rad / 2.0, rad / 2.0, Some(line), Some(line)),
+                "shallowHistory" | "deepHistory" => {
+                    c.ellipse(ctr, rad, rad, Some(fill), Some(line));
+                    let t = if kind == "deepHistory" { "H*" } else { "H" };
+                    let size = views::view_font(r, v).1;
+                    c.text(t, R { x: b.x, y: ctr.y - size / 2.0, w: b.w, h: size }, 2, 0, size, color(r, v, "fontColor", BLACK), false);
+                }
+                "entryPoint" => c.ellipse(ctr, rad, rad, Some(fill), Some(line)),
+                "exitPoint" | "terminate" => {
+                    if kind == "exitPoint" {
+                        c.ellipse(ctr, rad, rad, Some(fill), Some(line));
+                    }
+                    let d = rad * std::f64::consts::FRAC_1_SQRT_2;
+                    c.polyline(&[P { x: ctr.x - d, y: ctr.y - d }, P { x: ctr.x + d, y: ctr.y + d }], line, false);
+                    c.polyline(&[P { x: ctr.x - d, y: ctr.y + d }, P { x: ctr.x + d, y: ctr.y - d }], line, false);
+                }
+                // initial: a filled circle
+                _ => c.ellipse(ctr, rad, rad, Some(line), Some(line)),
             }
             return;
         }
@@ -386,6 +468,29 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
                 P { x: ctr.x + b.w / 2.0 * a.cos(), y: ctr.y + b.h / 2.0 * a.sin() }
             }).collect();
             dashes(c, &pts, line, 5.0, 5.0);
+            draw_name(c, r, v);
+            return;
+        }
+        "port" => {
+            // a filled square on the border, its labels floating by it (elements.js:6950-6953)
+            c.rect(b, Some(fill), Some(line));
+            for f in ["stereotypeLabel", "nameLabel", "propertyLabel"] {
+                if let Some(lv) = r.refd(v, f) {
+                    draw_label(c, r, lv, fc);
+                }
+            }
+            return;
+        }
+        "part" => {
+            // a box, solid for a composite part and dashed otherwise, no shadow (elements.js:6977-6984)
+            let composite = r.refd(v, "model").map(|m| r.str(m, "aggregation") == "composite").unwrap_or(false);
+            c.rect(b, Some(fill), None);
+            let pts = [P { x: b.x, y: b.y }, P { x: b.x + b.w, y: b.y }, P { x: b.x + b.w, y: b.y + b.h }, P { x: b.x, y: b.y + b.h }, P { x: b.x, y: b.y }];
+            if composite {
+                c.polyline(&pts, line, false);
+            } else {
+                dashes(c, &pts, line, 5.0, 5.0);
+            }
             draw_name(c, r, v);
             return;
         }
@@ -444,6 +549,18 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 0.0);
         return;
     }
+    // a picture over its box; with none yet, a crossed-out box (ImageView.drawObject, elements.js)
+    if ty == "ImageView" {
+        let data = r.str(v, "imageData");
+        if data.is_empty() {
+            c.polyline(&[P { x: b.x, y: b.y }, P { x: b.x + b.w, y: b.y + b.h }], line, false);
+            c.polyline(&[P { x: b.x + b.w, y: b.y }, P { x: b.x, y: b.y + b.h }], line, false);
+            c.rect(b, None, Some(line));
+        } else {
+            c.image(b, &data);
+        }
+        return;
+    }
     // plain shapes, filled and outlined, with no shadow (elements.js:14337-14378)
     if ty == "RectangleView" {
         c.rect(b, Some(fill), Some(line));
@@ -490,10 +607,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
     // the stereotypes UMLCraft has icons for (interfaces and the robustness stereotypes)
     let display = r.str(v, "stereotypeDisplay");
     let profile_icon = r.refd(v, "model").and_then(|m| views::stereotype_icon(r, m)).filter(|_| r.refd(v, "model").map(|m| r.ty(m) != "UMLInterface").unwrap_or(false));
-    if let (Some((script, iw, ih)), true) = (&profile_icon, display == "decoration" || display == "decoration-label") {
+    if let (Some((icon, iw, ih)), true) = (&profile_icon, display == "decoration" || display == "decoration-label") {
         // a profile stereotype's icon in the 24 × 24 box at the top right (drawAsDecorationForm, elements.js:5086-5105)
         let bx = R { x: b.x + b.w - views::PAD - views::DECORATION_ICON, y: b.y + views::PAD, w: views::DECORATION_ICON, h: views::DECORATION_ICON };
-        draw_icon_script(c, fit_ratio(bx, iw.max(1.0), ih.max(1.0)), script, line, fill);
+        draw_stereotype_icon(c, fit_ratio(bx, iw.max(1.0), ih.max(1.0)), icon, line, fill);
     } else if display == "decoration" || display == "decoration-label" {
         if let Some(m) = r.refd(v, "model") {
             let st = views::type_name(r, m, "stereotype").to_lowercase();
@@ -701,14 +818,14 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     let ty = r.ty(e).to_string();
     let mut dashed = matches!(
         ty.as_str(),
-        "UMLDependencyView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLIncludeView" | "UMLExtendView" | "UMLNoteLinkView" | "UMLComponentRealizationView" | "UMLDeploymentView" | "UMLAssociationClassLinkView" | "UMLTemplateBindingView" | "UMLConstraintLinkView" | "UMLInformationFlowView" | "UMLLinkObjectLinkView"
+        "UMLDependencyView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLIncludeView" | "UMLExtendView" | "UMLNoteLinkView" | "UMLComponentRealizationView" | "UMLDeploymentView" | "UMLAssociationClassLinkView" | "UMLTemplateBindingView" | "UMLConstraintLinkView" | "UMLInformationFlowView" | "UMLLinkObjectLinkView" | "UMLRoleBindingView"
     );
     let (mut head, mut tail) = (None, None);
     match ty.as_str() {
         "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLComponentRealizationView" => head = Some(End::Triangle),
         // an extension: a solid line with a filled triangle at the metaclass
         "UMLExtensionView" => head = Some(End::FilledTriangle),
-        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" => head = Some(End::Arrow),
+        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" | "UMLTransitionView" => head = Some(End::Arrow),
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
             if let Some(m) = r.refd(e, "model") {
@@ -745,6 +862,21 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         }
     }
     c.polyline(&views::drawn_points(&pts, style), line, dashed);
+    // an association end's qualifiers: a box of rows against the end's box
+    for field in ["tailQualifiersCompartment", "headQualifiersCompartment"] {
+        let Some(q) = r.refd(e, field).filter(|q| r.val(*q, "visible").and_then(|v| v.as_bool()) != Some(false)) else { continue };
+        let rows = views::qualifier_rows(r, q);
+        if rows.is_empty() {
+            continue;
+        }
+        let b = node_rect(r, q);
+        c.rect(b, Some(color(r, e, "fillColor", WHITE)), Some(line));
+        let size = views::view_font(r, e).1;
+        let fc = color(r, e, "fontColor", BLACK);
+        for (i, t) in rows.iter().enumerate() {
+            c.text(t, R { x: b.x + views::PAD, y: b.y + views::PAD + i as f64 * size, w: b.w - 2.0 * views::PAD, h: size }, 0, 0, size, fc, false);
+        }
+    }
     let n = pts.len();
     end_shape(c, pts[n - 1], pts[n - 2], head, line);
     end_shape(c, pts[0], pts[1], tail, line);
@@ -878,6 +1010,12 @@ impl Measure for Svg<'_> {
 }
 
 impl Canvas for Svg<'_> {
+    fn image(&mut self, b: R, data_url: &str) {
+        self.out += &format!(
+            "<image x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" preserveAspectRatio=\"none\" href=\"{}\"/>\n",
+            b.x, b.y, b.w, b.h, esc(data_url)
+        );
+    }
     fn polyline(&mut self, pts: &[P], color: Rgba, dashed: bool) {
         let dash = if dashed { format!(" stroke-dasharray=\"{DASH}\"") } else { String::new() };
         self.out += &format!("<polyline points=\"{}\" fill=\"none\"{}{dash}/>\n", pts_attr(pts), paint("stroke", Some(color)));

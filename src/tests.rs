@@ -3118,6 +3118,13 @@ fn reception_signal_is_a_reference() {
     let name = a.repo.name(sm);
     a.commit_text(rc, "signal", "type", name);
     assert_eq!(a.repo.refd(rc, "signal"), Some(sm));
+    // the reception's inline edit has Select Signal, which opens the Element Picker on UMLSignal
+    use crate::app::EditKind;
+    use crate::canvas::{item_buttons, ItemKey};
+    assert!(item_buttons(&a.repo, &EditKind::Feature(rc)).iter().any(|b| b.3 == ItemKey::SelectSignal));
+    a.item_key(v, EditKind::Feature(rc), ItemKey::SelectSignal);
+    let p = a.element_picker.as_ref().unwrap();
+    assert_eq!((p.obj, p.field.as_str(), p.ty, p.chosen), (rc, "signal", "UMLSignal", Some(sm)));
 }
 
 #[test]
@@ -3991,7 +3998,7 @@ fn inline_edit_buttons_carry_their_keys() {
     let e = a.change(|a| a.create_node("UMLEnumeration", rect(300.0, 40.0, 160.0, 100.0))).unwrap();
     let (cm, em) = (a.repo.refd(c, "model").unwrap(), a.repo.refd(e, "model").unwrap());
     let hints = |k: &EditKind, a: &App| item_buttons(&a.repo, k).into_iter().map(|b| if b.2.is_empty() { b.1.to_string() } else { format!("{} ({})", b.1, b.2) }).collect::<Vec<_>>();
-    assert_eq!(hints(&EditKind::Name(cm), &a), ["Add Attribute (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)", "Add Reception"]);
+    assert_eq!(hints(&EditKind::Name(cm), &a), ["Add Attribute (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)", "Add Reception", "Add Port", "Add Part"]);
     assert_eq!(hints(&EditKind::Name(em), &a), ["Add Literal (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)"]);
     let keys: Vec<ItemKey> = item_buttons(&a.repo, &EditKind::Feature(cm)).into_iter().map(|b| b.3).collect();
     assert_eq!(keys, [ItemKey::Add, ItemKey::Delete, ItemKey::Move(true), ItemKey::Move(false)]);
@@ -4133,7 +4140,7 @@ fn profile_stereotype_icons() {
     assert_eq!(a.info[&c].shape, "");
     assert!(crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap().contains("#ff0000"));
     // the icon's size is edited as integers
-    assert_eq!(a.fields_for(icon), vec![("width", "int"), ("height", "int"), ("content", "multiline")]);
+    assert_eq!(a.fields_for(icon), vec![("width", "int"), ("height", "int"), ("image", "image"), ("content", "multiline")]);
     let text = a.repo.serialize();
     assert!(text.contains("\"UMLImage\""));
     let back = Repo::parse(&text).unwrap();
@@ -4231,4 +4238,585 @@ fn association_end_order_arrow() {
     }
     a.change(|a| a.repo.set(e, "showEndOrder", json!("hide")));
     assert_eq!(polys(&a), plain);
+}
+
+#[test]
+fn ports_parts_and_connectors() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    // a port clicked near the right border goes onto it
+    let p = a.change(|a| a.create_feature_box("UMLPort", crate::views::P { x: 390.0, y: 200.0 }, rect(0.0, 0.0, 0.0, 0.0))).unwrap();
+    let pm = a.repo.refd(p, "model").unwrap();
+    assert_eq!((a.repo.ty(pm), a.repo.name(pm)), ("UMLPort", "Port1".to_string()));
+    assert_eq!(a.repo.parent(pm), Some(cm));
+    assert_eq!(a.repo.field_of(pm).as_deref(), Some("attributes"));
+    assert_eq!(a.repo.refd(p, "containerView"), Some(c));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let (x, y, w) = (a.repo.f(p, "left"), a.repo.f(p, "top"), a.repo.f(p, "width"));
+    assert_eq!(w, 14.0);
+    let right = a.repo.f(c, "left") + a.repo.f(c, "width");
+    assert_eq!(x + 7.0, right, "its centre is on the right border");
+    assert!(y > 100.0 && y < 300.0);
+    // a part drawn inside: a composite attribute in a box
+    let part = a.change(|a| a.create_feature_box("UMLPart", crate::views::P { x: 151.0, y: 151.0 }, rect(150.0, 150.0, 100.0, 40.0))).unwrap();
+    let am = a.repo.refd(part, "model").unwrap();
+    assert_eq!((a.repo.name(am), a.repo.str(am, "aggregation")), ("Part1".to_string(), "composite".to_string()));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nl = a.repo.refd(a.repo.refd(part, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "Part1");
+    // outside any box: refused
+    assert_eq!(a.create_feature_box("UMLPort", crate::views::P { x: 900.0, y: 900.0 }, rect(0.0, 0.0, 0.0, 0.0)), Err("UMLPort cannot be placed here.".to_string()));
+    // a port on a part without a type is refused; with a type it goes to that type
+    assert_eq!(a.create_feature_box("UMLPort", crate::views::P { x: 160.0, y: 160.0 }, rect(0.0, 0.0, 0.0, 0.0)), Err("Type should be assigned to have Ports".to_string()));
+    // a connector joins the port and the part
+    let conn = tool("UMLConnector", AssocInit::Plain);
+    assert!(a.can_connect(&conn, p, part) && !a.can_connect(&conn, c, part));
+    let e = a.change(|a| a.create_edge(&conn, p, part)).unwrap();
+    assert_eq!(a.repo.ty(e), "UMLConnectorView");
+    let em = a.repo.refd(e, "model").unwrap();
+    assert_eq!(a.repo.ty(a.repo.child(em, "end1").unwrap()), "UMLConnectorEnd");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // moving the class carries its port and part
+    let before = a.repo.f(part, "left");
+    let canvas = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    a.select(vec![]);
+    a.on_press(canvas, egui::Pos2::new(250.0, 110.0), egui::Modifiers::NONE);
+    a.on_move(canvas, egui::Pos2::new(270.0, 110.0));
+    a.on_release(canvas.min, egui::Pos2::new(270.0, 110.0));
+    assert_eq!(a.repo.f(part, "left"), before + 20.0);
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn role_binding_from_a_collaboration_use_to_a_part() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let part = a.change(|a| a.create_feature_box("UMLPart", crate::views::P { x: 151.0, y: 151.0 }, rect(150.0, 150.0, 100.0, 40.0))).unwrap();
+    let u = a.change(|a| a.create_node("UMLCollaborationUse", rect(500.0, 100.0, 120.0, 40.0))).unwrap();
+    let rb = tool("UMLRoleBinding", AssocInit::Plain);
+    assert!(a.can_connect(&rb, u, part));
+    assert!(!a.can_connect(&rb, part, u) && !a.can_connect(&rb, u, c), "from the use, to an attribute");
+    let e = a.change(|a| a.create_edge(&rb, u, part)).unwrap();
+    assert_eq!(a.repo.ty(e), "UMLRoleBindingView");
+    let m = a.repo.refd(e, "model").unwrap();
+    assert!(a.fields_for(m).iter().any(|f| f.0 == "roleName"));
+    a.change(|a| a.repo.set(m, "roleName", json!("buyer")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let l = a.repo.refd(e, "roleNameLabel").unwrap();
+    assert_eq!(a.repo.str(l, "text"), "buyer");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn image_annotation_from_a_file() {
+    use crate::picture::{base64_decode, base64_encode};
+    for s in ["", "a", "ab", "abc", "hello world!"] {
+        assert_eq!(base64_decode(&base64_encode(s.as_bytes())).unwrap(), s.as_bytes());
+    }
+    assert_eq!(base64_encode(b"Man"), "TWFu");
+    let ms = measure();
+    let dir = std::env::temp_dir().join(format!("umlcraft-img-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let png = dir.join("red.png");
+    image::RgbaImage::from_pixel(40, 20, image::Rgba([255, 0, 0, 255])).save(&png).unwrap();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let v = a.change(|a| a.create_node("Image", rect(10.0, 10.0, 100.0, 100.0))).unwrap();
+    assert_eq!(a.repo.ty(v), "ImageView");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(!crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap().contains("<image"), "no picture yet: a crossed box");
+    a.set_image_file(v, &png).unwrap();
+    assert!(a.repo.str(v, "imageData").starts_with("data:image/png;base64,"));
+    assert_eq!((a.repo.f(v, "width"), a.repo.f(v, "height"), a.repo.f(v, "imageWidth")), (40.0, 20.0, 40.0), "the natural size");
+    // dropped on the canvas: centred on the point
+    let w = a.drop_image_file(&png, crate::views::P { x: 300.0, y: 300.0 }).unwrap();
+    assert_eq!((a.repo.f(w, "left"), a.repo.f(w, "top")), (280.0, 290.0));
+    assert!(a.drop_image_file(&dir.join("notes.txt"), crate::views::P { x: 0.0, y: 0.0 }).is_err(), "only pictures");
+    // the picture reaches the exported PNG
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let out = crate::render::to_png(&a.repo, d, &a.info, &ms, 1.0).unwrap();
+    let img = image::load_from_memory(&out).unwrap().to_rgba8();
+    assert!(img.pixels().any(|p| p.0 == [255, 0, 0, 255]), "red pixels in the export");
+    let back = Repo::parse(&a.repo.serialize()).unwrap();
+    assert_eq!(back.all_of("ImageView").len(), 2);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn port_and_part_quick_edit_actions() {
+    use crate::app::EditKind;
+    use crate::canvas::{item_buttons, ItemKey};
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    a.item_key(c, EditKind::Name(cm), ItemKey::AddPort);
+    a.item_key(c, EditKind::Name(cm), ItemKey::AddPart);
+    a.item_key(c, EditKind::Name(cm), ItemKey::AddPart);
+    let views_of = |a: &App, ty: &str| a.repo.list(d, "ownedViews").into_iter().filter(|v| a.repo.ty(*v) == ty).collect::<Vec<_>>();
+    let (ports, parts) = (views_of(&a, "UMLPortView"), views_of(&a, "UMLPartView"));
+    assert_eq!((ports.len(), parts.len()), (1, 2));
+    assert_eq!(a.repo.list(cm, "attributes").len(), 3);
+    assert_eq!((a.repo.f(parts[0], "left"), a.repo.f(parts[0], "top")), (110.0, 130.0), "the first part at +10, +30");
+    assert!(a.repo.f(parts[1], "left") > a.repo.f(parts[0], "left"), "the next one to its right");
+    // a port's edit: Select Type, Create Type, Add Connected Part
+    let pm = a.repo.refd(ports[0], "model").unwrap();
+    let labels: Vec<&str> = item_buttons(&a.repo, &EditKind::Name(pm)).into_iter().map(|b| b.1).collect();
+    assert_eq!(labels, ["Select Type", "Create Type", "Add Provided Interface", "Add Required Interface", "Add Connected Part"]);
+    a.item_key(ports[0], EditKind::Name(pm), ItemKey::AddConnectedPart);
+    assert_eq!(views_of(&a, "UMLPartView").len(), 3);
+    let conn = a.repo.all().find(|e| a.repo.ty(*e) == "UMLConnector").expect("joined by a connector");
+    assert_eq!(a.repo.child(conn, "end1").and_then(|e| a.repo.refd(e, "reference")), Some(pm));
+    let newest = *views_of(&a, "UMLPartView").last().unwrap();
+    assert!(a.repo.f(newest, "left") < a.repo.f(ports[0], "left"), "inside, away from the right border");
+    a.item_key(ports[0], EditKind::Name(pm), ItemKey::SelectType);
+    assert!(a.element_picker.is_some());
+    a.element_picker = None;
+    a.item_key(ports[0], EditKind::Name(pm), ItemKey::CreateType);
+    let dialog = a.input_dialog.take().unwrap();
+    assert_eq!(dialog.message, "Enter a type name to create");
+    a.apply_input(dialog.action, "Plug".into());
+    let ty = a.repo.refd(pm, "type").unwrap();
+    assert_eq!((a.repo.name(ty), a.repo.parent(ty)), ("Plug".to_string(), Some(cm)), "the new type goes in the classifier");
+}
+
+#[test]
+fn stereotype_icon_from_a_picture() {
+    let ms = measure();
+    let dir = std::env::temp_dir().join(format!("umlcraft-icon-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let png = dir.join("wide.png");
+    image::RgbaImage::from_pixel(1000, 400, image::Rgba([0, 0, 255, 255])).save(&png).unwrap();
+    let (data, w, h, ow, oh) = crate::picture::load_icon_picture(&png).unwrap();
+    assert_eq!((w, h, ow, oh), (500, 200, 1000, 400), "scaled to 500 on the longer side");
+    assert!(data.starts_with("data:image/png;base64,"));
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.package_for(Some(d));
+    let st = a.change(|a| a.add_model(pkg, "UMLStereotype"));
+    let icon = a.repo.child(st, "icon").unwrap();
+    a.change(|a| a.repo.set(icon, "image", json!(json!({ "width": w, "height": h, "data": data }).to_string())));
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 10.0, 10.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    a.change(|a| { a.repo.set_ref(m, "stereotype", Some(st)); a.repo.set(c, "stereotypeDisplay", json!("icon")); });
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info[&c].shape, "stereotype-icon");
+    let out = crate::render::to_png(&a.repo, d, &a.info, &ms, 1.0).unwrap();
+    let img = image::load_from_memory(&out).unwrap().to_rgba8();
+    assert!(img.pixels().any(|p| p.0 == [0, 0, 255, 255]), "the picture is drawn");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_port_provides_and_requires_interfaces() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let p = a.change(|a| a.create_feature_box("UMLPort", crate::views::P { x: 400.0, y: 200.0 }, rect(0.0, 0.0, 0.0, 0.0))).unwrap();
+    let ms = measure();
+    let d = a.diagram.unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let pm = a.repo.refd(p, "model").unwrap();
+    a.item_key(p, EditKind::Name(pm), ItemKey::PortInterface(true));
+    let ty = a.repo.refd(pm, "type").expect("the port got a type");
+    assert_eq!(a.repo.name(ty), "Port1Type");
+    let real = a.repo.all().find(|e| a.repo.ty(*e) == "UMLInterfaceRealization").unwrap();
+    assert_eq!(a.repo.refd(real, "source"), Some(pm));
+    let iface = a.repo.refd(real, "target").unwrap();
+    let iv = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.refd(*v, "model") == Some(iface)).unwrap();
+    assert!(a.repo.f(iv, "left") > a.repo.f(c, "left") + a.repo.f(c, "width"), "on the side the port sits on");
+    a.item_key(p, EditKind::Name(pm), ItemKey::PortInterface(false));
+    assert!(a.repo.all().any(|e| a.repo.ty(e) == "UMLDependency" && a.repo.refd(e, "source") == Some(pm)));
+    assert_eq!(a.repo.refd(pm, "type"), Some(ty), "the type is made once");
+}
+
+#[test]
+fn composite_structure_diagrams_are_editable() {
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.package_for(Some(d));
+    let cs = a.change(|a| a.add_diagram(Some(pkg), "UMLCompositeStructureDiagram"));
+    assert_eq!(a.repo.name(cs), "Composite Structures1");
+    let collab = a.repo.parent(cs).unwrap();
+    assert_eq!((a.repo.ty(collab), a.repo.parent(collab)), ("UMLCollaboration", Some(pkg)), "wrapped in a new collaboration");
+    // inside a classifier it goes in directly
+    let c = a.change(|a| a.add_model(pkg, "UMLClass"));
+    let cs2 = a.change(|a| a.add_diagram(Some(c), "UMLCompositeStructureDiagram"));
+    assert_eq!((a.repo.parent(cs2), a.repo.name(cs2)), (Some(c), "CompositeStructureDiagram1".to_string()));
+    // its toolbox holds the composite structure tools, and it takes collaboration uses
+    let u = a.change(|a| a.add_model(pkg, "UMLCollaborationUse"));
+    assert!(a.can_drop_model(u));
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 200.0, 120.0))).unwrap();
+    assert!(a.create_feature_box("UMLPart", crate::views::P { x: 60.0, y: 60.0 }, rect(50.0, 60.0, 80.0, 30.0)).is_ok());
+    let _ = v;
+}
+
+#[test]
+fn states_activities_triggers_and_actions_from_model_add() {
+    use crate::app::{SelectOne, SelectPurpose};
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.package_for(Some(d));
+    let sm = a.change(|a| a.add_model(pkg, "UMLStateMachine"));
+    let region = a.repo.list(sm, "regions")[0];
+    let kinds = |a: &App, e| a.add_kinds(e).into_iter().map(|k| k.1).collect::<Vec<_>>();
+    assert!(kinds(&a, region).contains(&"UMLState"));
+    let st = a.change(|a| a.add_feature(region, "UMLState")).unwrap();
+    assert_eq!((a.repo.name(st), a.repo.field_of(st).as_deref()), ("State1".to_string(), Some("vertices")));
+    let on_state = kinds(&a, st);
+    for k in ["UMLRegion", "entryActivities", "doActivities", "exitActivities"] {
+        assert!(on_state.contains(&k), "a state takes {k}");
+    }
+    // Entry Activity: the kind is asked, then the behaviour goes in entryActivities
+    a.select_one_ok(SelectOne { message: String::new(), options: vec![], selected: 1, purpose: SelectPurpose::BehaviorKind(st, "entryActivities") });
+    let entry = a.repo.list(st, "entryActivities");
+    assert_eq!(entry.len(), 1);
+    assert_eq!(a.repo.ty(entry[0]), "UMLActivity");
+    // an activity takes actions, an action takes triggers
+    let act = a.change(|a| a.add_model(pkg, "UMLActivity"));
+    let action = a.change(|a| a.add_feature(act, "UMLAction")).unwrap();
+    assert_eq!(a.repo.field_of(action).as_deref(), Some("nodes"));
+    let ev = a.change(|a| a.add_feature(action, "UMLEvent")).unwrap();
+    assert_eq!(a.repo.field_of(ev).as_deref(), Some("triggers"));
+    assert!(a.fields_for(ev).iter().any(|f| f.0 == "kind"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn a_combined_fragment_takes_operands() {
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.package_for(Some(d));
+    let cf = a.change(|a| a.repo.create("UMLCombinedFragment", &[("name", json!("Fragment1"))], Some((pkg, "ownedElements"))));
+    assert!(a.add_kinds(cf).iter().any(|k| k.1 == "UMLInteractionOperand"));
+    let op = a.change(|a| a.add_feature(cf, "UMLInteractionOperand")).unwrap();
+    assert_eq!(a.repo.field_of(op).as_deref(), Some("operands"));
+    assert!(a.fields_for(op).iter().any(|f| f.0 == "guard"));
+}
+
+#[test]
+fn a_failing_inline_command_shows_an_error_toast() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let mut a = App::new(None);
+    a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let ty = a.change(|a| a.create_node("UMLClass", rect(600.0, 100.0, 100.0, 60.0))).unwrap();
+    let part = a.change(|a| a.create_feature_box("UMLPart", crate::views::P { x: 151.0, y: 151.0 }, rect(150.0, 150.0, 120.0, 60.0))).unwrap();
+    let pm = a.repo.refd(part, "model").unwrap();
+    let tm = a.repo.refd(ty, "model").unwrap();
+    a.change(|a| a.repo.set_ref(pm, "type", Some(tm)));
+    let port = a.change(|a| a.create_feature_box("UMLPort", crate::views::P { x: 270.0, y: 170.0 }, rect(0.0, 0.0, 0.0, 0.0))).unwrap();
+    assert_eq!(a.repo.refd(port, "containerView"), Some(part));
+    // the part loses its type: a connected part can no longer go in it
+    a.change(|a| a.repo.set_ref(pm, "type", None));
+    let n = a.repo.all().count();
+    let m = a.repo.refd(port, "model").unwrap();
+    a.item_key(port, EditKind::Name(m), ItemKey::AddConnectedPart);
+    let t = a.toasts.last().unwrap();
+    assert_eq!((t.0.as_str(), t.2), ("Type should be assigned to have internal Parts", true));
+    assert_eq!(a.repo.all().count(), n, "nothing created");
+}
+
+#[test]
+fn add_constraint_to_a_line() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 140.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 140.0, 100.0, 60.0))).unwrap();
+    let tool = crate::app::Tool { label: "", kind: "UMLTemplateBinding", icon: "", line: true, init: crate::app::AssocInit::Plain };
+    let e = a.change(|a| a.create_edge(&tool, c1, c2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let undo = a.undo.len();
+    let cv = a.add_constraint_to(e).unwrap();
+    assert_eq!(a.undo.len(), undo + 1);
+    let c = a.repo.refd(cv, "model").unwrap();
+    assert_eq!(a.repo.parent(c), a.repo.refd(e, "model"), "owned by the binding");
+    let link = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "UMLConstraintLinkView").unwrap();
+    assert_eq!((a.repo.refd(link, "tail"), a.repo.refd(link, "head")), (Some(cv), Some(e)));
+    let anchor = a.edge_anchor(e);
+    assert!(crate::views::node_rect(&a.repo, cv).x < anchor.x, "left of the name label");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn a_rectilinear_bend_point_drags_its_neighbours_along() {
+    use crate::views::{move_orthogonal, P};
+    // a Z path: right, down, right
+    let mut pts = vec![P { x: 0.0, y: 0.0 }, P { x: 50.0, y: 0.0 }, P { x: 50.0, y: 80.0 }, P { x: 120.0, y: 80.0 }];
+    move_orthogonal(&mut pts, 1, P { x: 70.0, y: 20.0 });
+    assert_eq!(pts[1], P { x: 70.0, y: 20.0 });
+    assert_eq!(pts[0], P { x: 0.0, y: 20.0 }, "the horizontal neighbour follows in y");
+    assert_eq!(pts[2], P { x: 70.0, y: 80.0 }, "the vertical neighbour follows in x");
+    assert_eq!(pts[3], P { x: 120.0, y: 80.0 });
+    for w in pts.windows(2) {
+        assert!(w[0].x == w[1].x || w[0].y == w[1].y, "still orthogonal");
+    }
+}
+
+#[test]
+fn an_association_end_qualifier_is_drawn_at_its_end() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 100.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 100.0, 100.0, 60.0))).unwrap();
+    let tool = crate::app::Tool { label: "", kind: "UMLAssociation", icon: "", line: true, init: crate::app::AssocInit::Plain };
+    let e = a.change(|a| a.create_edge(&tool, c1, c2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let q = a.repo.refd(e, "tailQualifiersCompartment").unwrap();
+    assert_eq!(a.repo.val(q, "visible"), Some(json!(false)), "hidden without qualifiers");
+    let m = a.repo.refd(e, "model").unwrap();
+    let end1 = a.repo.child(m, "end1").unwrap();
+    let undo = a.undo.len();
+    let qa = a.change(|a| a.add_qualifier(end1));
+    assert_eq!(a.undo.len(), undo + 1);
+    assert_eq!(a.repo.list(end1, "qualifiers"), vec![qa]);
+    a.change(|a| a.repo.set(qa, "name", json!("id")));
+    a.change(|a| a.repo.set(qa, "type", json!("int")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_ne!(a.repo.val(q, "visible"), Some(json!(false)), "shown");
+    let b = crate::views::node_rect(&a.repo, q);
+    assert_eq!(b.x, 140.0 , "against the right side of the tail box");
+    assert!(b.y >= 100.0 && b.y + b.h <= 160.0);
+    let pts = crate::views::points_of(&a.repo, e);
+    assert_eq!(pts[0].x, b.x + b.w, "the line starts on the qualifier box");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn a_statechart_diagram_with_states_and_a_transition() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let sm = a.repo.parent(d).unwrap();
+    assert_eq!(a.repo.ty(sm), "UMLStateMachine");
+    let region = a.repo.list(sm, "regions")[0];
+    assert_eq!(a.diagram, Some(d));
+    let init = a.change(|a| a.create_node("Initial", rect(40.0, 40.0, 20.0, 20.0))).unwrap();
+    let s1 = a.change(|a| a.create_node("UMLState", rect(120.0, 30.0, 100.0, 40.0))).unwrap();
+    let fin = a.change(|a| a.create_node("UMLFinalState", rect(320.0, 40.0, 26.0, 26.0))).unwrap();
+    let ch = a.change(|a| a.create_node("Choice", rect(200.0, 160.0, 60.0, 60.0))).unwrap();
+    let (im, s1m) = (a.repo.refd(init, "model").unwrap(), a.repo.refd(s1, "model").unwrap());
+    assert_eq!((a.repo.ty(im), a.repo.str(im, "kind").as_str()), ("UMLPseudostate", "initial"));
+    assert_eq!(a.repo.list(region, "vertices").len(), 4, "every vertex in the first region");
+    let t = tool("UMLTransition", AssocInit::Plain);
+    assert!(a.can_connect(&t, init, s1));
+    let e1 = a.change(|a| a.create_edge(&t, init, s1)).unwrap();
+    let e2 = a.change(|a| a.create_edge(&t, s1, fin)).unwrap();
+    assert_eq!(a.repo.ty(e1), "UMLTransitionView");
+    let tm = a.repo.refd(e2, "model").unwrap();
+    assert_eq!(a.repo.list(region, "transitions").len(), 2);
+    // the label: triggers, guard and effect
+    let ev = a.change(|a| a.add_feature(tm, "UMLEvent")).unwrap();
+    a.change(|a| a.repo.set(ev, "name", json!("done")));
+    a.change(|a| a.repo.set(tm, "guard", json!("ok")));
+    let ef = a.change(|a| a.repo.create("UMLOpaqueBehavior", &[("name", json!("log"))], Some((tm, "effects"))));
+    let _ = ef;
+    assert_eq!(crate::views::transition_text(&a.repo, tm), "done [ok] / log");
+    let act = a.change(|a| a.repo.create("UMLOpaqueBehavior", &[("name", json!("greet"))], Some((s1m, "entryActivities"))));
+    let _ = act;
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let l = a.repo.refd(e2, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(l, "text"), "done [ok] / log");
+    assert_eq!((a.repo.f(ch, "width"), a.repo.f(ch, "height")), (crate::views::PSEUDO_SIZE, crate::views::PSEUDO_SIZE), "a fixed mark");
+    assert!(a.repo.f(s1, "height") > crate::views::NAME_MIN_H, "room for the entry activity");
+    assert_eq!(a.info[&s1].shape, "state");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn a_transition_expression_is_edited_inline() {
+    use crate::parse::{apply_transition, name_text};
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let s1 = a.change(|a| a.create_node("UMLState", rect(40.0, 40.0, 100.0, 40.0))).unwrap();
+    let s2 = a.change(|a| a.create_node("UMLState", rect(300.0, 40.0, 100.0, 40.0))).unwrap();
+    let t = tool("UMLTransition", AssocInit::Plain);
+    let e = a.change(|a| a.create_edge(&t, s1, s2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    apply_transition(&mut a.repo, m, "start, resume [ready] / go");
+    let names = |a: &App, f: &str| a.repo.list(m, f).into_iter().map(|x| a.repo.name(x)).collect::<Vec<_>>();
+    assert_eq!(names(&a, "triggers"), ["start", "resume"]);
+    assert_eq!(a.repo.str(m, "guard"), "ready");
+    assert_eq!(names(&a, "effects"), ["go"]);
+    assert_eq!(a.repo.ty(a.repo.list(m, "effects")[0]), "UMLOpaqueBehavior");
+    assert_eq!(name_text(&a.repo, m), "start, resume [ready] / go");
+    // by position: the first trigger renamed, the second deleted; the guard kept when not given
+    let first = a.repo.list(m, "triggers")[0];
+    apply_transition(&mut a.repo, m, "begin / stop");
+    assert_eq!(a.repo.list(m, "triggers"), vec![first]);
+    assert_eq!(names(&a, "triggers"), ["begin"]);
+    assert_eq!(a.repo.str(m, "guard"), "ready");
+    assert_eq!(names(&a, "effects"), ["stop"]);
+    // a self transition: both ends on one state
+    let st = a.change(|a| a.create_edge(&t, s1, s1)).unwrap();
+    assert_eq!(a.repo.refd(st, "tail"), a.repo.refd(st, "head"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn state_buttons_add_states_with_transitions() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    a.prefs.set("uml.state.fillColor", json!("#eeffee"));
+    let s = a.change(|a| a.create_node("UMLState", rect(200.0, 200.0, 100.0, 40.0))).unwrap();
+    assert_eq!(a.repo.str(s, "fillColor"), "#eeffee", "uml.state.fillColor");
+    let sm = a.repo.refd(s, "model").unwrap();
+    let act = |l: &str| crate::related::actions("UMLState").into_iter().find(|x| x.label == l).unwrap();
+    let ends = |a: &App, n: crate::model::Eid| {
+        let e = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "UMLTransitionView" && (a.repo.refd(*v, "tail") == Some(n) || a.repo.refd(*v, "head") == Some(n))).unwrap();
+        (a.repo.refd(e, "tail").unwrap(), a.repo.refd(e, "head").unwrap())
+    };
+    let out = a.add_related(s, act("Add Outgoing Transition")).unwrap();
+    assert!(crate::views::node_rect(&a.repo, out).x > 300.0);
+    assert_eq!(ends(&a, out), (s, out));
+    let init = a.add_related(s, act("Add Initial State")).unwrap();
+    let im = a.repo.refd(init, "model").unwrap();
+    assert_eq!((a.repo.ty(im), a.repo.str(im, "kind").as_str()), ("UMLPseudostate", "initial"));
+    assert!(crate::views::node_rect(&a.repo, init).y < 200.0, "above");
+    assert_eq!(ends(&a, init), (init, s));
+    let fin = a.add_related(s, act("Add Final State")).unwrap();
+    assert!(crate::views::node_rect(&a.repo, fin).y > 240.0, "below");
+    assert_eq!(ends(&a, fin), (s, fin));
+    assert_eq!(a.repo.parent(im), a.repo.parent(sm), "in the same region");
+}
+
+#[test]
+fn a_state_adds_a_choice_with_two_branches() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let s = a.change(|a| a.create_node("UMLState", rect(200.0, 100.0, 100.0, 40.0))).unwrap();
+    let m = a.repo.refd(s, "model").unwrap();
+    let undo = a.undo.len();
+    a.item_key(s, EditKind::Name(m), ItemKey::Scaffold("Choice"));
+    assert_eq!(a.undo.len(), undo + 1, "one undo step");
+    let views = a.repo.list(d, "ownedViews");
+    let count = |t: &str| views.iter().filter(|v| a.repo.ty(**v) == t).count();
+    assert_eq!((count("UMLPseudostateView"), count("UMLStateView"), count("UMLTransitionView")), (1, 3, 3));
+    let p = views.iter().copied().find(|v| a.repo.ty(*v) == "UMLPseudostateView").unwrap();
+    assert_eq!(a.repo.str(a.repo.refd(p, "model").unwrap(), "kind"), "choice");
+    assert_eq!(a.repo.f(p, "top"), 190.0, "50 px below the state");
+    assert_eq!(a.selection, vec![p]);
+}
+
+#[test]
+fn a_state_machine_dropped_on_a_statechart_is_a_submachine_state() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let other = a.change(|a| a.add_model(root, "UMLStateMachine"));
+    a.open_diagram(d);
+    assert!(a.can_drop_model(other));
+    let vs = a.drop_model(other, crate::views::P { x: 100.0, y: 100.0 }).unwrap();
+    let s = a.repo.refd(vs[0], "model").unwrap();
+    assert_eq!(a.repo.ty(s), "UMLState");
+    assert_eq!(a.repo.refd(s, "submachine"), Some(other));
+    let sm = a.repo.parent(d).unwrap();
+    assert_eq!(a.repo.parent(s), Some(a.repo.list(sm, "regions")[0]));
+}
+
+#[test]
+fn states_drawn_in_a_composite_state_belong_to_its_region() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let top = a.repo.list(a.repo.parent(d).unwrap(), "regions")[0];
+    let c = a.change(|a| a.create_node("CompositeState", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    let inner_region = a.repo.list(cm, "regions")[0];
+    let s = a.change(|a| a.create_node("UMLState", rect(150.0, 160.0, 100.0, 40.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    assert_eq!(a.repo.refd(s, "containerView"), Some(c));
+    assert_eq!(a.repo.parent(sm), Some(inner_region));
+    // released on the canvas, it goes back to the state machine's region
+    a.change(|a| a.set_container(&[s], None));
+    assert_eq!(a.repo.parent(sm), Some(top));
+    assert!(a.can_contain_view(c, s));
+    // a note is not held by a state
+    let n = a.change(|a| a.create_node("Note", rect(120.0, 120.0, 60.0, 40.0))).unwrap();
+    assert!(!a.can_contain_view(c, n));
+    // a simple state takes a state too, which gives it a region
+    let s2 = a.change(|a| a.create_node("UMLState", rect(500.0, 100.0, 200.0, 100.0))).unwrap();
+    a.change(|a| a.set_container(&[s], Some(s2)));
+    let m2 = a.repo.refd(s2, "model").unwrap();
+    assert_eq!(a.repo.parent(sm), a.repo.list(m2, "regions").first().copied());
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn the_submachine_state_tool_makes_its_state_machine() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let v = a.change(|a| a.create_node("SubmachineState", rect(100.0, 100.0, 100.0, 40.0))).unwrap();
+    let s = a.repo.refd(v, "model").unwrap();
+    let sub = a.repo.refd(s, "submachine").unwrap();
+    assert_eq!(a.repo.ty(sub), "UMLStateMachine");
+    assert_eq!(a.repo.list(sub, "regions").len(), 1);
+    assert_ne!(Some(sub), a.repo.parent(d));
+}
+
+#[test]
+fn an_orthogonal_state_files_states_by_region() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let o = a.change(|a| a.create_node("OrthogonalState", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let om = a.repo.refd(o, "model").unwrap();
+    let rs = a.repo.list(om, "regions");
+    assert_eq!(rs.len(), 2);
+    let up = a.change(|a| a.create_node("UMLState", rect(150.0, 130.0, 80.0, 30.0))).unwrap();
+    let down = a.change(|a| a.create_node("UMLState", rect(150.0, 230.0, 80.0, 30.0))).unwrap();
+    assert_eq!(a.repo.parent(a.repo.refd(up, "model").unwrap()), Some(rs[0]));
+    assert_eq!(a.repo.parent(a.repo.refd(down, "model").unwrap()), Some(rs[1]));
+}
+
+#[test]
+fn a_state_inline_edit_adds_regions_and_activities() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let s = a.change(|a| a.create_node("UMLState", rect(100.0, 100.0, 100.0, 40.0))).unwrap();
+    let m = a.repo.refd(s, "model").unwrap();
+    a.item_key(s, EditKind::Name(m), ItemKey::AddRegion);
+    assert_eq!(a.repo.list(m, "regions").len(), 1);
+    a.item_key(s, EditKind::Name(m), ItemKey::Activity("doActivities"));
+    let d = a.select_one.as_ref().unwrap();
+    assert_eq!(d.message, "Select one to create as an do Activity");
+    assert!(matches!(d.purpose, crate::app::SelectPurpose::BehaviorKind(x, "doActivities") if x == m));
+}
+
+#[test]
+fn internal_transitions_need_a_composite_state() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let s = a.change(|a| a.create_node("UMLState", rect(100.0, 100.0, 100.0, 40.0))).unwrap();
+    let m = a.repo.refd(s, "model").unwrap();
+    a.item_key(s, EditKind::Name(m), ItemKey::InternalTransition);
+    assert_eq!(a.toasts.last().map(|t| t.0.as_str()), Some("Simple State cannot have Internal Transitions."));
+    let c = a.change(|a| a.create_node("CompositeState", rect(300.0, 100.0, 200.0, 150.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    let t = a.add_internal_transition(cm).unwrap();
+    let rg = a.repo.list(cm, "regions")[0];
+    assert_eq!(a.repo.parent(t), Some(rg));
+    assert_eq!((a.repo.refd(t, "source"), a.repo.refd(t, "target"), a.repo.str(t, "kind")), (Some(cm), Some(cm), "internal".to_string()));
 }

@@ -31,11 +31,26 @@ pub const ARTIFACT_ICON_H: f64 = 40.0;
 /// The robustness kind of a class shown as an icon: "boundary", "entity" or "control".
 /// A stereotype icon's script, if the stereotype of the view's element has one (`!icon w h` in its
 /// icon's content), with the icon's minimum size (elements.js:270-275, 4693-4700).
-pub fn stereotype_icon(r: &Repo, m: Eid) -> Option<(String, f64, f64)> {
+pub fn stereotype_icon(r: &Repo, m: Eid) -> Option<(StereotypeIcon, f64, f64)> {
     let st = r.refd(m, "stereotype")?;
     let icon = r.child(st, "icon")?;
     let content = r.str(icon, "content");
-    content.trim_start().starts_with("!icon").then(|| (content, r.f(icon, "width"), r.f(icon, "height")))
+    let (w, h) = (r.f(icon, "width"), r.f(icon, "height"));
+    if content.trim_start().starts_with("!icon") {
+        return Some((StereotypeIcon::Script(content), w, h));
+    }
+    // a picture: JSON {width, height, data} in `image` (property-editor-view.js:385-398)
+    let img: Value = serde_json::from_str(&r.str(icon, "image")).ok()?;
+    let data = img.get("data")?.as_str()?.to_string();
+    let (iw, ih) = (img.get("width")?.as_f64()?, img.get("height")?.as_f64()?);
+    Some((StereotypeIcon::Picture(data, iw, ih), w, h))
+}
+
+/// How a stereotype's icon is given: an icon script, or a picture with its size.
+#[derive(Clone, Debug, PartialEq)]
+pub enum StereotypeIcon {
+    Script(String),
+    Picture(String, f64, f64),
 }
 
 pub fn robustness_kind(r: &Repo, v: Eid, m: Eid) -> Option<&'static str> {
@@ -55,6 +70,7 @@ pub const FRAME_MIN_H: f64 = 30.0; // elements.js:219
 const FRAME_CONTENT_MIN_W: f64 = 10.0; // elements.js:220
 const FRAME_CONTENT_MIN_H: f64 = 30.0; // elements.js:221
 const LABEL_INTERVAL: f64 = 3.0; // elements.js:62
+pub const PORT_SIZE: f64 = 14.0; // elements.js:89-90
 pub const NARY_MIN_W: f64 = 30.0; // elements.js:82
 pub const NARY_MIN_H: f64 = 22.0; // elements.js:83
 pub const HYPERLINK_MIN_W: f64 = 100.0; // elements.js:231
@@ -198,6 +214,9 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         // dashed ellipses with their name (elements.js:7022-7280)
         "UMLCollaboration" => k("UMLCollaborationView", false, false, false),
         "UMLCollaborationUse" => k("UMLCollaborationUseView", false, false, false),
+        "UMLState" => k("UMLStateView", false, false, false),
+        "UMLPseudostate" => k("UMLPseudostateView", false, false, false),
+        "UMLFinalState" => k("UMLFinalStateView", false, false, false),
         "UMLArtifactInstance" => k("UMLArtifactInstanceView", false, false, false),
         "UMLComponentInstance" => k("UMLComponentInstanceView", false, false, false),
         "UMLNodeInstance" => k("UMLNodeInstanceView", false, false, false),
@@ -208,8 +227,10 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
 pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
     Some(match model_ty {
         "UMLAssociation" => "UMLAssociationView",
+        "UMLConnector" => "UMLConnectorView",
         "UMLGeneralization" => "UMLGeneralizationView",
         "UMLDependency" => "UMLDependencyView",
+        "UMLRoleBinding" => "UMLRoleBindingView",
         "UMLRealization" => "UMLRealizationView",
         "UMLInterfaceRealization" => "UMLInterfaceRealizationView",
         "UMLInclude" => "UMLIncludeView",
@@ -221,11 +242,13 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "UMLLink" => "UMLLinkView",
         "UMLInformationFlow" => "UMLInformationFlowView",
         "UMLExtension" => "UMLExtensionView",
+        "UMLTransition" => "UMLTransitionView",
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 19] = [
+const KNOWN_EDGE_VIEWS: [&str; 22] = [
+    "UMLConnectorView", "UMLRoleBindingView", "UMLTransitionView",
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
@@ -233,6 +256,27 @@ const KNOWN_EDGE_VIEWS: [&str; 19] = [
 ];
 
 /// Size used when the person clicks instead of dragging (estimated).
+/// Statechart marks (sizes estimated): pseudostates are 20 px circles or diamonds, a final state 26 px.
+pub const PSEUDO_SIZE: f64 = 20.0;
+pub const FINAL_SIZE: f64 = 26.0;
+
+/// The pseudostate kind a statechart tool makes (uml.json "uml.statechart", "model-init" kind).
+pub fn pseudostate_kind(tool: &str) -> Option<&'static str> {
+    Some(match tool {
+        "Initial" => "initial",
+        "Choice" => "choice",
+        "Join" => "join",
+        "Fork" => "fork",
+        "Junction" => "junction",
+        "ShallowHistory" => "shallowHistory",
+        "DeepHistory" => "deepHistory",
+        "EntryPoint" => "entryPoint",
+        "ExitPoint" => "exitPoint",
+        "Terminate" => "terminate",
+        _ => return None,
+    })
+}
+
 pub fn default_size(kind: &str) -> (f64, f64) {
     match kind {
         "UMLClass" => (160.0, 100.0),
@@ -252,6 +296,15 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "Frame" => (FRAME_MIN_W, FRAME_MIN_H),
         "Hyperlink" => (HYPERLINK_MIN_W, HYPERLINK_MIN_H),
         "Rect" | "RoundRect" | "Ellipse" => (50.0, 50.0),
+        "Image" => (100.0, 100.0),
+        "UMLPart" => (80.0, 30.0),
+        "UMLPort" => (PORT_SIZE, PORT_SIZE),
+        "UMLState" => (100.0, 40.0),
+        "CompositeState" | "OrthogonalState" => (200.0, 150.0),
+        "SubmachineState" => (100.0, 40.0),
+        "UMLFinalState" => (FINAL_SIZE, FINAL_SIZE),
+        "Fork" | "Join" => (8.0, 60.0),
+        _ if pseudostate_kind(kind).is_some() => (PSEUDO_SIZE, PSEUDO_SIZE),
         "UMLNaryAssociationNode" => (NARY_MIN_W, NARY_MIN_H),
         _ => (100.0, 60.0),
     }
@@ -265,6 +318,7 @@ pub fn tool_min_size(kind: &str) -> Option<(f64, f64)> {
         "Note" => Some((70.0, 40.0)),
         "Hyperlink" => Some((70.0, 20.0)),
         "Rect" | "RoundRect" | "Ellipse" => Some((50.0, 50.0)),
+        "Image" => Some((100.0, 100.0)),
         _ => None,
     }
 }
@@ -439,6 +493,30 @@ pub fn create_frame_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, rect: R
 /// A collaboration or collaboration use: at least √2 times its name (the ellipse around it) and the
 /// use case minimum, the name centred; a use shows "name: Collaboration" once typed
 /// (elements.js:7076-7134, 7238-7279).
+/// A state's internal activities, one row each: `entry/ name`, `do/ name`, `exit/ name`.
+pub fn state_activity_rows(r: &Repo, m: Eid) -> Vec<String> {
+    let mut out = vec![];
+    for (field, label) in [("entryActivities", "entry"), ("doActivities", "do"), ("exitActivities", "exit")] {
+        for b in r.list(m, field).into_iter().filter(|b| r.alive(*b)) {
+            out.push(format!("{label}/ {}", r.name(b)));
+        }
+    }
+    out
+}
+
+/// A state: a rounded box with its name on top and its activities under a line (sizes estimated).
+fn layout_state(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    let rows = state_activity_rows(r, m);
+    let lh = ms.size();
+    let rows_w = rows.iter().map(|t| ms.width(t, 0)).fold(0.0, f64::max) + 2.0 * PAD;
+    let rows_h = if rows.is_empty() { 0.0 } else { rows.len() as f64 * lh + 2.0 * PAD };
+    let min_w = name_min_width(r, ms, v, m, None, false).max(rows_w.ceil()).max(40.0);
+    grow(r, v, min_w, NAME_MIN_H + rows_h);
+    let (x, y, w) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"));
+    let nh = layout_name(r, ms, v, m, x, y, w, None, false);
+    grow(r, v, min_w, nh + rows_h);
+}
+
 fn layout_collaboration(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
     let typed = (r.ty(m) == "UMLCollaborationUse").then(|| r.refd(m, "type").map(|t| r.name(t))).flatten().filter(|n| !n.is_empty());
     let mut min_w = name_min_width(r, ms, v, m, None, false);
@@ -471,6 +549,125 @@ pub fn create_nary_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Eid 
         r.set_ref(v, field, Some(l));
     }
     v
+}
+
+/// A port on the border of its classifier's box: a 14 × 14 square with floating labels
+/// (UMLPortView, elements.js:6899-6950), contained in `host`.
+pub fn create_port_view(r: &mut Repo, diagram: Eid, model: Eid, host: Eid, at: P) -> Eid {
+    let m = r.ref_to(model);
+    let h = PORT_SIZE / 2.0;
+    let v = r.create(
+        "UMLPortView",
+        &[("model", m.clone()), ("font", json!(FONT)), ("parentStyle", json!(false)), ("left", num(at.x - h)), ("top", num(at.y - h)), ("width", num(PORT_SIZE)), ("height", num(PORT_SIZE))],
+        Some((diagram, "ownedViews")),
+    );
+    let pi = std::f64::consts::PI;
+    for (field, alpha, distance) in [("nameLabel", 3.0 * pi / 4.0, 20.0), ("stereotypeLabel", 3.0 * pi / 4.0, 35.0), ("propertyLabel", -3.0 * pi / 4.0, 20.0)] {
+        let l = r.create("NodeLabelView", &[("model", m.clone()), ("font", json!(FONT)), ("alpha", json!(alpha)), ("distance", json!(distance)), ("height", json!(LABEL_H))], Some((v, "subViews")));
+        r.set_ref(v, field, Some(l));
+    }
+    contain(r, host, v);
+    v
+}
+
+/// A part inside its classifier's box: a box with the part's "name: Type[mult]" (UMLPartView,
+/// elements.js:6955-6985), contained in `host`.
+pub fn create_part_view(r: &mut Repo, diagram: Eid, model: Eid, host: Eid, rect: R) -> Eid {
+    let m = r.ref_to(model);
+    let v = r.create(
+        "UMLPartView",
+        &[("model", m), ("font", json!(FONT)), ("parentStyle", json!(false)), ("showVisibility", json!(false)), ("left", num(rect.x)), ("top", num(rect.y)), ("width", num(rect.w)), ("height", num(rect.h))],
+        Some((diagram, "ownedViews")),
+    );
+    let nc = name_compartment(r, v, model);
+    r.set_ref(v, "nameCompartment", Some(nc));
+    contain(r, host, v);
+    v
+}
+
+/// Record `v` as contained in `host` (containerView, containedViews).
+fn contain(r: &mut Repo, host: Eid, v: Eid) {
+    r.set_ref(v, "containerView", Some(host));
+    let mut a = match r.raw(host, "containedViews") {
+        Some(Value::Array(a)) => a.clone(),
+        _ => vec![],
+    };
+    a.push(r.ref_to(v));
+    r.set_raw(host, "containedViews", json!(a));
+}
+
+/// Where a port sits on its box `b`: where the line from the box's centre through the port's centre
+/// `p` meets the border; a port inside goes to the nearest of those border points
+/// (UMLFloatingNodeView._junction2, elements.js:5232-5290).
+pub fn port_junction(b: R, p: P) -> P {
+    let c = center(&b);
+    let (x1, y1, x2, y2) = (b.x, b.y, b.x + b.w, b.y + b.h);
+    if c.x == p.x || c.y == p.y {
+        // straight above, below or beside the centre (Coord.orthoJunction)
+        if c.x == p.x {
+            return P { x: p.x, y: if p.y < c.y { y1 } else { y2 } };
+        }
+        return P { x: if p.x < c.x { x1 } else { x2 }, y: p.y };
+    }
+    let lean = (p.y - c.y) / (p.x - c.x);
+    let cp = [
+        P { x: x1, y: (lean * (x1 - c.x) + c.y).round() },
+        P { x: x2, y: (lean * (x2 - c.x) + c.y).round() },
+        P { x: ((y1 - c.y) / lean + c.x).round(), y: y1 },
+        P { x: ((y2 - c.y) / lean + c.x).round(), y: y2 },
+    ];
+    if x1 <= p.x && p.x <= x2 && y1 <= p.y && p.y <= y2 {
+        let d = |q: &P| (q.x - p.x).powi(2) + (q.y - p.y).powi(2);
+        return *cp.iter().min_by(|a, b| d(a).total_cmp(&d(b))).unwrap();
+    }
+    let (lx, hx, ly, hy) = (c.x.min(p.x), c.x.max(p.x), c.y.min(p.y), c.y.max(p.y));
+    cp.into_iter().find(|q| x1 <= q.x && q.x <= x2 && y1 <= q.y && q.y <= y2 && lx <= q.x && q.x <= hx && ly <= q.y && q.y <= hy).unwrap_or(c)
+}
+
+/// An attribute's text without its leading «stereotype», which a port or a part shows apart.
+fn feature_text(r: &Repo, v: Eid, m: Eid) -> String {
+    let show = Show { vis: r.bool(v, "showVisibility"), mult: r.bool(v, "showMultiplicity"), sig: true, ty: r.bool(v, "showType"), prop: false };
+    let text = attribute_text(r, m, show);
+    let st = stereotype_text(r, m);
+    if st.is_empty() { text } else { text.trim_start_matches(st.as_str()).trim_start().to_string() }
+}
+
+/// A port: snapped onto its container's border, 14 × 14, with "name: Type[mult]" floating by it
+/// (UMLPortView.update and arrange, elements.js:6914-6948).
+fn layout_port(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    if let Some(host) = r.refd(v, "containerView").filter(|h| r.alive(*h)) {
+        let p = port_junction(node_rect(r, host), center(&node_rect(r, v)));
+        set_box(r, v, p.x - PORT_SIZE / 2.0, p.y - PORT_SIZE / 2.0, PORT_SIZE, PORT_SIZE);
+    } else {
+        grow(r, v, PORT_SIZE, PORT_SIZE);
+    }
+    let name = feature_text(r, v, m);
+    let st = stereotype_text(r, m);
+    for (field, text) in [("nameLabel", name), ("stereotypeLabel", st), ("propertyLabel", String::new())] {
+        if let Some(lv) = r.refd(v, field) {
+            place_floating_label(r, ms, v, lv, &text, true);
+            if field == "nameLabel" {
+                let underline = r.bool(m, "isStatic");
+                r.set(lv, "underline", json!(underline));
+            }
+        }
+    }
+}
+
+/// A part: the box around its "name: Type[mult]" (no visibility unless shown), underlined when
+/// static (UMLPartView.update, elements.js:6967-6975).
+fn layout_part(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    let text = feature_text(r, v, m);
+    let min_w = ((ms.width(&text, 1) + 2.0 * PAD).ceil()).max(name_min_width(r, ms, v, m, None, false));
+    grow(r, v, min_w, NAME_MIN_H);
+    let (x, y, w, h) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"), r.f(v, "height"));
+    let nh = layout_name(r, ms, v, m, x, y, w, None, false);
+    layout_name(r, ms, v, m, x, y + ((h - nh) / 2.0).max(0.0), w, None, false);
+    if let Some(nm) = r.refd(v, "nameCompartment").and_then(|nc| r.refd(nc, "nameLabel")) {
+        r.set(nm, "text", json!(text));
+        let underline = r.bool(m, "isStatic");
+        r.set(nm, "underline", json!(underline));
+    }
 }
 
 /// A floating label's box: its text's size, centred on the point at its angle and distance from
@@ -685,8 +882,13 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
     r.set_ref(e, "nameLabel", Some(nl));
     r.set_ref(e, "stereotypeLabel", Some(sl));
     r.set_ref(e, "propertyLabel", Some(pl));
+    // a role binding names the role near its head (UMLRoleBindingView, elements.js:7289-7300)
+    if r.ty(m) == "UMLRoleBinding" {
+        let l = edge_label(r, e, Some(m), -std::f64::consts::FRAC_PI_6, 30.0, 0, false);
+        r.set_ref(e, "roleNameLabel", Some(l));
+    }
     // associations and links have end labels; only associations have qualifiers
-    if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" {
+    if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" || r.ty(m) == "UMLConnector" {
         r.set_raw(e, "showEndOrder", json!("hide")); // as the original writes it (sample.mdj)
         let end1 = r.child(m, "end1");
         let end2 = r.child(m, "end2");
@@ -1436,6 +1638,18 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         }
         return Info::default();
     }
+    if t == "UMLPortView" {
+        if let Some(m) = m {
+            layout_port(r, ms, v, m);
+        }
+        return Info { shape: "port", ..Default::default() };
+    }
+    if t == "UMLPartView" {
+        if let Some(m) = m {
+            layout_part(r, ms, v, m);
+        }
+        return Info { shape: "part", ..Default::default() };
+    }
     if t == "UMLNaryAssociationNodeView" {
         if let Some(m) = m {
             layout_nary(r, ms, v, m);
@@ -1449,6 +1663,27 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
     if t == "UMLFrameView" {
         layout_frame(r, ms, v);
         return Info { shape: "frame", ..Default::default() };
+    }
+    if t == "UMLStateView" {
+        if let Some(m) = m {
+            layout_state(r, ms, v, m);
+        }
+        return Info { shape: "state", ..Default::default() };
+    }
+    if t == "UMLPseudostateView" || t == "UMLFinalStateView" {
+        // a fixed mark, except fork and join bars, which keep the size they were drawn at
+        let kind = m.map(|m| r.str(m, "kind")).unwrap_or_default();
+        if t == "UMLFinalStateView" {
+            r.set(v, "width", num(FINAL_SIZE));
+            r.set(v, "height", num(FINAL_SIZE));
+        } else if kind != "fork" && kind != "join" {
+            r.set(v, "width", num(PSEUDO_SIZE));
+            r.set(v, "height", num(PSEUDO_SIZE));
+        }
+        if let Some(nc) = r.refd(v, "nameCompartment") {
+            r.set_raw(nc, "visible", json!(false));
+        }
+        return Info { shape: if t == "UMLFinalStateView" { "final" } else { "pseudostate" }, ..Default::default() };
     }
     if t == "UMLCollaborationView" || t == "UMLCollaborationUseView" {
         if let Some(m) = m {
@@ -1565,6 +1800,22 @@ pub fn drawn_points(pts: &[P], style: i64) -> Vec<P> {
 
 /// Bend points left after a drag: points within 5 px of a neighbour (oblique and curve lines only) and
 /// points in a straight run are dropped; the ends always stay (graphics.js:737-773, 1000-1044).
+/// Move point `i` of a rectilinear path to `to`; each neighbour keeps the segment it shares with the
+/// point vertical or horizontal by following on that axis (diagram-editor.js:1887-1922). A neighbour
+/// on neither axis is left where it is.
+pub fn move_orthogonal(pts: &mut [P], i: usize, to: P) {
+    let from = pts[i];
+    for j in [i.wrapping_sub(1), i + 1] {
+        let Some(q) = pts.get_mut(j) else { continue };
+        if (q.x - from.x).abs() < 0.5 && (q.y - from.y).abs() >= 0.5 {
+            q.x = to.x;
+        } else if (q.y - from.y).abs() < 0.5 && (q.x - from.x).abs() >= 0.5 {
+            q.y = to.y;
+        }
+    }
+    pts[i] = to;
+}
+
 pub fn clean_points(pts: &[P], rectilinear: bool) -> Vec<P> {
     let mut out: Vec<P> = pts.to_vec();
     let dist = |a: P, b: P| ((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqrt();
@@ -1641,8 +1892,53 @@ fn layout_edge(r: &mut Repo, ms: &dyn Measure, e: Eid, info: &HashMap<Eid, Info>
         pts[0] = junction(&tr, pts[1]);
         pts[n - 1] = junction(&hr, pts[n - 2]);
     }
+    layout_qualifiers(r, ms, e, &mut pts, tr, hr);
     r.set(e, "points", json!(format_points(&pts)));
     layout_edge_labels(r, ms, e, &pts);
+}
+
+/// The qualifiers of an association end: a box of their rows against the end's box, on the side the
+/// line arrives at, and the line then ends on the box's outer side. Shown only when the end has
+/// qualifiers (UMLQualifierCompartmentView; the placement is estimated).
+pub fn qualifier_rows(r: &Repo, q: Eid) -> Vec<String> {
+    let Some(end) = r.refd(q, "model") else { return vec![] };
+    r.list(end, "qualifiers").into_iter().filter(|a| r.alive(*a)).map(|a| attribute_text(r, a, Show::ALL)).collect()
+}
+
+fn layout_qualifiers(r: &mut Repo, ms: &dyn Measure, e: Eid, pts: &mut [P], tr: R, hr: R) {
+    let n = pts.len();
+    if n < 2 {
+        return;
+    }
+    let (face, size) = view_font(r, e);
+    let scaled = Scaled { ms, face, size };
+    for (field, i, b) in [("tailQualifiersCompartment", 0, tr), ("headQualifiersCompartment", n - 1, hr)] {
+        let Some(q) = r.refd(e, field) else { continue };
+        let rows = qualifier_rows(r, q);
+        if rows.is_empty() {
+            r.set_raw(q, "visible", json!(false));
+            continue;
+        }
+        let lh = scaled.size();
+        let w = (rows.iter().map(|t| scaled.width(t, 0)).fold(0.0, f64::max) + 2.0 * PAD).ceil();
+        let h = (rows.len() as f64 * lh + 2.0 * PAD).ceil();
+        let p = pts[i];
+        let sides = [(p.x - b.x).abs(), (p.x - b.x - b.w).abs(), (p.y - b.y).abs(), (p.y - b.y - b.h).abs()];
+        let side = (0..4).min_by(|a, c| sides[*a].total_cmp(&sides[*c])).unwrap_or(0);
+        let (cy, cx) = ((p.y - h / 2.0).clamp(b.y, (b.y + b.h - h).max(b.y)), (p.x - w / 2.0).clamp(b.x, (b.x + b.w - w).max(b.x)));
+        let (bx, by, end) = match side {
+            0 => (b.x - w, cy, P { x: b.x - w, y: p.y }),
+            1 => (b.x + b.w, cy, P { x: b.x + b.w + w, y: p.y }),
+            2 => (cx, b.y - h, P { x: p.x, y: b.y - h }),
+            _ => (cx, b.y + b.h, P { x: p.x, y: b.y + b.h + h }),
+        };
+        r.remove(q, "visible");
+        r.set(q, "left", num(bx));
+        r.set(q, "top", num(by));
+        r.set(q, "width", num(w));
+        r.set(q, "height", num(h));
+        pts[i] = end;
+    }
 }
 
 /// Coord.getPointAwayLine (graphics.js:1207): offset `distance` from p1 at the segment angle + alpha.
@@ -1658,6 +1954,27 @@ pub fn point_away_line(p1: P, p2: P, alpha: f64, distance: f64) -> P {
     P { x: (distance * (th + alpha).cos()).floor(), y: (-distance * (th + alpha).sin()).floor() }
 }
 
+/// A transition's label: `trigger1, trigger2 [guard] / effect` (uml-transition.pegjs), each part
+/// only when present.
+pub fn transition_text(r: &Repo, m: Eid) -> String {
+    let triggers: Vec<String> = r.list(m, "triggers").into_iter().filter(|t| r.alive(*t)).map(|t| r.name(t)).collect();
+    let mut s = triggers.join(", ");
+    let guard = r.str(m, "guard");
+    if !guard.is_empty() {
+        if !s.is_empty() {
+            s.push(' ');
+        }
+        s.push_str(&format!("[{guard}]"));
+    }
+    if let Some(e) = r.list(m, "effects").into_iter().find(|e| r.alive(*e)) {
+        if !s.is_empty() {
+            s.push(' ');
+        }
+        s.push_str(&format!("/ {}", r.name(e)));
+    }
+    s
+}
+
 fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     let Some(m) = r.refd(e, "model") else { return vec![] };
     let show_vis = r.bool(e, "showVisibility");
@@ -1666,7 +1983,11 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     let name = r.name(m);
     // a derived association shows "/" before its name (StarUML 5.x)
     let derived = if r.kind_of(m, "UMLAssociation") && r.bool(m, "isDerived") { "/" } else { "" };
-    out.push(("nameLabel", if name.is_empty() && derived.is_empty() { name } else { vis(m) + derived + &name }));
+    if r.ty(m) == "UMLTransition" {
+        out.push(("nameLabel", transition_text(r, m)));
+    } else {
+        out.push(("nameLabel", if name.is_empty() && derived.is_empty() { name } else { vis(m) + derived + &name }));
+    }
     let st = match r.ty(m) {
         "UMLInclude" => "«include»".to_string(),
         // a deployment is a «deploy» dependency (UML 2; the keyword is estimated for StarUML)
@@ -1680,7 +2001,10 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     };
     out.push(("stereotypeLabel", st));
     out.push(("propertyLabel", String::new()));
-    if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" {
+    if r.ty(m) == "UMLRoleBinding" {
+        out.push(("roleNameLabel", r.str(m, "roleName")));
+    }
+    if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" || r.ty(m) == "UMLConnector" {
         let role = |end: Option<Eid>| end.map(|x| { let n = r.name(x); if n.is_empty() { n } else { vis(x) + &n } }).unwrap_or_default();
         let (e1, e2) = (r.child(m, "end1"), r.child(m, "end2"));
         let show_mult = r.bool(e, "showMultiplicity");

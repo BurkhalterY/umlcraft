@@ -92,6 +92,15 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             r("Add Sub-Stereotype", "UMLStereotype", "UMLGeneralization", Plain, true, Below),
             r("Add Super-Stereotype", "UMLStereotype", "UMLGeneralization", Plain, false, Above),
         ],
+        // a state: a new state joined by an outgoing (right) or incoming (left) transition, an
+        // initial state above and a final state below (uml-commands.js:2933-3215; sides of the
+        // transitions estimated)
+        "UMLState" => vec![
+            r("Add Outgoing Transition", "UMLState", "UMLTransition", Plain, false, Right),
+            r("Add Incoming Transition", "UMLState", "UMLTransition", Plain, true, Left),
+            r("Add Initial State", "Initial", "UMLTransition", Plain, true, Above),
+            r("Add Final State", "UMLFinalState", "UMLTransition", Plain, false, Below),
+        ],
         // an object: a linked object to the right (uml-commands.js:1675)
         "UMLObject" => vec![r("Add Linked Object", "UMLObject", "UMLLink", Plain, false, Right)],
         "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" | "UMLEnumeration" => vec![
@@ -202,17 +211,70 @@ impl App {
 }
 
 impl App {
+    /// A port's Add Provided or Required Interface: the interface goes on the side of the box the port
+    /// overhangs, joined by an interface realization or a dependency; a port with no classifier type
+    /// first gets a new class "<port>Type" next to its box's classifier (uml-commands.js:1192-1290).
+    pub fn add_port_interface(&mut self, v: Eid, provided: bool) -> Option<Eid> {
+        let m = self.repo.refd(v, "model")?;
+        let container = self.repo.refd(v, "containerView");
+        let place = match container.map(|c| (node_rect(&self.repo, v), node_rect(&self.repo, c))) {
+            Some((b, c)) if b.x + b.w > c.x + c.w => Place::Right,
+            Some((b, c)) if b.x < c.x => Place::Left,
+            Some((b, c)) if b.y + b.h > c.y + c.h => Place::Below,
+            _ => Place::Above,
+        };
+        if !self.repo.refd(m, "type").map(|t| self.repo.kind_of(t, "UMLClassifier")).unwrap_or(false) {
+            let owner = container.and_then(|c| self.repo.refd(c, "model")).and_then(|cm| self.repo.parent(cm));
+            if let Some(owner) = owner {
+                let name = format!("{}Type", self.repo.name(m));
+                self.change(|a| {
+                    let t = a.repo.create("UMLClass", &[("name", json!(name))], Some((owner, "ownedElements")));
+                    a.repo.set_ref(m, "type", Some(t));
+                });
+            }
+        }
+        let rel = if provided { "UMLInterfaceRealization" } else { "UMLDependency" };
+        let label = if provided { "Add Provided Interface" } else { "Add Required Interface" };
+        self.add_related(v, Related { label, kind: "UMLInterface", rel, init: AssocInit::Plain, from_new: false, place })
+    }
+
     /// Add Note on a line: a 100×50 note to the right of the line's name label, joined to the line by a
     /// note link, as one undo step; the note's text edit opens (uml-commands.js:684).
-    pub fn add_note_to_edge(&mut self, e: Eid) -> Option<Eid> {
-        let anchor = match self.repo.refd(e, "nameLabel") {
+    /// Add Choice or Add Fork on a state: the pseudostate 50 px below it, and two new states 50 px
+    /// below that, 70 px to its left and 35 px to its right, wired by three transitions, as one
+    /// undo step (uml-commands.js:3244-3313, 3386-3455; the pseudostate's place is estimated).
+    pub fn add_scaffold(&mut self, v: Eid, kind: &str) -> Option<Eid> {
+        let b = node_rect(&self.repo, v);
+        let (pw, ph) = views::default_size(kind);
+        let (pw, ph) = if kind == "Fork" { (ph, pw) } else { (pw, ph) };
+        let p = R { x: (b.x + b.w / 2.0 - pw / 2.0).round(), y: b.y + b.h + 50.0, w: pw, h: ph };
+        let (sw, sh) = views::default_size("UMLState");
+        let tool = Tool { label: "", kind: "UMLTransition", icon: "", line: true, init: AssocInit::Plain };
+        self.change(|app| {
+            let pv = app.create_node(kind, p)?;
+            app.create_edge(&tool, v, pv)?;
+            for x in [p.x - 70.0, p.x + 35.0] {
+                let s = app.create_node("UMLState", R { x: x.max(0.0), y: p.y + p.h + 50.0, w: sw, h: sh })?;
+                app.create_edge(&tool, pv, s)?;
+            }
+            Some(pv)
+        })
+    }
+
+    /// What a note or constraint added to a line is placed by: its name label, or its middle point.
+    pub fn edge_anchor(&self, e: Eid) -> R {
+        match self.repo.refd(e, "nameLabel") {
             Some(l) => node_rect(&self.repo, l),
             None => {
                 let pts = views::points_of(&self.repo, e);
                 let mid = pts.get(pts.len() / 2).copied().unwrap_or_default();
                 R { x: mid.x, y: mid.y, w: 0.0, h: 0.0 }
             }
-        };
+        }
+    }
+
+    pub fn add_note_to_edge(&mut self, e: Eid) -> Option<Eid> {
+        let anchor = self.edge_anchor(e);
         let rect = R { x: (anchor.x + anchor.w + 20.0).round(), y: (anchor.y - 20.0).max(0.0).round(), w: 100.0, h: 50.0 };
         let note = self.change(|app| {
             let n = app.create_node("Note", rect)?;
