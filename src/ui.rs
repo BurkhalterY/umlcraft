@@ -989,7 +989,8 @@ impl App {
                     }
                     ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
                 }
-                if section_header(ui, "Properties", !es.is_empty() && self.props_open) && !es.is_empty() {
+                // Properties hides with nothing selected (property-editor-view.js:815-817)
+                if !es.is_empty() && section_header(ui, "Properties", self.props_open) {
                     self.props_open = !self.props_open;
                 }
                 if es.len() > 1 && self.props_open {
@@ -1036,9 +1037,12 @@ impl App {
                         ui.add_space(6.0);
                     }
                 }
-                ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
-                let has_doc = focus.map(|f| self.repo.kind_of(f, "ExtensibleModel") || self.repo.has(f, "documentation") || !crate::meta::known(self.repo.ty(f))).unwrap_or(false);
-                if section_header(ui, "Documentation", has_doc && self.doc_open) && has_doc {
+                if !es.is_empty() {
+                    ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
+                }
+                // Documentation shows only for one element that can hold it (documentation-editor-view.js:41-50)
+                let has_doc = es.len() <= 1 && focus.map(|f| self.repo.kind_of(f, "ExtensibleModel") || self.repo.has(f, "documentation") || !crate::meta::known(self.repo.ty(f))).unwrap_or(false);
+                if has_doc && section_header(ui, "Documentation", self.doc_open) {
                     self.doc_open = !self.doc_open;
                 }
                 if let (Some(e), true, true) = (focus, has_doc, self.doc_open) {
