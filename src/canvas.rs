@@ -586,7 +586,11 @@ impl App {
                 if let Some((_, e)) = self.hit_edge_label(p) {
                     self.edit_view(e, Some(p));
                 } else if let Some(v) = self.hit_view(p, false) {
-                    self.edit_view(v, Some(p));
+                    // a frame showing a diagram opens it (app-context.js:1355-1359)
+                    match self.repo.refd(v, "model") {
+                        Some(d) if self.repo.ty(v) == "UMLFrameView" && self.repo.kind_of(d, "Diagram") => self.open_diagram(d),
+                        _ => self.edit_view(v, Some(p)),
+                    }
                 } else {
                     self.create_text_at(p);
                 }
@@ -1108,6 +1112,16 @@ impl App {
                     let (x2, y2) = (self.snap_v(raw.x + raw.w), self.snap_v(raw.y + raw.h));
                     R { x: x1, y: y1, w: (x2 - x1).max(1.0), h: (y2 - y1).max(1.0) }
                 };
+                if tool.kind == "Frame" {
+                    // a frame first asks which element it shows (uml-commands.js:244-262)
+                    if !self.tool_sticky {
+                        self.tool = None;
+                    }
+                    if let Some(d) = self.diagram {
+                        self.open_frame_picker(d, r);
+                    }
+                    return;
+                }
                 let view = self.change(|a| {
                     let v = a.create_node(tool.kind, r);
                     if let (Some(v), Some(d)) = (v, a.diagram) {
@@ -1223,6 +1237,10 @@ impl App {
 
     pub fn edit_view(&mut self, v: Eid, p: Option<P>) {
         let t = self.repo.ty(v).to_string();
+        // a frame has no inline edit
+        if t == "UMLFrameView" {
+            return;
+        }
         // a constraint edits its specification (uml-commands.js:669)
         if t == "UMLConstraintView" {
             let Some(m) = self.repo.refd(v, "model") else { return };

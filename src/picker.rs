@@ -24,6 +24,8 @@ pub struct ElementPicker {
     pub tag_reference: bool,
     /// The Element List Editor's Add: OK appends to its list.
     pub list_add: bool,
+    /// The Frame tool: OK creates a frame of the chosen element (or of none) in this diagram, here.
+    pub frame: Option<(Eid, crate::views::R)>,
 }
 
 /// The element type a reference field accepts.
@@ -63,7 +65,35 @@ impl App {
         if let Some(c) = chosen {
             open.extend(self.repo.path(c));
         }
-        self.element_picker = Some(ElementPicker { obj, field: field.to_string(), ty: field_type(field), chosen, search: String::new(), open, fresh: true, export_fragment: false, tag_reference: false, list_add: false });
+        self.element_picker = Some(ElementPicker { obj, field: field.to_string(), ty: field_type(field), chosen, search: String::new(), open, fresh: true, export_fragment: false, tag_reference: false, list_add: false, frame: None });
+    }
+
+    /// The Frame tool's "Select an element to be represented as Frame": any model element, nothing
+    /// chosen at first (uml-commands.js:244-262).
+    pub fn open_frame_picker(&mut self, diagram: Eid, rect: crate::views::R) {
+        let open: HashSet<Eid> = HashSet::from([self.repo.root]);
+        self.element_picker = Some(ElementPicker { obj: diagram, field: String::new(), ty: "Model", chosen: None, search: String::new(), open, fresh: true, export_fragment: false, tag_reference: false, list_add: false, frame: Some((diagram, rect)) });
+    }
+
+    /// Create a frame of `model` (or of nothing), behind the other views, and select it.
+    pub fn create_frame(&mut self, diagram: Eid, model: Option<Eid>, rect: crate::views::R) -> Option<Eid> {
+        if !self.repo.alive(diagram) {
+            return None;
+        }
+        let v = self.change(|a| {
+            let v = crate::views::create_frame_view(&mut a.repo, diagram, model, rect);
+            a.apply_view_defaults(v);
+            // a frame's zIndex is -1: it is drawn behind the views of its diagram (elements.js:12254)
+            let mut list = a.repo.list(diagram, "ownedViews");
+            list.retain(|x| *x != v);
+            list.insert(0, v);
+            a.repo.set_list(diagram, "ownedViews", list);
+            v
+        });
+        if self.diagram == Some(diagram) {
+            self.select(vec![v]);
+        }
+        Some(v)
     }
 
     /// Apply a picked element (or none) to the reference, as one undo step.
@@ -120,7 +150,9 @@ impl App {
     /// OK in the Element Picker: fill the Tag dialog, export the fragment, or set the reference field.
     pub fn picker_ok(&mut self, p: ElementPicker) {
         self.element_picker = None;
-        if p.list_add {
+        if let Some((d, rect)) = p.frame {
+            self.create_frame(d, p.chosen.filter(|c| self.repo.alive(*c)), rect);
+        } else if p.list_add {
             if let (Some((obj, field, _)), Some(c)) = (self.list_editor, p.chosen.filter(|c| self.repo.alive(*c))) {
                 let mut items = self.repo.ref_list(obj, field);
                 items.push(c);
@@ -149,7 +181,14 @@ impl App {
     pub fn element_picker_ui(&mut self, ctx: &egui::Context) {
         let Some(mut p) = self.element_picker.clone() else { return };
         let (mut ok, mut cancel) = (false, false);
-        egui::Window::new(if p.list_add { "Select Element to Add" } else { "Select Element" }).id(egui::Id::new("element-picker")).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        let title = if p.frame.is_some() {
+            "Select an element to be represented as Frame"
+        } else if p.list_add {
+            "Select Element to Add"
+        } else {
+            "Select Element"
+        };
+        egui::Window::new(title).id(egui::Id::new("element-picker")).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
             ui.set_width(360.0);
             let r = ui.add(egui::TextEdit::singleline(&mut p.search).hint_text("Quick search").desired_width(f32::INFINITY));
             // Enter is OK, except in the search box (`use-enter-key`)

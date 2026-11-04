@@ -135,6 +135,10 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(5.0, 14.5), (8.0, 10.5), (11.0, 14.5)], Y);
         }
         "subject" => rect_at(3.0, 2.0, 10.0, 12.0, W),
+        "frame" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, W);
+            line(&[(1.5, 6.5), (6.0, 6.5), (8.0, 4.5), (8.0, 2.5)], W);
+        }
         "diagram-class" | "diagram-usecase" | "diagram" => {
             rect_at(1.5, 1.5, 13.0, 13.0, G);
             match key {

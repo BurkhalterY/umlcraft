@@ -3771,3 +3771,69 @@ fn inherit_style_toggles_and_leaves_the_rubber_band() {
     a.select_all();
     assert_eq!(a.selection, vec![c1, c2], "but Select All takes the top-level views");
 }
+
+#[test]
+fn frame_tool_picks_an_element_and_shows_its_diagram() {
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(300.0, 300.0, 100.0, 60.0))).unwrap();
+    let other = a.change(|a| a.add_diagram(None, "UMLUseCaseDiagram"));
+    a.open_diagram(d);
+    // the Frame tool asks for an element before creating anything
+    a.tool = Some(crate::app::Tool { label: "Frame", kind: "Frame", icon: "frame", line: false, init: AssocInit::Plain });
+    a.on_press(canvas, Pos2::new(20.0, 20.0), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(250.0, 200.0));
+    a.on_release(canvas.min, Pos2::new(250.0, 200.0));
+    let mut p = a.element_picker.clone().expect("the picker opens");
+    assert!(p.frame.is_some() && p.chosen.is_none());
+    assert_eq!(a.repo.list(d, "ownedViews").len(), 1, "nothing is created yet");
+    p.chosen = Some(other);
+    a.picker_ok(p);
+    let f = a.repo.list(d, "ownedViews")[0];
+    assert_eq!(a.repo.ty(f), "UMLFrameView", "the frame goes behind the other views");
+    assert_eq!(a.selection, vec![f]);
+    assert_eq!(a.repo.refd(f, "model"), Some(other));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let (nl, tl) = (a.repo.refd(f, "nameLabel").unwrap(), a.repo.refd(f, "frameTypeLabel").unwrap());
+    assert_eq!(a.repo.str(tl, "text"), "uc");
+    let owner = a.repo.parent(other).unwrap();
+    assert_eq!(a.repo.str(nl, "text"), a.repo.name(owner), "a diagram's frame names the diagram's owner");
+    assert!(a.repo.str(tl, "font").ends_with(";1"), "the kind is bold");
+    // Show Type, Namespace and Diagram Name add to the name
+    for f_ in ["showType", "showDiagramName"] {
+        a.toggle_flag(f_);
+    }
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(nl, "text"), format!("[Model] {} [{}]", a.repo.name(owner), a.repo.name(d)));
+    // a frame of a class: its kind, and no inline edit
+    let p2 = { a.open_frame_picker(d, rect(500.0, 20.0, 10.0, 10.0)); let mut p = a.element_picker.clone().unwrap(); p.chosen = Some(a.repo.refd(c, "model").unwrap()); p };
+    a.picker_ok(p2);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let f2 = a.repo.list(d, "ownedViews")[0];
+    assert_eq!(a.repo.str(a.repo.refd(f2, "frameTypeLabel").unwrap(), "text"), "class");
+    assert!(a.repo.f(f2, "width") >= crate::views::FRAME_MIN_W && a.repo.f(f2, "height") >= 53.0, "a small frame grows to its minimum");
+    a.edit_view(f2, None);
+    assert!(a.editing.is_none());
+    // the file keeps the frame and its labels, and reads back
+    let back = Repo::parse(&a.repo.serialize()).unwrap();
+    assert_eq!(back.all_of("UMLFrameView").len(), 2);
+}
+
+#[test]
+fn dropping_the_open_diagram_makes_a_frame_of_it() {
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    assert!(a.can_drop_model(d));
+    let vs = a.drop_model(d, crate::views::P { x: 20.0, y: 30.0 }).unwrap();
+    assert_eq!(vs.len(), 1);
+    let f = vs[0];
+    assert_eq!(a.repo.ty(f), "UMLFrameView");
+    assert_eq!(a.repo.refd(f, "model"), Some(d));
+    assert_eq!((a.repo.f(f, "left"), a.repo.f(f, "top"), a.repo.f(f, "width"), a.repo.f(f, "height")), (20.0, 30.0, 700.0, 600.0));
+    let other = a.change(|a| a.add_diagram(None, "UMLClassDiagram"));
+    a.open_diagram(d);
+    assert!(!a.can_drop_model(other), "another diagram would be a hyperlink, which UMLCraft does not have");
+}

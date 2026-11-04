@@ -113,6 +113,7 @@ const CLASS_GROUPS: &[Group] = &[
             node("DataType", "UMLDataType", "datatype"),
             node("PrimitiveType", "UMLPrimitiveType", "datatype"),
             node("Enumeration", "UMLEnumeration", "enumeration"),
+            node("Frame", "Frame", "frame"),
             line("Association Class", "AssociationClass", "associationclass", AssocInit::Plain),
             line("Template Binding", "UMLTemplateBinding", "dependency", AssocInit::Plain),
             line("Realization", "UMLRealization", "realization", AssocInit::Plain),
@@ -137,6 +138,7 @@ const USECASE_GROUPS: &[Group] = &[
             node("Use Case Subject", "UMLUseCaseSubject", "subject"),
             node("Use Case", "UMLUseCase", "usecase"),
             node("Actor", "UMLActor", "actor"),
+            node("Frame", "Frame", "frame"),
             line("Association", "UMLAssociation", "association", AssocInit::Plain),
             line("Directed Association", "UMLAssociation", "directed", AssocInit::Directed),
             line("Generalization", "UMLGeneralization", "generalization", AssocInit::Plain),
@@ -158,6 +160,7 @@ const COMPONENT_GROUPS: &[Group] = &[
             node("Component", "UMLComponent", "component"),
             node("Artifact", "UMLArtifact", "artifact"),
             node("Interface", "UMLInterface", "interface"),
+            node("Frame", "Frame", "frame"),
             line("Dependency", "UMLDependency", "dependency", AssocInit::Plain),
             line("Interface Realization", "UMLInterfaceRealization", "realization", AssocInit::Plain),
             line("Component Realization", "UMLComponentRealization", "realization", AssocInit::Plain),
@@ -2207,8 +2210,15 @@ impl App {
         if hit(sc(Modifiers::COMMAND | Modifiers::ALT, Key::D)) {
             self.show_markdown = !self.show_markdown;
         }
+        // StarUML's UML keymap gives Ctrl+Shift+D to Show Diagram Name over Open Sub-Diagram
+        // (keymaps/uml.json); UMLCraft keeps Open Sub-Diagram and toggles the diagram name only when
+        // the selection holds frames
         if hit(sc(cs, Key::D)) {
-            self.open_sub_diagram();
+            if self.flag_views("showDiagramName").is_empty() {
+                self.open_sub_diagram();
+            } else {
+                self.toggle_flag("showDiagramName");
+            }
         }
         if hit(sc(Modifiers::COMMAND, Key::D)) {
             self.select_in_diagram();
@@ -2775,7 +2785,7 @@ pub struct WorkingRow(pub Eid);
 pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 14] = [
+const FORMAT_TOGGLES: [(&str, &str); 15] = [
     ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
     ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
     ("parentStyle", "Inherit Style                     Ctrl+Shift+K"),
@@ -2786,6 +2796,7 @@ const FORMAT_TOGGLES: [(&str, &str); 14] = [
     ("showType", "Show Type                          Ctrl+Shift+Y"),
     ("showMultiplicity", "Show Multiplicity               Ctrl+Shift+M"),
     ("showOperationSignature", "Show Operation Signature    Ctrl+Shift+J"),
+    ("showDiagramName", "Show Diagram Name            Ctrl+Shift+D"),
     ("suppressAttributes", "Suppress Attributes             Ctrl+Shift+A"),
     ("suppressOperations", "Suppress Operations            Ctrl+Shift+O"),
     ("suppressReceptions", "Suppress Receptions            Ctrl+Shift+E"),

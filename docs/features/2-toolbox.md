@@ -181,7 +181,7 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Use Case Subject | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Use Case | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Actor | ✅ | extensions/essential/uml/toolbox/uml.json |
-| Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Frame | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Frame | ✅ | Frame asks "Select an element to be represented as Frame" (any element, or none) and then creates the frame, behind the other views; it shows the diagram kind in a bold tab and the element's name (src/canvas.rs:1115-1124; src/picker.rs:73-100; src/views.rs:387-487; src/render.rs:245) | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Association | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Directed Association | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Generalization | ✅ | extensions/essential/uml/toolbox/uml.json |
@@ -201,7 +201,7 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | DataType | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | PrimitiveType | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Enumeration | ✅ | extensions/essential/uml/toolbox/uml.json |
-| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Frame | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Frame | ✅ | Frame asks "Select an element to be represented as Frame" (any element, or none) and then creates the frame, behind the other views; it shows the diagram kind in a bold tab and the element's name (src/canvas.rs:1115-1124; src/picker.rs:73-100; src/views.rs:387-487; src/render.rs:245) | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | N-ary Association Node | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Association Class | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Template Binding | ✅ | extensions/essential/uml/toolbox/uml.json |
@@ -214,7 +214,7 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Component | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Artifact | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Interface | ✅ | extensions/essential/uml/toolbox/uml.json |
-| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Frame | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Frame | ✅ | Frame asks "Select an element to be represented as Frame" (any element, or none) and then creates the frame, behind the other views; it shows the diagram kind in a bold tab and the element's name (src/canvas.rs:1115-1124; src/picker.rs:73-100; src/views.rs:387-487; src/render.rs:245) | extensions/essential/uml/toolbox/uml.json |
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Dependency | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Interface Realization | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Component Realization | ✅ | extensions/essential/uml/toolbox/uml.json |

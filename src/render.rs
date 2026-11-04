@@ -242,6 +242,21 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             }
             return;
         }
+        "frame" => {
+            // the outline, unfilled, and a filled tab at the top left, cut at the corner (elements.js:12214-12245)
+            let (Some(nl), Some(tl)) = (r.refd(v, "nameLabel"), r.refd(v, "frameTypeLabel")) else { return };
+            let bottom = |l: Eid| r.f(l, "top") + r.f(l, "height");
+            let y = bottom(tl).max(bottom(nl)) + views::PAD;
+            let h = y - b.y;
+            let x = r.f(nl, "left") + r.f(nl, "width") + views::PAD + h / 2.0;
+            let tab = [P { x: b.x, y: b.y }, P { x: b.x, y }, P { x: x - h / 2.0, y }, P { x, y: b.y + h / 2.0 }, P { x, y: b.y }];
+            c.polygon(&tab, Some(fill), Some(line));
+            let outline = [P { x: b.x, y: b.y }, P { x: b.x + b.w, y: b.y }, P { x: b.x + b.w, y: b.y + b.h }, P { x: b.x, y: b.y + b.h }, P { x: b.x, y: b.y }];
+            c.polyline(&outline, line, false);
+            draw_label(c, r, tl, fc);
+            draw_label(c, r, nl, fc);
+            return;
+        }
         "package" => {
             let tab_w = (b.w * views::PKG_TAB_RATIO).round();
             let th = views::PKG_TAB_H;

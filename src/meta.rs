@@ -168,6 +168,9 @@ fn build() -> HashMap<&'static str, Kind> {
     for name in ["UMLArtifactInstanceView", "UMLComponentInstanceView", "UMLNodeInstanceView"] {
         def(name, Some("UMLObjectView"), vec![]);
     }
+    // a frame shows a model element (often a diagram) by name, with a tab naming the diagram kind
+    def("UMLCustomFrameView", Some("NodeView"), vec![("nameLabel", n()), ("frameTypeLabel", n())]);
+    def("UMLFrameView", Some("UMLCustomFrameView"), vec![("showType", d(json!(false))), ("showNamespace", d(json!(false))), ("showDiagramName", d(json!(false)))]);
     def("UMLCustomTextView", Some("NodeView"), vec![("text", d(json!(""))), ("wordWrap", d(json!(true))), ("horzAlign", d(json!(0))), ("vertAlign", d(json!(3)))]);
     def("UMLCustomNoteView", Some("UMLCustomTextView"), vec![]);
     def("UMLNoteView", Some("UMLCustomNoteView"), vec![]);

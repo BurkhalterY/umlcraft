@@ -848,12 +848,17 @@ impl App {
     /// with a box, or a relationship whose two ends can be shown.
     pub fn can_drop_model(&self, m: Eid) -> bool {
         let ty = self.repo.ty(m);
-        self.diagram.is_some() && self.repo.alive(m) && (views::node_kind(ty).is_some() || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
+        self.diagram.is_some() && self.repo.alive(m) && (self.diagram == Some(m) || views::node_kind(ty).is_some() || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
         let Some(d) = self.diagram else { return Ok(vec![]) };
         let ty = self.repo.ty(m).to_string();
+        if m == d {
+            // a 700×600 frame of the diagram, its top left at the drop point (factory.js:1174-1185)
+            return Ok(self.create_frame(d, Some(d), views::R { x: p.x, y: p.y, w: 700.0, h: 600.0 }).into_iter().collect());
+        }
         if views::edge_view_of(&ty).is_some() && self.rel_ends(m).is_some() {
             return self.drop_relationship(d, m, p);
         }

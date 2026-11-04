@@ -100,6 +100,7 @@ pub const COMMANDS: &[Command] = &[
     c("format:show-type", "Show Type", "Ctrl+Shift+Y"),
     c("format:show-multiplicity", "Show Multiplicity", "Ctrl+Shift+M"),
     c("format:show-operation-signature", "Show Operation Signature", "Ctrl+Shift+J"),
+    c("format:show-diagram-name", "Show Diagram Name", "Ctrl+Shift+D"),
     c("format:suppress-attributes", "Suppress Attributes", "Ctrl+Shift+A"),
     c("format:suppress-operations", "Suppress Operations", "Ctrl+Shift+O"),
     c("format:suppress-receptions", "Suppress Receptions", "Ctrl+Shift+E"),
@@ -228,7 +229,7 @@ impl App {
         let ms = crate::canvas::EguiMeasure { ctx: ctx.clone() };
         let toggles = [
             ("format:auto-resize", "autoResize"), ("format:show-shadow", "showShadow"), ("format:inherit-style", "parentStyle"), ("format:word-wrap", "wordWrap"), ("format:show-visibility", "showVisibility"),
-            ("format:show-namespace", "showNamespace"), ("format:show-property", "showProperty"), ("format:show-type", "showType"), ("format:show-multiplicity", "showMultiplicity"), ("format:show-operation-signature", "showOperationSignature"),
+            ("format:show-namespace", "showNamespace"), ("format:show-property", "showProperty"), ("format:show-type", "showType"), ("format:show-multiplicity", "showMultiplicity"), ("format:show-operation-signature", "showOperationSignature"), ("format:show-diagram-name", "showDiagramName"),
             ("format:suppress-attributes", "suppressAttributes"), ("format:suppress-operations", "suppressOperations"), ("format:suppress-receptions", "suppressReceptions"), ("format:suppress-literals", "suppressLiterals"),
         ];
         if let Some((_, f)) = toggles.iter().find(|t| t.0 == id) {
