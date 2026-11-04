@@ -240,6 +240,27 @@ impl App {
 
     /// Add Note on a line: a 100×50 note to the right of the line's name label, joined to the line by a
     /// note link, as one undo step; the note's text edit opens (uml-commands.js:684).
+    /// Add Choice or Add Fork on a state: the pseudostate 50 px below it, and two new states 50 px
+    /// below that, 70 px to its left and 35 px to its right, wired by three transitions, as one
+    /// undo step (uml-commands.js:3244-3313, 3386-3455; the pseudostate's place is estimated).
+    pub fn add_scaffold(&mut self, v: Eid, kind: &str) -> Option<Eid> {
+        let b = node_rect(&self.repo, v);
+        let (pw, ph) = views::default_size(kind);
+        let (pw, ph) = if kind == "Fork" { (ph, pw) } else { (pw, ph) };
+        let p = R { x: (b.x + b.w / 2.0 - pw / 2.0).round(), y: b.y + b.h + 50.0, w: pw, h: ph };
+        let (sw, sh) = views::default_size("UMLState");
+        let tool = Tool { label: "", kind: "UMLTransition", icon: "", line: true, init: AssocInit::Plain };
+        self.change(|app| {
+            let pv = app.create_node(kind, p)?;
+            app.create_edge(&tool, v, pv)?;
+            for x in [p.x - 70.0, p.x + 35.0] {
+                let s = app.create_node("UMLState", R { x: x.max(0.0), y: p.y + p.h + 50.0, w: sw, h: sh })?;
+                app.create_edge(&tool, pv, s)?;
+            }
+            Some(pv)
+        })
+    }
+
     /// What a note or constraint added to a line is placed by: its name label, or its middle point.
     pub fn edge_anchor(&self, e: Eid) -> R {
         match self.repo.refd(e, "nameLabel") {

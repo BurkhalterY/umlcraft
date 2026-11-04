@@ -175,6 +175,8 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
             match t {
                 "UMLClass" | "UMLComponent" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP, ("+ Rec", "Add Reception", "", ItemKey::AddReception), ports, parts],
                 "UMLEnumeration" => vec![("+ Lit", "Add Literal", "Ctrl+Enter", ItemKey::Add), ADD_OP],
+                // a state's choice and fork scaffolds (uml-commands.js:3244, 3386)
+                "UMLState" => vec![("+ Choice", "Add Choice", "", ItemKey::Scaffold("Choice")), ("+ Fork", "Add Fork", "", ItemKey::Scaffold("Fork"))],
                 "UMLUseCase" => vec![("+ Ext", "Add Extension Point", "Ctrl+Enter", ItemKey::Add)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
                 // classes, interfaces, signals, data types, components, nodes, artifacts: Add Reception
@@ -229,6 +231,8 @@ pub enum ItemKey {
     PortInterface(bool),
     /// A reception's Select Signal
     SelectSignal,
+    /// A state's Add Choice or Add Fork: the pseudostate and two branch states
+    Scaffold(&'static str),
 }
 
 impl App {
@@ -1633,6 +1637,11 @@ impl App {
             }
             (ItemKey::AddConnectedPart, _) => self.add_connected_part(host),
             (ItemKey::SelectSignal, Some(f)) => self.open_element_picker(f, "signal"),
+            (ItemKey::Scaffold(kind), _) => {
+                if let Some(p) = self.add_scaffold(host, kind) {
+                    self.select(vec![p]);
+                }
+            }
             (ItemKey::PortInterface(provided), _) => {
                 self.add_port_interface(host, provided);
             }

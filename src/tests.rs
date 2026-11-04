@@ -4691,3 +4691,24 @@ fn state_buttons_add_states_with_transitions() {
     assert_eq!(ends(&a, fin), (s, fin));
     assert_eq!(a.repo.parent(im), a.repo.parent(sm), "in the same region");
 }
+
+#[test]
+fn a_state_adds_a_choice_with_two_branches() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let s = a.change(|a| a.create_node("UMLState", rect(200.0, 100.0, 100.0, 40.0))).unwrap();
+    let m = a.repo.refd(s, "model").unwrap();
+    let undo = a.undo.len();
+    a.item_key(s, EditKind::Name(m), ItemKey::Scaffold("Choice"));
+    assert_eq!(a.undo.len(), undo + 1, "one undo step");
+    let views = a.repo.list(d, "ownedViews");
+    let count = |t: &str| views.iter().filter(|v| a.repo.ty(**v) == t).count();
+    assert_eq!((count("UMLPseudostateView"), count("UMLStateView"), count("UMLTransitionView")), (1, 3, 3));
+    let p = views.iter().copied().find(|v| a.repo.ty(*v) == "UMLPseudostateView").unwrap();
+    assert_eq!(a.repo.str(a.repo.refd(p, "model").unwrap(), "kind"), "choice");
+    assert_eq!(a.repo.f(p, "top"), 190.0, "50 px below the state");
+    assert_eq!(a.selection, vec![p]);
+}
