@@ -2152,3 +2152,32 @@ fn markdown_blocks_and_spans() {
         ]
     );
 }
+
+#[test]
+fn html_docs_export() {
+    use crate::html::{markdown_html, md5_hex};
+    assert_eq!(md5_hex(""), "d41d8cd98f00b204e9800998ecf8427e");
+    assert_eq!(md5_hex("The quick brown fox jumps over the lazy dog"), "9e107d9d372bb6826bd81d3542a419d6");
+    assert_eq!(md5_hex(&"a".repeat(100)), "36a92cc94a9e0fa21f625f8bfb007adf");
+    assert_eq!(markdown_html("# T\n\n- a **b**\n- c"), "<h1>T</h1><ul><li>a <strong>b</strong></li><li>c</li></ul>");
+    let ms = measure();
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let dir = std::env::temp_dir().join(format!("umlcraft-html-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    a.export_html(&dir, &ms).unwrap();
+    for f in ["index.html", "contents/navigation.html", "contents/diagrams.html", "contents/element_index.html", "assets/style.css"] {
+        assert!(dir.join(f).exists(), "{f}");
+    }
+    let d = a.repo.all_of("Diagram")[0];
+    let id = md5_hex(&a.repo.id(d));
+    assert!(dir.join(format!("diagrams/{id}.svg")).exists());
+    let page = std::fs::read_to_string(dir.join(format!("contents/{id}.html"))).unwrap();
+    assert!(page.contains(&format!("usemap=\"#map-{id}\"")) && page.contains("<area shape=\"rect\""));
+    let book = a.repo.all().find(|e| a.repo.name(*e) == "Book" && a.repo.ty(*e) == "UMLClass").unwrap();
+    let bp = std::fs::read_to_string(dir.join(format!("contents/{}.html", md5_hex(&a.repo.id(book))))).unwrap();
+    assert!(bp.contains("Generalized Elements") && bp.contains("LibraryItem") && bp.contains("<h2>Attributes</h2>"));
+    let index = std::fs::read_to_string(dir.join("contents/element_index.html")).unwrap();
+    assert!(index.contains("<h2>UMLClass ("));
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -11,6 +11,7 @@ mod clipboard;
 mod export;
 mod find;
 mod generate;
+mod html;
 mod layout;
 mod markdown;
 mod canvas;

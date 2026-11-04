@@ -1092,6 +1092,12 @@ impl App {
                         }
                     }
                 });
+                ui.menu_button("Export", |ui| {
+                    if ui.button("HTML Docs...").clicked() {
+                        self.export_html_dialog(&measure);
+                        ui.close();
+                    }
+                });
                 if ui.button("Print to PDF...").clicked() {
                     self.print_open = true;
                     ui.close();

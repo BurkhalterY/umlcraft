@@ -8,6 +8,7 @@ use std::path::PathBuf;
 pub const USAGE: &str = "Usage: umlcraft [file.mdj] [--diagram <name>] [--select <name>]
        umlcraft image <file.mdj> [-f png|jpeg|svg] [-s selector] [-o output]
        umlcraft pdf <file.mdj> [-s selector] [-o output.pdf] [-z A4] [-l landscape|portrait] [-n true|false]
+       umlcraft html <file.mdj> [-o ./html-docs]
        umlcraft --resave <in.mdj> <out.mdj>
        umlcraft --help | --version
 
@@ -15,7 +16,8 @@ pub const USAGE: &str = "Usage: umlcraft [file.mdj] [--diagram <name>] [--select
           -o is a file name; <%= element.name %> and <%= filenamify(element.name) %> in it
           are replaced per diagram. The default is filenamify(<name>.<format>).
   pdf     print the diagrams matching the selector (default @Diagram) to one PDF, one per page.
-          -o defaults to output.pdf, -z to A4, -l to landscape; -n false hides the diagram names.";
+          -o defaults to output.pdf, -z to A4, -l to landscape; -n false hides the diagram names.
+  html    write the model as HTML pages into the folder -o (default ./html-docs).";
 
 /// Run a command-line command when the arguments ask for one; returns the exit code, or None to start
 /// the window.
@@ -31,7 +33,8 @@ pub fn run(args: &[String], ctx: impl Fn() -> egui::Context) -> Option<i32> {
         }
         Some("image") => Some(image(&args[1..], ctx())),
         Some("pdf") => Some(pdf(&args[1..], ctx())),
-        Some(cmd @ ("ejs" | "html" | "exec")) => {
+        Some("html") => Some(html(&args[1..], ctx())),
+        Some(cmd @ ("ejs" | "exec")) => {
             eprintln!("[Error] The {cmd} command is not supported by UMLCraft.");
             Some(2)
         }
@@ -141,6 +144,26 @@ fn pdf(args: &[String], ctx: egui::Context) -> i32 {
         Ok(()) => {
             println!("[UMLCraft] {}", out.display());
             println!("Total {} diagrams were printed", diagrams.len());
+            0
+        }
+        Err(e) => {
+            eprintln!("[Error] {e}");
+            1
+        }
+    }
+}
+
+/// `html`: write the HTML docs into the output folder (cli.js:196-215, default-commands.js:1262-1276).
+fn html(args: &[String], ctx: egui::Context) -> i32 {
+    let (mut a, _) = match open_diagrams(args) {
+        Ok(x) => x,
+        Err(code) => return code,
+    };
+    let out = PathBuf::from(opt(args, "-o").unwrap_or("./html-docs"));
+    let ms = crate::canvas::EguiMeasure { ctx };
+    match a.export_html(&out, &ms) {
+        Ok(()) => {
+            println!("HTML docs were exported on {}", out.display());
             0
         }
         Err(e) => {

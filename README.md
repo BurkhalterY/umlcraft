@@ -109,8 +109,8 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
 | **Find and check** | Quick Find (Ctrl+P), Model › Find (Ctrl+F), a Command Palette (Ctrl+Shift+P), Select In Diagram (Ctrl+D), and StarUML's UML validation rules with a results panel |
 | **Views** | Working Diagrams remembered per file, Next/Previous Diagram, zoom from 10% to 300% around the screen centre, fit to window, a live mini-map, every panel on Ctrl+1 to Ctrl+6, Preferences for the grid and the style of new views |
 | **History** | Undo and redo for every change (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) |
-| **Export** | PNG, JPEG and SVG of one diagram or of every diagram into a folder, drawn off-screen with the original's 10-pixel margin; Print to PDF, one diagram per page, in any of 50 page sizes |
-| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj`, `umlcraft image model.mdj -f png\|jpeg\|svg -s <selector> -o <file>` and `umlcraft pdf model.mdj -z A4 -l landscape -o out.pdf` to export diagrams without a window |
+| **Export** | PNG, JPEG and SVG of one diagram or of every diagram into a folder, drawn off-screen with the original's 10-pixel margin; Print to PDF, one diagram per page, in any of 50 page sizes; HTML docs of the whole model |
+| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj`, `umlcraft image model.mdj -f png\|jpeg\|svg -s <selector> -o <file>` , `umlcraft pdf model.mdj -z A4 -l landscape -o out.pdf` and `umlcraft html model.mdj -o docs` to export without a window |
 
 ## .mdj without compromise
 
@@ -135,6 +135,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/model.rs`, `src/meta.rs` | The project and the `.mdj` element kinds, fields and defaults |
 | `src/views.rs`, `src/render.rs`, `src/export.rs` | Laying out and drawing boxes, labels and lines, on screen and into PNG, JPEG and SVG |
 | `src/layout.rs`, `src/generate.rs` | Format › Layout (the layered automatic layout) and Tools › Diagram Generator |
+| `src/html.rs` | File › Export › HTML Docs: one page per element, an SVG and image map per diagram |
 | `src/markdown.rs` | View › Markdown Documentation: the editor and a small Markdown preview |
 | `src/thumbs.rs` | View › Diagram Thumbnails |
 | `src/relview.rs` | View › Relationships: the relationships of the selected element |
@@ -142,7 +143,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/picker.rs` | The Element Picker ("Select Element") and the name lookup of type and stereotype fields |
 | `src/pdf.rs` | Print to PDF: the dialog, its remembered options and a small PDF writer |
 | `src/canvas.rs`, `src/parse.rs`, `src/align.rs`, `src/clipboard.rs`, `src/style.rs`, `src/related.rs` | The diagram canvas, the typed attribute and operation lines, Format › Alignment, cut, copy and paste, view colours, and the inline edit's "add related element" buttons |
-| `src/main.rs`, `src/cli.rs`, `src/selector.rs` | Start-up, the window, and the command line (`umlcraft image`, `umlcraft pdf`, `--help`) with the element selector language |
+| `src/main.rs`, `src/cli.rs`, `src/selector.rs` | Start-up, the window, and the command line (`umlcraft image`, `pdf`, `html`, `--help`) with the element selector language |
 | `src/app.rs`, `src/ui.rs`, `src/icons.rs`, `src/prefs.rs`, `src/tags.rs`, `src/palette.rs`, `src/find.rs`, `src/validate.rs` | Project state, undo, open and save, and the panels, menus and icons |
 | `src/tests.rs` | Round-trips of StarUML files, editing, saving and keyboard shortcuts |
 | `packaging/`, `.github/workflows/release.yml` | Installers for every system and the workflow that builds them |

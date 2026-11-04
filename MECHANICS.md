@@ -121,6 +121,10 @@ returned nothing).
 
 * Tools › Diagram Generator works on the package selected in the Explorer ("To generate … diagram, select a Package." otherwise), adds the diagram in one undo step, lays it out and opens it. Overview: owned elements with compartments suppressed and interfaces as icons; Type Hierarchy: classes, interfaces, enumerations, signals and data types at any depth with only generalizations and realizations, left to right, separations node 10, edge 10, rank 100; Package Structure: nested packages joined by containment lines (`extensions/default/diagram-generator/main.js:58-303`). UMLCraft draws the containment's circle-plus at the parent package, radius 7 (estimated).
 
+## HTML Docs
+
+* File › Export › HTML Docs writes `<folder>/html-docs`: `index.html` (frameset 25%/75%), `contents/navigation.html`, `contents/diagrams.html`, `contents/element_index.html`, `contents/<md5(_id)>.html` per element and `diagrams/<md5(_id)>.svg` per diagram; the diagram page's image map is offset by the SVG's 10 px margin; the navigation tree goes 8 levels deep (`extensions/default/html-export/main.js:159-224`, `templates/navigation.ejs`, `templates/content.ejs:42`). UMLCraft writes its own HTML and style sheet.
+
 ## Print to PDF
 
 | Rule | Value | Source |

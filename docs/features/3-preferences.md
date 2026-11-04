@@ -133,7 +133,7 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | UML | `uml.note.fillColor` | Fill Color | null | ✅ in Preferences › UML › note; new views of that kind take it (src/prefs.rs:195-273, 284-321) | extensions/essential/uml/preferences/uml.json |
 | General | `general.working-file` | Auto load working file | false | ✅ in Preferences › General: with no file given, the most recent file opens at launch (src/prefs.rs:484) | resources/default/preferences/default.json |
 | General | `general.auto-backup` | Auto backup | true | ✅ in Preferences › General, on by default (src/prefs.rs:440) | resources/default/preferences/default.json |
-| General | `theme.default` | Default Theme | "dark" | 🟡 dark theme only, the original default (src/main.rs:107); no light theme | resources/default/preferences/default.json |
+| General | `theme.default` | Default Theme | "dark" | 🟡 dark theme only, the original default (src/main.rs:108); no light theme | resources/default/preferences/default.json |
 | General | `view.font` | Font Face | "Arial" | ✅ Font Face in Preferences › General; new views take it (src/prefs.rs:284-321) | resources/default/preferences/default.json |
 | General | `view.fontSize` | Font Size | 13 | ✅ Font Size in Preferences › General; new views take it (src/prefs.rs:284-321) | resources/default/preferences/default.json |
 | General | `view.fillColor` | Fill Color | "#ffffff" | ✅ Fill Color in Preferences › General; new views take it unless their kind has one (src/prefs.rs:284-321) | resources/default/preferences/default.json |
