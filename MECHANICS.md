@@ -97,6 +97,8 @@ returned nothing).
 
 * Component and deployment diagrams (UMLCraft's estimates of the standard UML shapes): a component is a box with the component icon (14×16 with two 8×4 tabs) at its top right; an artifact is a box with a page icon, or in icon display (the default, `uml.artifact.stereotypeDisplay`) a 30×40 page with the name under it; a node is a box with a 10 px depth above and to the right; a deployment is a dashed arrow labelled «deploy»; a communication path is drawn and edited like an association. Components and nodes start with attributes and operations suppressed (`extensions/essential/uml/preferences/uml.json`).
 
+* Ownership dot: an association end with an `ownerAttribute` gets a filled dot of radius 3, 6 px from its tip along the line (UML 2.5 notation; size and place estimated).
+
 ## Exporting pictures
 
 * JPEG is the PNG flattened on white; Export All writes `<folder>/<png|jpg|svg>/<filenamify(path)>_<index>.<ext>`, the path joining owner names with "::" and filenamify turning `<>:"/\|?*` and control characters into "!" (`src/engine/default-commands.js:452-535`, `src/engine/diagram-export.js:130-134, 275-298`).
