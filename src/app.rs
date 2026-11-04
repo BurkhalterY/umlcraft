@@ -500,13 +500,16 @@ impl App {
             return true;
         }
         let r = rfd::MessageDialog::new()
-            .set_title("UMLCraft")
-            .set_description("Do you want to save changes? Your changes will be lost if you don't save them.")
-            .set_buttons(rfd::MessageButtons::YesNoCancel)
+            .set_title("Save Changes")
+            .set_description("Do you want to save the changes?")
+            .set_buttons(rfd::MessageButtons::YesNoCancelCustom("Save".into(), "Don't Save".into(), "Cancel".into()))
             .show();
+        // the custom buttons come back by label (some platforms report Yes/No instead)
         match r {
             rfd::MessageDialogResult::Yes => self.save(ms),
+            rfd::MessageDialogResult::Custom(b) if b == "Save" => self.save(ms),
             rfd::MessageDialogResult::No => true,
+            rfd::MessageDialogResult::Custom(b) if b == "Don't Save" => true,
             _ => false,
         }
     }
