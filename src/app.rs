@@ -1317,6 +1317,7 @@ impl App {
             "UMLRegion" => "regions",
             "UMLEvent" => "triggers",
             "UMLAction" => "nodes",
+            "UMLInteractionOperand" => "operands",
             _ => return None,
         };
         let name = self.new_name(owner, ty);
@@ -1333,6 +1334,7 @@ impl App {
             "UMLRegion" => t == "UMLState",
             "UMLEvent" => t == "UMLAction" || t == "UMLTransition",
             "UMLAction" => t == "UMLActivity",
+            "UMLInteractionOperand" => t == "UMLCombinedFragment",
             "UMLExtensionPoint" => t == "UMLUseCase",
             "UMLSlot" => self.repo.kind_of(owner, "UMLInstance"),
             // template parameters on classes, interfaces and the other boxes with compartments

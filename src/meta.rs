@@ -121,6 +121,8 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLInteractionFragment", Some("UMLBehavior"), vec![]);
     def("UMLInteraction", Some("UMLInteractionFragment"), vec![("messages", n()), ("participants", n()), ("fragments", n())]);
     def("UMLStateMachine", Some("UMLBehavior"), vec![("regions", n())]);
+    def("UMLCombinedFragment", Some("UMLInteractionFragment"), vec![("interactionOperator", n()), ("operands", n())]);
+    def("UMLInteractionOperand", Some("UMLInteractionFragment"), vec![("guard", d(json!("")))]);
     def("UMLRegion", Some("UMLModelElement"), vec![("vertices", n()), ("transitions", n())]);
     // states, transitions, events and actions, for the explorer (uml/metamodel.json)
     def("UMLVertex", Some("UMLModelElement"), vec![]);

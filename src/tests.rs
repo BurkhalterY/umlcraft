@@ -4480,3 +4480,15 @@ fn states_activities_triggers_and_actions_from_model_add() {
     assert!(a.fields_for(ev).iter().any(|f| f.0 == "kind"));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn a_combined_fragment_takes_operands() {
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.package_for(Some(d));
+    let cf = a.change(|a| a.repo.create("UMLCombinedFragment", &[("name", json!("Fragment1"))], Some((pkg, "ownedElements"))));
+    assert!(a.add_kinds(cf).iter().any(|k| k.1 == "UMLInteractionOperand"));
+    let op = a.change(|a| a.add_feature(cf, "UMLInteractionOperand")).unwrap();
+    assert_eq!(a.repo.field_of(op).as_deref(), Some("operands"));
+    assert!(a.fields_for(op).iter().any(|f| f.0 == "guard"));
+}
