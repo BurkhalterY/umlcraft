@@ -2188,10 +2188,26 @@ impl App {
 
     pub(crate) fn dialogs(&mut self, ctx: &egui::Context) {
         if self.about_open {
+            // the app icon, name and version, and a link to the third-party software (about-dialog.js:31-47)
+            let icon = app_icon(ctx);
             egui::Window::new("About UMLCraft").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
-                ui.label(concat!("UMLCraft ", env!("CARGO_PKG_VERSION")));
-                ui.label("A UML modeler for class and use case diagrams that opens and saves .mdj model files.");
-                ui.label("Written in Rust with egui. The source code is in the app folder of this project; its README lists every file.");
+                ui.horizontal(|ui| {
+                    if let Some(t) = &icon {
+                        ui.add(egui::Image::new((t.id(), Vec2::splat(64.0))));
+                    }
+                    ui.vertical(|ui| {
+                        ui.label(egui::RichText::new("UMLCraft").size(20.0).strong());
+                        ui.label(concat!("Version ", env!("CARGO_PKG_VERSION")));
+                    });
+                });
+                ui.add_space(6.0);
+                ui.label("A UML modeler that opens and saves StarUML .mdj model files.");
+                ui.label("Written in Rust with egui, under the MIT licence.");
+                ui.horizontal(|ui| {
+                    ui.hyperlink_to("Website", "https://burkhaltery.github.io/umlcraft");
+                    ui.hyperlink_to("Third-party software", "https://github.com/BurkhalterY/umlcraft/network/dependencies");
+                });
+                ui.add_space(6.0);
                 // Enter presses OK and Esc cancels (dialog-manager.js:148-162)
                 if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
                     self.about_open = false;
@@ -2735,6 +2751,19 @@ impl App {
         self.screenshots(&ctx);
         let _ = R::default();
     }
+}
+
+/// The app icon as a texture, loaded once (packaging/icons).
+fn app_icon(ctx: &egui::Context) -> Option<egui::TextureHandle> {
+    let id = egui::Id::new("app-icon");
+    if let Some(t) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return Some(t);
+    }
+    let img = image::load_from_memory(include_bytes!("../packaging/icons/umlcraft-128.png")).ok()?.to_rgba8();
+    let size = [img.width() as usize, img.height() as usize];
+    let t = ctx.load_texture("app-icon", egui::ColorImage::from_rgba_unmultiplied(size, &img.into_raw()), egui::TextureOptions::LINEAR);
+    ctx.data_mut(|d| d.insert_temp(id, t.clone()));
+    Some(t)
 }
 
 /// A clickable colour swatch; a transparent colour shows a checkerboard.
