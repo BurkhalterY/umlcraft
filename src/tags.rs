@@ -273,14 +273,11 @@ impl App {
 
     fn tag_dialog_ui(&mut self, ctx: &egui::Context, e: Eid) {
         let Some(mut ed) = self.tag_edit.clone() else { return };
-        let (mut ok, mut cancel) = (false, false);
-        let models: Vec<Eid> = if ed.kind == "reference" {
-            let mut v: Vec<Eid> = self.repo.all().filter(|x| !self.is_view(*x) && self.repo.kind_of(*x, "Model") && !self.repo.name(*x).is_empty()).collect();
-            v.sort_by_key(|x| self.repo.name(*x));
-            v
-        } else {
-            vec![]
-        };
+        // the Element Picker is open over the dialog: wait for it
+        if self.element_picker.as_ref().map(|p| p.tag_reference).unwrap_or(false) {
+            return;
+        }
+        let (mut ok, mut cancel, mut pick) = (false, false, false);
         egui::Window::new("Tag").collapsible(false).resizable(false).order(egui::Order::Foreground).anchor(Align2::CENTER_CENTER, Vec2::new(30.0, 30.0)).show(ctx, |ui| {
             egui::Grid::new("tag-grid").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
                 ui.label("Name");
@@ -305,10 +302,21 @@ impl App {
                         ui.add(egui::DragValue::new(&mut ed.number));
                     }
                     "reference" => {
-                        let shown = ed.reference.map(|r| self.repo.name(r)).unwrap_or_default();
-                        egui::ComboBox::from_id_salt("tag-ref").selected_text(shown).width(200.0).show_ui(ui, |ui| {
-                            for m in &models {
-                                ui.selectable_value(&mut ed.reference, Some(*m), self.repo.name(*m));
+                        // the referenced element, and a button that opens the Element Picker
+                        // ("Select Element", any Model, the current one selected; tag-value-editor-dialog.js:165-174)
+                        ui.horizontal(|ui| {
+                            match ed.reference.filter(|r| self.repo.alive(*r)) {
+                                Some(x) => {
+                                    let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), egui::Sense::hover());
+                                    crate::icons::draw(ui.painter(), ir, crate::icons::key_for(&self.repo, x));
+                                    ui.label(self.repo.name(x));
+                                }
+                                None => {
+                                    ui.weak("—");
+                                }
+                            }
+                            if ui.button("…").on_hover_text("Select Element").clicked() {
+                                pick = true;
                             }
                         });
                     }
@@ -346,7 +354,22 @@ impl App {
         } else if cancel {
             self.tag_edit = None;
         } else {
+            let current = ed.reference;
             self.tag_edit = Some(ed);
+            if pick {
+                self.open_element_picker(self.repo.root, "");
+                if let Some(p) = self.element_picker.as_mut() {
+                    p.ty = "Model";
+                    p.tag_reference = true;
+                    p.chosen = current;
+                }
+                if let Some(c) = current.filter(|c| self.repo.alive(*c)) {
+                    let path = self.repo.path(c);
+                    if let Some(p) = self.element_picker.as_mut() {
+                        p.open.extend(path);
+                    }
+                }
+            }
         }
     }
 }

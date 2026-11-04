@@ -3439,3 +3439,26 @@ fn artifact_component_node_instances() {
     a.item_key(v, use_.0, use_.1);
     assert_eq!(a.repo.list(ni, "slots").len(), 1);
 }
+
+#[test]
+fn tag_reference_uses_the_element_picker() {
+    let mut a = App::new(None);
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    let other = a.change(|a| a.create_node("UMLClass", rect(240.0, 40.0, 100.0, 60.0))).unwrap();
+    let om = a.repo.refd(other, "model").unwrap();
+    a.focus = Some(m);
+    a.open_tag_editor();
+    a.edit_tag(None);
+    a.tag_edit.as_mut().unwrap().kind = "reference".into();
+    a.open_element_picker(a.repo.root, "");
+    let p = a.element_picker.as_mut().unwrap();
+    p.tag_reference = true;
+    p.ty = "Model";
+    p.chosen = Some(om);
+    // OK fills the dialog, not a field
+    let p = a.element_picker.take().unwrap();
+    a.picker_ok(p);
+    assert_eq!(a.tag_edit.as_ref().unwrap().reference, Some(om));
+    assert!(a.element_picker.is_none());
+}

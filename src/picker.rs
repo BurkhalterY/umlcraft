@@ -20,6 +20,8 @@ pub struct ElementPicker {
     pub fresh: bool,
     /// File > Export > Fragment: OK saves the chosen element instead of setting a reference.
     pub export_fragment: bool,
+    /// The Tag dialog's reference: OK fills the dialog instead of setting a field.
+    pub tag_reference: bool,
 }
 
 /// The element type a reference field accepts.
@@ -59,7 +61,7 @@ impl App {
         if let Some(c) = chosen {
             open.extend(self.repo.path(c));
         }
-        self.element_picker = Some(ElementPicker { obj, field: field.to_string(), ty: field_type(field), chosen, search: String::new(), open, fresh: true, export_fragment: false });
+        self.element_picker = Some(ElementPicker { obj, field: field.to_string(), ty: field_type(field), chosen, search: String::new(), open, fresh: true, export_fragment: false, tag_reference: false });
     }
 
     /// Apply a picked element (or none) to the reference, as one undo step.
@@ -113,6 +115,28 @@ impl App {
 
     /// "Select Element": a search box (focused on open), the project tree, "Do not specify", OK and
     /// Cancel. Double-click is OK. A choice of the wrong type is refused with an alert.
+    /// OK in the Element Picker: fill the Tag dialog, export the fragment, or set the reference field.
+    pub fn picker_ok(&mut self, p: ElementPicker) {
+        self.element_picker = None;
+        if p.tag_reference {
+            if let Some(ed) = self.tag_edit.as_mut() {
+                ed.reference = p.chosen.filter(|c| self.repo.alive(*c));
+            }
+        } else if p.export_fragment {
+            if let Some(c) = p.chosen.filter(|c| self.repo.alive(*c)) {
+                self.save_fragment(c);
+            }
+        } else {
+            match p.chosen {
+                Some(c) if !self.repo.kind_of(c, p.ty) => {
+                    self.message = Some((format!("Selected element ({}) is not an instance of {}", self.repo.name(c), p.ty), String::new()));
+                }
+                chosen if self.repo.alive(p.obj) => self.apply_picked(p.obj, &p.field, chosen),
+                _ => {}
+            }
+        }
+    }
+
     pub fn element_picker_ui(&mut self, ctx: &egui::Context) {
         let Some(mut p) = self.element_picker.clone() else { return };
         let (mut ok, mut cancel) = (false, false);
@@ -170,20 +194,8 @@ impl App {
                 }
             });
         });
-        if ok && p.export_fragment {
-            self.element_picker = None;
-            if let Some(c) = p.chosen.filter(|c| self.repo.alive(*c)) {
-                self.save_fragment(c);
-            }
-        } else if ok {
-            self.element_picker = None;
-            match p.chosen {
-                Some(c) if !self.repo.kind_of(c, p.ty) => {
-                    self.message = Some((format!("Selected element ({}) is not an instance of {}", self.repo.name(c), p.ty), String::new()));
-                }
-                chosen if self.repo.alive(p.obj) => self.apply_picked(p.obj, &p.field, chosen),
-                _ => {}
-            }
+        if ok {
+            self.picker_ok(p);
         } else if cancel {
             self.element_picker = None;
         } else {
