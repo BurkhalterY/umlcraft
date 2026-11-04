@@ -102,8 +102,8 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLNode", Some("UMLClassifier"), vec![]);
     def("UMLComponentRealization", Some("UMLRealization"), vec![]);
     def("UMLDeployment", Some("UMLDependency"), vec![]);
-    // a class bound to a template (field name estimated)
-    def("UMLTemplateBinding", Some("UMLDirectedRelationship"), vec![("arguments", n())]);
+    // a class bound to a template, with its parameter substitutions (uml/metamodel.json)
+    def("UMLTemplateBinding", Some("UMLDirectedRelationship"), vec![("parameterSubstitutions", n())]);
     def("UMLCommunicationPath", Some("UMLAssociation"), vec![]);
     def("UMLExtensionPoint", Some("UMLModelElement"), vec![("location", d(json!("")))]);
     def("UMLUseCase", Some("UMLClassifier"), vec![("extensionPoints", n())]);
