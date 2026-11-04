@@ -193,13 +193,27 @@ fn main() -> eframe::Result {
     if let Some(icon) = window_icon() {
         viewport = viewport.with_icon(icon);
     }
-    let options = eframe::NativeOptions {
-        viewport: viewport
-            .with_title("Untitled — UMLCraft")
-            .with_app_id("umlcraft")
-            .with_inner_size([ui::WINDOW_WIDTH, ui::WINDOW_HEIGHT]),
-        ..Default::default()
-    };
+    viewport = viewport.with_title("UMLCraft").with_app_id("umlcraft").with_inner_size([ui::WINDOW_WIDTH, ui::WINDOW_HEIGHT]);
+    // the last window bounds and maximized state (windowState.main, window.js:26-94); screenshots
+    // keep the default size
+    if screenshot.is_none() {
+        let p = prefs::Prefs::load(prefs::default_path());
+        if let Some(ws) = p.get("windowState.main") {
+            let f = |k: &str| ws.get(k).and_then(|v| v.as_f64()).map(|v| v as f32);
+            if let (Some(w), Some(h)) = (f("width"), f("height")) {
+                if w >= 200.0 && h >= 150.0 {
+                    viewport = viewport.with_inner_size([w, h]);
+                }
+            }
+            if let (Some(x), Some(y)) = (f("x"), f("y")) {
+                viewport = viewport.with_position([x, y]);
+            }
+            if ws.get("isMaximized").and_then(|v| v.as_bool()) == Some(true) {
+                viewport = viewport.with_maximized(true);
+            }
+        }
+    }
+    let options = eframe::NativeOptions { viewport, ..Default::default() };
     eframe::run_native(
         "UMLCraft",
         options,

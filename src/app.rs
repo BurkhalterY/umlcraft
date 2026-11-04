@@ -205,6 +205,8 @@ pub struct App {
     pub user_keymap: Vec<(crate::keymap::Stroke, String)>,
     /// Requests from the local HTTP API, answered each frame.
     pub api_rx: Option<std::sync::mpsc::Receiver<crate::api::ApiRequest>>,
+    /// The window's bounds and maximized state, kept as windowState.main.
+    pub window_state: Option<serde_json::Value>,
     pub md_preview: bool,
     pub md_buf: String,
     pub md_for: Option<Eid>,
@@ -309,6 +311,7 @@ impl App {
             tree_rename: None,
             user_keymap: vec![],
             api_rx: None,
+            window_state: None,
             md_preview: false,
             md_buf: String::new(),
             md_for: None,

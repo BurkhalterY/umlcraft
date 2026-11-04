@@ -120,6 +120,9 @@ impl App {
         for (k, v) in vals {
             self.prefs.set(k, v);
         }
+        if let Some(ws) = self.window_state.clone() {
+            self.prefs.set("windowState.main", ws);
+        }
         self.prefs.flush();
     }
 

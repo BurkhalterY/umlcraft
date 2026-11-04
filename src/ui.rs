@@ -2509,6 +2509,23 @@ impl eframe::App for App {
         }
         self.handle_close(&ctx);
         self.api_poll(&ctx);
+        // remember the window's bounds and maximized state (window.js:26-94); they are written with
+        // the other preferences when they change
+        if self.screenshot.is_none() {
+            let (inner, outer, maximized) = ctx.input(|i| (i.viewport().inner_rect, i.viewport().outer_rect, i.viewport().maximized.unwrap_or(false)));
+            if let (Some(inner), Some(outer)) = (inner, outer) {
+                let mut ws = self.window_state.clone().unwrap_or_else(|| json!({}));
+                ws["isMaximized"] = json!(maximized);
+                // a maximized window keeps the bounds it had before
+                if !maximized {
+                    ws["x"] = json!(outer.min.x.round());
+                    ws["y"] = json!(outer.min.y.round());
+                    ws["width"] = json!(inner.width().round());
+                    ws["height"] = json!(inner.height().round());
+                }
+                self.window_state = Some(ws);
+            }
+        }
         self.dropped_files(&ctx);
         // a command picked in the palette runs a frame later, once the palette is gone (command-palette.js:106-112)
         if let Some(id) = self.palette_run.take() {
