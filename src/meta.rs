@@ -119,6 +119,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLSlot", Some("UMLModelElement"), vec![("definingFeature", n()), ("type", n()), ("value", d(json!("")))]);
     def("UMLLink", Some("UMLUndirectedRelationship"), vec![("association", n())]);
     def("UMLLinkEnd", Some("UMLRelationshipEnd"), vec![]);
+    def("UMLLinkObjectLink", Some("UMLModelElement"), vec![("objectSide", n()), ("linkSide", n())]);
     def("UMLExtend", Some("UMLDirectedRelationship"), vec![("condition", d(json!(""))), ("extensionLocations", n())]);
     def("UMLUseCaseSubject", Some("UMLSubsystem"), vec![("represent", n())]);
     def("UMLDiagram", Some("Diagram"), vec![]);
@@ -178,6 +179,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLNoteLinkView", Some("EdgeView"), vec![]);
     def("UMLContainmentView", Some("EdgeView"), vec![]);
     def("UMLAssociationClassLinkView", Some("EdgeView"), vec![]);
+    def("UMLLinkObjectLinkView", Some("EdgeView"), vec![]);
     def("UMLGeneralEdgeView", Some("EdgeView"), vec![
         ("stereotypeDisplay", d(json!("label"))), ("showVisibility", d(json!(false))), ("showProperty", d(json!(true))),
         ("nameLabel", n()), ("stereotypeLabel", n()), ("propertyLabel", n()),

@@ -3601,3 +3601,26 @@ fn profile_diagrams() {
     assert_eq!(ext.len(), 2);
     assert!(ext.iter().any(|x| a.repo.refd(*x, "source") == a.repo.refd(s2, "model") && a.repo.refd(*x, "target") == Some(mm)));
 }
+
+#[test]
+fn link_object_tool() {
+    let mut a = App::new(None);
+    let d = a.add_diagram(None, "UMLObjectDiagram");
+    let o1 = a.change(|a| a.create_node("UMLObject", rect(40.0, 40.0, 100.0, 40.0))).unwrap();
+    let o2 = a.change(|a| a.create_node("UMLObject", rect(340.0, 40.0, 100.0, 40.0))).unwrap();
+    let t = tool("LinkObject", AssocInit::Plain);
+    assert!(a.can_connect(&t, o1, o2));
+    let ov = a.change(|a| a.create_edge(&t, o1, o2)).unwrap();
+    let om = a.repo.refd(ov, "model").unwrap();
+    assert_eq!((a.repo.ty(om), a.repo.name(om).as_str()), ("UMLObject", "LinkObject"));
+    let l = a.repo.all_of("UMLLinkObjectLink");
+    assert_eq!(l.len(), 1);
+    assert_eq!(a.repo.ty(a.repo.refd(l[0], "linkSide").unwrap()), "UMLLink");
+    let lv = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "UMLLinkObjectLinkView").unwrap();
+    assert_eq!(a.edge_kind(lv), "LinkObject");
+    let link_view = a.repo.refd(lv, "head").unwrap();
+    let o3 = a.change(|a| a.create_node("UMLObject", rect(40.0, 300.0, 100.0, 40.0))).unwrap();
+    assert!(!a.can_connect(&t, o3, link_view), "a link has one link object at most");
+    assert!(a.broken_views(d).is_empty());
+    assert!(!crate::validate::validate(&a.repo).iter().any(|p| p.rule == "UML001" && a.repo.ty(p.elem) == "UMLLinkObjectLink"));
+}

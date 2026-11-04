@@ -962,6 +962,7 @@ impl App {
     pub fn edge_kind(&self, e: Eid) -> String {
         match self.repo.refd(e, "model") {
             Some(m) if self.repo.ty(m) == "UMLAssociationClassLink" => "AssociationClass".into(),
+            Some(m) if self.repo.ty(m) == "UMLLinkObjectLink" => "LinkObject".into(),
             Some(m) => self.repo.ty(m).to_string(),
             None if self.repo.ty(e) == "UMLNoteLinkView" => "NoteLink".into(),
             None if self.repo.ty(e) == "UMLContainmentView" => "Containment".into(),
@@ -978,6 +979,18 @@ impl App {
         }
         if kind == "ConstraintLink" {
             return r.ty(tail) == "UMLConstraintView" && r.ty(head) != "UMLConstraintView";
+        }
+        // a link object: between two objects, or from an object to a link that has none yet
+        if kind == "LinkObject" {
+            let (Some(tm), Some(hm)) = (r.refd(tail, "model"), r.refd(head, "model")) else { return false };
+            if views::is_edge(r, tail) || r.ty(tm) != "UMLObject" {
+                return false;
+            }
+            if views::is_edge(r, head) {
+                let linked = r.all_of("UMLLinkObjectLink").into_iter().any(|l| r.refd(l, "linkSide") == Some(hm));
+                return r.ty(hm) == "UMLLink" && !linked;
+            }
+            return r.kind_of(hm, "UMLInstance");
         }
         if kind == "AssociationClass" {
             // between two classifiers, or from a class to an association line (uml-factory.js:631)
@@ -1035,6 +1048,9 @@ impl App {
         if tool.kind == "AssociationClass" {
             return self.create_association_class(d, tail, head);
         }
+        if tool.kind == "LinkObject" {
+            return self.create_class_link(d, tail, head, true);
+        }
         if tool.kind == "Containment" {
             // a view-only line; the contained element moves into the container
             let (tm, hm) = (self.repo.refd(tail, "model")?, self.repo.refd(head, "model")?);
@@ -1075,10 +1091,22 @@ impl App {
     /// between them; from a class to an association line it only links them. Returns the class's box
     /// in the first case, the link in the second.
     fn create_association_class(&mut self, d: Eid, tail: Eid, head: Eid) -> Option<Eid> {
+        self.create_class_link(d, tail, head, false)
+    }
+
+    /// The Association Class tool, or with `objects` the Link Object tool (uml-factory.js:631, 873):
+    /// the same pattern with an Object "LinkObject", a Link and a UMLLinkObjectLink (its field names
+    /// `objectSide` and `linkSide` are estimated).
+    fn create_class_link(&mut self, d: Eid, tail: Eid, head: Eid, objects: bool) -> Option<Eid> {
+        let (rel, node, name, link_ty, view_ty, side1, side2) = if objects {
+            ("UMLLink", "UMLObject", "LinkObject", "UMLLinkObjectLink", "UMLLinkObjectLinkView", "objectSide", "linkSide")
+        } else {
+            ("UMLAssociation", "UMLClass", "AssociationClass", "UMLAssociationClassLink", "UMLAssociationClassLinkView", "classSide", "associationSide")
+        };
         let link = |a: &mut App, class_view: Eid, assoc_view: Eid| -> Option<Eid> {
             let (cm, am) = (a.repo.refd(class_view, "model")?, a.repo.refd(assoc_view, "model")?);
             let (c, s) = (a.repo.ref_to(cm), a.repo.ref_to(am));
-            let l = a.repo.create("UMLAssociationClassLink", &[("classSide", c), ("associationSide", s)], Some((cm, "ownedElements")));
+            let l = a.repo.create(link_ty, &[(side1, c), (side2, s)], Some((cm, "ownedElements")));
             let props = [
                 ("model", a.repo.ref_to(l)),
                 ("font", json!(views::FONT)),
@@ -1087,19 +1115,19 @@ impl App {
                 ("lineStyle", json!(views::DEFAULT_LINE_STYLE)),
                 ("points", json!("0:0;0:0")),
             ];
-            Some(a.repo.create("UMLAssociationClassLinkView", &props, Some((d, "ownedViews"))))
+            Some(a.repo.create(view_ty, &props, Some((d, "ownedViews"))))
         };
         if views::is_edge(&self.repo, head) {
             return link(self, tail, head);
         }
-        let assoc = Tool { label: "", kind: "UMLAssociation", icon: "", line: true, init: AssocInit::Plain };
+        let assoc = Tool { label: "", kind: rel, icon: "", line: true, init: AssocInit::Plain };
         let e = self.create_edge(&assoc, tail, head)?;
         let (a, b) = (views::node_rect(&self.repo, tail), views::node_rect(&self.repo, head));
         let mid = P { x: (a.x + a.w / 2.0 + b.x + b.w / 2.0) / 2.0, y: (a.y + a.h / 2.0 + b.y + b.h / 2.0) / 2.0 };
-        let (w, h) = views::default_size("UMLClass");
-        let cv = self.create_node("UMLClass", R { x: (mid.x - w / 2.0).max(0.0).round(), y: (mid.y + 30.0).round(), w, h })?;
+        let (w, h) = views::default_size(node);
+        let cv = self.create_node(node, R { x: (mid.x - w / 2.0).max(0.0).round(), y: (mid.y + 30.0).round(), w, h })?;
         if let Some(cm) = self.repo.refd(cv, "model") {
-            self.repo.set(cm, "name", json!("AssociationClass"));
+            self.repo.set(cm, "name", json!(name));
         }
         link(self, cv, e)?;
         Some(cv)
@@ -1137,6 +1165,8 @@ impl App {
             if let (Some(m), Some(tm)) = (a.repo.refd(e, "model"), a.repo.refd(to, "model")) {
                 if a.repo.ty(m) == "UMLAssociationClassLink" {
                     a.repo.set_ref(m, if tail { "classSide" } else { "associationSide" }, Some(tm));
+                } else if a.repo.ty(m) == "UMLLinkObjectLink" {
+                    a.repo.set_ref(m, if tail { "objectSide" } else { "linkSide" }, Some(tm));
                 } else if a.repo.has(m, "end1") {
                     if let Some(end) = a.repo.child(m, if tail { "end1" } else { "end2" }) {
                         a.repo.set_ref(end, "reference", Some(tm));

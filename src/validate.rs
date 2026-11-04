@@ -79,7 +79,7 @@ pub fn validate(r: &Repo) -> Vec<Problem> {
         }
         // UML001 Name expected (rules.js:27)
         if kind(r, e, "UMLModelElement") {
-            let exempt = ["UMLRegion", "UMLPseudostate", "UMLFinalState", "UMLControlNode", "UMLEndpoint", "UMLGate", "UMLAction", "UMLObjectNode", "UMLImage", "UMLLifeline", "UMLInstance", "UMLConnector", "UMLAssociationClassLink"]
+            let exempt = ["UMLRegion", "UMLPseudostate", "UMLFinalState", "UMLControlNode", "UMLEndpoint", "UMLGate", "UMLAction", "UMLObjectNode", "UMLImage", "UMLLifeline", "UMLInstance", "UMLConnector", "UMLAssociationClassLink", "UMLLinkObjectLink"]
                 .iter()
                 .any(|x| kind(r, e, x))
                 || (t == "UMLParameter" && r.str(e, "direction") == "return")

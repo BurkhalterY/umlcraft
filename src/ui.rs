@@ -186,6 +186,7 @@ const INSTANCES: Group = Group {
         node("Node Instance", "UMLNodeInstance", "node"),
         line("Link", "UMLLink", "association", AssocInit::Plain),
         line("Directed Link", "UMLLink", "directed", AssocInit::Directed),
+        line("Link Object", "LinkObject", "associationclass", AssocInit::Plain),
     ],
 };
 const OBJECT_GROUPS: &[Group] = &[INSTANCES, ANNOTATIONS];
