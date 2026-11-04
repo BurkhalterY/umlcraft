@@ -1724,6 +1724,22 @@ pub fn drawn_points(pts: &[P], style: i64) -> Vec<P> {
 
 /// Bend points left after a drag: points within 5 px of a neighbour (oblique and curve lines only) and
 /// points in a straight run are dropped; the ends always stay (graphics.js:737-773, 1000-1044).
+/// Move point `i` of a rectilinear path to `to`; each neighbour keeps the segment it shares with the
+/// point vertical or horizontal by following on that axis (diagram-editor.js:1887-1922). A neighbour
+/// on neither axis is left where it is.
+pub fn move_orthogonal(pts: &mut [P], i: usize, to: P) {
+    let from = pts[i];
+    for j in [i.wrapping_sub(1), i + 1] {
+        let Some(q) = pts.get_mut(j) else { continue };
+        if (q.x - from.x).abs() < 0.5 && (q.y - from.y).abs() >= 0.5 {
+            q.x = to.x;
+        } else if (q.y - from.y).abs() < 0.5 && (q.x - from.x).abs() >= 0.5 {
+            q.y = to.y;
+        }
+    }
+    pts[i] = to;
+}
+
 pub fn clean_points(pts: &[P], rectilinear: bool) -> Vec<P> {
     let mut out: Vec<P> = pts.to_vec();
     let dist = |a: P, b: P| ((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqrt();

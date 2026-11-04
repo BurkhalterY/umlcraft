@@ -1118,7 +1118,15 @@ impl App {
                 }
                 let mut pts = points_of(&self.repo, *edge);
                 if *index < pts.len() {
-                    pts[*index] = P { x: self.snap_v(p.x).max(0.0), y: self.snap_v(p.y).max(0.0) };
+                    let to = P { x: self.snap_v(p.x).max(0.0), y: self.snap_v(p.y).max(0.0) };
+                    // on a rectilinear line the neighbours follow on the axis they share with the point,
+                    // so the path stays orthogonal (diagram-editor.js:1887-1922)
+                    let style = self.repo.val(*edge, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+                    if views::rectilinear(style) {
+                        views::move_orthogonal(&mut pts, *index, to);
+                    } else {
+                        pts[*index] = to;
+                    }
                     self.repo.set(*edge, "points", json!(views::format_points(&pts)));
                 }
             }

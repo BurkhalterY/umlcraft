@@ -4538,3 +4538,18 @@ fn add_constraint_to_a_line() {
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn a_rectilinear_bend_point_drags_its_neighbours_along() {
+    use crate::views::{move_orthogonal, P};
+    // a Z path: right, down, right
+    let mut pts = vec![P { x: 0.0, y: 0.0 }, P { x: 50.0, y: 0.0 }, P { x: 50.0, y: 80.0 }, P { x: 120.0, y: 80.0 }];
+    move_orthogonal(&mut pts, 1, P { x: 70.0, y: 20.0 });
+    assert_eq!(pts[1], P { x: 70.0, y: 20.0 });
+    assert_eq!(pts[0], P { x: 0.0, y: 20.0 }, "the horizontal neighbour follows in y");
+    assert_eq!(pts[2], P { x: 70.0, y: 80.0 }, "the vertical neighbour follows in x");
+    assert_eq!(pts[3], P { x: 120.0, y: 80.0 });
+    for w in pts.windows(2) {
+        assert!(w[0].x == w[1].x || w[0].y == w[1].y, "still orthogonal");
+    }
+}
