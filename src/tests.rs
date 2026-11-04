@@ -4057,3 +4057,16 @@ fn behaviours_and_substitutions_from_model_add() {
     assert!(text.contains("\"parameterSubstitutions\"") && !text.contains("\"isReentrant\""), "isReentrant keeps its default");
     Repo::parse(&text).unwrap();
 }
+
+#[test]
+fn the_wheel_moves_the_origin_in_diagram_units() {
+    let mut a = App::new(None);
+    a.set_zoom(2.0);
+    a.scroll = crate::views::P { x: 100.0, y: 100.0 };
+    a.wheel_scroll(egui::vec2(0.0, -40.0), false);
+    assert_eq!((a.scroll.x, a.scroll.y), (100.0, 140.0), "not divided by the zoom");
+    a.wheel_scroll(egui::vec2(0.0, -30.0), true);
+    assert_eq!((a.scroll.x, a.scroll.y), (130.0, 140.0), "Shift scrolls sideways");
+    a.wheel_scroll(egui::vec2(500.0, 500.0), false);
+    assert_eq!((a.scroll.x, a.scroll.y), (0.0, 0.0), "never past the origin");
+}

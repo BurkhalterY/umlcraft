@@ -562,9 +562,7 @@ impl App {
                 let z = self.zoom + if scroll_delta.y > 0.0 { 0.1 } else { -0.1 };
                 self.set_zoom(z);
             } else if scroll_delta != Vec2::ZERO {
-                let (dx, dy) = if mods.shift { (-scroll_delta.y, 0.0) } else { (-scroll_delta.x, -scroll_delta.y) };
-                self.scroll.x = (self.scroll.x + dx as f64 / self.zoom).max(0.0);
-                self.scroll.y = (self.scroll.y + dy as f64 / self.zoom).max(0.0);
+                self.wheel_scroll(scroll_delta, mods.shift);
             }
         }
 
@@ -731,6 +729,15 @@ impl App {
                 a.repo.set(e, "points", json!(views::format_points(&pts)));
             }
         });
+    }
+
+    /// A wheel or trackpad scroll: the delta moves the diagram's origin as it is, in diagram units,
+    /// so at 200 % a notch travels twice as far on screen; Shift sends the vertical delta to X
+    /// (diagram-editor.js:2270-2287, 2392-2394).
+    pub fn wheel_scroll(&mut self, delta: Vec2, shift: bool) {
+        let (dx, dy) = if shift { (-delta.y, 0.0) } else { (-delta.x, -delta.y) };
+        self.scroll.x = (self.scroll.x + dx as f64).max(0.0);
+        self.scroll.y = (self.scroll.y + dy as f64).max(0.0);
     }
 
     pub(crate) fn on_press(&mut self, rect: Rect, pos: Pos2, mods: egui::Modifiers) {
