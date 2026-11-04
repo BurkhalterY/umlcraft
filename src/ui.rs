@@ -230,6 +230,33 @@ impl App {
         }
         let tx = ir.right() + 6.0;
         let tw = text_galley_width(ui, &label, 13.0);
+        // renaming in place: Enter applies, Esc cancels (model-explorer-view.js)
+        if let Some((re, mut text, fresh)) = self.tree_rename.clone().filter(|r| r.0 == e) {
+            let er = Rect::from_min_max(Pos2::new(tx - 3.0, rect.top() + 1.0), Pos2::new(rect.right() - 4.0, rect.bottom() - 1.0));
+            let out = ui.put(er, egui::TextEdit::singleline(&mut text).font(FontId::proportional(13.0)).margin(Margin::symmetric(3, 1)));
+            if fresh {
+                out.request_focus();
+                if let Some(mut st) = egui::TextEdit::load_state(ui.ctx(), out.id) {
+                    let all = egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(text.chars().count()));
+                    st.cursor.set_char_range(Some(all));
+                    st.store(ui.ctx(), out.id);
+                }
+            }
+            let (enter, esc) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+            if esc {
+                self.tree_rename = None;
+            } else if (out.lost_focus() || enter) && !fresh {
+                // the Enter that applied the name does not start another rename
+                ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
+                self.tree_rename = None;
+                if self.repo.alive(re) && self.repo.name(re) != text {
+                    self.change(|a| a.repo.set(re, "name", json!(text)));
+                }
+            } else {
+                self.tree_rename = Some((re, text, false));
+            }
+            return;
+        }
         if self.focus == Some(e) {
             let lr = Rect::from_min_size(Pos2::new(tx - 3.0, rect.top() + 1.0), Vec2::new(tw + 6.0, 20.0));
             p.rect_filled(lr, 0.0, SELECTED_ROW());
@@ -389,7 +416,7 @@ impl App {
         }
     }
 
-    fn explorer_ui(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn explorer_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.set_height(HEADER_HEIGHT);
             ui.add_space(13.0);
@@ -433,11 +460,23 @@ impl App {
         if self.last_area == Area::Explorer && self.editing.is_none() && !text_field_focused(ui.ctx()) && self.search.trim().is_empty() {
             let keys = ui.input(|i| (i.key_pressed(egui::Key::ArrowUp), i.key_pressed(egui::Key::ArrowDown), i.key_pressed(egui::Key::ArrowLeft), i.key_pressed(egui::Key::ArrowRight)));
             self.tree_keys(keys);
+            // Enter renames the selected element in place
+            if self.tree_rename.is_none() && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)) {
+                self.start_tree_rename();
+            }
         }
         if ui.ui_contains_pointer() && ui.input(|i| i.key_pressed(egui::Key::Delete)) && self.last_area == Area::Explorer && !text_field_focused(ui.ctx()) {
             if let Some(f) = self.focus.filter(|f| self.repo.ty(*f) != "Project" && !self.is_view(*f)) {
                 self.change(|a| a.delete_models(&[f]));
             }
+        }
+    }
+
+    /// Start renaming the selected element in the tree, its name selected.
+    pub fn start_tree_rename(&mut self) {
+        if let Some(f) = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f) && self.repo.ty(*f) != "Project" && crate::meta::order_of(self.repo.ty(*f), "name").is_some()) {
+            self.tree_rename = Some((f, self.repo.name(f), true));
+            self.reveal(f);
         }
     }
 

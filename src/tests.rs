@@ -2350,3 +2350,36 @@ fn model_fragments() {
     Repo::parse(&a.repo.serialize()).unwrap();
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn explorer_rename_in_place() {
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let book = a.repo.all().find(|e| a.repo.name(*e) == "Book" && a.repo.ty(*e) == "UMLClass").unwrap();
+    a.reveal(book);
+    a.last_area = crate::app::Area::Explorer;
+    let mut frame = |a: &mut App, events: Vec<egui::Event>| {
+        let mut out = ctx.run_ui(egui::RawInput { events, ..Default::default() }, |ui| {
+            egui::CentralPanel::default().show_inside(ui, |ui| a.explorer_ui(ui));
+        });
+        out.textures_delta.clear();
+    };
+    let key = |k: egui::Key| egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+    frame(&mut a, vec![]);
+    frame(&mut a, vec![key(egui::Key::Enter)]);
+    assert_eq!(a.tree_rename.as_ref().map(|r| (r.0, r.1.clone())), Some((book, "Book".to_string())));
+    frame(&mut a, vec![]);
+    frame(&mut a, vec![egui::Event::Text("Novel".into())]);
+    frame(&mut a, vec![key(egui::Key::Enter)]);
+    assert!(a.tree_rename.is_none());
+    assert_eq!(a.repo.name(book), "Novel", "the selected name was replaced");
+    // Esc cancels
+    a.start_tree_rename();
+    frame(&mut a, vec![]);
+    frame(&mut a, vec![egui::Event::Text("X".into())]);
+    frame(&mut a, vec![key(egui::Key::Escape)]);
+    assert!(a.tree_rename.is_none());
+    assert_eq!(a.repo.name(book), "Novel");
+}

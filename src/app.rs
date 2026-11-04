@@ -198,6 +198,8 @@ pub struct App {
     pub mermaid_code: Option<String>,
     /// The theme the style was last set for (true: light).
     pub theme_applied: Option<bool>,
+    /// The element being renamed in the Model Explorer: its text, and whether the edit just opened.
+    pub tree_rename: Option<(Eid, String, bool)>,
     pub md_preview: bool,
     pub md_buf: String,
     pub md_for: Option<Eid>,
@@ -297,6 +299,7 @@ impl App {
             show_markdown: false,
             mermaid_code: None,
             theme_applied: None,
+            tree_rename: None,
             md_preview: false,
             md_buf: String::new(),
             md_for: None,
