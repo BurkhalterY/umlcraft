@@ -1816,8 +1816,53 @@ fn layout_edge(r: &mut Repo, ms: &dyn Measure, e: Eid, info: &HashMap<Eid, Info>
         pts[0] = junction(&tr, pts[1]);
         pts[n - 1] = junction(&hr, pts[n - 2]);
     }
+    layout_qualifiers(r, ms, e, &mut pts, tr, hr);
     r.set(e, "points", json!(format_points(&pts)));
     layout_edge_labels(r, ms, e, &pts);
+}
+
+/// The qualifiers of an association end: a box of their rows against the end's box, on the side the
+/// line arrives at, and the line then ends on the box's outer side. Shown only when the end has
+/// qualifiers (UMLQualifierCompartmentView; the placement is estimated).
+pub fn qualifier_rows(r: &Repo, q: Eid) -> Vec<String> {
+    let Some(end) = r.refd(q, "model") else { return vec![] };
+    r.list(end, "qualifiers").into_iter().filter(|a| r.alive(*a)).map(|a| attribute_text(r, a, Show::ALL)).collect()
+}
+
+fn layout_qualifiers(r: &mut Repo, ms: &dyn Measure, e: Eid, pts: &mut [P], tr: R, hr: R) {
+    let n = pts.len();
+    if n < 2 {
+        return;
+    }
+    let (face, size) = view_font(r, e);
+    let scaled = Scaled { ms, face, size };
+    for (field, i, b) in [("tailQualifiersCompartment", 0, tr), ("headQualifiersCompartment", n - 1, hr)] {
+        let Some(q) = r.refd(e, field) else { continue };
+        let rows = qualifier_rows(r, q);
+        if rows.is_empty() {
+            r.set_raw(q, "visible", json!(false));
+            continue;
+        }
+        let lh = scaled.size();
+        let w = (rows.iter().map(|t| scaled.width(t, 0)).fold(0.0, f64::max) + 2.0 * PAD).ceil();
+        let h = (rows.len() as f64 * lh + 2.0 * PAD).ceil();
+        let p = pts[i];
+        let sides = [(p.x - b.x).abs(), (p.x - b.x - b.w).abs(), (p.y - b.y).abs(), (p.y - b.y - b.h).abs()];
+        let side = (0..4).min_by(|a, c| sides[*a].total_cmp(&sides[*c])).unwrap_or(0);
+        let (cy, cx) = ((p.y - h / 2.0).clamp(b.y, (b.y + b.h - h).max(b.y)), (p.x - w / 2.0).clamp(b.x, (b.x + b.w - w).max(b.x)));
+        let (bx, by, end) = match side {
+            0 => (b.x - w, cy, P { x: b.x - w, y: p.y }),
+            1 => (b.x + b.w, cy, P { x: b.x + b.w + w, y: p.y }),
+            2 => (cx, b.y - h, P { x: p.x, y: b.y - h }),
+            _ => (cx, b.y + b.h, P { x: p.x, y: b.y + b.h + h }),
+        };
+        r.remove(q, "visible");
+        r.set(q, "left", num(bx));
+        r.set(q, "top", num(by));
+        r.set(q, "width", num(w));
+        r.set(q, "height", num(h));
+        pts[i] = end;
+    }
 }
 
 /// Coord.getPointAwayLine (graphics.js:1207): offset `distance` from p1 at the segment angle + alpha.

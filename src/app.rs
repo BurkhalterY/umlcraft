@@ -1330,6 +1330,13 @@ impl App {
         Some(self.repo.create(ty, &[("name", json!(name))], Some((owner, field))))
     }
 
+    /// Add Qualifier on an association end: a new attribute in its qualifiers, drawn in a box at
+    /// that end of the line.
+    pub fn add_qualifier(&mut self, end: Eid) -> Eid {
+        let name = self.new_name(end, "UMLAttribute");
+        self.repo.create("UMLAttribute", &[("name", json!(name))], Some((end, "qualifiers")))
+    }
+
     pub fn can_add_feature(&self, owner: Eid, ty: &str) -> bool {
         let t = self.repo.ty(owner);
         match ty {

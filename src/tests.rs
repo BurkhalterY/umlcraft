@@ -4560,3 +4560,33 @@ fn a_rectilinear_bend_point_drags_its_neighbours_along() {
         assert!(w[0].x == w[1].x || w[0].y == w[1].y, "still orthogonal");
     }
 }
+
+#[test]
+fn an_association_end_qualifier_is_drawn_at_its_end() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 100.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 100.0, 100.0, 60.0))).unwrap();
+    let tool = crate::app::Tool { label: "", kind: "UMLAssociation", icon: "", line: true, init: crate::app::AssocInit::Plain };
+    let e = a.change(|a| a.create_edge(&tool, c1, c2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let q = a.repo.refd(e, "tailQualifiersCompartment").unwrap();
+    assert_eq!(a.repo.val(q, "visible"), Some(json!(false)), "hidden without qualifiers");
+    let m = a.repo.refd(e, "model").unwrap();
+    let end1 = a.repo.child(m, "end1").unwrap();
+    let undo = a.undo.len();
+    let qa = a.change(|a| a.add_qualifier(end1));
+    assert_eq!(a.undo.len(), undo + 1);
+    assert_eq!(a.repo.list(end1, "qualifiers"), vec![qa]);
+    a.change(|a| a.repo.set(qa, "name", json!("id")));
+    a.change(|a| a.repo.set(qa, "type", json!("int")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_ne!(a.repo.val(q, "visible"), Some(json!(false)), "shown");
+    let b = crate::views::node_rect(&a.repo, q);
+    assert_eq!(b.x, 140.0 , "against the right side of the tail box");
+    assert!(b.y >= 100.0 && b.y + b.h <= 160.0);
+    let pts = crate::views::points_of(&a.repo, e);
+    assert_eq!(pts[0].x, b.x + b.w, "the line starts on the qualifier box");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

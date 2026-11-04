@@ -268,3 +268,4 @@ Read from the StarUML source through the feature inventory (`docs/features/`), w
 * Rectilinear routing is a simple elbow (estimated); the original's router was not read.
 * Template parameters are drawn in a dashed box whose right and top edges reach 10 px past the class's top-right corner (estimated; `views.rs` TEMPLATE_OUT); their text is `«stereotype» name: type = default`.
 * Line styles 2 (rounded rectilinear) and 3 (curve) are drawn from the points: rounded corners of radius 10, and quadratic curves through the segment midpoints that bend towards each point (estimated, `views.rs` drawn_points).
+* An association end's qualifiers are drawn in a box against the end's box, on the side the line arrives at (centred on the line, kept within the box side, 5 px padding), and the line ends on its outer side; the original's qualifier compartment layout was not read (estimated).

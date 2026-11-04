@@ -794,6 +794,21 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         }
     }
     c.polyline(&views::drawn_points(&pts, style), line, dashed);
+    // an association end's qualifiers: a box of rows against the end's box
+    for field in ["tailQualifiersCompartment", "headQualifiersCompartment"] {
+        let Some(q) = r.refd(e, field).filter(|q| r.val(*q, "visible").and_then(|v| v.as_bool()) != Some(false)) else { continue };
+        let rows = views::qualifier_rows(r, q);
+        if rows.is_empty() {
+            continue;
+        }
+        let b = node_rect(r, q);
+        c.rect(b, Some(color(r, e, "fillColor", WHITE)), Some(line));
+        let size = views::view_font(r, e).1;
+        let fc = color(r, e, "fontColor", BLACK);
+        for (i, t) in rows.iter().enumerate() {
+            c.text(t, R { x: b.x + views::PAD, y: b.y + views::PAD + i as f64 * size, w: b.w - 2.0 * views::PAD, h: size }, 0, 0, size, fc, false);
+        }
+    }
     let n = pts.len();
     end_shape(c, pts[n - 1], pts[n - 2], head, line);
     end_shape(c, pts[0], pts[1], tail, line);

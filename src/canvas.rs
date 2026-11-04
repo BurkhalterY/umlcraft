@@ -1935,6 +1935,7 @@ impl App {
                 // (quickedits/uml.json "uml.association-end1/2")
                 let mut picked_end: Option<(&'static str, String)> = None;
                 let mut picked_owner: Option<Option<Eid>> = None;
+                let mut add_qualifier = false;
                 if let EditKind::Name(end) = ed.kind {
                     if self.repo.ty(end) == "UMLAssociationEnd" || self.repo.ty(end) == "UMLLinkEnd" {
                         ui.horizontal(|ui| {
@@ -1975,9 +1976,20 @@ impl App {
                                 })
                                 .response
                                 .on_hover_text("Owner Attribute");
+                                // Add Qualifier: a new attribute in the end's qualifiers (quickedits/uml.json "uml.association-end1/2")
+                                let b = ui.add(egui::Button::new(egui::RichText::new("+ Qual").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Qualifier");
+                                if b.clicked() {
+                                    add_qualifier = true;
+                                }
                             }
                         });
                     }
+                }
+                if let (true, EditKind::Name(end)) = (add_qualifier, &ed.kind) {
+                    let end = *end;
+                    let q = self.change(|a| a.add_qualifier(end));
+                    self.reveal(q);
+                    ed.fresh = true;
                 }
                 if let (Some(owner), EditKind::Name(end)) = (picked_owner, &ed.kind) {
                     let end = *end;
