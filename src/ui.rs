@@ -1719,13 +1719,12 @@ impl App {
         });
     }
 
-    /// A colour swatch that opens a colour picker; a mixed selection shows a transparent swatch.
-    fn color_swatch(&mut self, ui: &mut egui::Ui, field: &str, label: &str) {
-        let cur = self.color_state(field);
-        let mut c = cur.map(|c| Color32::from_rgb(c.0, c.1, c.2)).unwrap_or(Color32::TRANSPARENT);
-        let r = egui::color_picker::color_edit_button_srgba(ui, &mut c, egui::color_picker::Alpha::Opaque).on_hover_text(label);
-        if r.changed() {
-            self.set_color(field, crate::render::Rgba(c.r(), c.g(), c.b(), 255));
+    /// A colour swatch that opens the Color dialog; a mixed selection shows a transparent swatch
+    /// (style-editor-view.js:229-278, 549-592).
+    fn color_swatch(&mut self, ui: &mut egui::Ui, field: &'static str, label: &str) {
+        let c = self.color_state(field).map(|c| Color32::from_rgba_unmultiplied(c.0, c.1, c.2, c.3)).unwrap_or(Color32::TRANSPARENT);
+        if swatch(ui, c, Vec2::new(28.0, 16.0)).on_hover_text(label).clicked() {
+            self.open_color_dialog(field);
         }
     }
 
@@ -1900,8 +1899,8 @@ impl App {
                 }
             }
             for (key, field) in [(Key::I, "fillColor"), (Key::L, "lineColor")] {
-                if hit(sc(cs, key)) && !self.color_views(field).is_empty() {
-                    self.color_dialog = Some(field);
+                if hit(sc(cs, key)) {
+                    self.open_color_dialog(field);
                 }
             }
             for (key, field) in [(Key::R, "autoResize"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::T, "suppressLiterals")] {
@@ -2179,7 +2178,7 @@ impl App {
             || self.print_open
     }
 
-    fn dialogs(&mut self, ctx: &egui::Context) {
+    pub(crate) fn dialogs(&mut self, ctx: &egui::Context) {
         if self.about_open {
             egui::Window::new("About UMLCraft").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
                 ui.label(concat!("UMLCraft ", env!("CARGO_PKG_VERSION")));
@@ -2330,24 +2329,69 @@ impl App {
         }
     }
 
-    /// The colour window of Format > Fill Color (Ctrl+Shift+I) and Line Color (Ctrl+Shift+L): the merged
-    /// colour of the selection, applied as it changes (default-commands.js:966-991).
+    /// The Color dialog (dialog-manager.js:484-527): a picker with opacity, a hex field, a 16-column
+    /// preset palette and a Transparent swatch. OK (or Enter) applies the colour to the selected
+    /// views as one undo step; Cancel (or Esc) leaves them.
     fn color_dialog_ui(&mut self, ctx: &egui::Context) {
-        let Some(field) = self.color_dialog else { return };
-        let label = crate::style::COLORS.iter().find(|c| c.0 == field).map(|c| c.1).unwrap_or("Color");
-        let mut close = false;
-        egui::Window::new(label).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
-            let cur = self.color_state(field).unwrap_or(crate::render::Rgba(255, 255, 255, 255));
-            let mut c = Color32::from_rgb(cur.0, cur.1, cur.2);
-            if egui::color_picker::color_picker_color32(ui, &mut c, egui::color_picker::Alpha::Opaque) {
-                self.set_color(field, crate::render::Rgba(c.r(), c.g(), c.b(), 255));
-            }
-            if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
-                close = true;
-            }
+        let Some(mut d) = self.color_dialog.clone() else { return };
+        let (mut ok, mut cancel) = (false, false);
+        egui::Window::new("Color").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    let mut c = Color32::from_rgba_unmultiplied(d.color.0, d.color.1, d.color.2, d.color.3);
+                    if egui::color_picker::color_picker_color32(ui, &mut c, egui::color_picker::Alpha::OnlyBlend) {
+                        let [r, g, b, a] = c.to_srgba_unmultiplied();
+                        d.color = crate::render::Rgba(r, g, b, a);
+                        d.text = crate::style::hex(d.color);
+                    }
+                    let r = ui.add(egui::TextEdit::singleline(&mut d.text).desired_width(120.0).font(egui::TextStyle::Monospace));
+                    if r.changed() {
+                        if let Some(c) = crate::style::parse_hex(&d.text) {
+                            d.color = c;
+                        }
+                    }
+                });
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::splat(2.0);
+                    for row in crate::style::palette().chunks(16) {
+                        ui.horizontal(|ui| {
+                            for c in row {
+                                if swatch(ui, Color32::from_rgb(c.0, c.1, c.2), Vec2::splat(14.0)).on_hover_text(crate::style::hex(*c)).clicked() {
+                                    d.color = *c;
+                                    d.text = crate::style::hex(*c);
+                                }
+                            }
+                        });
+                    }
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        if swatch(ui, Color32::TRANSPARENT, Vec2::splat(14.0)).on_hover_text("rgba(255, 255, 255, 0)").clicked() {
+                            d.color = crate::render::Rgba(255, 255, 255, 0);
+                            d.text = crate::style::hex(d.color);
+                        }
+                        ui.label("Transparent");
+                    });
+                });
+            });
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ok = ui.button("OK").clicked();
+                cancel = ui.button("Cancel").clicked();
+            });
+            ok |= ui.input(|i| i.key_pressed(egui::Key::Enter));
+            cancel |= ui.input(|i| i.key_pressed(egui::Key::Escape));
         });
-        if close || self.color_views(field).is_empty() {
+        if ok {
+            self.style_edit = None;
+            if Some(d.color) != self.color_state(d.field) {
+                self.set_color(d.field, d.color);
+            }
+            self.style_edit = None;
             self.color_dialog = None;
+        } else if cancel || self.color_views(d.field).is_empty() {
+            self.color_dialog = None;
+        } else {
+            self.color_dialog = Some(d);
         }
     }
 
@@ -2597,4 +2641,26 @@ impl eframe::App for App {
         self.screenshots(&ctx);
         let _ = R::default();
     }
+}
+
+/// A clickable colour swatch; a transparent colour shows a checkerboard.
+fn swatch(ui: &mut egui::Ui, c: Color32, size: Vec2) -> egui::Response {
+    let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
+    let p = ui.painter();
+    if c.a() < 255 {
+        let s = size.y / 2.0;
+        p.rect_filled(rect, 0.0, Color32::WHITE);
+        let mut x = rect.left();
+        let mut i = 0;
+        while x < rect.right() {
+            let w = s.min(rect.right() - x);
+            let top = if i % 2 == 0 { rect.top() } else { rect.top() + s };
+            p.rect_filled(egui::Rect::from_min_size(Pos2::new(x, top), Vec2::new(w, s)), 0.0, Color32::from_gray(200));
+            x += s;
+            i += 1;
+        }
+    }
+    p.rect_filled(rect, 0.0, c);
+    p.rect_stroke(rect, 0.0, Stroke::new(1.0, if r.hovered() { TEXT() } else { BORDER() }), egui::StrokeKind::Inside);
+    r
 }

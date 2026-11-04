@@ -23,11 +23,26 @@ pub struct Rgba(pub u8, pub u8, pub u8, pub u8);
 pub const BLACK: Rgba = Rgba(0, 0, 0, 255);
 pub const WHITE: Rgba = Rgba(255, 255, 255, 255);
 
+/// A colour as StarUML writes it: `#rrggbb`, `#rrggbbaa` (the Color dialog's opacity), `#rgb`, or
+/// CSS `rgb(r, g, b)` / `rgba(r, g, b, a)` with `a` from 0 to 1.
 pub fn parse_color(s: &str, def: Rgba) -> Rgba {
-    let h = s.trim_start_matches('#');
-    if h.len() == 6 {
-        if let Ok(n) = u32::from_str_radix(h, 16) {
-            return Rgba((n >> 16) as u8, (n >> 8) as u8, n as u8, 255);
+    let t = s.trim();
+    if let Some(h) = t.strip_prefix('#') {
+        let n = |i: usize, w: usize| h.get(i..i + w).and_then(|x| u8::from_str_radix(x, 16).ok());
+        return match h.len() {
+            6 => (|| Some(Rgba(n(0, 2)?, n(2, 2)?, n(4, 2)?, 255)))(),
+            8 => (|| Some(Rgba(n(0, 2)?, n(2, 2)?, n(4, 2)?, n(6, 2)?)))(),
+            3 => (|| Some(Rgba(n(0, 1)? * 17, n(1, 1)? * 17, n(2, 1)? * 17, 255)))(),
+            _ => None,
+        }
+        .unwrap_or(def);
+    }
+    let low = t.to_ascii_lowercase();
+    if let Some(args) = low.strip_prefix("rgba(").or_else(|| low.strip_prefix("rgb(")).and_then(|x| x.strip_suffix(')')) {
+        let v: Vec<f64> = args.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+        if v.len() == 3 || v.len() == 4 {
+            let c = |x: f64| x.round().clamp(0.0, 255.0) as u8;
+            return Rgba(c(v[0]), c(v[1]), c(v[2]), v.get(3).map(|a| c(a * 255.0)).unwrap_or(255));
         }
     }
     def

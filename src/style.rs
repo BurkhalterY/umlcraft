@@ -12,11 +12,77 @@ use std::time::{Duration, Instant};
 /// Colour fields of a view, with the label used in the menus and the Style editor.
 pub const COLORS: [(&str, &str); 3] = [("fillColor", "Fill Color"), ("lineColor", "Line Color"), ("fontColor", "Text Color")];
 
+/// `#rrggbb`, or `#rrggbbaa` when the colour is not opaque.
 pub fn hex(c: Rgba) -> String {
-    format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2)
+    if c.3 == 255 {
+        format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2)
+    } else {
+        format!("#{:02x}{:02x}{:02x}{:02x}", c.0, c.1, c.2, c.3)
+    }
+}
+
+/// The Color dialog (dialog-manager.js:484-527): the field it edits, the colour picked so far and
+/// the hex text being typed. OK applies the colour to the selected views; Cancel leaves them.
+#[derive(Clone)]
+pub struct ColorDialog {
+    pub field: &'static str,
+    pub color: Rgba,
+    pub text: String,
+}
+
+/// The Color dialog's preset palette: 16 columns, a grey ramp then four shades of 16 hues
+/// (estimated: the colours of StarUML's palette are not known).
+pub fn palette() -> Vec<Rgba> {
+    let mut out: Vec<Rgba> = (0..16).map(|i| {
+        let g = 255 - (i * 255 / 15) as u8;
+        Rgba(g, g, g, 255)
+    }).collect();
+    for (s, l) in [(0.9, 0.85), (0.85, 0.65), (0.8, 0.45), (0.8, 0.28)] {
+        for i in 0..16 {
+            out.push(hsl(i as f64 * 22.5, s, l));
+        }
+    }
+    out
+}
+
+fn hsl(h: f64, s: f64, l: f64) -> Rgba {
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+    let (r, g, b) = match (h / 60.0) as i64 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let m = l - c / 2.0;
+    let u = |v: f64| ((v + m) * 255.0).round().clamp(0.0, 255.0) as u8;
+    Rgba(u(r), u(g), u(b), 255)
+}
+
+/// What the Color dialog's hex field accepts: `#rrggbb` or `#rrggbbaa`, the `#` optional.
+pub fn parse_hex(text: &str) -> Option<Rgba> {
+    let t = text.trim();
+    let t = t.strip_prefix('#').unwrap_or(t);
+    if t.len() != 6 && t.len() != 8 {
+        return None;
+    }
+    let n = |i: usize| t.get(i..i + 2).and_then(|x| u8::from_str_radix(x, 16).ok());
+    Some(Rgba(n(0)?, n(2)?, n(4)?, if t.len() == 8 { n(6)? } else { 255 }))
 }
 
 impl App {
+    /// Open the Color dialog on a field, starting from the merged colour (white when it is mixed).
+    pub fn open_color_dialog(&mut self, field: &'static str) {
+        if self.color_views(field).is_empty() {
+            return;
+        }
+        let def = if field == "fillColor" { Rgba(255, 255, 255, 255) } else { Rgba(0, 0, 0, 255) };
+        let color = self.color_state(field).unwrap_or(def);
+        self.color_dialog = Some(ColorDialog { field, color, text: hex(color) });
+    }
+
     /// The selected views that have this colour field.
     pub fn color_views(&self, field: &str) -> Vec<Eid> {
         self.selection.iter().copied().filter(|v| self.repo.alive(*v) && crate::meta::order_of(self.repo.ty(*v), field).is_some()).collect()

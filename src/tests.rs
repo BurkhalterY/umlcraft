@@ -1271,7 +1271,7 @@ fn colours_apply_to_the_selected_views() {
     let ev = egui::Event::Key { key: egui::Key::L, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::COMMAND | egui::Modifiers::SHIFT };
     let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
     out.textures_delta.clear();
-    assert_eq!(a.color_dialog, Some("lineColor"));
+    assert_eq!(a.color_dialog.as_ref().map(|d| d.field), Some("lineColor"));
 }
 
 #[test]
@@ -2790,4 +2790,44 @@ fn derived_association_name() {
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     let nl = a.repo.refd(e, "nameLabel").unwrap();
     assert!(a.repo.str(nl, "text").ends_with("/owns"), "{}", a.repo.str(nl, "text"));
+}
+
+#[test]
+fn colour_dialog_applies_on_ok_only() {
+    use crate::render::{parse_color, Rgba};
+    use crate::style::{hex, palette, parse_hex};
+    let def = Rgba(1, 1, 1, 255);
+    assert_eq!(parse_color("#ff000080", def), Rgba(255, 0, 0, 128));
+    assert_eq!(parse_color("#f00", def), Rgba(255, 0, 0, 255));
+    assert_eq!(parse_color("rgba(255, 255, 255, 0)", def), Rgba(255, 255, 255, 0));
+    assert_eq!(parse_color("rgb(1,2,3)", def), Rgba(1, 2, 3, 255));
+    assert_eq!(parse_color("#zzzzzz", def), def);
+    assert_eq!(hex(Rgba(255, 255, 255, 0)), "#ffffff00");
+    assert_eq!(parse_hex("00ff00"), Some(Rgba(0, 255, 0, 255)));
+    assert_eq!(parse_hex("#00ff00"), parse_hex("00FF00"));
+    assert_eq!(parse_hex("#00ff0"), None);
+    assert_eq!(palette().len(), 80);
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    a.select(vec![c]);
+    a.open_color_dialog("fillColor");
+    let d = a.color_dialog.as_mut().unwrap();
+    assert_eq!((d.color, d.text.as_str()), (Rgba(255, 255, 255, 255), "#ffffff"));
+    d.color = Rgba(255, 255, 255, 0);
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let key = |k| egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+    // Esc cancels: nothing changes
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![key(egui::Key::Escape)], ..Default::default() }, |ui| a.dialogs(ui.ctx()));
+    out.textures_delta.clear();
+    assert!(a.color_dialog.is_none());
+    assert_eq!(a.repo.str(c, "fillColor"), "#ffffff");
+    a.open_color_dialog("fillColor");
+    a.color_dialog.as_mut().unwrap().color = Rgba(255, 255, 255, 0);
+    let undo = a.undo.len();
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![key(egui::Key::Enter)], ..Default::default() }, |ui| a.dialogs(ui.ctx()));
+    out.textures_delta.clear();
+    assert!(a.color_dialog.is_none());
+    assert_eq!(a.repo.str(c, "fillColor"), "#ffffff00", "Transparent is written with its alpha");
+    assert_eq!(a.undo.len(), undo + 1);
 }
