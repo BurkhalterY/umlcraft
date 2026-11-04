@@ -2181,3 +2181,46 @@ fn html_docs_export() {
     assert!(index.contains("<h2>UMLClass ("));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn mermaid_class_diagrams() {
+    use crate::mermaid::{diagram_type, member_text, parse_class_diagram, SAMPLE};
+    assert_eq!(diagram_type("graph TD\nA-->B"), Err("Unsupported diagram type".to_string()));
+    assert_eq!(diagram_type("stateDiagram-v2\n"), Ok("state"));
+    assert_eq!(member_text("+int age"), ("+age: int".to_string(), false, false, false));
+    assert_eq!(member_text("+eat(String food, int n) bool"), ("+eat(food: String, n: int): bool".to_string(), true, false, false));
+    assert_eq!(member_text("-List~int~ ids$"), ("-ids: List<int>".to_string(), false, true, false));
+    assert_eq!(member_text("draw()*"), ("~draw()".to_string(), true, false, true));
+    let md = parse_class_diagram("classDiagram\ndirection LR\nnamespace Shapes {\n class Square~T~\n}\nclass Animal[\"An animal\"]{\n<<interface>>\n+move()\n}\nA \"1\" *-- \"many\" B : has\nC ..|> Animal\nnote for A \"hello\"").unwrap();
+    assert_eq!(md.direction, "LR");
+    let sq = md.classes.iter().find(|c| c.id == "Square").unwrap();
+    assert_eq!((sq.namespace.as_deref(), sq.generics.clone()), (Some("Shapes"), vec!["T".to_string()]));
+    let an = md.classes.iter().find(|c| c.id == "Animal").unwrap();
+    assert_eq!((an.label.as_str(), an.annotations.clone(), an.members.clone()), ("An animal", vec!["interface".to_string()], vec!["+move()".to_string()]));
+    let r = &md.relations[0];
+    assert_eq!((r.a.as_str(), r.b.as_str(), r.end_a.as_str(), r.card_a.as_str(), r.card_b.as_str(), r.label.as_str()), ("A", "B", "*", "1", "many", "has"));
+    assert_eq!(md.notes, vec![(Some("A".to_string()), "hello".to_string())]);
+
+    let ms = measure();
+    let mut a = App::new(None);
+    a.focus = None;
+    let undo = a.undo.len();
+    let d = a.generate_mermaid(SAMPLE, &ms).unwrap();
+    assert_eq!(a.undo.len(), undo + 1, "one undo step");
+    assert_eq!(a.repo.name(d), "Class Diagram by Mermaid");
+    assert_eq!(a.repo.name(a.repo.parent(d).unwrap()), "Package by Mermaid");
+    let find = |a: &App, n: &str| a.repo.all().find(|e| a.repo.name(*e) == n && a.repo.ty(*e) == "UMLClass").unwrap();
+    let (car, vehicle, garage) = (find(&a, "Car"), find(&a, "Vehicle"), find(&a, "Garage"));
+    let g = a.repo.all().find(|e| a.repo.ty(*e) == "UMLGeneralization" && a.repo.refd(*e, "source") == Some(car)).unwrap();
+    assert_eq!(a.repo.refd(g, "target"), Some(vehicle));
+    let attrs: Vec<String> = a.repo.list(vehicle, "attributes").into_iter().map(|x| crate::views::attribute_text(&a.repo, x, crate::views::Show::ALL)).collect();
+    assert_eq!(attrs, vec!["+wheels: int", "+brand: String"]);
+    let asc = a.repo.all().find(|e| a.repo.ty(*e) == "UMLAssociation").unwrap();
+    let e1 = a.repo.child(asc, "end1").unwrap();
+    assert_eq!((a.repo.refd(e1, "reference"), a.repo.str(e1, "aggregation"), a.repo.str(e1, "multiplicity")), (Some(garage), "shared".to_string(), "1".to_string()));
+    let views = a.repo.list(d, "ownedViews");
+    assert_eq!(views.iter().filter(|v| a.repo.ty(**v) == "UMLClassView").count(), 4);
+    assert_eq!(views.iter().filter(|v| crate::views::is_edge(&a.repo, **v)).count(), 3);
+    assert!(a.generate_mermaid("sequenceDiagram\nA->>B: hi", &ms).is_err());
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

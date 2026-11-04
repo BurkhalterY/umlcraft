@@ -1213,6 +1213,10 @@ impl App {
                 }
             });
             ui.menu_button("Tools", |ui| {
+                if ui.button("Generate Diagram by Mermaid...").clicked() {
+                    self.mermaid_code = Some(crate::mermaid::SAMPLE.to_string());
+                    ui.close();
+                }
                 ui.menu_button("Diagram Generator", |ui| {
                     for (g, label) in crate::generate::Generator::MENU {
                         if ui.button(label).clicked() {
@@ -1824,6 +1828,7 @@ impl App {
         self.print_dialog_ui(ctx);
         self.element_picker_ui(ctx);
         self.input_dialog_ui(ctx);
+        self.mermaid_dialog_ui(ctx);
         self.preferences_ui(ctx);
         self.tag_editor_ui(ctx);
         self.palette_ui(ctx);

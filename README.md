@@ -103,7 +103,7 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
 | **Editing** | Rubber-band (by overlap) and Shift selection, Tab to walk the views, moving with snap to grid, dropping boxes into packages and subjects, eight resize handles, auto resize, bend points, rectilinear segments, reconnecting a line by its end, draggable line labels, four line styles, arrow-key nudging, Ctrl+drag to pan |
 | **Clipboard** | Cut, copy and paste of views (as new views of the same models) and of model elements (as deep copies), through the system clipboard; copy a diagram as a picture |
 | **Typing on the diagram** | `<<stereotype>> +Name`, attributes and operations parsed as you type; Ctrl+Enter adds an attribute, Ctrl+Shift+Enter an operation, Ctrl+Delete removes one, Up/Down walk them; association role names; buttons that add a sub-class, super-class, interface, associated class, note… with its relationship |
-| **Format** | Fonts and sizes, fill, line and text colours, shadow, show/suppress compartments and visibility, stereotype display, align, distribute, size equally, bring to front and send to back, automatic layout in four directions, generated overview, type hierarchy and package structure diagrams, all from the Format menu, a Styles panel and the original's shortcuts |
+| **Format** | Fonts and sizes, fill, line and text colours, shadow, show/suppress compartments and visibility, stereotype display, align, distribute, size equally, bring to front and send to back, automatic layout in four directions, generated overview, type hierarchy and package structure diagrams, class diagrams from Mermaid code, all from the Format menu, a Styles panel and the original's shortcuts |
 | **Model Explorer** | The whole model as a tree in the original's order, quick search, sort by name, stereotype text, expand and collapse all, arrow keys, drag to move elements, right-click to add elements, diagrams, tags, attributes, operations, literals and parameters, drag onto a diagram (relationships come along) |
 | **Editors** | Styles, every property of classes, attributes, operations, parameters, literals, relationships and both association ends, documentation, and a Tag Editor (Ctrl+T) |
 | **Find and check** | Quick Find (Ctrl+P), Model › Find (Ctrl+F), a Command Palette (Ctrl+Shift+P), Select In Diagram (Ctrl+D), and StarUML's UML validation rules with a results panel |
@@ -135,6 +135,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/model.rs`, `src/meta.rs` | The project and the `.mdj` element kinds, fields and defaults |
 | `src/views.rs`, `src/render.rs`, `src/export.rs` | Laying out and drawing boxes, labels and lines, on screen and into PNG, JPEG and SVG |
 | `src/layout.rs`, `src/generate.rs` | Format › Layout (the layered automatic layout) and Tools › Diagram Generator |
+| `src/mermaid.rs` | Tools › Generate Diagram by Mermaid: class diagrams from Mermaid code |
 | `src/html.rs` | File › Export › HTML Docs: one page per element, an SVG and image map per diagram |
 | `src/markdown.rs` | View › Markdown Documentation: the editor and a small Markdown preview |
 | `src/thumbs.rs` | View › Diagram Thumbnails |

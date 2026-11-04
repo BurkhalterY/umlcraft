@@ -14,6 +14,7 @@ mod generate;
 mod html;
 mod layout;
 mod markdown;
+mod mermaid;
 mod canvas;
 mod icons;
 mod input;

@@ -192,6 +192,8 @@ pub struct App {
     pub show_minimap: bool,
     /// View > Markdown Documentation: the panel (view.markdown.visibility), its mode and its text.
     pub show_markdown: bool,
+    /// The open Mermaid dialog's code.
+    pub mermaid_code: Option<String>,
     pub md_preview: bool,
     pub md_buf: String,
     pub md_for: Option<Eid>,
@@ -288,6 +290,7 @@ impl App {
             show_thumbnails: false,
             show_minimap: true,
             show_markdown: false,
+            mermaid_code: None,
             md_preview: false,
             md_buf: String::new(),
             md_for: None,

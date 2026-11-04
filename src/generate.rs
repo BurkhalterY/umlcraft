@@ -127,7 +127,7 @@ impl App {
 
     /// One line for each relationship of an accepted kind whose two ends are shown, self-relationships
     /// included (main.js:58).
-    fn connect_all(&mut self, d: Eid, placed: &[(Eid, Eid)], accept: impl Fn(&str) -> bool) {
+    pub(crate) fn connect_all(&mut self, d: Eid, placed: &[(Eid, Eid)], accept: impl Fn(&str) -> bool) {
         let view_of = |m: Eid| placed.iter().find(|x| x.0 == m).map(|x| x.1);
         let rels: Vec<Eid> = self.repo.all().filter(|x| views::edge_view_of(self.repo.ty(*x)).is_some() && accept(self.repo.ty(*x))).collect();
         for rel in rels {

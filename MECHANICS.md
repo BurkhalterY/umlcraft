@@ -121,6 +121,10 @@ returned nothing).
 
 * Tools › Diagram Generator works on the package selected in the Explorer ("To generate … diagram, select a Package." otherwise), adds the diagram in one undo step, lays it out and opens it. Overview: owned elements with compartments suppressed and interfaces as icons; Type Hierarchy: classes, interfaces, enumerations, signals and data types at any depth with only generalizations and realizations, left to right, separations node 10, edge 10, rank 100; Package Structure: nested packages joined by containment lines (`extensions/default/diagram-generator/main.js:58-303`). UMLCraft draws the containment's circle-plus at the parent package, radius 7 (estimated).
 
+## Mermaid import
+
+* Only `classDiagram` code is generated (the original also reads sequence, state, flowchart, ER, requirement and mindmap code, which UMLCraft cannot edit). The container is a new "Package by Mermaid" unless a package is the base; the diagram is "Class Diagram by Mermaid". Members are `Type name`; visibility `+ # - ~`, none is package. `<|--` generalization, `..|>` realization, `()--` lollipop realization, `o` shared, `*` composite, `<`/`>` navigable, other dashed links dependencies. Layout uses `direction` (default TB) with separations 50 (`extensions/default/mermaid/factory/class-factory.js:40-540`, `utils.js:1-21`).
+
 ## HTML Docs
 
 * File › Export › HTML Docs writes `<folder>/html-docs`: `index.html` (frameset 25%/75%), `contents/navigation.html`, `contents/diagrams.html`, `contents/element_index.html`, `contents/<md5(_id)>.html` per element and `diagrams/<md5(_id)>.svg` per diagram; the diagram page's image map is offset by the SVG's 10 px margin; the navigation tree goes 8 levels deep (`extensions/default/html-export/main.js:159-224`, `templates/navigation.ejs`, `templates/content.ejs:42`). UMLCraft writes its own HTML and style sheet.
