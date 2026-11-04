@@ -10,7 +10,7 @@ use std::path::PathBuf;
 pub const ZOOM_MIN: f64 = 0.1; // diagram-editor.js:2396
 pub const ZOOM_MAX: f64 = 3.0;
 pub const ZOOM_STEP: f64 = 0.1;
-pub const UNDO_LIMIT: usize = 200;
+pub const UNDO_LIMIT: usize = 100; // repository.js:37
 pub const DOCUMENT_VERSION: i64 = 1; // core.js:57
 
 #[derive(Clone, Copy, PartialEq, Debug)]

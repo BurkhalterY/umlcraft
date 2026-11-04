@@ -2831,3 +2831,12 @@ fn colour_dialog_applies_on_ok_only() {
     assert_eq!(a.repo.str(c, "fillColor"), "#ffffff00", "Transparent is written with its alpha");
     assert_eq!(a.undo.len(), undo + 1);
 }
+
+#[test]
+fn undo_keeps_100_operations() {
+    let mut a = App::new(None);
+    for i in 0..120 {
+        a.change(|a| a.create_node("UMLClass", rect(10.0 + i as f64, 10.0, 50.0, 40.0)));
+    }
+    assert_eq!(a.undo.len(), 100);
+}
