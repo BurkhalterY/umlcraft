@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, Packages, Annotations) and Use Case diagrams (Use Cases, Annotations); every other diagram kind gets Annotations only (src/ui.rs:80-150).
+UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, Packages, Annotations) and Use Case diagrams (Use Cases, Annotations); every other diagram kind gets Annotations only (src/ui.rs:80-165).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -87,10 +87,10 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Annotations `annotation` | all | Free Line | ✅ | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Note | ✅ | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Note Link | ✅ | extensions/essential/common/toolbox/common.json |
-| Annotations `annotation` | all | Hyperlink | ❌ | extensions/essential/common/toolbox/common.json |
-| Annotations `annotation` | all | Rectangle | ❌ | extensions/essential/common/toolbox/common.json |
-| Annotations `annotation` | all | Rounded Rectangle | ❌ | extensions/essential/common/toolbox/common.json |
-| Annotations `annotation` | all | Ellipse | ❌ | extensions/essential/common/toolbox/common.json |
+| Annotations `annotation` | all | Hyperlink | ✅ | a Hyperlink element in the diagram's owner and its view: a box with a bold "link" and the linked element's name, the URL, or with showName its own name; reference, url and showName are edited in the property editor (src/app.rs:747-753; src/views.rs:508-551; src/render.rs:409) | extensions/essential/common/toolbox/common.json |
+| Annotations `annotation` | all | Rectangle | ✅ | a view-only shape: a filled rectangle, at least 50×50, with no shadow (src/app.rs:724-737; src/render.rs:447-459; src/views.rs:262-270) | extensions/essential/common/toolbox/common.json |
+| Annotations `annotation` | all | Rounded Rectangle | ✅ | a view-only shape: a filled rectangle with corners rounded to an eighth of its smaller side, at least 50×50, with no shadow (src/app.rs:724-737; src/render.rs:447-459; src/views.rs:262-270) | extensions/essential/common/toolbox/common.json |
+| Annotations `annotation` | all | Ellipse | ✅ | a view-only shape: a filled ellipse, at least 50×50, with no shadow (src/app.rs:724-737; src/render.rs:447-459; src/views.rs:262-270) | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Image | ❌ | extensions/essential/common/toolbox/common.json |
 | Data Flow `dfd` | DFDDiagram | External Entity | ❌ | extensions/essential/dfd/toolbox/dfd.json |
 | Data Flow `dfd` | DFDDiagram | Process | ❌ | extensions/essential/dfd/toolbox/dfd.json |
@@ -181,7 +181,7 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Use Case Subject | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Use Case | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Actor | ✅ | extensions/essential/uml/toolbox/uml.json |
-| Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Frame | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Frame | ✅ | Frame asks "Select an element to be represented as Frame" (any element, or none) and then creates the frame, behind the other views; it shows the diagram kind in a bold tab and the element's name (src/canvas.rs:1159-1168; src/picker.rs:73-100; src/views.rs:426-505, 553-639; src/render.rs:346) | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Association | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Directed Association | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Generalization | ✅ | extensions/essential/uml/toolbox/uml.json |
@@ -201,8 +201,8 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | DataType | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | PrimitiveType | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Enumeration | ✅ | extensions/essential/uml/toolbox/uml.json |
-| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Frame | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | N-ary Association Node | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Frame | ✅ | Frame asks "Select an element to be represented as Frame" (any element, or none) and then creates the frame, behind the other views; it shows the diagram kind in a bold tab and the element's name (src/canvas.rs:1159-1168; src/picker.rs:73-100; src/views.rs:426-505, 553-639; src/render.rs:346) | extensions/essential/uml/toolbox/uml.json |
+| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | N-ary Association Node | ✅ | an unnamed UMLNaryAssociationNode drawn as a diamond (at least 30×22, with shadow), its name, stereotype and properties floating around its centre; associations join classifiers to it, and the Association Class tool links a class to it (src/app.rs:740-746, 1082-1085, 1205-1211; src/views.rs:461-509; src/render.rs:392-406) | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Association Class | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Template Binding | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Realization | ✅ | extensions/essential/uml/toolbox/uml.json |
@@ -214,20 +214,20 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Component | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Artifact | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Interface | ✅ | extensions/essential/uml/toolbox/uml.json |
-| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Frame | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Frame | ✅ | Frame asks "Select an element to be represented as Frame" (any element, or none) and then creates the frame, behind the other views; it shows the diagram kind in a bold tab and the element's name (src/canvas.rs:1159-1168; src/picker.rs:73-100; src/views.rs:426-505, 553-639; src/render.rs:346) | extensions/essential/uml/toolbox/uml.json |
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Dependency | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Interface Realization | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Component Realization | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Deployment `uml.deployment` | UMLComponentDiagram, UMLDeploymentDiagram | Node | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Deployment `uml.deployment` | UMLComponentDiagram, UMLDeploymentDiagram | Deployment | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Deployment `uml.deployment` | UMLComponentDiagram, UMLDeploymentDiagram | Communication Path | ✅ | extensions/essential/uml/toolbox/uml.json |
-| Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Collaboration | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Collaboration | ✅ | in the Composite Structure group of class, component and deployment diagrams: a dashed ellipse at least √2 times its name and the use case minimum, the name centred; it keeps a hidden template parameter compartment, whose parameters are not drawn (src/ui.rs:96-102; src/views.rs:442-461; src/render.rs:379-391) | extensions/essential/uml/toolbox/uml.json |
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Port | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Part | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Connector | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Collaboration Use | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Collaboration Use | ✅ | a dashed ellipse showing "name: Collaboration" once its type is set in Properties (src/ui.rs:96-102; src/views.rs:442-461; src/render.rs:379-391) | extensions/essential/uml/toolbox/uml.json |
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Role Binding | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Realization | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Realization | ✅ | the Realization line, in the Composite Structure group of class, component and deployment diagrams (src/ui.rs:96-102) | extensions/essential/uml/toolbox/uml.json |
 | Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Object | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Artifact Instance | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Component Instance | ✅ | extensions/essential/uml/toolbox/uml.json |

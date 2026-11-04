@@ -104,6 +104,9 @@ pub struct Editing {
     pub fresh: bool,
     /// The box the edit belongs to (a class view for its name and its compartment items).
     pub host: Option<Eid>,
+    /// The text the edit showed when it opened (taken on its first frame): only a changed text is
+    /// checked against the grammar.
+    pub orig: Option<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -132,6 +135,8 @@ pub struct App {
     pub drag: Option<Drag>,
     pub hover: Option<Eid>,
     pub editing: Option<Editing>,
+    /// When a rejected inline edit started shaking (it cannot close for 400 ms, quickedit-manager.js:407-427).
+    pub edit_shake: Option<std::time::Instant>,
     pub info: HashMap<Eid, Info>,
     pub expanded: HashSet<Eid>,
     pub search: String,
@@ -277,6 +282,7 @@ impl App {
             drag: None,
             hover: None,
             editing: None,
+            edit_shake: None,
             info: HashMap::new(),
             expanded: HashSet::new(),
             search: String::new(),
@@ -715,10 +721,13 @@ impl App {
 
     pub fn create_node(&mut self, kind: &str, rect: R) -> Option<Eid> {
         let d = self.diagram?;
-        if kind == "Note" || kind == "Text" || kind == "TextBox" {
+        if matches!(kind, "Note" | "Text" | "TextBox" | "Rect" | "RoundRect" | "Ellipse") {
             let ty = match kind {
                 "Note" => "UMLNoteView",
                 "TextBox" => "UMLTextBoxView",
+                "Rect" => "RectangleView",
+                "RoundRect" => "RoundRectView",
+                "Ellipse" => "EllipseView",
                 _ => "UMLTextView",
             };
             let v = views::create_note_view(&mut self.repo, d, rect, ty);
@@ -727,11 +736,26 @@ impl App {
         }
         let parent = self.package_for(Some(d));
         let name = self.new_name(parent, kind);
+        // an n-ary association node starts without a name (uml.json "model-init")
+        if kind == "UMLNaryAssociationNode" {
+            let m = self.repo.create(kind, &[("name", json!(""))], Some((parent, "ownedElements")));
+            let v = views::create_nary_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // a hyperlink is a model element of the diagram's owner, linking to nothing yet
+        if kind == "Hyperlink" {
+            let m = self.repo.create("Hyperlink", &[("name", json!(name))], Some((parent, "ownedElements")));
+            let v = views::create_hyperlink_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
         // the Robustness tools make a class stereotyped «boundary», «entity» or «control», shown as an
         // icon without compartments (robustness/main.js:17)
         let robust = matches!(kind, "Boundary" | "Entity" | "Control");
         let ty = if robust { "UMLClass" } else { kind };
         let m = self.repo.create(ty, &[("name", json!(name))], Some((parent, "ownedElements")));
+        add_stereotype_icon(&mut self.repo, m);
         if robust {
             let st_name = kind.to_lowercase();
             let found = self.repo.all().find(|x| self.repo.ty(*x) == "UMLStereotype" && self.repo.name(*x) == st_name);
@@ -846,14 +870,63 @@ impl App {
     /// the views to select, or an alert.
     /// Whether a model dragged from the explorer can be dropped on the current diagram: an element
     /// with a box, or a relationship whose two ends can be shown.
+    /// Whether a diagram of this type takes a view of the element (each diagram's canAcceptModel,
+    /// elements.js:5900-13990). Kinds UMLCraft only reads accept anything.
+    pub fn diagram_accepts(&self, d: Eid, m: Eid) -> bool {
+        const CLASS: &[&str] = &[
+            "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLInstance", "UMLPort", "UMLTemplateParameter", "UMLAttribute", "UMLOperation", "UMLReception",
+            "UMLEnumerationLiteral", "UMLSlot", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
+        ];
+        let kinds: Vec<&str> = match self.repo.ty(d) {
+            "UMLClassDiagram" => CLASS.to_vec(),
+            "UMLInformationFlowDiagram" => CLASS.iter().copied().chain(["UMLInformationFlow"]).collect(),
+            // component and deployment diagrams: the class diagram's list without slots
+            "UMLComponentDiagram" | "UMLDeploymentDiagram" => CLASS.iter().copied().filter(|k| *k != "UMLSlot").collect(),
+            "UMLPackageDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLSubsystem", "UMLClassifier", "UMLInstance", "UMLDependency"],
+            "UMLObjectDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier", "UMLInstance", "UMLSlot", "UMLDependency", "UMLLink"],
+            "UMLUseCaseDiagram" => vec![
+                "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
+                "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
+            ],
+            "UMLProfileDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLMetaClass", "UMLStereotype", "UMLEnumeration", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation"],
+            _ => return true,
+        };
+        kinds.iter().any(|k| self.repo.kind_of(m, k))
+    }
+
     pub fn can_drop_model(&self, m: Eid) -> bool {
+        if !self.diagram.map(|d| self.diagram_accepts(d, m)).unwrap_or(false) {
+            return false;
+        }
         let ty = self.repo.ty(m);
-        self.diagram.is_some() && self.repo.alive(m) && (views::node_kind(ty).is_some() || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
         let Some(d) = self.diagram else { return Ok(vec![]) };
+        // the drop is checked again (app-context.js:1155-1157)
+        if !self.diagram_accepts(d, m) {
+            return Ok(vec![]);
+        }
         let ty = self.repo.ty(m).to_string();
+        if m == d {
+            // a 700×600 frame of the diagram, its top left at the drop point (factory.js:1174-1185)
+            return Ok(self.create_frame(d, Some(d), views::R { x: p.x, y: p.y, w: 700.0, h: 600.0 }).into_iter().collect());
+        }
+        if self.is_diagram(m) {
+            // another diagram: a hyperlink to it, at its minimum size (factory.js:1186-1198)
+            let v = self.change(|a| {
+                let v = a.create_node("Hyperlink", views::R { x: p.x, y: p.y, w: 0.0, h: 0.0 })?;
+                let link = a.repo.refd(v, "model")?;
+                a.repo.set_ref(link, "reference", Some(m));
+                Some(v)
+            });
+            if let Some(link) = v.and_then(|v| self.repo.refd(v, "model")) {
+                self.reveal(link);
+            }
+            return Ok(v.into_iter().collect());
+        }
         if views::edge_view_of(&ty).is_some() && self.rel_ends(m).is_some() {
             return self.drop_relationship(d, m, p);
         }
@@ -1005,6 +1078,11 @@ impl App {
                 let linked = r.all_of("UMLAssociationClassLink").into_iter().any(|l| r.refd(l, "associationSide") == Some(hm));
                 return r.ty(tm) == "UMLClass" && r.ty(hm) == "UMLAssociation" && !linked;
             }
+            // with an n-ary association node, the other end is the class it links (uml-factory.js:743-761)
+            let nary = |m: Eid| r.ty(m) == "UMLNaryAssociationNode";
+            if nary(tm) || nary(hm) {
+                return (nary(tm) && r.ty(hm) == "UMLClass") || (nary(hm) && r.ty(tm) == "UMLClass");
+            }
             return r.kind_of(tm, "UMLClassifier") && r.kind_of(hm, "UMLClassifier");
         }
         if views::is_edge(r, tail) || views::is_edge(r, head) {
@@ -1123,6 +1201,14 @@ impl App {
         if views::is_edge(&self.repo, head) {
             return link(self, tail, head);
         }
+        // a class and an n-ary association node: only the link, from the class (uml-factory.js:743-761)
+        let nary = |a: &App, v: Eid| a.repo.refd(v, "model").map(|m| a.repo.ty(m) == "UMLNaryAssociationNode").unwrap_or(false);
+        if !objects && nary(self, head) {
+            return link(self, tail, head);
+        }
+        if !objects && nary(self, tail) {
+            return link(self, head, tail);
+        }
         let assoc = Tool { label: "", kind: rel, icon: "", line: true, init: AssocInit::Plain };
         let e = self.create_edge(&assoc, tail, head)?;
         let (a, b) = (views::node_rect(&self.repo, tail), views::node_rect(&self.repo, head));
@@ -1192,6 +1278,7 @@ impl App {
             "UMLEnumerationLiteral" => "literals",
             "UMLParameter" => "parameters",
             "UMLTemplateParameter" => "templateParameters",
+            "UMLTemplateParameterSubstitution" => "parameterSubstitutions",
             _ => return None,
         };
         let name = self.new_name(owner, ty);
@@ -1203,6 +1290,7 @@ impl App {
         match ty {
             "UMLEnumerationLiteral" => t == "UMLEnumeration",
             "UMLParameter" => t == "UMLOperation",
+            "UMLTemplateParameterSubstitution" => t == "UMLTemplateBinding",
             "UMLExtensionPoint" => t == "UMLUseCase",
             "UMLSlot" => self.repo.kind_of(owner, "UMLInstance"),
             // template parameters on classes, interfaces and the other boxes with compartments
@@ -1213,7 +1301,13 @@ impl App {
 
     pub fn add_model(&mut self, parent: Eid, ty: &str) -> Eid {
         let name = self.new_name(parent, ty);
-        self.repo.create(ty, &[("name", json!(name))], Some((parent, "ownedElements")))
+        let m = self.repo.create(ty, &[("name", json!(name))], Some((parent, "ownedElements")));
+        add_stereotype_icon(&mut self.repo, m);
+        // a state machine starts with one region (uml-factory.js:606-626)
+        if ty == "UMLStateMachine" {
+            self.repo.create("UMLRegion", &[], Some((m, "regions")));
+        }
+        m
     }
 
     pub fn add_diagram(&mut self, parent: Option<Eid>, ty: &str) -> Eid {
@@ -1666,5 +1760,13 @@ impl App {
 
     pub fn is_view(&self, e: Eid) -> bool {
         meta::is_kind_of(self.repo.ty(e), "View") || self.repo.ty(e).ends_with("View")
+    }
+}
+
+/// A new stereotype gets its empty 40 × 40 icon, as the original's constructor makes one
+/// (elements.js:4071-4101); its content takes an icon script.
+pub fn add_stereotype_icon(r: &mut crate::model::Repo, m: Eid) {
+    if r.ty(m) == "UMLStereotype" && r.child(m, "icon").is_none() {
+        r.create("UMLImage", &[("width", json!(40)), ("height", json!(40))], Some((m, "icon")));
     }
 }

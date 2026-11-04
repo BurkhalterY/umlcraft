@@ -7,6 +7,9 @@ use crate::views::{self, is_edge, is_node, node_rect, points_of, Measure, P, R};
 use egui::{Align2, Color32, FontFamily, FontId, Painter, Pos2, Rect, Sense, Shape, Stroke, Vec2};
 use serde_json::json;
 
+/// How long a rejected inline edit shakes, and how far (jQuery UI's shake: 400 ms, distance 10).
+pub const SHAKE_MS: u128 = 400;
+const SHAKE_DISTANCE: f32 = 10.0;
 pub const MINI_W: f32 = 130.0;
 pub const MINI_H: f32 = 100.0;
 pub const MINI_MARGIN: f32 = 15.0;
@@ -131,6 +134,36 @@ fn short_label(l: &str) -> String {
     format!("+ {}", l.trim_start_matches("Add "))
 }
 
+/// The buttons right of an inline edit's field that also have a key: on a box's name, Add
+/// Attribute (Literal, Slot, Extension Point) and Add Operation; on a compartment item, Add, Delete,
+/// Move Up and Move Down. Each is shown with its hint and key, "Add Attribute (Ctrl+Enter)"
+/// (quickedits/uml.json components with a `key`; quickedit-manager.js:385-394).
+pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static str, &'static str, &'static str, ItemKey)> {
+    const ADD_OP: (&str, &str, &str, ItemKey) = ("+ Op", "Add Operation", "Ctrl+Shift+Enter", ItemKey::AddOperation);
+    match kind {
+        EditKind::Name(m) => {
+            let t = r.ty(*m);
+            match t {
+                "UMLEnumeration" => vec![("+ Lit", "Add Literal", "Ctrl+Enter", ItemKey::Add), ADD_OP],
+                "UMLUseCase" => vec![("+ Ext", "Add Extension Point", "Ctrl+Enter", ItemKey::Add)],
+                _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
+                // classes, interfaces, signals, data types, components, nodes, artifacts: Add Reception
+                // too, which has no key; stereotypes have none (actors take no attributes in UMLCraft)
+                "UMLStereotype" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP],
+                _ if r.kind_of(*m, "UMLClassifier") && t != "UMLActor" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP, ("+ Rec", "Add Reception", "", ItemKey::AddReception)],
+                _ => vec![],
+            }
+        }
+        EditKind::Feature(_) => vec![
+            ("+", "Add", "Ctrl+Enter", ItemKey::Add),
+            ("✕", "Delete", "Ctrl+Delete", ItemKey::Delete),
+            ("▲", "Move Up", "Ctrl+Up", ItemKey::Move(true)),
+            ("▼", "Move Down", "Ctrl+Down", ItemKey::Move(false)),
+        ],
+        EditKind::Text(_) => vec![],
+    }
+}
+
 /// Keys of the inline edit on a class name or a compartment item.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ItemKey {
@@ -146,6 +179,8 @@ pub enum ItemKey {
     Nav(bool),
     /// The class name edit's Add Template Parameter button
     AddTemplateParameter,
+    /// The Add Reception button of a classifier's name edit (no key)
+    AddReception,
 }
 
 impl App {
@@ -530,9 +565,7 @@ impl App {
                 let z = self.zoom + if scroll_delta.y > 0.0 { 0.1 } else { -0.1 };
                 self.set_zoom(z);
             } else if scroll_delta != Vec2::ZERO {
-                let (dx, dy) = if mods.shift { (-scroll_delta.y, 0.0) } else { (-scroll_delta.x, -scroll_delta.y) };
-                self.scroll.x = (self.scroll.x + dx as f64 / self.zoom).max(0.0);
-                self.scroll.y = (self.scroll.y + dy as f64 / self.zoom).max(0.0);
+                self.wheel_scroll(scroll_delta, mods.shift);
             }
         }
 
@@ -540,8 +573,10 @@ impl App {
             if let Some(pos) = pointer.interact_pos() {
                 resp.request_focus();
                 self.last_area = crate::app::Area::Canvas;
-                self.close_inline(true);
-                self.on_press(rect, pos, mods);
+                // a rejected edit stays open, and the press does nothing else
+                if self.try_close_inline(true) {
+                    self.on_press(rect, pos, mods);
+                }
             }
         }
         if resp.hovered() && pointer.button_pressed(egui::PointerButton::Middle) {
@@ -586,7 +621,24 @@ impl App {
                 if let Some((_, e)) = self.hit_edge_label(p) {
                     self.edit_view(e, Some(p));
                 } else if let Some(v) = self.hit_view(p, false) {
-                    self.edit_view(v, Some(p));
+                    // a frame showing a diagram opens it (app-context.js:1355-1359)
+                    match self.repo.refd(v, "model") {
+                        Some(d) if self.repo.ty(v) == "UMLFrameView" && self.repo.kind_of(d, "Diagram") => self.open_diagram(d),
+                        Some(link) if self.repo.ty(v) == "HyperlinkView" => {
+                            // a hyperlink: a diagram opens and is selected in the explorer, another element
+                            // is selected there, a URL opens in the browser (app-context.js:1340-1354)
+                            let url = self.repo.str(link, "url");
+                            if let Some(x) = self.repo.refd(link, "reference") {
+                                self.reveal(x);
+                                if self.is_diagram(x) {
+                                    self.open_diagram(x);
+                                }
+                            } else if !url.is_empty() {
+                                ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                            }
+                        }
+                        _ => self.edit_view(v, Some(p)),
+                    }
                 } else {
                     self.create_text_at(p);
                 }
@@ -680,6 +732,15 @@ impl App {
                 a.repo.set(e, "points", json!(views::format_points(&pts)));
             }
         });
+    }
+
+    /// A wheel or trackpad scroll: the delta moves the diagram's origin as it is, in diagram units,
+    /// so at 200 % a notch travels twice as far on screen; Shift sends the vertical delta to X
+    /// (diagram-editor.js:2270-2287, 2392-2394).
+    pub fn wheel_scroll(&mut self, delta: Vec2, shift: bool) {
+        let (dx, dy) = if shift { (-delta.y, 0.0) } else { (-delta.x, -delta.y) };
+        self.scroll.x = (self.scroll.x + dx as f64).max(0.0);
+        self.scroll.y = (self.scroll.y + dy as f64).max(0.0);
     }
 
     pub(crate) fn on_press(&mut self, rect: Rect, pos: Pos2, mods: egui::Modifiers) {
@@ -890,7 +951,8 @@ impl App {
                 if let Some(d) = self.diagram {
                     // views whose box overlaps the band; a selected one counts 5 px larger (core.js:4162-4176)
                     for v in self.repo.list(d, "ownedViews") {
-                        if matches!(self.repo.raw(v, "visible"), Some(serde_json::Value::Bool(false))) || !(is_edge(&self.repo, v) || is_node(&self.repo, v)) {
+                        // a view that inherits its parent's style is left out (core.js:3895-3902)
+                        if matches!(self.repo.raw(v, "visible"), Some(serde_json::Value::Bool(false))) || self.repo.bool(v, "parentStyle") || !(is_edge(&self.repo, v) || is_node(&self.repo, v)) {
                             continue;
                         }
                         let mut b = self.view_bounds(v);
@@ -1105,8 +1167,19 @@ impl App {
                     // both corners snap to the grid (diagram-editor.js:979-1038)
                     let (x1, y1) = (self.snap_v(raw.x), self.snap_v(raw.y));
                     let (x2, y2) = (self.snap_v(raw.x + raw.w), self.snap_v(raw.y + raw.h));
-                    R { x: x1, y: y1, w: (x2 - x1).max(1.0), h: (y2 - y1).max(1.0) }
+                    let (mw, mh) = views::tool_min_size(tool.kind).unwrap_or((1.0, 1.0));
+                    R { x: x1, y: y1, w: (x2 - x1).max(mw), h: (y2 - y1).max(mh) }
                 };
+                if tool.kind == "Frame" {
+                    // a frame first asks which element it shows (uml-commands.js:244-262)
+                    if !self.tool_sticky {
+                        self.tool = None;
+                    }
+                    if let Some(d) = self.diagram {
+                        self.open_frame_picker(d, r);
+                    }
+                    return;
+                }
                 let view = self.change(|a| {
                     let v = a.create_node(tool.kind, r);
                     if let (Some(v), Some(d)) = (v, a.diagram) {
@@ -1222,16 +1295,20 @@ impl App {
 
     pub fn edit_view(&mut self, v: Eid, p: Option<P>) {
         let t = self.repo.ty(v).to_string();
+        // frames and hyperlinks have no inline edit
+        if t == "UMLFrameView" || t == "HyperlinkView" {
+            return;
+        }
         // a constraint edits its specification (uml-commands.js:669)
         if t == "UMLConstraintView" {
             let Some(m) = self.repo.refd(v, "model") else { return };
             let text = self.repo.str(m, "specification");
-            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None });
+            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None, orig: None });
             return;
         }
         if t == "UMLNoteView" || t == "UMLTextView" || t == "UMLTextBoxView" || t == "UMLCustomTextView" {
             let text = self.repo.str(v, "text");
-            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None });
+            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None, orig: None });
             return;
         }
         let Some(m) = self.repo.refd(v, "model") else { return };
@@ -1253,7 +1330,7 @@ impl App {
                                 Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: 19.0 },
                                 _ => R { x: at.x - 50.0, y: at.y - 25.0, w: 100.0, h: 19.0 },
                             };
-                            self.editing = Some(Editing { kind: EditKind::Name(e), text: crate::parse::name_text(&self.repo, e), rect, multiline: false, center: true, fresh: true, host: None });
+                            self.editing = Some(Editing { kind: EditKind::Name(e), text: crate::parse::name_text(&self.repo, e), rect, multiline: false, center: true, fresh: true, host: None, orig: None });
                             return;
                         }
                     }
@@ -1264,7 +1341,7 @@ impl App {
                 Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: 19.0 },
                 _ => R { x: mid.x - 50.0, y: mid.y - 10.0, w: 100.0, h: 19.0 },
             };
-            self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: None });
+            self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: None, orig: None });
             return;
         }
         if let Some(iv) = p.and_then(|p| self.row_at(v, p)) {
@@ -1272,12 +1349,13 @@ impl App {
                 return;
             }
         }
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel"));
+        // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| self.repo.ty(v) == "UMLNaryAssociationNodeView"));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
         };
-        self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: Some(v) });
+        self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: Some(v), orig: None });
     }
 
     /// Open the inline edit on one compartment row (an attribute, operation or literal label).
@@ -1293,6 +1371,7 @@ impl App {
             center: false,
             fresh: true,
             host: Some(v),
+            orig: None,
         });
         true
     }
@@ -1395,6 +1474,7 @@ impl App {
             }
             (ItemKey::AddOperation, _) => self.add_item(host, m, "UMLOperation"),
             (ItemKey::AddTemplateParameter, _) => self.add_item(host, m, "UMLTemplateParameter"),
+            (ItemKey::AddReception, _) => self.add_item(host, m, "UMLReception"),
             (ItemKey::Delete, Some(f)) => {
                 let (Some(owner), Some(field)) = (self.repo.parent(f), self.repo.field_of(f)) else { return };
                 let i = self.repo.list(owner, &field).iter().position(|x| *x == f).unwrap_or(0);
@@ -1438,8 +1518,55 @@ impl App {
         }
     }
 
+    /// The grammar an inline edit's text must follow, if any (quickedits/uml.json): names, objects,
+    /// attributes, operations, literals, receptions, template parameters and slots. Notes and texts
+    /// are free text, and so is an extension point's "name: location", UMLCraft's own form.
+    pub fn edit_grammar(&self, kind: &EditKind) -> Option<crate::parse::Grammar> {
+        use crate::parse::Grammar;
+        match kind {
+            EditKind::Text(_) => None,
+            EditKind::Name(m) if self.repo.kind_of(*m, "UMLInstance") => Some(Grammar::Object),
+            EditKind::Name(_) => Some(Grammar::Name),
+            EditKind::Feature(f) => match self.repo.ty(*f) {
+                "UMLOperation" => Some(Grammar::Operation),
+                "UMLSlot" => Some(Grammar::Slot),
+                "UMLTemplateParameter" => Some(Grammar::TemplateParameter),
+                "UMLReception" | "UMLEnumerationLiteral" => Some(Grammar::Name),
+                "UMLExtensionPoint" => None,
+                _ => Some(Grammar::Attribute),
+            },
+        }
+    }
+
+    /// Whether the open inline edit holds a changed text its grammar rejects.
+    pub fn edit_rejected(&self) -> bool {
+        let Some(e) = &self.editing else { return false };
+        e.orig.as_deref() != Some(e.text.as_str()) && self.edit_grammar(&e.kind).map(|g| !crate::parse::parses(g, &e.text)).unwrap_or(false)
+    }
+
+    /// Commit the inline edit the way the person asked for it (Enter, a click away): a text the
+    /// grammar rejects keeps the edit open, shaking, with its text selected, and nothing changes
+    /// (uml-commands.js:320-325; quickedit-manager.js:407-427). While it shakes it cannot close.
+    pub fn try_close_inline(&mut self, commit: bool) -> bool {
+        if self.edit_shake.map(|t| t.elapsed().as_millis() < SHAKE_MS).unwrap_or(false) {
+            return false;
+        }
+        if commit && self.edit_rejected() {
+            self.edit_shake = Some(std::time::Instant::now());
+            if let Some(e) = self.editing.as_mut() {
+                e.fresh = true;
+            }
+            return false;
+        }
+        self.close_inline(commit);
+        true
+    }
+
     pub fn close_inline(&mut self, commit: bool) {
+        // a text its grammar rejects is dropped when the edit has to close (another diagram opens)
+        let commit = commit && !self.edit_rejected();
         let Some(e) = self.editing.take() else { return };
+        self.edit_shake = None;
         // the canvas takes the keyboard back, so Enter can open the edit again (quickedit-manager.js:680-682)
         self.refocus_canvas = true;
         if !commit {
@@ -1514,14 +1641,31 @@ impl App {
 
     fn inline_editor(&mut self, ui: &mut egui::Ui, rect: Rect) {
         let Some(mut ed) = self.editing.take() else { return };
+        if ed.orig.is_none() {
+            ed.orig = Some(ed.text.clone());
+        }
         let to = |p: P| Pos2::new(rect.min.x + ((p.x - self.scroll.x) * self.zoom) as f32, rect.min.y + ((p.y - self.scroll.y) * self.zoom) as f32);
-        let pos = to(P { x: ed.rect.x, y: ed.rect.y });
+        let mut pos = to(P { x: ed.rect.x, y: ed.rect.y });
+        // a rejected text shakes the editor left and right, three times
+        if let Some(t) = self.edit_shake {
+            let ms = t.elapsed().as_millis();
+            if ms < SHAKE_MS {
+                let phase = (ms as f32 / SHAKE_MS as f32) * 3.0;
+                let tri = 1.0 - 4.0 * ((phase + 0.25).fract() - 0.5).abs();
+                pos.x += SHAKE_DISTANCE * tri;
+                ui.ctx().request_repaint();
+            } else {
+                self.edit_shake = None;
+            }
+        }
         let w = ((ed.rect.w * self.zoom) as f32).max(60.0);
         let h = ((ed.rect.h * self.zoom) as f32).max(if ed.multiline { 40.0 } else { 20.0 });
         let mut commit = None;
         let mut key: Option<ItemKey> = None;
         let mut related: Option<crate::related::Related> = None;
         let mut edge_note: Option<Eid> = None;
+        let mut add_subst: Option<Eid> = None;
+        let mut picked_order: Option<(Eid, &'static str)> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
             egui::Frame::NONE.fill(Color32::WHITE).stroke(Stroke::new(1.0, c32(render::SELECT_COLOR))).show(ui, |ui| {
                 ui.visuals_mut().override_text_color = Some(Color32::BLACK);
@@ -1599,7 +1743,19 @@ impl App {
                                 }
                             });
                         }
-                        ui.add(te)
+                        let resp = ui.add(te);
+                        // the item buttons with a key, on a box's name or item (taken on press, as the
+                        // field loses focus before a release)
+                        if ed.host.is_some() && !ed.multiline {
+                            for (label, hint, keys, k) in item_buttons(&self.repo, &ed.kind) {
+                                let tip = if keys.is_empty() { hint.to_string() } else { format!("{hint} ({keys})") };
+                                let b = ui.add(egui::Button::new(egui::RichText::new(label).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(tip);
+                                if b.is_pointer_button_down_on() {
+                                    key = Some(k);
+                                }
+                            }
+                        }
+                        resp
                     })
                     .inner;
                 if let (Some(v), Some(m)) = (picked_vis, vis_target) {
@@ -1715,15 +1871,43 @@ impl App {
                             edge_note = Some(e);
                         }
                     }
+                    // an association's Order of Ends, a property of its line (quickedits/uml.json "uml.end-order")
+                    if let (Some(e), true) = (edge, self.repo.ty(*m) == "UMLAssociation") {
+                        let cur = self.repo.str(e, "showEndOrder");
+                        let opts = [("hide", "Hide"), ("forward", "Forward (End1 to End2)"), ("backward", "Backward (End2 to End1)")];
+                        let shown = opts.iter().find(|o| o.0 == cur).map(|o| o.1).unwrap_or("Hide");
+                        ui.menu_button(egui::RichText::new(format!("{} ▾", shown.split(' ').next().unwrap_or(""))).size(11.0).color(Color32::WHITE), |ui| {
+                            for (value, label) in opts {
+                                if ui.selectable_label(cur == value, label).clicked() {
+                                    picked_order = Some((e, value));
+                                    ui.close();
+                                }
+                            }
+                        })
+                        .response
+                        .on_hover_text("Order of Ends");
+                    }
+                    // a template binding adds a parameter substitution (quickedits/uml.json "uml.template-binding")
+                    if self.repo.ty(*m) == "UMLTemplateBinding" {
+                        let b = ui.add(egui::Button::new(egui::RichText::new("+ Subst").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Template Parameter Substitution");
+                        if b.is_pointer_button_down_on() {
+                            add_subst = Some(*m);
+                        }
+                    }
+                }
+                // the choice applies at once and the edit stays open
+                if let Some((e, value)) = picked_order {
+                    self.change(|a| a.repo.set(e, "showEndOrder", serde_json::json!(value)));
+                    ed.fresh = true;
                 }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if key.is_some() || related.is_some() || edge_note.is_some() {
+                if key.is_some() || related.is_some() || edge_note.is_some() || add_subst.is_some() {
                     commit = Some(true);
                 } else if esc {
                     commit = Some(false);
                 } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
                     commit = Some(true);
-                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() {
+                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() && picked_order.is_none() {
                     commit = Some(true);
                 }
             });
@@ -1731,7 +1915,10 @@ impl App {
         let (host, kind) = (ed.host, ed.kind.clone());
         self.editing = Some(ed);
         if let Some(c) = commit {
-            self.close_inline(c);
+            if !self.try_close_inline(c) {
+                // refused: the buttons and keys that wanted the edit closed do nothing
+                return;
+            }
         }
         if let (Some(k), Some(h)) = (key, host) {
             self.item_key(h, kind, k);
@@ -1741,6 +1928,12 @@ impl App {
         }
         if let Some(e) = edge_note.filter(|e| self.repo.alive(*e)) {
             self.add_note_to_edge(e);
+        }
+        // the new substitution is selected in the explorer (uml-commands.js:1026-1034)
+        if let Some(b) = add_subst.filter(|b| self.repo.alive(*b)) {
+            if let Some(s) = self.change(|a| a.add_feature(b, "UMLTemplateParameterSubstitution")) {
+                self.reveal(s);
+            }
         }
     }
 

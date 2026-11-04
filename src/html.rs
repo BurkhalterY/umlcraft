@@ -126,6 +126,7 @@ table{border-collapse:collapse;width:100%;margin:4px 0}th,td{border:1px solid #d
 ul.links{margin:4px 0;padding-left:20px}.grid{display:flex;flex-wrap:wrap;gap:14px}
 .tile{width:220px;border:1px solid #ddd;border-radius:4px;padding:6px;text-align:center}.tile img{max-width:100%;max-height:150px}
 .nav{font-size:13px}.nav details{margin-left:12px}.nav summary{cursor:pointer}.nav .leaf{margin-left:26px;display:block}
+.label{background:#5bc0de;color:#fff;border-radius:3px;padding:0 5px;font-size:12px}
 .diagram{border:1px solid #eee}pre{background:#f6f6f6;padding:8px;overflow:auto}blockquote{color:#666;border-left:3px solid #ddd;margin:4px 0;padding-left:10px}";
 
 impl App {
@@ -135,6 +136,67 @@ impl App {
 
     fn link(&self, e: Eid) -> String {
         format!("<a href=\"{}\">{}</a>", self.page(e), esc(&self.display_name(e)))
+    }
+
+    /// A value the way the original's pages show it: an element as a link (a stereotype as «name»),
+    /// a boolean or number as a label, null as "null", text as text (html-export/main.js:85-123).
+    fn value_html(&self, v: Option<&serde_json::Value>) -> String {
+        use serde_json::Value;
+        let label = |t: &str| format!("<span class=\"label\">{}</span>", esc(t));
+        match v {
+            None | Some(Value::Null) => label("null"),
+            Some(Value::Bool(b)) => label(&b.to_string()),
+            Some(Value::Number(n)) => label(&n.to_string()),
+            Some(Value::String(s)) => esc(s),
+            Some(r) => match self.repo.by_ref(r).filter(|x| self.repo.alive(*x)) {
+                Some(x) if self.repo.ty(x) == "UMLStereotype" => format!("<a href=\"{}\">«{}»</a>", self.page(x), esc(&self.label_of(x))),
+                Some(x) => format!("<a href=\"{}\">{}</a>", self.page(x), esc(&self.label_of(x))),
+                None => label("null"),
+            },
+        }
+    }
+
+    /// The Properties table: one row per field the property editor shows (the original lists the
+    /// visible meta-attributes), lists joined with commas (properties.ejs).
+    fn properties_table(&self, out: &mut String, e: Eid) {
+        let fields: Vec<&str> = self.fields_for(e).into_iter().map(|f| f.0).filter(|f| *f != "-" && !f.contains('.')).collect();
+        if fields.is_empty() {
+            return;
+        }
+        out.push_str("<h2>Properties</h2><table><tr><th width=\"50%\">Name</th><th width=\"50%\">Value</th></tr>");
+        for f in fields {
+            let v = match self.repo.raw(e, f) {
+                Some(serde_json::Value::Array(items)) => items.iter().map(|x| self.value_html(Some(x))).collect::<Vec<_>>().join("<span>, </span>"),
+                None => match crate::meta::default_of(self.repo.ty(e), f) {
+                    Some(d) => self.value_html(Some(&d)),
+                    None => self.value_html(None),
+                },
+                raw => self.value_html(raw),
+            };
+            let _ = write!(out, "<tr><td>{}</td><td>{v}</td></tr>", esc(f));
+        }
+        out.push_str("</table>");
+    }
+
+    /// The Tags table: name, kind and the value its kind keeps (content.ejs:607-637).
+    fn tags_table(&self, out: &mut String, e: Eid) {
+        let tags = self.repo.list(e, "tags");
+        if tags.is_empty() {
+            return;
+        }
+        out.push_str("<h2>Tags</h2><table><tr><th>Name</th><th>Kind</th><th>Value</th></tr>");
+        for t in tags {
+            let kind = self.repo.str(t, "kind");
+            let field = match kind.as_str() {
+                "boolean" => "checked",
+                "reference" => "reference",
+                "number" => "number",
+                _ => "value",
+            };
+            let raw = self.repo.raw(t, field).cloned().or_else(|| crate::meta::default_of("Tag", field));
+            let _ = write!(out, "<tr><td>{}</td><td><span class=\"label\">{}</span></td><td>{}</td></tr>", esc(&self.repo.name(t)), esc(&kind), self.value_html(raw.as_ref()));
+        }
+        out.push_str("</table>");
     }
 
     fn display_name(&self, e: Eid) -> String {
@@ -332,7 +394,30 @@ impl App {
             .into_iter()
             .filter(|c| !matches!(r.ty(*c), "UMLAttribute" | "UMLOperation" | "UMLReception" | "UMLExtensionPoint" | "UMLEnumerationLiteral" | "UMLParameter" | "UMLTemplateParameter"))
             .collect();
+        // the generic sections (content.ejs:599-670)
+        self.properties_table(&mut b, e);
+        self.tags_table(&mut b, e);
+        if r.kind_of(e, "UMLModelElement") {
+            let constraints: Vec<Eid> = r.list(e, "ownedElements").into_iter().filter(|c| r.ty(*c) == "UMLConstraint").collect();
+            self.links_section(&mut b, "Constraints", &constraints);
+            // every kind of dependency (realizations and deployments too), by its other end (elements.js:518-541)
+            let deps: Vec<(Eid, Eid)> = r.all().filter(|x| r.kind_of(*x, "UMLDependency")).filter_map(|x| self.rel_ends(x)).collect();
+            self.links_section(&mut b, "Dependencies", &deps.iter().filter(|(s, _)| *s == e).map(|(_, t)| *t).collect::<Vec<_>>());
+            self.links_section(&mut b, "Dependants", &deps.iter().filter(|(_, t)| *t == e).map(|(s, _)| *s).collect::<Vec<_>>());
+        }
+        let rels: Vec<Eid> = r.all().filter(|x| self.rel_ends(*x).map(|(s, t)| s == e || t == e).unwrap_or(false)).collect();
+        self.links_section(&mut b, "Relationships", &rels);
         self.links_section(&mut b, "Owned Elements", &owned);
+        // the diagrams that show it
+        if !self.is_diagram(e) {
+            let mut shown: Vec<Eid> = vec![];
+            for d in r.all_of("Diagram") {
+                if !shown.contains(&d) && r.list(d, "ownedViews").into_iter().any(|v| r.refd(v, "model") == Some(e)) {
+                    shown.push(d);
+                }
+            }
+            self.links_section(&mut b, "Diagrams", &shown);
+        }
         Self::html_page(&self.display_name(e), &b)
     }
 
@@ -403,7 +488,11 @@ impl App {
         let Some(dir) = rfd::FileDialog::new().set_title("Select a folder where HTML docs to be exported").pick_folder() else { return };
         match self.export_html(&dir.join("html-docs"), ms) {
             Ok(()) => self.toast("HTML docs exported successfully."),
-            Err(e) => self.message = Some(("Failed to export HTML docs.".into(), e)),
+            // an error toast, as in the original; the reason goes to the log (html-export/main.js:242-245)
+            Err(e) => {
+                eprintln!("Failed to export HTML docs: {e}");
+                self.toast_error("Failed to export HTML docs.");
+            }
         }
     }
 }

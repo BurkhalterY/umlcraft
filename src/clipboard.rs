@@ -281,7 +281,17 @@ impl App {
         if !models.iter().all(|id| self.repo.by_id.get(id).map(|e| self.repo.alive(*e)).unwrap_or(false)) {
             return;
         }
-        if self.repo.ty(d) != diagram_type {
+        // every view must be a kind the target diagram takes (canPasteViews, core.js:4268-4275); a
+        // diagram kind UMLCraft only reads takes views copied from its own kind
+        let target = self.repo.ty(d).to_string();
+        let fits = |v: &Value| {
+            let ty = v.get("_type").and_then(|t| t.as_str()).unwrap_or("");
+            match pastable_views(&target) {
+                Some(kinds) => kinds.iter().any(|k| crate::meta::is_kind_of(ty, k)),
+                None => target == diagram_type,
+            }
+        };
+        if !views.iter().all(fits) {
             self.message = Some(("Paste".into(), "Views in clipboard cannot be pasted in this diagram.".into()));
             return;
         }
@@ -330,5 +340,27 @@ impl App {
         if let Some(t) = self.get_clipboard() {
             self.paste_text(&t);
         }
+    }
+}
+
+/// The view kinds a diagram takes, its own and its super-kinds' (uml/metamodel.json `views`,
+/// metamodel-manager.js:259-273). Every structural UML diagram shares one list; an information flow
+/// diagram has only the general one. None for the kinds UMLCraft only reads.
+pub fn pastable_views(diagram_ty: &str) -> Option<Vec<&'static str>> {
+    const GENERAL: [&str; 5] = ["UMLCustomTextView", "ShapeView", "UMLNoteLinkView", "UMLConstraintLinkView", "UMLFrameView"];
+    const STRUCTURAL: [&str; 44] = [
+        "UMLPackageView", "UMLModelView", "UMLSubsystemView", "UMLContainmentView", "UMLClassView", "UMLInterfaceView", "UMLSignalView", "UMLDataTypeView", "UMLPrimitiveTypeView",
+        "UMLEnumerationView", "UMLDependencyView", "UMLGeneralizationView", "UMLRealizationView", "UMLInterfaceRealizationView", "UMLAssociationView", "UMLAssociationClassLinkView",
+        "UMLTemplateBindingView", "UMLPortView", "UMLPartView", "UMLConnectorView", "UMLCollaborationView", "UMLCollaborationUseView", "UMLRoleBindingView", "UMLObjectView", "UMLLinkView",
+        "UMLLinkObjectLinkView", "UMLArtifactView", "UMLComponentView", "UMLArtifactInstanceView", "UMLComponentInstanceView", "UMLComponentRealizationView", "UMLNodeView",
+        "UMLNodeInstanceView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLUseCaseView", "UMLActorView", "UMLUseCaseSubjectView", "UMLExtendView", "UMLIncludeView", "UMLProfileView",
+        "UMLExtensionView", "UMLMetaClassView", "UMLStereotypeView",
+    ];
+    match diagram_ty {
+        "UMLClassDiagram" | "UMLPackageDiagram" | "UMLObjectDiagram" | "UMLComponentDiagram" | "UMLDeploymentDiagram" | "UMLUseCaseDiagram" | "UMLProfileDiagram" => {
+            Some(GENERAL.iter().chain(STRUCTURAL.iter()).copied().collect())
+        }
+        "UMLInformationFlowDiagram" => Some(GENERAL.to_vec()),
+        _ => None,
     }
 }

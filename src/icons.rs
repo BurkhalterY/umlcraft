@@ -40,6 +40,9 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLProfileDiagram" => "diagram-class",
         "UMLInformationFlow" => "dependency",
         "UMLComponentRealization" => "realization",
+        "Hyperlink" => "hyperlink",
+        "UMLNaryAssociationNode" => "nary",
+        "UMLCollaboration" | "UMLCollaborationUse" => "collaboration",
         "UMLDeployment" | "UMLTemplateBinding" => "dependency",
         "UMLCommunicationPath" => "association",
         "UMLClassDiagram" | "UMLPackageDiagram" => "diagram-class",
@@ -135,6 +138,10 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(5.0, 14.5), (8.0, 10.5), (11.0, 14.5)], Y);
         }
         "subject" => rect_at(3.0, 2.0, 10.0, 12.0, W),
+        "frame" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, W);
+            line(&[(1.5, 6.5), (6.0, 6.5), (8.0, 4.5), (8.0, 2.5)], W);
+        }
         "diagram-class" | "diagram-usecase" | "diagram" => {
             rect_at(1.5, 1.5, 13.0, 13.0, G);
             match key {
@@ -205,6 +212,23 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(10.5, 2.5), (10.5, 5.5), (13.5, 5.5)], W);
         }
         "notelink" => dashed(&[(3.0, 13.0), (13.0, 3.0)], W),
+        "rect" => rect_at(2.0, 3.0, 12.0, 10.0, W),
+        "collaboration" => {
+            let pts: Vec<(f32, f32)> = (0..=24).map(|i| { let a = std::f32::consts::TAU * i as f32 / 24.0; (8.0 + 6.5 * a.cos(), 8.0 + 4.5 * a.sin()) }).collect();
+            dashed(&pts, Y);
+        }
+        "nary" => line(&[(1.5, 8.0), (8.0, 3.5), (14.5, 8.0), (8.0, 12.5), (1.5, 8.0)], Y),
+        "roundrect" => {
+            p.rect_stroke(Rect::from_min_size(at(2.0, 3.0), Vec2::new(12.0 * s, 10.0 * s)), (3.0 * s) as f32, st(W), egui::StrokeKind::Middle);
+        }
+        "ellipse" => {
+            p.add(Shape::ellipse_stroke(at(8.0, 8.0), Vec2::new(6.5 * s, 5.0 * s), st(W)));
+        }
+        "hyperlink" => {
+            // two chain links
+            rect_at(1.5, 5.5, 7.0, 5.0, W);
+            rect_at(7.5, 5.5, 7.0, 5.0, W);
+        }
         "textbox" => {
             rect_at(2.0, 3.0, 12.0, 10.0, W);
             line(&[(5.0, 5.5), (11.0, 5.5)], W);

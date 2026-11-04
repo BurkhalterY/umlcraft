@@ -2219,6 +2219,22 @@ fn html_docs_export() {
     assert!(bp.contains("<h2>Receptions</h2>") && bp.contains(&a.repo.name(rc)));
     let index = std::fs::read_to_string(dir.join("contents/element_index.html")).unwrap();
     assert!(index.contains("<h2>UMLClass ("));
+    // the generic sections: properties, tags, relationships and the diagrams that show it
+    assert!(bp.contains("<h2>Properties</h2>") && bp.contains("<td>isAbstract</td><td><span class=\"label\">false</span></td>"), "a default value as a label");
+    assert!(bp.contains("<h2>Relationships</h2>") && bp.contains("<h2>Diagrams</h2>"));
+    let _ = std::fs::remove_dir_all(&dir);
+    let t = a.change(|a| a.repo.create("Tag", &[("name", json!("reviewed")), ("kind", json!("boolean")), ("checked", json!(true))], Some((book, "tags"))));
+    let lib = a.repo.all().find(|e| a.repo.name(*e) == "LibraryItem").unwrap();
+    let dep = a.change(|a| { let (s, t) = (a.repo.ref_to(book), a.repo.ref_to(lib)); a.repo.create("UMLDependency", &[("source", s), ("target", t)], Some((book, "ownedElements"))) });
+    a.export_html(&dir, &ms).unwrap();
+    let bp = std::fs::read_to_string(dir.join(format!("contents/{}.html", md5_hex(&a.repo.id(book))))).unwrap();
+    assert!(bp.contains("<h2>Tags</h2>") && bp.contains("<td>reviewed</td><td><span class=\"label\">boolean</span></td><td><span class=\"label\">true</span></td>"));
+    assert!(bp.contains("<h2>Dependencies</h2>"));
+    let lp = std::fs::read_to_string(dir.join(format!("contents/{}.html", md5_hex(&a.repo.id(lib))))).unwrap();
+    assert!(lp.contains("<h2>Dependants</h2>"));
+    let index = std::fs::read_to_string(dir.join("contents/element_index.html")).unwrap();
+    assert!(index.contains("<h2>Tag (1)</h2>") && index.contains("reviewed"), "tags are in the index under Tag");
+    let _ = (t, dep);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -3324,8 +3340,16 @@ fn uml_standard_profile() {
     let p = a.repo.all().find(|e| a.repo.ty(*e) == "UMLProfile").unwrap();
     assert_eq!(a.repo.name(p), "UMLStandardProfile");
     assert_eq!(a.repo.parent(p), Some(a.repo.root));
-    let sts: Vec<_> = a.repo.list(p, "ownedElements");
+    let owned: Vec<_> = a.repo.list(p, "ownedElements");
+    let sts: Vec<_> = owned.iter().copied().filter(|e| a.repo.ty(*e) == "UMLStereotype").collect();
     assert_eq!(sts.len(), 36);
+    assert_eq!(owned.iter().filter(|e| a.repo.ty(**e) == "UMLMetaClass").count(), 9, "with the metaclasses");
+    assert_eq!(a.repo.ty(owned[0]), "UMLMetaClass", "in the profile's order");
+    // each stereotype extends its metaclasses; «Create» two of them
+    let create = sts.iter().copied().find(|s| a.repo.name(*s) == "Create").unwrap();
+    let exts: Vec<String> = a.repo.list(create, "ownedElements").into_iter().filter(|x| a.repo.ty(*x) == "UMLExtension").filter_map(|x| a.repo.refd(x, "target")).map(|m| a.repo.name(m)).collect();
+    assert_eq!(exts, ["UMLBehavioralFeature", "UMLDependency"]);
+    assert!(a.repo.child(create, "icon").is_some(), "each stereotype has its icon object");
     // the file kinds generalize File, and the stereotypes pass UML017 and UML018
     let lib = sts.iter().copied().find(|s| a.repo.name(*s) == "Library").unwrap();
     let g = a.repo.list(lib, "ownedElements")[0];
@@ -3745,4 +3769,466 @@ fn new_kinds_take_their_fill_colour_preference() {
     let s = a.change(|a| a.create_node("UMLStereotype", rect(240.0, 40.0, 100.0, 60.0))).unwrap();
     assert_eq!(a.repo.str(o, "fillColor"), "#ffeeaa");
     assert_eq!(a.repo.str(s, "fillColor"), "#aaeeff");
+}
+
+#[test]
+fn inherit_style_toggles_and_leaves_the_rubber_band() {
+    use egui::{Modifiers, Pos2};
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(200.0, 40.0, 100.0, 60.0))).unwrap();
+    a.select(vec![c1]);
+    a.toggle_flag("parentStyle");
+    assert!(a.repo.bool(c1, "parentStyle"));
+    a.select(vec![c1, c2]);
+    a.toggle_flag("parentStyle");
+    assert!(a.repo.bool(c1, "parentStyle") && a.repo.bool(c2, "parentStyle"), "a mixed selection is set");
+    a.toggle_flag("parentStyle");
+    assert!(!a.repo.bool(c1, "parentStyle") && !a.repo.bool(c2, "parentStyle"), "a shared value is inverted");
+    a.change(|a| a.repo.set(c1, "parentStyle", json!(true)));
+    a.select(vec![]);
+    a.on_press(canvas, Pos2::new(10.0, 10.0), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(400.0, 200.0));
+    a.on_release(canvas.min, Pos2::new(400.0, 200.0));
+    assert_eq!(a.selection, vec![c2], "a view inheriting its style is not taken by the band");
+    a.select_all();
+    assert_eq!(a.selection, vec![c1, c2], "but Select All takes the top-level views");
+}
+
+#[test]
+fn frame_tool_picks_an_element_and_shows_its_diagram() {
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(300.0, 300.0, 100.0, 60.0))).unwrap();
+    let other = a.change(|a| a.add_diagram(None, "UMLUseCaseDiagram"));
+    a.open_diagram(d);
+    // the Frame tool asks for an element before creating anything
+    a.tool = Some(crate::app::Tool { label: "Frame", kind: "Frame", icon: "frame", line: false, init: AssocInit::Plain });
+    a.on_press(canvas, Pos2::new(20.0, 20.0), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(250.0, 200.0));
+    a.on_release(canvas.min, Pos2::new(250.0, 200.0));
+    let mut p = a.element_picker.clone().expect("the picker opens");
+    assert!(p.frame.is_some() && p.chosen.is_none());
+    assert_eq!(a.repo.list(d, "ownedViews").len(), 1, "nothing is created yet");
+    p.chosen = Some(other);
+    a.picker_ok(p);
+    let f = a.repo.list(d, "ownedViews")[0];
+    assert_eq!(a.repo.ty(f), "UMLFrameView", "the frame goes behind the other views");
+    assert_eq!(a.selection, vec![f]);
+    assert_eq!(a.repo.refd(f, "model"), Some(other));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let (nl, tl) = (a.repo.refd(f, "nameLabel").unwrap(), a.repo.refd(f, "frameTypeLabel").unwrap());
+    assert_eq!(a.repo.str(tl, "text"), "uc");
+    let owner = a.repo.parent(other).unwrap();
+    assert_eq!(a.repo.str(nl, "text"), a.repo.name(owner), "a diagram's frame names the diagram's owner");
+    assert!(a.repo.str(tl, "font").ends_with(";1"), "the kind is bold");
+    // Show Type, Namespace and Diagram Name add to the name
+    for f_ in ["showType", "showDiagramName"] {
+        a.toggle_flag(f_);
+    }
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(nl, "text"), format!("[Model] {} [{}]", a.repo.name(owner), a.repo.name(d)));
+    // a frame of a class: its kind, and no inline edit
+    let p2 = { a.open_frame_picker(d, rect(500.0, 20.0, 10.0, 10.0)); let mut p = a.element_picker.clone().unwrap(); p.chosen = Some(a.repo.refd(c, "model").unwrap()); p };
+    a.picker_ok(p2);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let f2 = a.repo.list(d, "ownedViews")[0];
+    assert_eq!(a.repo.str(a.repo.refd(f2, "frameTypeLabel").unwrap(), "text"), "class");
+    assert!(a.repo.f(f2, "width") >= crate::views::FRAME_MIN_W && a.repo.f(f2, "height") >= 53.0, "a small frame grows to its minimum");
+    a.edit_view(f2, None);
+    assert!(a.editing.is_none());
+    // the file keeps the frame and its labels, and reads back
+    let back = Repo::parse(&a.repo.serialize()).unwrap();
+    assert_eq!(back.all_of("UMLFrameView").len(), 2);
+}
+
+#[test]
+fn dropping_the_open_diagram_makes_a_frame_of_it() {
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    assert!(a.can_drop_model(d));
+    let vs = a.drop_model(d, crate::views::P { x: 20.0, y: 30.0 }).unwrap();
+    assert_eq!(vs.len(), 1);
+    let f = vs[0];
+    assert_eq!(a.repo.ty(f), "UMLFrameView");
+    assert_eq!(a.repo.refd(f, "model"), Some(d));
+    assert_eq!((a.repo.f(f, "left"), a.repo.f(f, "top"), a.repo.f(f, "width"), a.repo.f(f, "height")), (20.0, 30.0, 700.0, 600.0));
+    // another diagram makes a hyperlink to it
+    let other = a.change(|a| a.add_diagram(None, "UMLClassDiagram"));
+    a.open_diagram(d);
+    assert!(a.can_drop_model(other));
+    let vs = a.drop_model(other, crate::views::P { x: 40.0, y: 700.0 }).unwrap();
+    let hv = vs[0];
+    assert_eq!(a.repo.ty(hv), "HyperlinkView");
+    let link = a.repo.refd(hv, "model").unwrap();
+    assert_eq!(a.repo.ty(link), "Hyperlink");
+    assert_eq!(a.repo.refd(link, "reference"), Some(other));
+    assert_eq!(a.label_of(link), format!("(link to {})", a.repo.name(other)));
+    let ms = measure();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(hv, "nameLabel").unwrap(), "text"), a.repo.name(other));
+    assert_eq!(a.repo.str(a.repo.refd(hv, "typeLabel").unwrap(), "text"), "link");
+    assert!(a.repo.f(hv, "width") >= crate::views::HYPERLINK_MIN_W && a.repo.f(hv, "height") >= crate::views::HYPERLINK_MIN_H);
+}
+
+#[test]
+fn hyperlink_tool_shows_its_url_or_its_name() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let v = a.change(|a| a.create_node("Hyperlink", rect(20.0, 20.0, 10.0, 10.0))).unwrap();
+    let link = a.repo.refd(v, "model").unwrap();
+    assert_eq!(a.repo.name(link), "Hyperlink1");
+    assert_eq!(a.label_of(link), "(none)");
+    a.change(|a| a.repo.set(link, "url", json!("https://example.com")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nl = a.repo.refd(v, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "https://example.com");
+    assert_eq!(a.label_of(link), "(link to https://example.com)");
+    a.change(|a| a.repo.set(link, "showName", json!(true)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(nl, "text"), "Hyperlink1");
+    assert_eq!(a.label_of(link), "(link: Hyperlink1)");
+    assert_eq!(a.fields_for(link).iter().map(|f| f.0).collect::<Vec<_>>(), ["name", "reference", "url", "showName"]);
+    a.edit_view(v, None);
+    assert!(a.editing.is_none(), "no inline edit");
+    let back = Repo::parse(&a.repo.serialize()).unwrap();
+    assert_eq!(back.all_of("Hyperlink").len(), 1);
+}
+
+#[test]
+fn shape_tools_and_their_minimum_size() {
+    use egui::{Modifiers, Pos2};
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let d = a.diagram.unwrap();
+    for (kind, ty) in [("Rect", "RectangleView"), ("RoundRect", "RoundRectView"), ("Ellipse", "EllipseView")] {
+        a.tool = Some(crate::app::Tool { label: "", kind, icon: "", line: false, init: AssocInit::Plain });
+        // a 20×30 drag is enlarged to the 50×50 minimum
+        a.on_press(canvas, Pos2::new(100.0, 100.0), Modifiers::NONE);
+        a.on_move(canvas, Pos2::new(120.0, 130.0));
+        a.on_release(canvas.min, Pos2::new(120.0, 130.0));
+        let v = *a.repo.list(d, "ownedViews").last().unwrap();
+        assert_eq!(a.repo.ty(v), ty);
+        assert!(a.repo.refd(v, "model").is_none(), "a shape is a view only");
+        assert_eq!((a.repo.f(v, "width"), a.repo.f(v, "height")), (50.0, 50.0));
+    }
+    // a larger drag keeps its size
+    a.tool = Some(crate::app::Tool { label: "", kind: "Note", icon: "", line: false, init: AssocInit::Plain });
+    a.on_press(canvas, Pos2::new(300.0, 300.0), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(500.0, 320.0));
+    a.on_release(canvas.min, Pos2::new(500.0, 320.0));
+    let n = *a.repo.list(d, "ownedViews").last().unwrap();
+    assert_eq!((a.repo.f(n, "width"), a.repo.f(n, "height")), (200.0, 40.0), "a note is at least 40 tall");
+    let mut svg = String::new();
+    let ms = measure();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    svg.push_str(&crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap());
+    assert!(svg.contains("<ellipse") || svg.contains("ellipse"), "the ellipse is drawn");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn quick_edit_grammars_accept_and_reject_like_the_original() {
+    use crate::parse::{parses, Grammar::*};
+    for (g, ok) in [
+        (Name, "<<entity>> +Order"), (Name, "Order Item"), (Name, "it's"), (Name, "a[1]"),
+        (Attribute, "-id: int[1] = 0"), (Attribute, "<< st >> #name : List<String> [0..*] = x"), (Attribute, "x"),
+        (Operation, "+placeOrder(item: Order, qty: int): boolean"), (Operation, "f()"), (Operation, "f(in a, out b: int[*] = 3, inout c)"), (Operation, "g(): void[0..1]"),
+        (TemplateParameter, "T: Class[] = Object"), (Object, ""), (Object, ": Order"), (Object, "o1: Order"), (Slot, "x: int = 1"), (Name, "emoji 🦀"),
+    ] {
+        assert!(parses(g, ok), "{g:?} accepts {ok:?}");
+    }
+    for (g, bad) in [
+        (Name, ""), (Name, "a: B"), (Name, "f(x)"), (Name, "<<st"), (Name, "a = b"),
+        (Attribute, "a: b: c"), (Attribute, "a = b = c"), (Attribute, "it's"), (Attribute, "f()"), (Attribute, "a: b[x]"),
+        (Operation, "f(a, )"), (Operation, "f(a"), (Operation, "f(): (x)"), (TemplateParameter, "+T"), (Slot, "x = 1 = 2"),
+    ] {
+        assert!(!parses(g, bad), "{g:?} rejects {bad:?}");
+    }
+}
+
+#[test]
+fn a_rejected_inline_edit_stays_open_and_changes_nothing() {
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    let name = a.repo.name(m);
+    a.edit_view(c, None);
+    let ed = a.editing.as_mut().unwrap();
+    ed.orig = Some(ed.text.clone());
+    ed.text = "Bad: Name".into();
+    assert!(!a.try_close_inline(true), "refused");
+    assert!(a.editing.as_ref().unwrap().fresh, "the text is selected again");
+    assert!(a.edit_shake.is_some());
+    assert!(!a.try_close_inline(false), "it cannot close while it shakes");
+    assert_eq!(a.repo.name(m), name, "nothing changed");
+    // once the shake is over a valid text goes through
+    a.edit_shake = Some(std::time::Instant::now() - std::time::Duration::from_millis(500));
+    a.editing.as_mut().unwrap().text = "Good Name".into();
+    assert!(a.try_close_inline(true));
+    assert!(a.editing.is_none());
+    assert_eq!(a.repo.name(m), "Good Name");
+    // an unchanged text is never checked, and a forced close drops a rejected one
+    a.edit_view(c, None);
+    a.editing.as_mut().unwrap().orig = Some("Good Name".into());
+    a.editing.as_mut().unwrap().text = "".into();
+    a.close_inline(true);
+    assert!(a.editing.is_none());
+    assert_eq!(a.repo.name(m), "Good Name", "an empty name is rejected, so it is dropped");
+}
+
+#[test]
+fn inline_edit_buttons_carry_their_keys() {
+    use crate::app::EditKind;
+    use crate::canvas::{item_buttons, ItemKey};
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let e = a.change(|a| a.create_node("UMLEnumeration", rect(300.0, 40.0, 160.0, 100.0))).unwrap();
+    let (cm, em) = (a.repo.refd(c, "model").unwrap(), a.repo.refd(e, "model").unwrap());
+    let hints = |k: &EditKind, a: &App| item_buttons(&a.repo, k).into_iter().map(|b| if b.2.is_empty() { b.1.to_string() } else { format!("{} ({})", b.1, b.2) }).collect::<Vec<_>>();
+    assert_eq!(hints(&EditKind::Name(cm), &a), ["Add Attribute (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)", "Add Reception"]);
+    assert_eq!(hints(&EditKind::Name(em), &a), ["Add Literal (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)"]);
+    let keys: Vec<ItemKey> = item_buttons(&a.repo, &EditKind::Feature(cm)).into_iter().map(|b| b.3).collect();
+    assert_eq!(keys, [ItemKey::Add, ItemKey::Delete, ItemKey::Move(true), ItemKey::Move(false)]);
+    // a button does what its key does
+    a.item_key(c, EditKind::Name(cm), ItemKey::Add);
+    assert_eq!(a.repo.list(cm, "attributes").len(), 1);
+    // Add Reception shows the suppressed receptions again
+    assert!(a.repo.bool(c, "suppressReceptions"));
+    a.item_key(c, EditKind::Name(cm), ItemKey::AddReception);
+    assert_eq!(a.repo.list(cm, "receptions").len(), 1);
+    assert!(!a.repo.bool(c, "suppressReceptions"));
+}
+
+#[test]
+fn nary_association_node_joins_classifiers() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let n = a.change(|a| a.create_node("UMLNaryAssociationNode", rect(200.0, 200.0, 10.0, 10.0))).unwrap();
+    assert_eq!(a.repo.ty(n), "UMLNaryAssociationNodeView");
+    let nm = a.repo.refd(n, "model").unwrap();
+    assert_eq!((a.repo.ty(nm), a.repo.name(nm)), ("UMLNaryAssociationNode", String::new()), "it starts unnamed");
+    let cs: Vec<_> = (0..3).map(|i| a.change(|a| a.create_node("UMLClass", rect(40.0 + 200.0 * i as f64, 20.0, 100.0, 60.0))).unwrap()).collect();
+    let assoc = tool("UMLAssociation", AssocInit::Plain);
+    for c in &cs {
+        assert!(a.can_connect(&assoc, *c, n), "an association joins a class to the node");
+        a.change(|a| a.create_edge(&assoc, *c, n)).unwrap();
+    }
+    // the Association Class tool links a class to the node, without a new class
+    let ac = tool("AssociationClass", AssocInit::Plain);
+    assert!(a.can_connect(&ac, cs[0], n) && a.can_connect(&ac, n, cs[1]));
+    let link = a.change(|a| a.create_edge(&ac, n, cs[1])).unwrap();
+    assert_eq!(a.repo.ty(link), "UMLAssociationClassLinkView");
+    let lm = a.repo.refd(link, "model").unwrap();
+    assert_eq!((a.repo.refd(lm, "classSide"), a.repo.refd(lm, "associationSide")), (a.repo.refd(cs[1], "model"), Some(nm)));
+    assert_eq!(a.repo.refd(link, "tail"), Some(cs[1]), "drawn from the class");
+    a.change(|a| a.repo.set(nm, "name", json!("Booking")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.repo.f(n, "width") >= 30.0 && a.repo.f(n, "height") >= 22.0);
+    let nl = a.repo.refd(n, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "Booking");
+    let centre = (a.repo.f(n, "left") + a.repo.f(n, "width") / 2.0, a.repo.f(n, "top") + a.repo.f(n, "height") / 2.0);
+    let label_centre = (a.repo.f(nl, "left") + a.repo.f(nl, "width") / 2.0, a.repo.f(nl, "top") + a.repo.f(nl, "height") / 2.0);
+    assert_eq!((label_centre.0 - centre.0, label_centre.1 - centre.1), (-15.0, -15.0), "the name floats up and to the left");
+    a.edit_view(n, None);
+    assert!(matches!(a.editing.as_ref().map(|e| &e.kind), Some(crate::app::EditKind::Name(m)) if *m == nm));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn behaviours_and_substitutions_from_model_add() {
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    let pkg = a.repo.parent(cm).unwrap();
+    let kinds = |a: &App, e| a.add_kinds(e).into_iter().map(|k| k.1).collect::<Vec<_>>();
+    let on_class = kinds(&a, cm);
+    for k in ["UMLInteraction", "UMLStateMachine", "UMLActivity", "UMLOpaqueBehavior"] {
+        assert!(on_class.contains(&k), "a classifier takes {k}");
+    }
+    let on_pkg = kinds(&a, pkg);
+    assert!(on_pkg.contains(&"UMLStateMachine") && on_pkg.contains(&"UMLActivity"));
+    assert!(!on_pkg.contains(&"UMLInteraction") && !on_pkg.contains(&"UMLOpaqueBehavior"));
+    let sm = a.change(|a| a.add_model(cm, "UMLStateMachine"));
+    assert_eq!(a.repo.name(sm), "StateMachine1");
+    assert_eq!(a.repo.list(sm, "regions").len(), 1, "with its region");
+    // a template binding takes parameter substitutions
+    let t = a.change(|a| a.create_node("UMLClass", rect(300.0, 40.0, 160.0, 100.0))).unwrap();
+    let bind = tool("UMLTemplateBinding", AssocInit::Plain);
+    let b = a.change(|a| a.create_edge(&bind, c, t)).unwrap();
+    let bm = a.repo.refd(b, "model").unwrap();
+    assert!(kinds(&a, bm).contains(&"UMLTemplateParameterSubstitution"));
+    let s = a.change(|a| a.add_feature(bm, "UMLTemplateParameterSubstitution")).unwrap();
+    assert_eq!(a.repo.list(bm, "parameterSubstitutions"), vec![s]);
+    let text = a.repo.serialize();
+    assert!(text.contains("\"parameterSubstitutions\"") && !text.contains("\"isReentrant\""), "isReentrant keeps its default");
+    Repo::parse(&text).unwrap();
+}
+
+#[test]
+fn the_wheel_moves_the_origin_in_diagram_units() {
+    let mut a = App::new(None);
+    a.set_zoom(2.0);
+    a.scroll = crate::views::P { x: 100.0, y: 100.0 };
+    a.wheel_scroll(egui::vec2(0.0, -40.0), false);
+    assert_eq!((a.scroll.x, a.scroll.y), (100.0, 140.0), "not divided by the zoom");
+    a.wheel_scroll(egui::vec2(0.0, -30.0), true);
+    assert_eq!((a.scroll.x, a.scroll.y), (130.0, 140.0), "Shift scrolls sideways");
+    a.wheel_scroll(egui::vec2(500.0, 500.0), false);
+    assert_eq!((a.scroll.x, a.scroll.y), (0.0, 0.0), "never past the origin");
+}
+
+#[test]
+fn collaborations_and_their_uses() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLCollaboration", rect(40.0, 40.0, 10.0, 10.0))).unwrap();
+    let u = a.change(|a| a.create_node("UMLCollaborationUse", rect(300.0, 40.0, 10.0, 10.0))).unwrap();
+    assert_eq!((a.repo.ty(c), a.repo.ty(u)), ("UMLCollaborationView", "UMLCollaborationUseView"));
+    let (cm, um) = (a.repo.refd(c, "model").unwrap(), a.repo.refd(u, "model").unwrap());
+    assert_eq!((a.repo.name(cm), a.repo.name(um)), ("Collaboration1".to_string(), "CollaborationUse1".to_string()));
+    assert!(a.repo.refd(c, "templateParameterCompartment").is_some());
+    a.change(|a| a.repo.set_ref(um, "type", Some(cm)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.repo.f(c, "width") >= crate::views::UC_MIN_W && a.repo.f(c, "height") >= crate::views::UC_MIN_H, "grown to the minimum");
+    let nl = a.repo.refd(a.repo.refd(u, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "CollaborationUse1: Collaboration1");
+    assert_eq!(crate::parse::name_text(&a.repo, um), "CollaborationUse1", "the name edit holds the name only");
+    assert_eq!(a.fields_for(um).iter().map(|f| f.0).collect::<Vec<_>>(), ["name", "stereotype", "visibility", "type"]);
+    let svg = crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap();
+    assert!(svg.contains("Collaboration1"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn profile_stereotype_icons() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.package_for(Some(d));
+    let st = a.change(|a| a.add_model(pkg, "UMLStereotype"));
+    let icon = a.repo.child(st, "icon").expect("a new stereotype has its icon");
+    assert_eq!((a.repo.f(icon, "width"), a.repo.f(icon, "height")), (40.0, 40.0));
+    a.change(|a| a.repo.set(icon, "content", json!("!icon 20 10\nr 0 0 20 10\n%f #ff0000\nfe 5 2 15 8\n%p 2 2\nl 0 5 20 5")));
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 10.0, 10.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    a.change(|a| a.repo.set_ref(m, "stereotype", Some(st)));
+    a.change(|a| a.repo.set(c, "stereotypeDisplay", json!("icon")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info[&c].shape, "stereotype-icon");
+    let nc = a.repo.refd(c, "nameCompartment").unwrap();
+    assert!(a.repo.f(c, "width") >= 40.0 && a.repo.f(nc, "top") >= a.repo.f(c, "top") + 40.0, "the icon sits above the name, at least 40 tall");
+    let svg = crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap();
+    assert!(svg.contains("#ff0000"), "the script's fill colour is used");
+    // decoration: the box with the icon at its top right
+    a.change(|a| a.repo.set(c, "stereotypeDisplay", json!("decoration")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info[&c].shape, "");
+    assert!(crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap().contains("#ff0000"));
+    // the icon's size is edited as integers
+    assert_eq!(a.fields_for(icon), vec![("width", "int"), ("height", "int"), ("content", "multiline")]);
+    let text = a.repo.serialize();
+    assert!(text.contains("\"UMLImage\""));
+    let back = Repo::parse(&text).unwrap();
+    assert!(back.all_of("UMLImage").len() == 1);
+}
+
+#[test]
+fn icon_with_label_shows_the_stereotype() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let b = a.change(|a| a.create_node("Boundary", rect(20.0, 20.0, 10.0, 10.0))).unwrap();
+    let st = a.repo.refd(a.repo.refd(b, "nameCompartment").unwrap(), "stereotypeLabel").unwrap();
+    for (display, shown) in [("icon", false), ("icon-label", true)] {
+        a.change(|a| a.repo.set(b, "stereotypeDisplay", json!(display)));
+        a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+        assert_eq!(a.repo.raw(st, "visible") != Some(&json!(false)), shown, "{display}");
+    }
+}
+
+#[test]
+fn a_diagram_accepts_the_kinds_its_type_allows() {
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.package_for(Some(d));
+    let actor = a.change(|a| a.add_model(pkg, "UMLActor"));
+    let p2 = a.change(|a| a.add_model(pkg, "UMLPackage"));
+    let st = a.change(|a| a.add_model(pkg, "UMLStereotype"));
+    assert!(a.can_drop_model(actor) && a.can_drop_model(p2), "a class diagram takes classifiers and packages");
+    let od = a.change(|a| a.add_diagram(Some(pkg), "UMLObjectDiagram"));
+    assert_eq!(a.diagram, Some(od));
+    assert!(a.can_drop_model(actor), "an object diagram takes classifiers");
+    assert!(!a.can_drop_model(p2), "but not packages");
+    assert_eq!(a.drop_model(p2, crate::views::P { x: 10.0, y: 10.0 }), Ok(vec![]), "and the drop does nothing");
+    let prof = a.change(|a| a.add_diagram(Some(pkg), "UMLProfileDiagram"));
+    assert_eq!(a.diagram, Some(prof));
+    assert!(a.can_drop_model(st) && !a.can_drop_model(actor), "a profile diagram takes stereotypes, not actors");
+}
+
+#[test]
+fn views_paste_into_any_diagram_that_takes_their_kinds() {
+    use crate::app::Area;
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let n = a.change(|a| a.create_node("Note", rect(300.0, 300.0, 100.0, 50.0))).unwrap();
+    a.last_area = Area::Canvas;
+    a.select(vec![c]);
+    let class_text = a.copy_text().unwrap();
+    a.select(vec![n]);
+    let note_text = a.copy_text().unwrap();
+    let pkg = a.package_for(Some(d));
+    let uc = a.change(|a| a.add_diagram(Some(pkg), "UMLUseCaseDiagram"));
+    assert_eq!(a.diagram, Some(uc));
+    a.paste_text(&class_text);
+    assert!(a.message.is_none(), "a class view pastes into a use case diagram");
+    assert_eq!(a.repo.list(uc, "ownedViews").len(), 1);
+    let inf = a.change(|a| a.add_diagram(Some(pkg), "UMLInformationFlowDiagram"));
+    assert_eq!(a.diagram, Some(inf));
+    a.paste_text(&class_text);
+    assert!(a.message.take().is_some(), "an information flow diagram takes only the general views");
+    a.paste_text(&note_text);
+    assert!(a.message.is_none() && a.repo.list(inf, "ownedViews").len() == 1, "such as a note");
+}
+
+#[test]
+fn a_subsystem_offers_its_interfaces() {
+    let mut a = App::new(None);
+    let s = a.change(|a| a.create_node("UMLSubsystem", rect(40.0, 200.0, 200.0, 120.0))).unwrap();
+    let labels: Vec<&str> = crate::related::actions("UMLSubsystem").iter().map(|r| r.label).collect();
+    assert_eq!(labels, ["Add Provided Interface", "Add Required Interface", "Add Note", "Add Constraint"]);
+    let provided = crate::related::actions("UMLSubsystem")[0];
+    a.add_related(s, provided);
+    let sm = a.repo.refd(s, "model").unwrap();
+    let real = a.repo.all().find(|e| a.repo.ty(*e) == "UMLInterfaceRealization").expect("the realization is made");
+    assert_eq!(a.repo.refd(real, "source"), Some(sm));
+}
+
+#[test]
+fn association_end_order_arrow() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    a.change(|a| a.repo.set(m, "name", json!("owns")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let polys = |a: &App| crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap().matches("<polygon").count();
+    let plain = polys(&a);
+    for order in ["forward", "backward"] {
+        a.change(|a| a.repo.set(e, "showEndOrder", json!(order)));
+        assert_eq!(polys(&a), plain + 1, "{order} draws one triangle");
+    }
+    a.change(|a| a.repo.set(e, "showEndOrder", json!("hide")));
+    assert_eq!(polys(&a), plain);
 }

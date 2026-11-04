@@ -48,20 +48,30 @@ pub const TEMPLATES: [Template; 4] = [
     },
 ];
 
-/// A new project from a template; its first diagram opens by default.
-/// The stereotypes of the UML Standard Profile, in its order (uml/profiles/UMLStandardProfile.mfj).
-/// UMLCraft leaves out the profile's metaclasses, extensions, icons and diagrams.
-pub const STANDARD_STEREOTYPES: [&str; 36] = [
-    "Realization", "Specification", "entity", "File", "Document", "Executable", "Library", "Script", "Source", "Destroy", "Auxiliary", "Focus",
-    "Metaclass", "ImplementationClass", "Type", "Utility", "Entity", "Implementation", "Process", "Service", "Subsystem", "Create", "Call",
-    "Instantiate", "Responsibility", "Send", "Derive", "Refine", "Trace", "Framework", "ModelLibrary", "BuildComponent", "Metamodel",
-    "SystemModel", "control", "boundary",
+/// The UML Standard Profile in its order (uml/profiles/UMLStandardProfile.mfj): the metaclasses, each
+/// followed by the stereotypes that come after it, with the metaclasses each stereotype extends.
+/// UMLCraft leaves out the profile's stereotype icons (the original's artwork) and its diagrams.
+pub const STANDARD_PROFILE_ELEMENTS: &[(&str, &[&str])] = &[
+    ("UMLClassifier", &[]), ("Realization", &["UMLClassifier"]), ("Specification", &["UMLClassifier"]), ("entity", &["UMLClass"]),
+    ("UMLClass", &[]), ("UMLArtifact", &[]), ("File", &["UMLArtifact"]), ("Document", &["UMLArtifact"]), ("Executable", &["UMLArtifact"]),
+    ("Library", &["UMLArtifact"]), ("Script", &["UMLArtifact"]), ("Source", &["UMLArtifact"]),
+    ("UMLBehavioralFeature", &[]), ("Destroy", &["UMLBehavioralFeature"]), ("Auxiliary", &["UMLClass"]), ("Focus", &["UMLClass"]), ("Metaclass", &["UMLClass"]),
+    ("ImplementationClass", &["UMLClass"]), ("Type", &["UMLClass"]), ("Utility", &["UMLClass"]),
+    ("UMLComponent", &[]), ("Entity", &["UMLComponent"]), ("Implementation", &["UMLComponent"]), ("Process", &["UMLComponent"]), ("Service", &["UMLComponent"]),
+    ("Subsystem", &["UMLComponent"]),
+    ("UMLDependency", &[]), ("Create", &["UMLBehavioralFeature", "UMLDependency"]), ("Call", &["UMLDependency"]), ("Instantiate", &["UMLDependency"]),
+    ("Responsibility", &["UMLDependency"]), ("Send", &["UMLDependency"]),
+    ("UMLAbstraction", &[]), ("Derive", &["UMLAbstraction"]), ("Refine", &["UMLAbstraction"]), ("Trace", &["UMLAbstraction"]),
+    ("UMLPackage", &[]), ("Framework", &["UMLPackage"]), ("ModelLibrary", &["UMLPackage"]),
+    ("UMLModel", &[]), ("BuildComponent", &["UMLComponent"]), ("Metamodel", &["UMLModel"]), ("SystemModel", &["UMLModel"]), ("control", &["UMLClass"]), ("boundary", &["UMLClass"]),
 ];
 /// The stereotypes that generalize File.
 const FILE_KINDS: [&str; 5] = ["Document", "Executable", "Library", "Script", "Source"];
 pub const STANDARD_PROFILE: &str = "UMLStandardProfile";
 
-/// Add the UML Standard Profile under the project, unless a profile of that name is there already.
+/// Add the UML Standard Profile under the project, unless a profile of that name is there already:
+/// its metaclasses, and its stereotypes with their generalization to File and their extensions of
+/// the metaclasses, each owned by its stereotype.
 pub fn add_standard_profile(r: &mut Repo) -> Option<Eid> {
     let root = r.root;
     if r.all().any(|e| r.ty(e) == "UMLProfile" && r.name(e) == STANDARD_PROFILE) {
@@ -69,14 +79,27 @@ pub fn add_standard_profile(r: &mut Repo) -> Option<Eid> {
     }
     let p = r.create("UMLProfile", &[("name", json!(STANDARD_PROFILE))], Some((root, "ownedElements")));
     let mut file = None;
-    for name in STANDARD_STEREOTYPES {
+    let mut metas: Vec<(&str, Eid)> = vec![];
+    for (name, extends) in STANDARD_PROFILE_ELEMENTS {
+        if name.starts_with("UML") {
+            let mc = r.create("UMLMetaClass", &[("name", json!(name))], Some((p, "ownedElements")));
+            metas.push((name, mc));
+            continue;
+        }
         let st = r.create("UMLStereotype", &[("name", json!(name))], Some((p, "ownedElements")));
-        if name == "File" {
+        crate::app::add_stereotype_icon(r, st);
+        if *name == "File" {
             file = Some(st);
         }
-        if let (true, Some(f)) = (FILE_KINDS.contains(&name), file) {
+        if let (true, Some(f)) = (FILE_KINDS.contains(name), file) {
             let (s, t) = (r.ref_to(st), r.ref_to(f));
             r.create("UMLGeneralization", &[("source", s), ("target", t)], Some((st, "ownedElements")));
+        }
+        for m in *extends {
+            if let Some((_, mc)) = metas.iter().find(|(n, _)| n == m) {
+                let (s, t) = (r.ref_to(st), r.ref_to(*mc));
+                r.create("UMLExtension", &[("source", s), ("target", t)], Some((st, "ownedElements")));
+            }
         }
     }
     Some(p)
@@ -87,6 +110,7 @@ pub fn add_standard_profile_app(a: &mut crate::app::App) -> Option<Eid> {
     add_standard_profile(&mut a.repo)
 }
 
+/// A new project from a template; its first diagram opens by default.
 pub fn project(t: &Template) -> Repo {
     let mut r = Repo::blank();
     let root = r.root;

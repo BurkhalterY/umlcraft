@@ -87,7 +87,18 @@ const ANNOTATIONS: Group = Group {
         line("Free Line", "FreeLine", "freeline", AssocInit::Plain),
         node("Note", "Note", "note"),
         line("Note Link", "NoteLink", "notelink", AssocInit::Plain),
+        node("Hyperlink", "Hyperlink", "hyperlink"),
+        node("Rectangle", "Rect", "rect"),
+        node("Rounded Rectangle", "RoundRect", "roundrect"),
+        node("Ellipse", "Ellipse", "ellipse"),
     ],
+};
+// the Composite Structure group (uml.json "uml.compositestructure": class, composite structure and
+// component diagrams), with the items UMLCraft has: no ports, parts, connectors or role bindings
+const COMPOSITE: Group = Group {
+    id: "compositestructure",
+    label: "Composite Structure",
+    items: &[node("Collaboration", "UMLCollaboration", "collaboration"), node("Collaboration Use", "UMLCollaborationUse", "collaboration"), line("Realization", "UMLRealization", "realization", AssocInit::Plain)],
 };
 const CLASS_GROUPS: &[Group] = &[
     Group {
@@ -113,6 +124,8 @@ const CLASS_GROUPS: &[Group] = &[
             node("DataType", "UMLDataType", "datatype"),
             node("PrimitiveType", "UMLPrimitiveType", "datatype"),
             node("Enumeration", "UMLEnumeration", "enumeration"),
+            node("Frame", "Frame", "frame"),
+            node("N-ary Association Node", "UMLNaryAssociationNode", "nary"),
             line("Association Class", "AssociationClass", "associationclass", AssocInit::Plain),
             line("Template Binding", "UMLTemplateBinding", "dependency", AssocInit::Plain),
             line("Realization", "UMLRealization", "realization", AssocInit::Plain),
@@ -123,6 +136,7 @@ const CLASS_GROUPS: &[Group] = &[
         label: "Packages",
         items: &[node("Package", "UMLPackage", "package"), node("Model", "UMLModel", "model"), node("Subsystem", "UMLSubsystem", "package"), line("Dependency", "UMLDependency", "dependency", AssocInit::Plain), line("Containment", "Containment", "containment", AssocInit::Plain)],
     },
+    COMPOSITE,
     INSTANCES,
     // the robustness extension's group (robustness/toolbox/robustness.json)
     Group { id: "robustness", label: "Robustness", items: &[node("Boundary", "Boundary", "boundary"), node("Entity", "Entity", "entity"), node("Control", "Control", "control")] },
@@ -137,6 +151,7 @@ const USECASE_GROUPS: &[Group] = &[
             node("Use Case Subject", "UMLUseCaseSubject", "subject"),
             node("Use Case", "UMLUseCase", "usecase"),
             node("Actor", "UMLActor", "actor"),
+            node("Frame", "Frame", "frame"),
             line("Association", "UMLAssociation", "association", AssocInit::Plain),
             line("Directed Association", "UMLAssociation", "directed", AssocInit::Directed),
             line("Generalization", "UMLGeneralization", "generalization", AssocInit::Plain),
@@ -158,6 +173,7 @@ const COMPONENT_GROUPS: &[Group] = &[
             node("Component", "UMLComponent", "component"),
             node("Artifact", "UMLArtifact", "artifact"),
             node("Interface", "UMLInterface", "interface"),
+            node("Frame", "Frame", "frame"),
             line("Dependency", "UMLDependency", "dependency", AssocInit::Plain),
             line("Interface Realization", "UMLInterfaceRealization", "realization", AssocInit::Plain),
             line("Component Realization", "UMLComponentRealization", "realization", AssocInit::Plain),
@@ -172,6 +188,7 @@ const COMPONENT_GROUPS: &[Group] = &[
             line("Communication Path", "UMLCommunicationPath", "association", AssocInit::Plain),
         ],
     },
+    COMPOSITE,
     INSTANCES,
     ANNOTATIONS,
 ];
@@ -240,7 +257,7 @@ pub(crate) fn order_rank(t: &str) -> u32 {
         "UMLAttribute" => 1105, "UMLOperation" => 1106, "UMLReception" => 1107, "UMLExtensionPoint" => 1108, "UMLSlot" => 1109,
         "UMLClass" => 1201, "UMLInterface" => 1202, "UMLSignal" => 1203, "UMLDataType" => 1204, "UMLPrimitiveType" => 1205,
         "UMLEnumeration" => 1206, "UMLArtifact" => 1207, "UMLComponent" => 1208, "UMLNode" => 1209, "UMLUseCase" => 1210, "UMLActor" => 1211,
-        "UMLInstance" => 1301, "UMLObject" => 1302, "UMLCollaboration" => 1401, "UMLStateMachine" => 1402, "UMLInteraction" => 1403, "UMLActivity" => 1404,
+        "UMLInstance" => 1301, "UMLObject" => 1302, "UMLCollaboration" => 1401, "UMLStateMachine" => 1402, "UMLInteraction" => 1403, "UMLActivity" => 1404, "UMLRegion" => 1407, "UMLTemplateParameterSubstitution" => 1102,
         "UMLAssociationEnd" => 1801, "UMLAssociation" => 1802, "UMLDependency" => 1806, "UMLGeneralization" => 1807, "UMLRealization" => 1808,
         "UMLInterfaceRealization" => 1809, "UMLComponentRealization" => 1810, "UMLAbstraction" => 1811, "UMLInclude" => 1816, "UMLExtend" => 1817,
         "UMLTransition" => 1819, "UMLMessage" => 1822, "UMLProfile" => 1901, "UMLStereotype" => 1903,
@@ -291,6 +308,19 @@ impl App {
         }
         if t == "Tag" {
             return format!("{name} = {}", r.str(e, "value"));
+        }
+        // a hyperlink: its name with showName, else what it links to (core.js:1322-1333)
+        if t == "Hyperlink" {
+            let url = r.str(e, "url");
+            return if r.bool(e, "showName") {
+                format!("(link: {})", if name.is_empty() { "(Hyperlink)" } else { &name })
+            } else if let Some(x) = r.refd(e, "reference") {
+                format!("(link to {})", r.name(x))
+            } else if !url.is_empty() {
+                format!("(link to {url})")
+            } else {
+                "(none)".to_string()
+            };
         }
         if name.is_empty() { format!("({})", t.trim_start_matches("UML")) } else { name }
     }
@@ -419,7 +449,7 @@ impl App {
     }
 
     /// What Model › Add offers under an element: (label, type, is a feature).
-    fn add_kinds(&self, e: Eid) -> Vec<(&'static str, &'static str, bool)> {
+    pub(crate) fn add_kinds(&self, e: Eid) -> Vec<(&'static str, &'static str, bool)> {
         let t = self.repo.ty(e);
         let mut adds = vec![];
         if self.repo.kind_of(e, "UMLPackage") || t == "Project" {
@@ -439,11 +469,23 @@ impl App {
         if t == "UMLProfile" {
             adds.push(("MetaClass", "UMLMetaClass", false));
         }
+        // behaviours: an interaction and an opaque behaviour in a classifier, a state machine and an
+        // activity in a classifier or a package (uml-commands.js:4272-4275)
+        let classifier = self.repo.kind_of(e, "UMLClassifier");
+        let package = self.repo.kind_of(e, "UMLPackage");
+        for (l, k, ok) in [("Interaction", "UMLInteraction", classifier), ("State Machine", "UMLStateMachine", classifier || package), ("Activity", "UMLActivity", classifier || package), ("Opaque Behavior", "UMLOpaqueBehavior", classifier)] {
+            if ok {
+                adds.push((l, k, false));
+            }
+        }
         // Model › Add › Constraint on any model element (uml.json)
         if self.repo.kind_of(e, "UMLModelElement") {
             adds.push(("Constraint", "UMLConstraint", false));
         }
-        for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Slot", "UMLSlot"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter")] {
+        for (l, k) in [
+            ("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Slot", "UMLSlot"), ("Literal", "UMLEnumerationLiteral"),
+            ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter"), ("Template Parameter Substitution", "UMLTemplateParameterSubstitution"),
+        ] {
             if self.can_add_feature(e, k) {
                 adds.push((l, k, true));
             }
@@ -754,6 +796,9 @@ impl App {
         if self.is_diagram(e) {
             return vec![("name", "text"), ("defaultDiagram", "bool")];
         }
+        if t == "Hyperlink" {
+            return vec![("name", "text"), ("reference", "link"), ("url", "text"), ("showName", "bool")];
+        }
         if t == "UMLAssociation" {
             let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isDerived", "bool"), ("-", "")];
             f.extend(end("end1"));
@@ -793,10 +838,17 @@ impl App {
                 ("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("concurrency", "enum"), ("isQuery", "bool"),
                 ("isAbstract", "bool"), ("specification", "multiline"),
             ],
+            // behaviours (uml/metamodel.json: the visible attributes of UMLBehavior and UMLActivity)
+            "UMLOpaqueBehavior" | "UMLInteraction" | "UMLStateMachine" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isReentrant", "bool")],
+            "UMLActivity" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isReentrant", "bool"), ("isReadOnly", "bool"), ("isSingleExecution", "bool")],
+            "UMLTemplateParameterSubstitution" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("formal", "ref"), ("actual", "type")],
             "UMLParameter" => vec![("name", "text"), ("stereotype", "text"), ("type", "type"), ("multiplicity", "text"), ("defaultValue", "text"), ("direction", "enum")],
             "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
             "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
             "UMLObject" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("classifier", "type")],
+            // a stereotype's icon: its minimum size and its icon script (uml/metamodel.json UMLImage)
+            "UMLImage" => vec![("width", "int"), ("height", "int"), ("content", "multiline")],
+            "UMLCollaborationUse" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type")],
             "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
             "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
             // a reception names the signal it receives (uml-commands.js:1484)
@@ -1033,6 +1085,31 @@ impl App {
                     if let Some(p) = pick.filter(|p| *p != cur) {
                         let f = field.clone();
                         self.change(|a| a.repo.set_ref(obj, &f, p));
+                    }
+                }
+                // an integer: a typed value that is not a whole number is ignored (property-editor-view.js:274-330)
+                "int" => {
+                    let cur = merged.clone().unwrap_or_default();
+                    let buf = self.prop_buf.entry(path.to_string()).or_insert(cur.clone());
+                    let r = ui.add_sized(Vec2::new(w, 23.0), egui::TextEdit::singleline(buf).hint_text("—").font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
+                    if r.lost_focus() && *buf != cur {
+                        match buf.trim().parse::<i64>() {
+                            Ok(n) => self.change_all(&targets, |a, o, f| a.repo.set(o, f, json!(n))),
+                            Err(_) => *buf = cur,
+                        }
+                    }
+                }
+                // a hyperlink's element: its icon and name, and "…" for the Element Picker
+                "link" => {
+                    if let Some(t) = self.repo.refd(obj, &field).filter(|t| self.repo.alive(*t)) {
+                        let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                        icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
+                        ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT()));
+                    } else {
+                        ui.label(egui::RichText::new("—").size(12.0).color(DIM()));
+                    }
+                    if single && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("…")).on_hover_text("Select Element").clicked() {
+                        self.open_element_picker(obj, &field);
                     }
                 }
                 "ref" => {
@@ -1809,30 +1886,34 @@ impl App {
         ui.spacing_mut().item_spacing.y = 4.0;
         // font face and size: merged, blank when the views differ (style-editor-view.js:180-227)
         let (face, size) = self.font_state();
-        ui.horizontal(|ui| {
-            let mut f = face.clone().unwrap_or_default();
-            let r = ui.add(egui::TextEdit::singleline(&mut f).hint_text("—").desired_width(110.0).font(FontId::proportional(12.0)));
-            if r.lost_focus() && !f.trim().is_empty() && Some(f.trim().to_string()) != face {
-                self.set_font(Some(f.trim()), None);
-            }
-            let label = size.map(|s| format!("{s}")).unwrap_or_else(|| "—".into());
-            egui::ComboBox::from_id_salt("style-size").selected_text(label).width(60.0).show_ui(ui, |ui| {
-                for s in crate::style::SIZES {
-                    if ui.selectable_label(size == Some(s), format!("{s}")).clicked() {
-                        self.set_font(None, Some(s));
+        // while the selection inherits its parent's style, font and colours are disabled (style-editor-view.js:741-764)
+        let inherit = self.flag_state("parentStyle") == Some(true);
+        ui.add_enabled_ui(!inherit, |ui| {
+            ui.horizontal(|ui| {
+                let mut f = face.clone().unwrap_or_default();
+                let r = ui.add(egui::TextEdit::singleline(&mut f).hint_text("—").desired_width(110.0).font(FontId::proportional(12.0)));
+                if r.lost_focus() && !f.trim().is_empty() && Some(f.trim().to_string()) != face {
+                    self.set_font(Some(f.trim()), None);
+                }
+                let label = size.map(|s| format!("{s}")).unwrap_or_else(|| "—".into());
+                egui::ComboBox::from_id_salt("style-size").selected_text(label).width(60.0).show_ui(ui, |ui| {
+                    for s in crate::style::SIZES {
+                        if ui.selectable_label(size == Some(s), format!("{s}")).clicked() {
+                            self.set_font(None, Some(s));
+                        }
                     }
+                });
+            });
+            ui.horizontal(|ui| {
+                for (field, label) in crate::style::COLORS {
+                    if self.color_views(field).is_empty() {
+                        continue;
+                    }
+                    self.color_swatch(ui, field, label);
+                    ui.label(egui::RichText::new(label.trim_end_matches(" Color")).size(12.0).color(DIM()));
+                    ui.add_space(6.0);
                 }
             });
-        });
-        ui.horizontal(|ui| {
-            for (field, label) in crate::style::COLORS {
-                if self.color_views(field).is_empty() {
-                    continue;
-                }
-                self.color_swatch(ui, field, label);
-                ui.label(egui::RichText::new(label.trim_end_matches(" Color")).size(12.0).color(DIM()));
-                ui.add_space(6.0);
-            }
         });
         if !self.flag_views("stereotypeDisplay").is_empty() {
             // the stereotype display dropdown, empty when mixed (style-editor-view.js)
@@ -2049,8 +2130,8 @@ impl App {
 
     pub(crate) fn format_toggles(&mut self, ui: &mut egui::Ui) {
         for (i, (field, label)) in FORMAT_TOGGLES.into_iter().enumerate() {
-            // UML display toggles after Auto Resize and Show Shadow, then the Suppress ones
-            if i == 2 || field == "suppressAttributes" {
+            // UML display toggles after Auto Resize, Show Shadow and Inherit Style, then the Suppress ones
+            if i == 3 || field == "suppressAttributes" {
                 ui.separator();
             }
             let has = !self.flag_views(field).is_empty();
@@ -2121,7 +2202,7 @@ impl App {
                     self.open_color_dialog(field);
                 }
             }
-            for (key, field) in [(Key::R, "autoResize"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals")] {
+            for (key, field) in [(Key::R, "autoResize"), (Key::K, "parentStyle"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals")] {
                 if hit(sc(cs, key)) {
                     self.toggle_flag(field);
                 }
@@ -2203,8 +2284,15 @@ impl App {
         if hit(sc(Modifiers::COMMAND | Modifiers::ALT, Key::D)) {
             self.show_markdown = !self.show_markdown;
         }
+        // StarUML's UML keymap gives Ctrl+Shift+D to Show Diagram Name over Open Sub-Diagram
+        // (keymaps/uml.json); UMLCraft keeps Open Sub-Diagram and toggles the diagram name only when
+        // the selection holds frames
         if hit(sc(cs, Key::D)) {
-            self.open_sub_diagram();
+            if self.flag_views("showDiagramName").is_empty() {
+                self.open_sub_diagram();
+            } else {
+                self.toggle_flag("showDiagramName");
+            }
         }
         if hit(sc(Modifiers::COMMAND, Key::D)) {
             self.select_in_diagram();
@@ -2309,7 +2397,7 @@ impl App {
     /// "File not found: <path>" (open-recent/main.js:59).
     fn open_recent(&mut self, ms: &EguiMeasure, p: std::path::PathBuf) {
         if !p.exists() {
-            self.toast(&format!("File not found: {}", p.display()));
+            self.toast_error(&format!("File not found: {}", p.display()));
             let mut list = self.recent_files();
             list.retain(|x| *x != p);
             self.set_recent(list);
@@ -2404,7 +2492,10 @@ impl App {
         if self.about_open {
             // the app icon, name and version, and a link to the third-party software (about-dialog.js:31-47)
             let icon = app_icon(ctx);
-            egui::Window::new("About UMLCraft").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            // a modal window: a backdrop keeps the rest of the window out of reach (dialog-manager.js:242-313)
+            egui::Modal::new(egui::Id::new("about-dialog")).show(ctx, |ui| {
+                ui.label(egui::RichText::new("About UMLCraft").strong());
+                ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     if let Some(t) = &icon {
                         ui.add(egui::Image::new((t.id(), Vec2::splat(64.0))));
@@ -2422,8 +2513,10 @@ impl App {
                     ui.hyperlink_to("Third-party software", "https://github.com/BurkhalterY/umlcraft/network/dependencies");
                 });
                 ui.add_space(6.0);
-                // Enter presses OK and Esc cancels (dialog-manager.js:148-162)
-                if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
+                // Enter presses OK and Esc cancels (dialog-manager.js:148-162); OK has the focus
+                let ok = ui.button("OK");
+                focus_primary(ui, &ok);
+                if ok.clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
                     self.about_open = false;
                 }
             });
@@ -2442,9 +2535,15 @@ impl App {
         self.find_dialog_ui(ctx);
         self.font_dialog_ui(ctx);
         if let Some((title, detail)) = self.message.clone() {
-            egui::Window::new(title).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            egui::Modal::new(egui::Id::new("message-dialog")).show(ctx, |ui| {
+                ui.set_max_width(420.0);
+                ui.label(egui::RichText::new(title).strong());
+                ui.add_space(4.0);
                 ui.label(detail);
-                if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
+                ui.add_space(6.0);
+                let ok = ui.button("OK");
+                focus_primary(ui, &ok);
+                if ok.clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
                     self.message = None;
                 }
             });
@@ -2771,9 +2870,10 @@ pub struct WorkingRow(pub Eid);
 pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 13] = [
+const FORMAT_TOGGLES: [(&str, &str); 15] = [
     ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
     ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
+    ("parentStyle", "Inherit Style                     Ctrl+Shift+K"),
     ("wordWrap", "Word Wrap                         Ctrl+Shift+W"),
     ("showVisibility", "Show Visibility                 Ctrl+Shift+V"),
     ("showNamespace", "Show Namespace                  Ctrl+Shift+N"),
@@ -2781,6 +2881,7 @@ const FORMAT_TOGGLES: [(&str, &str); 13] = [
     ("showType", "Show Type                          Ctrl+Shift+Y"),
     ("showMultiplicity", "Show Multiplicity               Ctrl+Shift+M"),
     ("showOperationSignature", "Show Operation Signature    Ctrl+Shift+J"),
+    ("showDiagramName", "Show Diagram Name            Ctrl+Shift+D"),
     ("suppressAttributes", "Suppress Attributes             Ctrl+Shift+A"),
     ("suppressOperations", "Suppress Operations            Ctrl+Shift+O"),
     ("suppressReceptions", "Suppress Receptions            Ctrl+Shift+E"),
@@ -3056,5 +3157,13 @@ fn scroll_shadow(p: &egui::Painter, r: Rect) {
         let a = (60 - i * 10) as u8;
         let y = r.top() + i as f32;
         p.hline(r.x_range(), y, Stroke::new(1.0, Color32::from_black_alpha(a)));
+    }
+}
+
+/// Give a dialog's primary button the keyboard when nothing else has it, as the original does when a
+/// dialog opens (dialog-manager.js:242-313).
+fn focus_primary(ui: &egui::Ui, button: &egui::Response) {
+    if ui.memory(|m| m.focused().is_none()) {
+        button.request_focus();
     }
 }

@@ -19,6 +19,9 @@ pub const UC_MIN_H: f64 = 32.0; // use case min height, elements.js:97
 pub const ACTOR_ICON_W: f64 = 26.0; // actor icon min width, elements.js:93
 pub const ACTOR_ICON_H: f64 = 55.0; // actor icon min height, elements.js:92
 /// The robustness icons (boundary, entity, control) of a class shown as an icon (estimated).
+/// A stereotype decoration's box, and the smallest icon of the iconic form (elements.js:70-74).
+pub const DECORATION_ICON: f64 = 24.0;
+const ICONIC_MIN: f64 = 24.0;
 pub const ROBUST_ICON_W: f64 = 50.0;
 pub const ROBUST_ICON_H: f64 = 36.0;
 /// An artifact shown as an icon (estimated).
@@ -26,6 +29,15 @@ pub const ARTIFACT_ICON_W: f64 = 30.0;
 pub const ARTIFACT_ICON_H: f64 = 40.0;
 
 /// The robustness kind of a class shown as an icon: "boundary", "entity" or "control".
+/// A stereotype icon's script, if the stereotype of the view's element has one (`!icon w h` in its
+/// icon's content), with the icon's minimum size (elements.js:270-275, 4693-4700).
+pub fn stereotype_icon(r: &Repo, m: Eid) -> Option<(String, f64, f64)> {
+    let st = r.refd(m, "stereotype")?;
+    let icon = r.child(st, "icon")?;
+    let content = r.str(icon, "content");
+    content.trim_start().starts_with("!icon").then(|| (content, r.f(icon, "width"), r.f(icon, "height")))
+}
+
 pub fn robustness_kind(r: &Repo, v: Eid, m: Eid) -> Option<&'static str> {
     let display = r.str(v, "stereotypeDisplay");
     if r.ty(m) != "UMLClass" || !(display == "icon" || display == "icon-label") {
@@ -38,6 +50,15 @@ pub fn robustness_kind(r: &Repo, v: Eid, m: Eid) -> Option<&'static str> {
         _ => None,
     }
 }
+pub const FRAME_MIN_W: f64 = 80.0; // elements.js:218
+pub const FRAME_MIN_H: f64 = 30.0; // elements.js:219
+const FRAME_CONTENT_MIN_W: f64 = 10.0; // elements.js:220
+const FRAME_CONTENT_MIN_H: f64 = 30.0; // elements.js:221
+const LABEL_INTERVAL: f64 = 3.0; // elements.js:62
+pub const NARY_MIN_W: f64 = 30.0; // elements.js:82
+pub const NARY_MIN_H: f64 = 22.0; // elements.js:83
+pub const HYPERLINK_MIN_W: f64 = 100.0; // elements.js:231
+pub const HYPERLINK_MIN_H: f64 = 20.0; // elements.js:232
 pub const NOTE_FOLD: f64 = 10.0; // note fold, elements.js:14261
 pub const FONT: &str = "Arial;13;0"; // default font
 pub const DEFAULT_LINE_STYLE: i64 = 1; // oblique, default.json:83
@@ -174,6 +195,9 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         "UMLInformationItem" => k("UMLInformationItemView", true, true, false),
         "UMLStereotype" => k("UMLStereotypeView", true, false, false),
         "UMLMetaClass" => k("UMLMetaClassView", false, false, false),
+        // dashed ellipses with their name (elements.js:7022-7280)
+        "UMLCollaboration" => k("UMLCollaborationView", false, false, false),
+        "UMLCollaborationUse" => k("UMLCollaborationUseView", false, false, false),
         "UMLArtifactInstance" => k("UMLArtifactInstanceView", false, false, false),
         "UMLComponentInstance" => k("UMLComponentInstanceView", false, false, false),
         "UMLNodeInstance" => k("UMLNodeInstanceView", false, false, false),
@@ -215,7 +239,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLInterface" => (140.0, 80.0),
         "UMLEnumeration" | "UMLPackage" | "UMLModel" | "UMLSubsystem" => (140.0, 100.0),
         "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" => (160.0, 80.0),
-        "UMLUseCase" => (120.0, 40.0),
+        "UMLUseCase" | "UMLCollaboration" | "UMLCollaborationUse" => (120.0, 40.0),
         "UMLActor" => (40.0, 80.0),
         "UMLComponent" => (160.0, 60.0),
         "UMLArtifact" => (80.0, 70.0),
@@ -225,7 +249,23 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "Note" => (140.0, 60.0),
         "Text" => (60.0, 15.0),
         "TextBox" => (100.0, 40.0),
+        "Frame" => (FRAME_MIN_W, FRAME_MIN_H),
+        "Hyperlink" => (HYPERLINK_MIN_W, HYPERLINK_MIN_H),
+        "Rect" | "RoundRect" | "Ellipse" => (50.0, 50.0),
+        "UMLNaryAssociationNode" => (NARY_MIN_W, NARY_MIN_H),
         _ => (100.0, 60.0),
+    }
+}
+
+/// The smallest box an annotation tool makes: a drag smaller than this is enlarged (the toolbox
+/// items' `min-width` and `min-height`, common/toolbox/common.json; factory.js:279-292).
+pub fn tool_min_size(kind: &str) -> Option<(f64, f64)> {
+    match kind {
+        "Text" | "TextBox" => Some((60.0, 15.0)),
+        "Note" => Some((70.0, 40.0)),
+        "Hyperlink" => Some((70.0, 20.0)),
+        "Rect" | "RoundRect" | "Ellipse" => Some((50.0, 50.0)),
+        _ => None,
     }
 }
 
@@ -343,6 +383,11 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
     }
     let nc = name_compartment(r, v, model);
     r.set_ref(v, "nameCompartment", Some(nc));
+    // a collaboration keeps a template parameter compartment, hidden while it has none (elements.js:7022-7050)
+    if r.ty(model) == "UMLCollaboration" {
+        let tp = list_compartment(r, v, model, "UMLTemplateParameterCompartmentView", false);
+        r.set_ref(v, "templateParameterCompartment", Some(tp));
+    }
     if r.kind_of(model, "UMLInstance") {
         let s = list_compartment(r, v, model, "UMLSlotCompartmentView", true);
         r.set_ref(v, "slotCompartment", Some(s));
@@ -374,6 +419,223 @@ pub fn create_note_view(r: &mut Repo, diagram: Eid, rect: R, ty: &str) -> Eid {
         &[("font", json!(FONT)), ("parentStyle", json!(false)), ("left", num(rect.x)), ("top", num(rect.y)), ("width", num(rect.w)), ("height", num(rect.h))],
         Some((diagram, "ownedViews")),
     )
+}
+
+/// A frame showing `model` (or nothing), with its name label and its bold diagram-kind label
+/// (UMLCustomFrameView, elements.js:12167-12180; uml-commands.js:244-262).
+pub fn create_frame_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, rect: R) -> Eid {
+    let mut props = vec![("font", json!(FONT)), ("parentStyle", json!(false)), ("left", num(rect.x)), ("top", num(rect.y)), ("width", num(rect.w)), ("height", num(rect.h))];
+    if let Some(m) = model {
+        props.insert(0, ("model", r.ref_to(m)));
+    }
+    let v = r.create("UMLFrameView", &props, Some((diagram, "ownedViews")));
+    let nm = label(r, v, &[("height", json!(LABEL_H)), ("horizontalAlignment", json!(0))]);
+    let ty = label(r, v, &[("font", json!("Arial;13;1")), ("height", json!(LABEL_H)), ("horizontalAlignment", json!(0))]);
+    r.set_ref(v, "nameLabel", Some(nm));
+    r.set_ref(v, "frameTypeLabel", Some(ty));
+    v
+}
+
+/// A collaboration or collaboration use: at least √2 times its name (the ellipse around it) and the
+/// use case minimum, the name centred; a use shows "name: Collaboration" once typed
+/// (elements.js:7076-7134, 7238-7279).
+fn layout_collaboration(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    let typed = (r.ty(m) == "UMLCollaborationUse").then(|| r.refd(m, "type").map(|t| r.name(t))).flatten().filter(|n| !n.is_empty());
+    let mut min_w = name_min_width(r, ms, v, m, None, false);
+    if let Some(t) = &typed {
+        min_w = min_w.max((ms.width(&format!("{}: {t}", r.name(m)), name_style(r, m)) + 2.0 * PAD).ceil());
+    }
+    grow(r, v, (std::f64::consts::SQRT_2 * min_w).floor().max(UC_MIN_W), (std::f64::consts::SQRT_2 * NAME_MIN_H).floor().max(UC_MIN_H));
+    let (x, y, w, h) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"), r.f(v, "height"));
+    // lay the name out once to learn its height, then centre it
+    let nh = layout_name(r, ms, v, m, x, y, w, None, false);
+    layout_name(r, ms, v, m, x, y + (h - nh) / 2.0, w, None, false);
+    if let (Some(t), Some(nm)) = (typed, r.refd(v, "nameCompartment").and_then(|nc| r.refd(nc, "nameLabel"))) {
+        let text = format!("{}: {t}", r.name(m));
+        r.set(nm, "text", json!(text));
+    }
+}
+
+/// An n-ary association node's diamond, with its name, stereotype and property labels floating
+/// around it (UMLFloatingNodeView, elements.js:5162-5188).
+pub fn create_nary_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Eid {
+    let m = r.ref_to(model);
+    let v = r.create(
+        "UMLNaryAssociationNodeView",
+        &[("model", m.clone()), ("font", json!(FONT)), ("parentStyle", json!(false)), ("containerChangeable", json!(false)), ("left", num(rect.x)), ("top", num(rect.y)), ("width", num(rect.w)), ("height", num(rect.h))],
+        Some((diagram, "ownedViews")),
+    );
+    let pi = std::f64::consts::PI;
+    for (field, alpha, distance) in [("nameLabel", 3.0 * pi / 4.0, 20.0), ("stereotypeLabel", 3.0 * pi / 4.0, 35.0), ("propertyLabel", -3.0 * pi / 4.0, 20.0)] {
+        let l = r.create("NodeLabelView", &[("model", m.clone()), ("font", json!(FONT)), ("alpha", json!(alpha)), ("distance", json!(distance)), ("height", json!(LABEL_H))], Some((v, "subViews")));
+        r.set_ref(v, field, Some(l));
+    }
+    v
+}
+
+/// A floating label's box: its text's size, centred on the point at its angle and distance from
+/// the host's centre (NodeParasiticView.arrange, core.js:3600-3616).
+fn place_floating_label(r: &mut Repo, ms: &dyn Measure, host: Eid, lv: Eid, text: &str, shown: bool) {
+    r.set(lv, "text", json!(text));
+    r.set(lv, "visible", json!(shown && !text.is_empty()));
+    let w = ms.width(text, 0).ceil();
+    let h = ms.size();
+    let b = node_rect(r, host);
+    let c = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+    let off = point_away_line(c, c, r.f(lv, "alpha"), r.f(lv, "distance"));
+    set_box(r, lv, off.x + c.x - w / 2.0, off.y + c.y - h / 2.0, w, h);
+}
+
+/// An n-ary association node: at least 30×22, with its name (and visibility when shown), its
+/// stereotype and its properties around it (UMLNaryAssociationNodeView, elements.js:6596-6617).
+fn layout_nary(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    grow(r, v, NARY_MIN_W, NARY_MIN_H);
+    let mut name = r.name(m);
+    if r.bool(v, "showVisibility") {
+        name = format!("{}{name}", vis_symbol(&r.str(m, "visibility")));
+    }
+    let st = stereotype_text(r, m);
+    let prop = property_text(r, m);
+    let show_prop = r.bool(v, "showProperty");
+    for (field, text, shown) in [("nameLabel", name, true), ("stereotypeLabel", st, true), ("propertyLabel", prop, show_prop)] {
+        if let Some(lv) = r.refd(v, field) {
+            place_floating_label(r, ms, v, lv, &text, shown);
+        }
+    }
+}
+
+/// A hyperlink's view: a bold "link" label and the target's name (HyperlinkView, elements.js:14060-14073).
+pub fn create_hyperlink_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Eid {
+    let m = r.ref_to(model);
+    let v = r.create(
+        "HyperlinkView",
+        &[("model", m), ("font", json!(FONT)), ("parentStyle", json!(false)), ("left", num(rect.x)), ("top", num(rect.y)), ("width", num(rect.w)), ("height", num(rect.h))],
+        Some((diagram, "ownedViews")),
+    );
+    let nm = label(r, v, &[("height", json!(LABEL_H)), ("horizontalAlignment", json!(0))]);
+    let ty = label(r, v, &[("font", json!("Arial;13;1")), ("height", json!(LABEL_H)), ("horizontalAlignment", json!(0))]);
+    r.set_ref(v, "nameLabel", Some(nm));
+    r.set_ref(v, "typeLabel", Some(ty));
+    v
+}
+
+/// What a hyperlink's view shows after "link": its name with showName, else the referenced
+/// element's name, else its URL (HyperlinkView.update, elements.js:14108-14122).
+pub fn hyperlink_text(r: &Repo, m: Eid) -> String {
+    if r.bool(m, "showName") {
+        r.name(m)
+    } else if let Some(x) = r.refd(m, "reference") {
+        r.name(x)
+    } else {
+        r.str(m, "url")
+    }
+}
+
+/// A hyperlink's labels and minimum size (HyperlinkView.sizeObject and arrangeObject, elements.js:14075-14100).
+fn layout_hyperlink(r: &mut Repo, ms: &dyn Measure, v: Eid) {
+    let (Some(nl), Some(tl)) = (r.refd(v, "nameLabel"), r.refd(v, "typeLabel")) else { return };
+    let text = r.refd(v, "model").map(|m| hyperlink_text(r, m)).unwrap_or_default();
+    r.set(nl, "text", json!(text));
+    r.set(tl, "text", json!("link"));
+    let (size, face, style) = (ms.size(), ms.face(), font_style_of(r, v));
+    r.set(nl, "font", json!(font_str(&face, size, style)));
+    r.set(tl, "font", json!(font_str(&face, size, 1)));
+    let tw = ms.width("link", 1).ceil();
+    let nw = ms.width(&text, style as u8).ceil();
+    grow(r, v, (tw + nw + (PAD + PAD) * 2.0).max(HYPERLINK_MIN_W), (size + PAD + PAD).max(HYPERLINK_MIN_H));
+    let (x, y) = (r.f(v, "left"), r.f(v, "top"));
+    set_box(r, tl, x + PAD, y + PAD, tw, size);
+    set_box(r, nl, x + PAD + tw + PAD + PAD, y + PAD, nw, size);
+}
+
+/// The short diagram kind a frame's tab shows for an element or a diagram ("class", "uc"…), or ""
+/// (UMLFrameView.getDiagramTypeName, elements.js:12266-12316).
+pub fn frame_type_name(r: &Repo, e: Eid) -> &'static str {
+    let k = |t: &str| r.kind_of(e, t);
+    if k("UMLClass") || k("UMLClassDiagram") {
+        "class"
+    } else if k("UMLComponent") || k("UMLComponentDiagram") {
+        "cmp"
+    } else if k("UMLDeploymentDiagram") {
+        "dep"
+    } else if k("UMLInteraction") || k("UMLSequenceDiagram") || k("UMLCommunicationDiagram") || k("UMLTimingDiagram") || k("UMLInteractionOverviewDiagram") {
+        "sd"
+    } else if k("UMLStateMachine") || k("UMLStatechartDiagram") {
+        "stm"
+    } else if k("UMLActivity") || k("UMLActivityDiagram") {
+        "act"
+    } else if k("UMLUseCase") || k("UMLUseCaseDiagram") {
+        "uc"
+    } else if k("UMLPackage") || k("UMLPackageDiagram") {
+        "pkg"
+    } else if k("SysMLRequirementDiagram") {
+        "req"
+    } else if k("SysMLBlockDefinitionDiagram") {
+        "bdd"
+    } else if k("SysMLParametricDiagram") {
+        "par"
+    } else if k("SysMLInternalBlockDiagram") {
+        "ibd"
+    } else {
+        ""
+    }
+}
+
+/// The text of a frame's name label: `[Type]`, the name (with `Owner::` when Show Namespace is on),
+/// then `[Diagram]` with the name of the diagram the frame is drawn in. A frame showing a diagram
+/// names the diagram's owner (UMLFrameView.update and getTarget, elements.js:12318-12374).
+pub fn frame_name_text(r: &Repo, v: Eid, m: Eid) -> String {
+    let target = match r.parent(m) {
+        Some(p) if r.kind_of(m, "Diagram") && r.kind_of(p, "ExtensibleModel") => p,
+        _ => m,
+    };
+    let mut tokens = vec![];
+    if r.bool(v, "showType") {
+        tokens.push(format!("[{}]", r.ty(target).trim_start_matches("UML")));
+    }
+    match r.parent(target) {
+        Some(p) if r.bool(v, "showNamespace") && r.kind_of(p, "ExtensibleModel") => tokens.push(format!("{}::{}", r.name(p), r.name(target))),
+        _ => tokens.push(r.name(target)),
+    }
+    if r.bool(v, "showDiagramName") {
+        if let Some(d) = r.parent(v) {
+            tokens.push(format!("[{}]", r.name(d)));
+        }
+    }
+    tokens.join(" ")
+}
+
+/// A frame's labels and minimum size (UMLCustomFrameView.sizeObject and arrangeObject, elements.js:12182-12212).
+fn layout_frame(r: &mut Repo, ms: &dyn Measure, v: Eid) {
+    let (Some(nl), Some(tl)) = (r.refd(v, "nameLabel"), r.refd(v, "frameTypeLabel")) else { return };
+    if let Some(m) = r.refd(v, "model") {
+        let mut kind = frame_type_name(r, m);
+        if kind.is_empty() {
+            if let Some(d) = r.parent(v) {
+                kind = frame_type_name(r, d);
+            }
+        }
+        r.set(tl, "text", json!(kind));
+        let text = frame_name_text(r, v, m);
+        r.set(nl, "text", json!(text));
+    }
+    let size = ms.size();
+    let face = ms.face();
+    // the labels take the frame's font; the kind label is always bold
+    let style = font_style_of(r, v);
+    for (lv, st) in [(nl, style), (tl, 1)] {
+        r.set(lv, "font", json!(font_str(&face, size, st)));
+    }
+    let tw = ms.width(&r.str(tl, "text"), 1).ceil();
+    let nw = ms.width(&r.str(nl, "text"), style as u8).ceil();
+    let h = size + PAD + PAD;
+    // the label gap counts whenever the kind label is visible (the original tests it twice)
+    let w = tw + nw + LABEL_INTERVAL + PAD + PAD + h / 2.0;
+    grow(r, v, (w + FRAME_CONTENT_MIN_W).max(FRAME_MIN_W), (h + FRAME_CONTENT_MIN_H).max(FRAME_MIN_H));
+    let (x, y) = (r.f(v, "left"), r.f(v, "top"));
+    set_box(r, tl, x + PAD, y + PAD, tw, size);
+    let nx = if tw > 0.0 { x + PAD + tw + LABEL_INTERVAL * 2.0 } else { x + PAD };
+    set_box(r, nl, nx, y + PAD, nw, size);
 }
 
 const HALF_PI: f64 = std::f64::consts::FRAC_PI_2;
@@ -636,7 +898,7 @@ pub struct Comp {
 pub struct Info {
     /// The template parameter box at the top-right corner, when there are template parameters.
     pub templ: Option<Comp>,
-    /// "interface", "actor", "usecase", "package", "subject" or ""
+    /// "interface", "actor", "usecase", "package", "subject", "frame", "hyperlink", "nary", "collaboration" or ""
     pub shape: &'static str,
     pub compartments: Vec<Comp>,
     pub is_active: bool,
@@ -668,7 +930,9 @@ fn name_parts(r: &Repo, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) ->
             st_text = format!("«{k}»");
         }
     }
-    let show_st = !st_text.is_empty() && (display == "label" || display == "decoration-label") && !hide_st;
+    // the label forms show the stereotype: Label, Decoration with Label, Icon with Label
+    // (UMLGeneralNodeView.sizeObject, elements.js:4860-4883)
+    let show_st = !st_text.is_empty() && (display == "label" || display == "decoration-label" || display == "icon-label") && !hide_st;
     let parent = r.parent(m).map(|p| r.name(p)).unwrap_or_default();
     Some(NameParts {
         nc,
@@ -1008,22 +1272,49 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
             templ = Some((tc, sync_list(r, ms, tc, &items, "UMLTemplateParameterView", &texts, false)));
         }
     }
-    let mut min_w = name_min_width(r, ms, v, m, keyword, false) + icon_room(r.ty(v));
+    // a profile stereotype's icon: above the compartments (Icon, Icon with Label), or a 24 × 24
+    // decoration at the top right (elements.js:4894-4917, 4955-4980)
+    let icon = stereotype_icon(r, m).filter(|_| ty != "UMLInterface");
+    let iconic = icon.is_some() && (display == "icon" || display == "icon-label");
+    let decorated = icon.is_some() && (display == "decoration" || display == "decoration-label");
+    let hide_st = iconic && display == "icon";
+    let mut min_w = name_min_width(r, ms, v, m, keyword, hide_st) + icon_room(r.ty(v));
+    if decorated {
+        min_w += DECORATION_ICON + 2.0 * PAD;
+    }
+    if let (true, Some((_, iw, _))) = (iconic, &icon) {
+        min_w = min_w.max(*iw);
+    }
     for c in &comps {
         min_w = min_w.max(c.1);
     }
     let (x, y) = (r.f(v, "left"), r.f(v, "top"));
     let w0 = if r.bool(v, "autoResize") { min_w } else { r.f(v, "width").max(min_w) };
-    let name_h = layout_name(r, ms, v, m, x, y, w0, keyword, false);
+    // a decoration narrows the name by its box (arrangeAsDecorationForm, elements.js:4955-4963)
+    let name_w = if decorated { w0 - DECORATION_ICON } else { w0 };
+    let name_h = layout_name(r, ms, v, m, x, y, name_w, keyword, hide_st);
     if wrap {
         for c in comps.iter_mut() {
             c.2 = list_height(r, ms, &c.3, w0);
         }
     }
-    let min_h = name_h + comps.iter().map(|c| c.2).sum::<f64>();
-    grow(r, v, min_w, min_h);
+    let comps_h = name_h + comps.iter().map(|c| c.2).sum::<f64>();
+    let icon_min_h = match (&icon, iconic) {
+        (Some((_, _, ih)), true) => ih.max(ICONIC_MIN),
+        _ => 0.0,
+    };
+    grow(r, v, min_w, comps_h + icon_min_h);
     let w = r.f(v, "width");
-    let mut cy = y + name_h;
+    // the icon takes the square that fits above the compartments; they follow under it
+    let icon_h = if iconic {
+        let area = R { x, y, w, h: r.f(v, "height") - comps_h };
+        let ih = crate::render::fit_ratio(area, 100.0, 100.0).h;
+        layout_name(r, ms, v, m, x, y + ih, w0, keyword, hide_st);
+        ih
+    } else {
+        0.0
+    };
+    let mut cy = y + icon_h + name_h;
     let mut out = vec![];
     for (c, _, h, rows) in comps {
         place_list(r, ms, c, x, cy, w, h, &rows);
@@ -1035,7 +1326,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         place_list(r, ms, tc, tx, ty, tw, th, &rows);
         Comp { y: ty, rows }
     });
-    Info { shape: "", compartments: out, is_active: r.bool(m, "isActive"), templ }
+    Info { shape: if iconic { "stereotype-icon" } else { "" }, compartments: out, is_active: r.bool(m, "isActive"), templ }
 }
 
 /// A slot's line: "name: type = value" (the defining feature's name when the slot has none; estimated).
@@ -1144,6 +1435,26 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
             grow(r, v, w.ceil(), 20.0);
         }
         return Info::default();
+    }
+    if t == "UMLNaryAssociationNodeView" {
+        if let Some(m) = m {
+            layout_nary(r, ms, v, m);
+        }
+        return Info { shape: "nary", ..Default::default() };
+    }
+    if t == "HyperlinkView" {
+        layout_hyperlink(r, ms, v);
+        return Info { shape: "hyperlink", ..Default::default() };
+    }
+    if t == "UMLFrameView" {
+        layout_frame(r, ms, v);
+        return Info { shape: "frame", ..Default::default() };
+    }
+    if t == "UMLCollaborationView" || t == "UMLCollaborationUseView" {
+        if let Some(m) = m {
+            layout_collaboration(r, ms, v, m);
+        }
+        return Info { shape: "collaboration", ..Default::default() };
     }
     if t == "UMLUseCaseSubjectView" {
         if let Some(m) = m {

@@ -230,7 +230,7 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("General", "validation.validateModel", "Validate Model", Kind::Check, json!(true)),
     ];
     // per element kind: fill colour (null = the general one), stereotype display and compartments
-    let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 21] = [
+    let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 23] = [
         ("Package", "package", None),
         ("Model", "model", None),
         ("Class", "class", Some(("label", false, false, None))),
@@ -239,6 +239,8 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("DataType", "datatype", None),
         ("PrimitiveType", "primitivetype", None),
         ("Enumeration", "enumeration", Some(("label", true, true, Some(false)))),
+        ("Collaboration", "collaboration", None),
+        ("Collaboration Use", "collaborationuse", None),
         ("Use Case", "usecase", Some(("label", true, true, None))),
         ("Actor", "actor", Some(("label", true, true, None))),
         ("Use Case Subject", "subsystem", None),
@@ -285,6 +287,8 @@ fn kind_id(view_ty: &str, model_ty: Option<&str>) -> Option<&'static str> {
         "UMLEnumeration" => "enumeration",
         "UMLUseCase" => "usecase",
         "UMLActor" => "actor",
+        "UMLCollaboration" => "collaboration",
+        "UMLCollaborationUse" => "collaborationuse",
         "UMLUseCaseSubject" => "subsystem",
         "UMLArtifact" => "artifact",
         "UMLComponent" => "component",

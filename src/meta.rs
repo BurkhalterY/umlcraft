@@ -29,6 +29,8 @@ fn build() -> HashMap<&'static str, Kind> {
     def("ExtensibleModel", Some("Model"), vec![("documentation", d(json!(""))), ("tags", n())]);
     def("Tag", Some("Model"), vec![("kind", n()), ("value", n()), ("reference", n()), ("checked", d(json!(false))), ("number", d(json!(0))), ("options", d(json!(""))), ("hidden", d(json!(false)))]);
     def("Relationship", Some("ExtensibleModel"), vec![]);
+    // a link to an element or a URL; showName shows its own name instead (core.js:1308-1334)
+    def("Hyperlink", Some("Model"), vec![("reference", n()), ("url", d(json!(""))), ("showName", d(json!(false)))]);
     def("DirectedRelationship", Some("Relationship"), vec![("source", n()), ("target", n())]);
     def("RelationshipEnd", Some("ExtensibleModel"), vec![("reference", n())]);
     def("UndirectedRelationship", Some("Relationship"), vec![("end1", n()), ("end2", n())]);
@@ -75,9 +77,17 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLProfile", Some("UMLPackage"), vec![]);
     def("UMLClass", Some("UMLClassifier"), vec![("isActive", d(json!(false)))]);
     def("UMLStereotype", Some("UMLClass"), vec![("icon", n())]);
+    // a stereotype's icon: an icon script in `content` (or an image), drawn width × height at least
+    // (uml/metamodel.json; a new one is 40 × 40, elements.js:4071-4090)
+    def("UMLImage", Some("UMLModelElement"), vec![("width", d(json!(0))), ("height", d(json!(0))), ("image", n()), ("content", d(json!(""))), ("smallIcon", d(json!("")))]);
     // profiles: a metaclass names a UML type; an extension joins a stereotype to it (names estimated)
     def("UMLMetaClass", Some("UMLModelElement"), vec![]);
     def("UMLExtension", Some("UMLDirectedRelationship"), vec![]);
+    // a collaboration, and a use of one typed by it (uml/metamodel.json)
+    def("UMLCollaboration", Some("UMLClassifier"), vec![]);
+    def("UMLCollaborationUse", Some("UMLModelElement"), vec![("type", n())]);
+    // the diamond an n-ary association's ends meet at (elements.js:2096)
+    def("UMLNaryAssociationNode", Some("UMLClassifier"), vec![]);
     def("UMLInterface", Some("UMLClassifier"), vec![]);
     def("UMLSignal", Some("UMLClassifier"), vec![]);
     def("UMLDataType", Some("UMLClassifier"), vec![]);
@@ -98,9 +108,18 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLNode", Some("UMLClassifier"), vec![]);
     def("UMLComponentRealization", Some("UMLRealization"), vec![]);
     def("UMLDeployment", Some("UMLDependency"), vec![]);
-    // a class bound to a template (field name estimated)
-    def("UMLTemplateBinding", Some("UMLDirectedRelationship"), vec![("arguments", n())]);
+    // a class bound to a template, with its parameter substitutions (uml/metamodel.json)
+    def("UMLTemplateBinding", Some("UMLDirectedRelationship"), vec![("parameterSubstitutions", n())]);
     def("UMLCommunicationPath", Some("UMLAssociation"), vec![]);
+    // behaviours a classifier or package owns (uml/metamodel.json)
+    def("UMLBehavior", Some("UMLModelElement"), vec![("isReentrant", d(json!(true))), ("parameters", n()), ("preconditions", n()), ("postconditions", n())]);
+    def("UMLOpaqueBehavior", Some("UMLBehavior"), vec![]);
+    def("UMLInteractionFragment", Some("UMLBehavior"), vec![]);
+    def("UMLInteraction", Some("UMLInteractionFragment"), vec![("messages", n()), ("participants", n()), ("fragments", n())]);
+    def("UMLStateMachine", Some("UMLBehavior"), vec![("regions", n())]);
+    def("UMLRegion", Some("UMLModelElement"), vec![("vertices", n()), ("transitions", n())]);
+    def("UMLActivity", Some("UMLBehavior"), vec![("isReadOnly", d(json!(false))), ("isSingleExecution", d(json!(false))), ("nodes", n()), ("edges", n()), ("groups", n())]);
+    def("UMLTemplateParameterSubstitution", Some("UMLModelElement"), vec![("formal", n()), ("actual", n())]);
     def("UMLExtensionPoint", Some("UMLModelElement"), vec![("location", d(json!("")))]);
     def("UMLUseCase", Some("UMLClassifier"), vec![("extensionPoints", n())]);
     def("UMLActor", Some("UMLClassifier"), vec![]);
@@ -163,11 +182,25 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLUseCaseView", Some("UMLClassifierView"), vec![("extensionPointCompartment", n())]);
     def("UMLUseCaseSubjectView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLObjectView", Some("UMLGeneralNodeView"), vec![("slotCompartment", n())]);
+    def("UMLCollaborationView", Some("UMLGeneralNodeView"), vec![("templateParameterCompartment", n())]);
+    def("UMLCollaborationUseView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLMetaClassView", Some("UMLGeneralNodeView"), vec![]);
     // artifact, component and node instances: drawn like their classifiers (base type estimated)
     for name in ["UMLArtifactInstanceView", "UMLComponentInstanceView", "UMLNodeInstanceView"] {
         def(name, Some("UMLObjectView"), vec![]);
     }
+    // a frame shows a model element (often a diagram) by name, with a tab naming the diagram kind
+    def("UMLCustomFrameView", Some("NodeView"), vec![("nameLabel", n()), ("frameTypeLabel", n())]);
+    def("UMLFrameView", Some("UMLCustomFrameView"), vec![("showType", d(json!(false))), ("showNamespace", d(json!(false))), ("showDiagramName", d(json!(false)))]);
+    // plain shapes: a rectangle, a rounded rectangle, an ellipse (elements.js:14332-14378)
+    def("ShapeView", Some("NodeView"), vec![]);
+    for name in ["RectangleView", "RoundRectView", "EllipseView"] {
+        def(name, Some("ShapeView"), vec![]);
+    }
+    // a node with floating labels around it, placed by angle and distance from its centre (elements.js:5162-5188)
+    def("UMLFloatingNodeView", Some("NodeView"), vec![("nameLabel", n()), ("stereotypeLabel", n()), ("propertyLabel", n()), ("showProperty", d(json!(true)))]);
+    def("UMLNaryAssociationNodeView", Some("UMLFloatingNodeView"), vec![("showVisibility", d(json!(false)))]);
+    def("HyperlinkView", Some("NodeView"), vec![("nameLabel", n()), ("typeLabel", n())]);
     def("UMLCustomTextView", Some("NodeView"), vec![("text", d(json!(""))), ("wordWrap", d(json!(true))), ("horzAlign", d(json!(0))), ("vertAlign", d(json!(3)))]);
     def("UMLCustomNoteView", Some("UMLCustomTextView"), vec![]);
     def("UMLNoteView", Some("UMLCustomNoteView"), vec![]);
