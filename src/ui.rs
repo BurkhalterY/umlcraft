@@ -559,8 +559,9 @@ impl App {
             self.tree(ui, root, 0);
             ui.add_space(8.0);
         });
-        // a shadow along the top while the tree is scrolled (model-explorer-view.js:704)
-        if out.state.offset.y > 0.5 {
+        // a shadow along the top while the tree is scrolled (model-explorer-view.js:704), hidden while
+        // a panel is being resized (navigator-view.js:92-105)
+        if out.state.offset.y > 0.5 && self.split_drag.is_none() {
             scroll_shadow(ui.painter(), out.inner_rect);
         }
         // quick search: an autocomplete under the box, names containing the text, at most 99, each with
