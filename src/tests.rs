@@ -3340,8 +3340,16 @@ fn uml_standard_profile() {
     let p = a.repo.all().find(|e| a.repo.ty(*e) == "UMLProfile").unwrap();
     assert_eq!(a.repo.name(p), "UMLStandardProfile");
     assert_eq!(a.repo.parent(p), Some(a.repo.root));
-    let sts: Vec<_> = a.repo.list(p, "ownedElements");
+    let owned: Vec<_> = a.repo.list(p, "ownedElements");
+    let sts: Vec<_> = owned.iter().copied().filter(|e| a.repo.ty(*e) == "UMLStereotype").collect();
     assert_eq!(sts.len(), 36);
+    assert_eq!(owned.iter().filter(|e| a.repo.ty(**e) == "UMLMetaClass").count(), 9, "with the metaclasses");
+    assert_eq!(a.repo.ty(owned[0]), "UMLMetaClass", "in the profile's order");
+    // each stereotype extends its metaclasses; «Create» two of them
+    let create = sts.iter().copied().find(|s| a.repo.name(*s) == "Create").unwrap();
+    let exts: Vec<String> = a.repo.list(create, "ownedElements").into_iter().filter(|x| a.repo.ty(*x) == "UMLExtension").filter_map(|x| a.repo.refd(x, "target")).map(|m| a.repo.name(m)).collect();
+    assert_eq!(exts, ["UMLBehavioralFeature", "UMLDependency"]);
+    assert!(a.repo.child(create, "icon").is_some(), "each stereotype has its icon object");
     // the file kinds generalize File, and the stereotypes pass UML017 and UML018
     let lib = sts.iter().copied().find(|s| a.repo.name(*s) == "Library").unwrap();
     let g = a.repo.list(lib, "ownedElements")[0];
