@@ -1087,12 +1087,16 @@ impl App {
             }
             Drag::CreateNode { start, .. } => {
                 let Some(tool) = self.tool else { return };
-                let mut r = rect_of(start, p);
-                if r.w < 10.0 || r.h < 10.0 {
+                let raw = rect_of(start, p);
+                let r = if raw.w < 10.0 || raw.h < 10.0 {
                     let (w, h) = views::default_size(tool.kind);
-                    r = R { x: start.x, y: start.y, w, h };
-                }
-                let r = R { x: self.snap_v(r.x), y: self.snap_v(r.y), w: r.w.round(), h: r.h.round() };
+                    R { x: self.snap_v(start.x), y: self.snap_v(start.y), w, h }
+                } else {
+                    // both corners snap to the grid (diagram-editor.js:979-1038)
+                    let (x1, y1) = (self.snap_v(raw.x), self.snap_v(raw.y));
+                    let (x2, y2) = (self.snap_v(raw.x + raw.w), self.snap_v(raw.y + raw.h));
+                    R { x: x1, y: y1, w: (x2 - x1).max(1.0), h: (y2 - y1).max(1.0) }
+                };
                 let view = self.change(|a| {
                     let v = a.create_node(tool.kind, r);
                     if let (Some(v), Some(d)) = (v, a.diagram) {
