@@ -613,10 +613,11 @@ pub fn import(r: &mut Repo, text: &str) -> Result<Eid, String> {
     let refs = std::mem::take(&mut im.refs);
     for (e, field, x) in refs {
         match x {
-            Ref::Id(id) => match im.ids.get(&id) {
-                Some(t) => im.r.set_ref(e, field, Some(*t)),
-                None => {}
-            },
+            Ref::Id(id) => {
+                if let Some(t) = im.ids.get(&id) {
+                    im.r.set_ref(e, field, Some(*t));
+                }
+            }
             Ref::Name(name) if field == "type" => im.r.set(e, "type", serde_json::json!(name)),
             Ref::Name(_) => {}
         }
