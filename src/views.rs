@@ -19,6 +19,9 @@ pub const UC_MIN_H: f64 = 32.0; // use case min height, elements.js:97
 pub const ACTOR_ICON_W: f64 = 26.0; // actor icon min width, elements.js:93
 pub const ACTOR_ICON_H: f64 = 55.0; // actor icon min height, elements.js:92
 /// The robustness icons (boundary, entity, control) of a class shown as an icon (estimated).
+/// A stereotype decoration's box, and the smallest icon of the iconic form (elements.js:70-74).
+pub const DECORATION_ICON: f64 = 24.0;
+const ICONIC_MIN: f64 = 24.0;
 pub const ROBUST_ICON_W: f64 = 50.0;
 pub const ROBUST_ICON_H: f64 = 36.0;
 /// An artifact shown as an icon (estimated).
@@ -26,6 +29,15 @@ pub const ARTIFACT_ICON_W: f64 = 30.0;
 pub const ARTIFACT_ICON_H: f64 = 40.0;
 
 /// The robustness kind of a class shown as an icon: "boundary", "entity" or "control".
+/// A stereotype icon's script, if the stereotype of the view's element has one (`!icon w h` in its
+/// icon's content), with the icon's minimum size (elements.js:270-275, 4693-4700).
+pub fn stereotype_icon(r: &Repo, m: Eid) -> Option<(String, f64, f64)> {
+    let st = r.refd(m, "stereotype")?;
+    let icon = r.child(st, "icon")?;
+    let content = r.str(icon, "content");
+    content.trim_start().starts_with("!icon").then(|| (content, r.f(icon, "width"), r.f(icon, "height")))
+}
+
 pub fn robustness_kind(r: &Repo, v: Eid, m: Eid) -> Option<&'static str> {
     let display = r.str(v, "stereotypeDisplay");
     if r.ty(m) != "UMLClass" || !(display == "icon" || display == "icon-label") {
@@ -1258,22 +1270,49 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
             templ = Some((tc, sync_list(r, ms, tc, &items, "UMLTemplateParameterView", &texts, false)));
         }
     }
-    let mut min_w = name_min_width(r, ms, v, m, keyword, false) + icon_room(r.ty(v));
+    // a profile stereotype's icon: above the compartments (Icon, Icon with Label), or a 24 × 24
+    // decoration at the top right (elements.js:4894-4917, 4955-4980)
+    let icon = stereotype_icon(r, m).filter(|_| ty != "UMLInterface");
+    let iconic = icon.is_some() && (display == "icon" || display == "icon-label");
+    let decorated = icon.is_some() && (display == "decoration" || display == "decoration-label");
+    let hide_st = iconic && display == "icon";
+    let mut min_w = name_min_width(r, ms, v, m, keyword, hide_st) + icon_room(r.ty(v));
+    if decorated {
+        min_w += DECORATION_ICON + 2.0 * PAD;
+    }
+    if let (true, Some((_, iw, _))) = (iconic, &icon) {
+        min_w = min_w.max(*iw);
+    }
     for c in &comps {
         min_w = min_w.max(c.1);
     }
     let (x, y) = (r.f(v, "left"), r.f(v, "top"));
     let w0 = if r.bool(v, "autoResize") { min_w } else { r.f(v, "width").max(min_w) };
-    let name_h = layout_name(r, ms, v, m, x, y, w0, keyword, false);
+    // a decoration narrows the name by its box (arrangeAsDecorationForm, elements.js:4955-4963)
+    let name_w = if decorated { w0 - DECORATION_ICON } else { w0 };
+    let name_h = layout_name(r, ms, v, m, x, y, name_w, keyword, hide_st);
     if wrap {
         for c in comps.iter_mut() {
             c.2 = list_height(r, ms, &c.3, w0);
         }
     }
-    let min_h = name_h + comps.iter().map(|c| c.2).sum::<f64>();
-    grow(r, v, min_w, min_h);
+    let comps_h = name_h + comps.iter().map(|c| c.2).sum::<f64>();
+    let icon_min_h = match (&icon, iconic) {
+        (Some((_, _, ih)), true) => ih.max(ICONIC_MIN),
+        _ => 0.0,
+    };
+    grow(r, v, min_w, comps_h + icon_min_h);
     let w = r.f(v, "width");
-    let mut cy = y + name_h;
+    // the icon takes the square that fits above the compartments; they follow under it
+    let icon_h = if iconic {
+        let area = R { x, y, w, h: r.f(v, "height") - comps_h };
+        let ih = crate::render::fit_ratio(area, 100.0, 100.0).h;
+        layout_name(r, ms, v, m, x, y + ih, w0, keyword, hide_st);
+        ih
+    } else {
+        0.0
+    };
+    let mut cy = y + icon_h + name_h;
     let mut out = vec![];
     for (c, _, h, rows) in comps {
         place_list(r, ms, c, x, cy, w, h, &rows);
@@ -1285,7 +1324,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         place_list(r, ms, tc, tx, ty, tw, th, &rows);
         Comp { y: ty, rows }
     });
-    Info { shape: "", compartments: out, is_active: r.bool(m, "isActive"), templ }
+    Info { shape: if iconic { "stereotype-icon" } else { "" }, compartments: out, is_active: r.bool(m, "isActive"), templ }
 }
 
 /// A slot's line: "name: type = value" (the defining feature's name when the slot has none; estimated).

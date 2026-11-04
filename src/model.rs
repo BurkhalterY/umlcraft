@@ -362,7 +362,8 @@ impl Repo {
         let pref = self.ref_to(parent);
         self.em(eid).parent = Some(parent);
         self.em(eid).fields.insert("_parent".into(), F::V(pref));
-        if field == "end1" || field == "end2" {
+        // the fields that hold one embedded object: an association's ends, a stereotype's icon
+        if field == "end1" || field == "end2" || field == "icon" {
             self.insert_ordered(parent, field, F::One(eid));
             return;
         }

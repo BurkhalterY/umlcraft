@@ -755,6 +755,7 @@ impl App {
         let robust = matches!(kind, "Boundary" | "Entity" | "Control");
         let ty = if robust { "UMLClass" } else { kind };
         let m = self.repo.create(ty, &[("name", json!(name))], Some((parent, "ownedElements")));
+        add_stereotype_icon(&mut self.repo, m);
         if robust {
             let st_name = kind.to_lowercase();
             let found = self.repo.all().find(|x| self.repo.ty(*x) == "UMLStereotype" && self.repo.name(*x) == st_name);
@@ -1270,6 +1271,7 @@ impl App {
     pub fn add_model(&mut self, parent: Eid, ty: &str) -> Eid {
         let name = self.new_name(parent, ty);
         let m = self.repo.create(ty, &[("name", json!(name))], Some((parent, "ownedElements")));
+        add_stereotype_icon(&mut self.repo, m);
         // a state machine starts with one region (uml-factory.js:606-626)
         if ty == "UMLStateMachine" {
             self.repo.create("UMLRegion", &[], Some((m, "regions")));
@@ -1727,5 +1729,13 @@ impl App {
 
     pub fn is_view(&self, e: Eid) -> bool {
         meta::is_kind_of(self.repo.ty(e), "View") || self.repo.ty(e).ends_with("View")
+    }
+}
+
+/// A new stereotype gets its empty 40 × 40 icon, as the original's constructor makes one
+/// (elements.js:4071-4101); its content takes an icon script.
+pub fn add_stereotype_icon(r: &mut crate::model::Repo, m: Eid) {
+    if r.ty(m) == "UMLStereotype" && r.child(m, "icon").is_none() {
+        r.create("UMLImage", &[("width", json!(40)), ("height", json!(40))], Some((m, "icon")));
     }
 }

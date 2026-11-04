@@ -77,6 +77,9 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLProfile", Some("UMLPackage"), vec![]);
     def("UMLClass", Some("UMLClassifier"), vec![("isActive", d(json!(false)))]);
     def("UMLStereotype", Some("UMLClass"), vec![("icon", n())]);
+    // a stereotype's icon: an icon script in `content` (or an image), drawn width × height at least
+    // (uml/metamodel.json; a new one is 40 × 40, elements.js:4071-4090)
+    def("UMLImage", Some("UMLModelElement"), vec![("width", d(json!(0))), ("height", d(json!(0))), ("image", n()), ("content", d(json!(""))), ("smallIcon", d(json!("")))]);
     // profiles: a metaclass names a UML type; an extension joins a stereotype to it (names estimated)
     def("UMLMetaClass", Some("UMLModelElement"), vec![]);
     def("UMLExtension", Some("UMLDirectedRelationship"), vec![]);

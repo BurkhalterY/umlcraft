@@ -110,6 +110,94 @@ fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid) {
     }
 }
 
+/// The largest box of the ratio `w`:`h` that fits in `b`, centred (computeIconRect, elements.js:4702-4721).
+pub fn fit_ratio(b: R, w: f64, h: f64) -> R {
+    if w <= 0.0 || h <= 0.0 {
+        return b;
+    }
+    let (rr, ir) = (b.w / b.h.max(0.0001), w / h);
+    if rr >= ir {
+        let fw = b.h * ir;
+        R { x: b.x + (b.w - fw) / 2.0, y: b.y, w: fw, h: b.h }
+    } else {
+        let fh = b.w / ir;
+        R { x: b.x, y: b.y + (b.h - fh) / 2.0, w: b.w, h: fh }
+    }
+}
+
+/// Draw an icon script into `b`: `!icon w h` sets its coordinate space, fitted and centred; then
+/// l, r, rr, e, pl, pg and a draw lines, rectangles, rounded rectangles, ellipses, polylines,
+/// polygons and arcs, fr, frr, fe, fp and fa fill them, and %l, %f, %a and %p set the line colour,
+/// the fill colour, the opacity and a dash pattern (graphics.js:2384-2654). %w (line width) is read
+/// but UMLCraft draws one-pixel lines.
+pub fn draw_icon_script(c: &mut dyn Canvas, b: R, script: &str, line0: Rgba, fill0: Rgba) {
+    let (mut sw, mut sh) = (100.0, 100.0);
+    let mut cmds: Vec<Vec<String>> = vec![];
+    for ln in script.trim().lines() {
+        let t: Vec<String> = ln.split(' ').filter(|x| !x.is_empty()).map(String::from).collect();
+        if t.is_empty() {
+            continue;
+        }
+        if t[0] == "!icon" {
+            sw = t.get(1).and_then(|x| x.parse().ok()).unwrap_or(100.0);
+            sh = t.get(2).and_then(|x| x.parse().ok()).unwrap_or(100.0);
+        } else {
+            cmds.push(t);
+        }
+    }
+    // fit to the box, keeping the script's ratio (graphics.js:2514-2527)
+    let (mut w, mut h) = (b.w, b.h);
+    if b.h / b.w.max(0.0001) < sh / sw {
+        w = h / (sh / sw);
+    } else {
+        h = w * (sh / sw);
+    }
+    let (ox, oy, s) = (b.x + ((b.w - w) / 2.0).round(), b.y + ((b.h - h) / 2.0).round(), w / sw);
+    let (mut line, mut fill, mut alpha, mut pattern): (Rgba, Rgba, f64, Option<(f64, f64)>) = (line0, fill0, 1.0, None);
+    let num = |t: &[String], i: usize| t.get(i).and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0);
+    let pt = |x: f64, y: f64| P { x: ox + x * s, y: oy + y * s };
+    let with_alpha = |c: Rgba, a: f64| Rgba(c.0, c.1, c.2, (c.3 as f64 * a.clamp(0.0, 1.0)).round() as u8);
+    for t in cmds {
+        let (l, f) = (with_alpha(line, alpha), with_alpha(fill, alpha));
+        let rect = |t: &[String]| {
+            let (a, z) = (pt(num(t, 1), num(t, 2)), pt(num(t, 3), num(t, 4)));
+            R { x: a.x.min(z.x), y: a.y.min(z.y), w: (z.x - a.x).abs(), h: (z.y - a.y).abs() }
+        };
+        let pts = |t: &[String]| -> Vec<P> { (0..(t.len() - 1) / 2).map(|i| pt(num(t, 2 * i + 1), num(t, 2 * i + 2))).collect() };
+        let arc = |t: &[String]| -> Vec<P> {
+            let (cx, cy, rad) = (num(t, 1), num(t, 2), num(t, 3));
+            let (a1, a2) = (num(t, 4).to_radians(), num(t, 5).to_radians());
+            (0..=24).map(|i| { let a = a1 + (a2 - a1) * i as f64 / 24.0; pt(cx + rad * a.cos(), cy + rad * a.sin()) }).collect()
+        };
+        let ellipse = |rr: R| -> Vec<P> { (0..=48).map(|i| { let a = std::f64::consts::TAU * i as f64 / 48.0; P { x: rr.x + rr.w / 2.0 * (1.0 + a.cos()), y: rr.y + rr.h / 2.0 * (1.0 + a.sin()) } }).collect() };
+        let stroke = |c: &mut dyn Canvas, p: &[P]| match pattern {
+            Some((on, off)) => dashes(c, p, l, on, off),
+            None => c.polyline(p, l, false),
+        };
+        let closed = |p: Vec<P>| -> Vec<P> { let mut p = p; if let Some(&f0) = p.first() { p.push(f0); } p };
+        let rect_pts = |rr: R| vec![P { x: rr.x, y: rr.y }, P { x: rr.x + rr.w, y: rr.y }, P { x: rr.x + rr.w, y: rr.y + rr.h }, P { x: rr.x, y: rr.y + rr.h }];
+        match t[0].as_str() {
+            "l" => stroke(c, &[pt(num(&t, 1), num(&t, 2)), pt(num(&t, 3), num(&t, 4))]),
+            "r" => stroke(c, &closed(rect_pts(rect(&t)))),
+            "rr" => stroke(c, &closed(round_rect(rect(&t), num(&t, 5) * s))),
+            "e" => stroke(c, &ellipse(rect(&t))),
+            "pl" => stroke(c, &pts(&t)),
+            "pg" => stroke(c, &closed(pts(&t))),
+            "a" => stroke(c, &arc(&t)),
+            "fr" => c.polygon(&rect_pts(rect(&t)), Some(f), None),
+            "frr" => c.polygon(&round_rect(rect(&t), num(&t, 5) * s), Some(f), None),
+            "fe" => { let rr = rect(&t); c.ellipse(P { x: rr.x + rr.w / 2.0, y: rr.y + rr.h / 2.0 }, rr.w / 2.0, rr.h / 2.0, Some(f), None) }
+            "fp" => c.polygon(&pts(&t), Some(f), None),
+            "fa" => { let mut p = arc(&t); p.push(pt(num(&t, 1), num(&t, 2))); c.polygon(&p, Some(f), None) }
+            "%l" => line = t.get(1).map(|x| parse_color(x, line0)).unwrap_or(line0),
+            "%f" => fill = t.get(1).map(|x| parse_color(x, BLACK)).unwrap_or(fill0),
+            "%a" => alpha = t.get(1).and_then(|x| x.parse().ok()).unwrap_or(1.0),
+            "%p" => pattern = (t.len() > 1).then(|| (num(&t, 1), if t.len() > 2 { num(&t, 2) } else { num(&t, 1) })),
+            _ => {}
+        }
+    }
+}
+
 /// A rectangle with corners rounded to radius `rad`, as a polygon (8 steps per corner).
 fn round_rect(b: R, rad: f64) -> Vec<P> {
     let mut pts = vec![];
@@ -270,6 +358,24 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             draw_label(c, r, nl, fc);
             return;
         }
+        "stereotype-icon" => {
+            // the stereotype's icon in the square above the name, then the compartments' rows
+            // without a box (drawAsIconicForm and drawIcon, elements.js:4723-4740, 5107-5120)
+            if let (Some((script, iw, ih)), Some(nc)) = (r.refd(v, "model").and_then(|m| views::stereotype_icon(r, m)), r.refd(v, "nameCompartment")) {
+                let area = fit_ratio(R { x: b.x, y: b.y, w: b.w, h: (r.f(nc, "top") - b.y).max(0.0) }, 100.0, 100.0);
+                let square = R { x: b.x + (b.w - area.w) / 2.0, ..area };
+                draw_icon_script(c, fit_ratio(square, iw.max(1.0), ih.max(1.0)), &script, line, fill);
+            }
+            draw_name(c, r, v);
+            if let Some(i) = info {
+                for comp in &i.compartments {
+                    for row in &comp.rows {
+                        draw_label(c, r, row.iv, fc);
+                    }
+                }
+            }
+            return;
+        }
         "collaboration" => {
             // a dashed ellipse (elements.js:7214-7227, 7275-7279)
             let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
@@ -383,7 +489,12 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
     // stereotype display Decoration (with or without the label): a small icon at the top right, for
     // the stereotypes UMLCraft has icons for (interfaces and the robustness stereotypes)
     let display = r.str(v, "stereotypeDisplay");
-    if display == "decoration" || display == "decoration-label" {
+    let profile_icon = r.refd(v, "model").and_then(|m| views::stereotype_icon(r, m)).filter(|_| r.refd(v, "model").map(|m| r.ty(m) != "UMLInterface").unwrap_or(false));
+    if let (Some((script, iw, ih)), true) = (&profile_icon, display == "decoration" || display == "decoration-label") {
+        // a profile stereotype's icon in the 24 × 24 box at the top right (drawAsDecorationForm, elements.js:5086-5105)
+        let bx = R { x: b.x + b.w - views::PAD - views::DECORATION_ICON, y: b.y + views::PAD, w: views::DECORATION_ICON, h: views::DECORATION_ICON };
+        draw_icon_script(c, fit_ratio(bx, iw.max(1.0), ih.max(1.0)), script, line, fill);
+    } else if display == "decoration" || display == "decoration-label" {
         if let Some(m) = r.refd(v, "model") {
             let st = views::type_name(r, m, "stereotype").to_lowercase();
             let c0 = P { x: b.x + b.w - 14.0, y: b.y + 12.0 };

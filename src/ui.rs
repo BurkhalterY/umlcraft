@@ -846,6 +846,8 @@ impl App {
             "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
             "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
             "UMLObject" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("classifier", "type")],
+            // a stereotype's icon: its minimum size and its icon script (uml/metamodel.json UMLImage)
+            "UMLImage" => vec![("width", "int"), ("height", "int"), ("content", "multiline")],
             "UMLCollaborationUse" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type")],
             "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
             "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
@@ -1083,6 +1085,18 @@ impl App {
                     if let Some(p) = pick.filter(|p| *p != cur) {
                         let f = field.clone();
                         self.change(|a| a.repo.set_ref(obj, &f, p));
+                    }
+                }
+                // an integer: a typed value that is not a whole number is ignored (property-editor-view.js:274-330)
+                "int" => {
+                    let cur = merged.clone().unwrap_or_default();
+                    let buf = self.prop_buf.entry(path.to_string()).or_insert(cur.clone());
+                    let r = ui.add_sized(Vec2::new(w, 23.0), egui::TextEdit::singleline(buf).hint_text("—").font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
+                    if r.lost_focus() && *buf != cur {
+                        match buf.trim().parse::<i64>() {
+                            Ok(n) => self.change_all(&targets, |a, o, f| a.repo.set(o, f, json!(n))),
+                            Err(_) => *buf = cur,
+                        }
                     }
                 }
                 // a hyperlink's element: its icon and name, and "…" for the Element Picker

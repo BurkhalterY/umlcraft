@@ -4093,3 +4093,36 @@ fn collaborations_and_their_uses() {
     assert!(svg.contains("Collaboration1"));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn profile_stereotype_icons() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.package_for(Some(d));
+    let st = a.change(|a| a.add_model(pkg, "UMLStereotype"));
+    let icon = a.repo.child(st, "icon").expect("a new stereotype has its icon");
+    assert_eq!((a.repo.f(icon, "width"), a.repo.f(icon, "height")), (40.0, 40.0));
+    a.change(|a| a.repo.set(icon, "content", json!("!icon 20 10\nr 0 0 20 10\n%f #ff0000\nfe 5 2 15 8\n%p 2 2\nl 0 5 20 5")));
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 10.0, 10.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    a.change(|a| a.repo.set_ref(m, "stereotype", Some(st)));
+    a.change(|a| a.repo.set(c, "stereotypeDisplay", json!("icon")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info[&c].shape, "stereotype-icon");
+    let nc = a.repo.refd(c, "nameCompartment").unwrap();
+    assert!(a.repo.f(c, "width") >= 40.0 && a.repo.f(nc, "top") >= a.repo.f(c, "top") + 40.0, "the icon sits above the name, at least 40 tall");
+    let svg = crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap();
+    assert!(svg.contains("#ff0000"), "the script's fill colour is used");
+    // decoration: the box with the icon at its top right
+    a.change(|a| a.repo.set(c, "stereotypeDisplay", json!("decoration")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info[&c].shape, "");
+    assert!(crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap().contains("#ff0000"));
+    // the icon's size is edited as integers
+    assert_eq!(a.fields_for(icon), vec![("width", "int"), ("height", "int"), ("content", "multiline")]);
+    let text = a.repo.serialize();
+    assert!(text.contains("\"UMLImage\""));
+    let back = Repo::parse(&text).unwrap();
+    assert!(back.all_of("UMLImage").len() == 1);
+}
