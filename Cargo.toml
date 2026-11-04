@@ -18,7 +18,7 @@ serde = "1"
 rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 arboard = { version = "3.6", default-features = false, features = ["image-data"] }
-resvg = { version = "0.45", default-features = false, features = ["text", "system-fonts", "memmap-fonts"] }
+resvg = { version = "0.45", default-features = false, features = ["text", "system-fonts", "memmap-fonts", "raster-images"] }
 
 [profile.release]
 opt-level = 3

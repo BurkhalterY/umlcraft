@@ -147,6 +147,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/fragment.rs` | File › Import / Export › Fragment: `.mfj` files |
 | `src/templates.rs` | File › New From Template: the UML templates |
 | `src/picker.rs` | The Element Picker ("Select Element") and the name lookup of type and stereotype fields |
+| `src/picture.rs` | Pictures of Image views: files read into data URLs with their natural size, and decoded for drawing |
 | `src/pdf.rs` | Print to PDF: the dialog, its remembered options and a small PDF writer |
 | `src/canvas.rs`, `src/parse.rs`, `src/align.rs`, `src/clipboard.rs`, `src/style.rs`, `src/related.rs` | The diagram canvas, the typed attribute and operation lines, Format › Alignment, cut, copy and paste, view colours, and the inline edit's "add related element" buttons |
 | `src/splitter.rs` | Panel splitters: drag a panel's edge to resize it, or below 10 px to hide it |

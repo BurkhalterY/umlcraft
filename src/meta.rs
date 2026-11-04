@@ -202,6 +202,8 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLFrameView", Some("UMLCustomFrameView"), vec![("showType", d(json!(false))), ("showNamespace", d(json!(false))), ("showDiagramName", d(json!(false)))]);
     // plain shapes: a rectangle, a rounded rectangle, an ellipse (elements.js:14332-14378)
     def("ShapeView", Some("NodeView"), vec![]);
+    // a picture, kept as a data URL with its natural size (uml/metamodel.json ImageView)
+    def("ImageView", Some("NodeView"), vec![("imageWidth", d(json!(0))), ("imageHeight", d(json!(0))), ("imageData", d(json!("")))]);
     for name in ["RectangleView", "RoundRectView", "EllipseView"] {
         def(name, Some("ShapeView"), vec![]);
     }

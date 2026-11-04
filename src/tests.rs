@@ -4304,3 +4304,38 @@ fn role_binding_from_a_collaboration_use_to_a_part() {
     assert_eq!(a.repo.str(l, "text"), "buyer");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn image_annotation_from_a_file() {
+    use crate::picture::{base64_decode, base64_encode};
+    for s in ["", "a", "ab", "abc", "hello world!"] {
+        assert_eq!(base64_decode(&base64_encode(s.as_bytes())).unwrap(), s.as_bytes());
+    }
+    assert_eq!(base64_encode(b"Man"), "TWFu");
+    let ms = measure();
+    let dir = std::env::temp_dir().join(format!("umlcraft-img-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let png = dir.join("red.png");
+    image::RgbaImage::from_pixel(40, 20, image::Rgba([255, 0, 0, 255])).save(&png).unwrap();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let v = a.change(|a| a.create_node("Image", rect(10.0, 10.0, 100.0, 100.0))).unwrap();
+    assert_eq!(a.repo.ty(v), "ImageView");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(!crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap().contains("<image"), "no picture yet: a crossed box");
+    a.set_image_file(v, &png).unwrap();
+    assert!(a.repo.str(v, "imageData").starts_with("data:image/png;base64,"));
+    assert_eq!((a.repo.f(v, "width"), a.repo.f(v, "height"), a.repo.f(v, "imageWidth")), (40.0, 20.0, 40.0), "the natural size");
+    // dropped on the canvas: centred on the point
+    let w = a.drop_image_file(&png, crate::views::P { x: 300.0, y: 300.0 }).unwrap();
+    assert_eq!((a.repo.f(w, "left"), a.repo.f(w, "top")), (280.0, 290.0));
+    assert!(a.drop_image_file(&dir.join("notes.txt"), crate::views::P { x: 0.0, y: 0.0 }).is_err(), "only pictures");
+    // the picture reaches the exported PNG
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let out = crate::render::to_png(&a.repo, d, &a.info, &ms, 1.0).unwrap();
+    let img = image::load_from_memory(&out).unwrap().to_rgba8();
+    assert!(img.pixels().any(|p| p.0 == [255, 0, 0, 255]), "red pixels in the export");
+    let back = Repo::parse(&a.repo.serialize()).unwrap();
+    assert_eq!(back.all_of("ImageView").len(), 2);
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -256,6 +256,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "Frame" => (FRAME_MIN_W, FRAME_MIN_H),
         "Hyperlink" => (HYPERLINK_MIN_W, HYPERLINK_MIN_H),
         "Rect" | "RoundRect" | "Ellipse" => (50.0, 50.0),
+        "Image" => (100.0, 100.0),
         "UMLPart" => (80.0, 30.0),
         "UMLPort" => (PORT_SIZE, PORT_SIZE),
         "UMLNaryAssociationNode" => (NARY_MIN_W, NARY_MIN_H),
@@ -271,6 +272,7 @@ pub fn tool_min_size(kind: &str) -> Option<(f64, f64)> {
         "Note" => Some((70.0, 40.0)),
         "Hyperlink" => Some((70.0, 20.0)),
         "Rect" | "RoundRect" | "Ellipse" => Some((50.0, 50.0)),
+        "Image" => Some((100.0, 100.0)),
         _ => None,
     }
 }

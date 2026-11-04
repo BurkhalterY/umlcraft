@@ -55,6 +55,8 @@ pub trait Canvas: Measure {
     fn ellipse(&mut self, c: P, rx: f64, ry: f64, fill: Option<Rgba>, stroke: Option<Rgba>);
     /// align: 0 left, 1 right, 2 centre; text is centred vertically in the box
     fn text(&mut self, t: &str, b: R, align: i64, style: u8, size: f64, color: Rgba, underline: bool);
+    /// A picture given as a data URL, stretched over the box; surfaces that cannot show one skip it.
+    fn image(&mut self, _b: R, _data_url: &str) {}
     fn rect(&mut self, r: R, fill: Option<Rgba>, stroke: Option<Rgba>) {
         let pts = [P { x: r.x, y: r.y }, P { x: r.x + r.w, y: r.y }, P { x: r.x + r.w, y: r.y + r.h }, P { x: r.x, y: r.y + r.h }];
         self.polygon(&pts, fill, stroke);
@@ -465,6 +467,18 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         c.polygon(&pts, Some(fill), Some(line));
         c.polyline(&[P { x: b.x + b.w - f, y: b.y }, P { x: b.x + b.w - f, y: b.y + f }, P { x: b.x + b.w, y: b.y + f }], line, false);
         draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 0.0);
+        return;
+    }
+    // a picture over its box; with none yet, a crossed-out box (ImageView.drawObject, elements.js)
+    if ty == "ImageView" {
+        let data = r.str(v, "imageData");
+        if data.is_empty() {
+            c.polyline(&[P { x: b.x, y: b.y }, P { x: b.x + b.w, y: b.y + b.h }], line, false);
+            c.polyline(&[P { x: b.x + b.w, y: b.y }, P { x: b.x, y: b.y + b.h }], line, false);
+            c.rect(b, None, Some(line));
+        } else {
+            c.image(b, &data);
+        }
         return;
     }
     // plain shapes, filled and outlined, with no shadow (elements.js:14337-14378)
@@ -901,6 +915,12 @@ impl Measure for Svg<'_> {
 }
 
 impl Canvas for Svg<'_> {
+    fn image(&mut self, b: R, data_url: &str) {
+        self.out += &format!(
+            "<image x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" preserveAspectRatio=\"none\" href=\"{}\"/>\n",
+            b.x, b.y, b.w, b.h, esc(data_url)
+        );
+    }
     fn polyline(&mut self, pts: &[P], color: Rgba, dashed: bool) {
         let dash = if dashed { format!(" stroke-dasharray=\"{DASH}\"") } else { String::new() };
         self.out += &format!("<polyline points=\"{}\" fill=\"none\"{}{dash}/>\n", pts_attr(pts), paint("stroke", Some(color)));

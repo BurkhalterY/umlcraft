@@ -721,13 +721,14 @@ impl App {
 
     pub fn create_node(&mut self, kind: &str, rect: R) -> Option<Eid> {
         let d = self.diagram?;
-        if matches!(kind, "Note" | "Text" | "TextBox" | "Rect" | "RoundRect" | "Ellipse") {
+        if matches!(kind, "Note" | "Text" | "TextBox" | "Rect" | "RoundRect" | "Ellipse" | "Image") {
             let ty = match kind {
                 "Note" => "UMLNoteView",
                 "TextBox" => "UMLTextBoxView",
                 "Rect" => "RectangleView",
                 "RoundRect" => "RoundRectView",
                 "Ellipse" => "EllipseView",
+                "Image" => "ImageView",
                 _ => "UMLTextView",
             };
             let v = views::create_note_view(&mut self.repo, d, rect, ty);
@@ -1347,6 +1348,42 @@ impl App {
         };
         self.apply_view_defaults(v);
         Ok(v)
+    }
+
+    /// Put the picture from a file into an Image view and give the view the picture's natural size,
+    /// as one undo step (app-context.js:1360-1382).
+    pub fn set_image_file(&mut self, v: Eid, path: &std::path::Path) -> Result<(), String> {
+        let (data, w, h) = crate::picture::load_file(path)?;
+        self.change(|a| {
+            for (k, val) in [("imageData", json!(data)), ("imageWidth", json!(w)), ("imageHeight", json!(h)), ("width", json!(w)), ("height", json!(h))] {
+                a.repo.set(v, k, val);
+            }
+        });
+        Ok(())
+    }
+
+    /// The Image view's file picker (.png, .jpg, .jpeg, .svg); a picture that cannot be read is an
+    /// error toast.
+    pub fn pick_image(&mut self, v: Eid) {
+        let Some(path) = rfd::FileDialog::new().add_filter("Image files", &["png", "jpeg", "jpg", "svg"]).pick_file() else { return };
+        if let Err(e) = self.set_image_file(v, &path) {
+            self.toast_error(&e);
+        }
+    }
+
+    /// A picture file dropped on the canvas: an Image view at the picture's natural size, centred on
+    /// the drop point (app-context.js:1404-1427).
+    pub fn drop_image_file(&mut self, path: &std::path::Path, at: P) -> Result<Eid, String> {
+        let (data, w, h) = crate::picture::load_file(path)?;
+        let rect = R { x: (at.x - (w as f64 / 2.0).round()).max(0.0), y: (at.y - (h as f64 / 2.0).round()).max(0.0), w: w as f64, h: h as f64 };
+        let v = self.change(|a| {
+            let v = a.create_node("Image", rect)?;
+            for (k, val) in [("imageData", json!(data)), ("imageWidth", json!(w)), ("imageHeight", json!(h))] {
+                a.repo.set(v, k, val);
+            }
+            Some(v)
+        });
+        v.ok_or_else(String::new)
     }
 
     pub fn add_model(&mut self, parent: Eid, ty: &str) -> Eid {

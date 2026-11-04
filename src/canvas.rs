@@ -65,6 +65,23 @@ impl Measure for ScreenCanvas<'_> {
 }
 
 impl Canvas for ScreenCanvas<'_> {
+    fn image(&mut self, b: R, data_url: &str) {
+        // one texture per picture, decoded once and kept in egui's memory
+        let ctx = self.painter.ctx().clone();
+        let id = egui::Id::new(("picture", data_url.len(), data_url.get(data_url.len().saturating_sub(64)..).unwrap_or(""), data_url.get(..96).unwrap_or("")));
+        let tex = ctx.data_mut(|d| d.get_temp::<Option<egui::TextureHandle>>(id)).unwrap_or_else(|| {
+            let t = crate::picture::decode(data_url).map(|img| {
+                let size = [img.width() as usize, img.height() as usize];
+                ctx.load_texture("picture", egui::ColorImage::from_rgba_unmultiplied(size, img.as_raw()), egui::TextureOptions::LINEAR)
+            });
+            ctx.data_mut(|d| d.insert_temp(id, t.clone()));
+            t
+        });
+        if let Some(t) = tex {
+            let r = Rect::from_two_pos(self.pos(P { x: b.x, y: b.y }), self.pos(P { x: b.x + b.w, y: b.y + b.h }));
+            self.painter.image(t.id(), r, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
+        }
+    }
     fn polyline(&mut self, pts: &[P], color: Rgba, dashed: bool) {
         let ps: Vec<Pos2> = pts.iter().map(|p| self.pos(*p)).collect();
         let st = self.stroke(color);
@@ -542,6 +559,18 @@ impl App {
         let origin = rect.min;
         let latest = pointer.latest_pos();
 
+        // a picture file dropped on the canvas: only the first file counts (diagram-editor.js:2289-2294)
+        let dropped = ui.input(|i| i.raw.dropped_files.first().map(|f| f.path().to_path_buf()).filter(|p| !p.as_os_str().is_empty()));
+        if let (Some(path), Some(pos), true) = (dropped, latest, self.diagram.is_some()) {
+            if rect.contains(pos) {
+                let p = self.to_diagram(origin, pos);
+                match self.drop_image_file(&path, p) {
+                    Ok(v) => self.select(vec![v]),
+                    Err(e) if !e.is_empty() => self.toast_error(&e),
+                    Err(_) => {}
+                }
+            }
+        }
         // drop from the explorer: the cursor says whether the diagram takes it (model-explorer-view.js:161-224)
         if let Some(eid) = resp.dnd_hover_payload::<Eid>() {
             ui.ctx().set_cursor_icon(if self.can_drop_model(*eid) { egui::CursorIcon::Copy } else { egui::CursorIcon::NotAllowed });
@@ -1314,6 +1343,11 @@ impl App {
 
     pub fn edit_view(&mut self, v: Eid, p: Option<P>) {
         let t = self.repo.ty(v).to_string();
+        // an image picks its picture again (app-context.js:1360-1382)
+        if t == "ImageView" {
+            self.pick_image(v);
+            return;
+        }
         // frames and hyperlinks have no inline edit
         if t == "UMLFrameView" || t == "HyperlinkView" {
             return;

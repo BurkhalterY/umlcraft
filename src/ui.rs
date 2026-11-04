@@ -91,6 +91,7 @@ const ANNOTATIONS: Group = Group {
         node("Rectangle", "Rect", "rect"),
         node("Rounded Rectangle", "RoundRect", "roundrect"),
         node("Ellipse", "Ellipse", "ellipse"),
+        node("Image", "Image", "picture"),
     ],
 };
 // the Composite Structure group (uml.json "uml.compositestructure": class, composite structure and
