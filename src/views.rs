@@ -189,10 +189,10 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 12] = [
+const KNOWN_EDGE_VIEWS: [&str; 13] = [
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
-    "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView",
+    "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
 ];
 
 /// Size used when the person clicks instead of dragging (estimated).

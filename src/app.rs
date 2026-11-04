@@ -812,6 +812,7 @@ impl App {
     /// The kind a line was made with: its model's type, or "NoteLink".
     pub fn edge_kind(&self, e: Eid) -> String {
         match self.repo.refd(e, "model") {
+            Some(m) if self.repo.ty(m) == "UMLAssociationClassLink" => "AssociationClass".into(),
             Some(m) => self.repo.ty(m).to_string(),
             None if self.repo.ty(e) == "UMLNoteLinkView" => "NoteLink".into(),
             None if self.repo.ty(e) == "UMLContainmentView" => "Containment".into(),
@@ -824,6 +825,18 @@ impl App {
         let r = &self.repo;
         if kind == "NoteLink" {
             return r.ty(tail) == "UMLNoteView" || r.ty(head) == "UMLNoteView";
+        }
+        if kind == "AssociationClass" {
+            // between two classifiers, or from a class to an association line (uml-factory.js:631)
+            let (Some(tm), Some(hm)) = (r.refd(tail, "model"), r.refd(head, "model")) else { return false };
+            if views::is_edge(r, tail) {
+                return false;
+            }
+            if views::is_edge(r, head) {
+                let linked = r.all_of("UMLAssociationClassLink").into_iter().any(|l| r.refd(l, "associationSide") == Some(hm));
+                return r.ty(tm) == "UMLClass" && r.ty(hm) == "UMLAssociation" && !linked;
+            }
+            return r.kind_of(tm, "UMLClassifier") && r.kind_of(hm, "UMLClassifier");
         }
         if views::is_edge(r, tail) || views::is_edge(r, head) {
             return false;
@@ -859,6 +872,9 @@ impl App {
         if tool.kind == "NoteLink" {
             return views::create_edge_view(&mut self.repo, d, None, tail, head);
         }
+        if tool.kind == "AssociationClass" {
+            return self.create_association_class(d, tail, head);
+        }
         if tool.kind == "Containment" {
             // a view-only line; the contained element moves into the container
             let (tm, hm) = (self.repo.refd(tail, "model")?, self.repo.refd(head, "model")?);
@@ -892,6 +908,41 @@ impl App {
         views::create_edge_view(&mut self.repo, d, Some(m), tail, head)
     }
 
+    /// The Association Class tool (uml-factory.js:631): between two classifiers it creates an
+    /// association, a class "AssociationClass" 30 px below the middle of the line, and the dashed link
+    /// between them; from a class to an association line it only links them. Returns the class's box
+    /// in the first case, the link in the second.
+    fn create_association_class(&mut self, d: Eid, tail: Eid, head: Eid) -> Option<Eid> {
+        let link = |a: &mut App, class_view: Eid, assoc_view: Eid| -> Option<Eid> {
+            let (cm, am) = (a.repo.refd(class_view, "model")?, a.repo.refd(assoc_view, "model")?);
+            let (c, s) = (a.repo.ref_to(cm), a.repo.ref_to(am));
+            let l = a.repo.create("UMLAssociationClassLink", &[("classSide", c), ("associationSide", s)], Some((cm, "ownedElements")));
+            let props = [
+                ("model", a.repo.ref_to(l)),
+                ("font", json!(views::FONT)),
+                ("head", a.repo.ref_to(assoc_view)),
+                ("tail", a.repo.ref_to(class_view)),
+                ("lineStyle", json!(views::DEFAULT_LINE_STYLE)),
+                ("points", json!("0:0;0:0")),
+            ];
+            Some(a.repo.create("UMLAssociationClassLinkView", &props, Some((d, "ownedViews"))))
+        };
+        if views::is_edge(&self.repo, head) {
+            return link(self, tail, head);
+        }
+        let assoc = Tool { label: "", kind: "UMLAssociation", icon: "", line: true, init: AssocInit::Plain };
+        let e = self.create_edge(&assoc, tail, head)?;
+        let (a, b) = (views::node_rect(&self.repo, tail), views::node_rect(&self.repo, head));
+        let mid = P { x: (a.x + a.w / 2.0 + b.x + b.w / 2.0) / 2.0, y: (a.y + a.h / 2.0 + b.y + b.h / 2.0) / 2.0 };
+        let (w, h) = views::default_size("UMLClass");
+        let cv = self.create_node("UMLClass", R { x: (mid.x - w / 2.0).max(0.0).round(), y: (mid.y + 30.0).round(), w, h })?;
+        if let Some(cm) = self.repo.refd(cv, "model") {
+            self.repo.set(cm, "name", json!("AssociationClass"));
+        }
+        link(self, cv, e)?;
+        Some(cv)
+    }
+
     /// Reconnect one end of a line to another view, updating the model too: `source`/`target` of a
     /// directed relationship, `end1`/`end2.reference` of an association (engine.js:940-1024). Returns
     /// the refusal message when the kinds do not fit (uml/main.js:44-82).
@@ -922,7 +973,9 @@ impl App {
             }
             // the ends are laid out again from the new box
             if let (Some(m), Some(tm)) = (a.repo.refd(e, "model"), a.repo.refd(to, "model")) {
-                if a.repo.has(m, "end1") {
+                if a.repo.ty(m) == "UMLAssociationClassLink" {
+                    a.repo.set_ref(m, if tail { "classSide" } else { "associationSide" }, Some(tm));
+                } else if a.repo.has(m, "end1") {
                     if let Some(end) = a.repo.child(m, if tail { "end1" } else { "end2" }) {
                         a.repo.set_ref(end, "reference", Some(tm));
                     }

@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, Packages, Annotations) and Use Case diagrams (Use Cases, Annotations); every other diagram kind gets Annotations only (src/ui.rs:80-141).
+UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, Packages, Annotations) and Use Case diagrams (Use Cases, Annotations); every other diagram kind gets Annotations only (src/ui.rs:80-142).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -203,7 +203,7 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Enumeration | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Frame | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | N-ary Association Node | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Association Class | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Association Class | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Template Binding | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Realization | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Packages `uml.package` | UMLClassDiagram, UMLPackageDiagram | Package | ✅ | extensions/essential/uml/toolbox/uml.json |

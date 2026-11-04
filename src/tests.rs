@@ -2970,3 +2970,48 @@ fn containment_moves_the_element_into_the_package() {
     assert_eq!(a.repo.parent(nm), Some(pm));
     assert!(a.repo.list(d, "ownedViews").iter().filter(|v| a.repo.ty(**v) == "UMLContainmentView").count() == 3);
 }
+
+#[test]
+fn association_class_tool() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(340.0, 40.0, 100.0, 60.0))).unwrap();
+    let t = tool("AssociationClass", AssocInit::Plain);
+    assert!(a.can_connect(&t, c1, c2));
+    let undo = a.undo.len();
+    let cv = a.change(|a| a.create_edge(&t, c1, c2)).unwrap();
+    assert_eq!(a.undo.len(), undo + 1);
+    let cm = a.repo.refd(cv, "model").unwrap();
+    assert_eq!((a.repo.ty(cm), a.repo.name(cm).as_str()), ("UMLClass", "AssociationClass"));
+    let r = crate::views::node_rect(&a.repo, cv);
+    assert_eq!(r.y, 100.0, "30 px below the middle of the line");
+    let links = a.repo.all_of("UMLAssociationClassLink");
+    assert_eq!(links.len(), 1);
+    let assoc = a.repo.refd(links[0], "associationSide").unwrap();
+    assert_eq!(a.repo.ty(assoc), "UMLAssociation");
+    assert_eq!(a.repo.refd(links[0], "classSide"), Some(cm));
+    let lv = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "UMLAssociationClassLinkView").unwrap();
+    assert_eq!(a.edge_kind(lv), "AssociationClass");
+    let av = a.repo.refd(lv, "head").unwrap();
+    // an association that already has its class cannot take a second one
+    let c3 = a.change(|a| a.create_node("UMLClass", rect(40.0, 300.0, 100.0, 60.0))).unwrap();
+    assert!(!a.can_connect(&t, c3, av));
+    // from a class to a plain association: only the link
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c3)).unwrap();
+    assert!(a.can_connect(&t, c2, e));
+    let l2 = a.change(|a| a.create_edge(&t, c2, e)).unwrap();
+    assert_eq!(a.repo.ty(l2), "UMLAssociationClassLinkView");
+    assert_eq!(a.repo.all_of("UMLAssociationClassLink").len(), 2);
+    // the link ends at the association's middle
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let pts = crate::views::points_of(&a.repo, lv);
+    let apts = crate::views::points_of(&a.repo, av);
+    let mid = crate::views::edge_middle(&apts);
+    let end = *pts.last().unwrap();
+    assert!((end.x - mid.x).abs() < 2.0 && (end.y - mid.y).abs() < 2.0, "{end:?} {mid:?}");
+    // it survives a save
+    let text = a.repo.serialize();
+    assert!(text.contains("\"_type\": \"UMLAssociationClassLinkView\""));
+}

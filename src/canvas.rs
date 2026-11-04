@@ -684,7 +684,7 @@ impl App {
         if let Some(tool) = self.tool {
             if !tool.line {
                 self.drag = Some(Drag::CreateNode { start: p, now: p });
-            } else if let Some(tail) = self.hit_view(p, tool.kind != "NoteLink") {
+            } else if let Some(tail) = self.hit_view(p, tool.kind != "NoteLink" && tool.kind != "AssociationClass") {
                 self.drag = Some(Drag::CreateEdge { start: p, now: p, tail });
             }
             return;
@@ -895,7 +895,7 @@ impl App {
             Drag::CreateNode { now, .. } => *now = p,
             Drag::CreateEdge { now, .. } => {
                 *now = p;
-                let nodes_only = self.tool.map(|t| t.kind != "NoteLink").unwrap_or(true);
+                let nodes_only = self.tool.map(|t| t.kind != "NoteLink" && t.kind != "AssociationClass").unwrap_or(true);
                 self.hover = self.hit_view(p, nodes_only);
             }
             Drag::Move { start, orig, edges, lead, changed, .. } => {
@@ -1087,7 +1087,7 @@ impl App {
             }
             Drag::CreateEdge { tail, .. } => {
                 let Some(tool) = self.tool else { return };
-                if let Some(head) = self.hit_view(p, tool.kind != "NoteLink") {
+                if let Some(head) = self.hit_view(p, tool.kind != "NoteLink" && tool.kind != "AssociationClass") {
                     if !self.can_connect(&tool, tail, head) {
                         // a refused link is reported (uml-factory.js:19-146, toolbox-view.js:209-216)
                         self.toast_error(&format!("Invalid connection ({})", tool.kind.trim_start_matches("UML")));

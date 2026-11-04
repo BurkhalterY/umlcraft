@@ -108,6 +108,7 @@ const CLASS_GROUPS: &[Group] = &[
             node("PrimitiveType", "UMLPrimitiveType", "datatype"),
             node("Enumeration", "UMLEnumeration", "enumeration"),
             line("Realization", "UMLRealization", "realization", AssocInit::Plain),
+            line("Association Class", "AssociationClass", "associationclass", AssocInit::Plain),
         ],
     },
     Group {
