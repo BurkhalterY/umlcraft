@@ -3324,6 +3324,11 @@ fn uml_standard_profile() {
     assert_eq!(a.undo.len(), undo + 1);
     assert_eq!(a.repo.all().filter(|e| a.repo.ty(*e) == "UMLProfile").count(), 1);
     assert!(a.toasts.last().map(|t| t.2).unwrap_or(false), "an error toast");
+    // the robustness tools find their stereotypes there, without asking
+    assert!(a.robustness_profile_ready("Boundary") && a.robustness_profile_ready("UMLClass"));
+    let v = a.change(|a| a.create_node("Control", rect(40.0, 40.0, 60.0, 60.0))).unwrap();
+    let st = a.repo.refd(a.repo.refd(v, "model").unwrap(), "stereotype").unwrap();
+    assert_eq!(a.repo.parent(st), Some(p));
     // templates include it
     let t = crate::templates::project(&crate::templates::TEMPLATES[0]);
     assert!(t.all().any(|e| t.ty(e) == "UMLProfile"));

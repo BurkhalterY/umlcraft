@@ -613,6 +613,30 @@ impl App {
         Some(cv)
     }
 
+    /// Whether a robustness tool can create its class: its stereotype is in the project, or the person
+    /// agreed to apply the UML Standard Profile, which brings it (robustness/main.js:41). Other tools
+    /// are always ready.
+    pub fn robustness_profile_ready(&mut self, kind: &str) -> bool {
+        if !matches!(kind, "Boundary" | "Entity" | "Control") {
+            return true;
+        }
+        let st = kind.to_lowercase();
+        if self.repo.all().any(|x| self.repo.ty(x) == "UMLStereotype" && self.repo.name(x) == st) {
+            return true;
+        }
+        let ok = self.screenshot.is_none()
+            && rfd::MessageDialog::new()
+                .set_title("UMLCraft")
+                .set_description(format!("{kind} requires UML Standard Profile. Do you want to apply?"))
+                .set_buttons(rfd::MessageButtons::OkCancel)
+                .show()
+                == rfd::MessageDialogResult::Ok;
+        if ok {
+            self.apply_standard_profile();
+        }
+        ok
+    }
+
     /// Model › Apply Profile › UML Standard Profile (v2), as one undo step (uml-commands.js:81-100).
     pub fn apply_standard_profile(&mut self) {
         let name = crate::templates::STANDARD_PROFILE;

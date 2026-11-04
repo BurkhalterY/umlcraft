@@ -1087,6 +1087,13 @@ impl App {
             }
             Drag::CreateNode { start, .. } => {
                 let Some(tool) = self.tool else { return };
+                // a robustness tool needs its stereotype from the UML Standard Profile (robustness/main.js:41)
+                if !self.robustness_profile_ready(tool.kind) {
+                    if !self.tool_sticky {
+                        self.tool = None;
+                    }
+                    return;
+                }
                 let raw = rect_of(start, p);
                 let r = if raw.w < 10.0 || raw.h < 10.0 {
                     let (w, h) = views::default_size(tool.kind);
