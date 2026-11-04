@@ -19,6 +19,7 @@ mod mermaid;
 mod canvas;
 mod icons;
 mod input;
+mod keymap;
 mod meta;
 mod model;
 mod palette;
@@ -210,6 +211,9 @@ fn main() -> eframe::Result {
             if !shot {
                 a.prefs = prefs::Prefs::load(prefs::default_path());
                 a.apply_prefs();
+                if let Some(dir) = prefs::default_path().as_ref().and_then(|p| p.parent()) {
+                    a.load_user_keymap(dir);
+                }
             }
             match file {
                 Some(f) => {

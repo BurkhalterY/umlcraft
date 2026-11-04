@@ -1741,6 +1741,10 @@ impl App {
         let sc = |m: Modifiers, k: Key| KeyboardShortcut::new(m, k);
         let cs = Modifiers::COMMAND | Modifiers::SHIFT;
         let hit = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
+        // the user's keymap.json wins over the built-in shortcuts
+        if !typing {
+            self.user_shortcuts(ctx);
+        }
         // Ctrl+Shift toggles first: a Ctrl shortcut also matches when Shift is held (Ctrl+N, Ctrl+A…)
         if !typing {
             if hit(sc(cs, Key::F)) {

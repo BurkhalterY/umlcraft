@@ -2399,3 +2399,36 @@ fn note_text_alignment() {
     let t = svg.lines().find(|l| l.contains(">hi<")).unwrap();
     assert!(t.contains("text-anchor=\"end\""), "right aligned: {t}");
 }
+
+#[test]
+fn user_keymap() {
+    use crate::keymap::{load, parse_stroke};
+    use egui::{Key, Modifiers};
+    assert_eq!(parse_stroke("cmdctrl-alt-g"), Some((Modifiers::COMMAND | Modifiers::ALT, Key::G)));
+    assert_eq!(parse_stroke("Shift-F4"), Some((Modifiers::SHIFT, Key::F4)));
+    assert_eq!(parse_stroke("cmdctrl--"), Some((Modifiers::COMMAND, Key::Minus)));
+    assert_eq!(parse_stroke("hyper-x"), None);
+    let dir = std::env::temp_dir().join(format!("umlcraft-keymap-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("keymap.json"), r#"{"cmdctrl-alt-g": "view:statusbar", "bad key!": "x"}"#).unwrap();
+    assert_eq!(load(&dir.join("keymap.json")).unwrap().len(), 1, "bad entries are skipped");
+    let mut a = App::new(None);
+    a.load_user_keymap(&dir);
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let ev = |m: Modifiers| egui::Event::Key { key: Key::G, physical_key: None, pressed: true, repeat: false, modifiers: m };
+    let mut frame = |a: &mut App, m: Modifiers| {
+        let mut out = ctx.run_ui(egui::RawInput { events: vec![ev(m)], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+        out.textures_delta.clear();
+    };
+    let grid = a.show_grid;
+    frame(&mut a, Modifiers::COMMAND | Modifiers::ALT);
+    assert!(!a.show_statusbar, "the user binding ran");
+    assert_eq!(a.show_grid, grid, "and the built-in Ctrl+G did not");
+    // a bad file is ignored
+    std::fs::write(dir.join("keymap.json"), "not json").unwrap();
+    let mut b = App::new(None);
+    b.load_user_keymap(&dir);
+    assert!(b.user_keymap.is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}

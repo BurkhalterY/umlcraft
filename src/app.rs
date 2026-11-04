@@ -200,6 +200,8 @@ pub struct App {
     pub theme_applied: Option<bool>,
     /// The element being renamed in the Model Explorer: its text, and whether the edit just opened.
     pub tree_rename: Option<(Eid, String, bool)>,
+    /// The user's keymap.json bindings.
+    pub user_keymap: Vec<(crate::keymap::Stroke, String)>,
     pub md_preview: bool,
     pub md_buf: String,
     pub md_for: Option<Eid>,
@@ -300,6 +302,7 @@ impl App {
             mermaid_code: None,
             theme_applied: None,
             tree_rename: None,
+            user_keymap: vec![],
             md_preview: false,
             md_buf: String::new(),
             md_for: None,
