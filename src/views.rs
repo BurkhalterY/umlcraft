@@ -1000,7 +1000,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
             templ = Some((tc, sync_list(r, ms, tc, &items, "UMLTemplateParameterView", &texts, false)));
         }
     }
-    let mut min_w = name_min_width(r, ms, v, m, keyword, false);
+    let mut min_w = name_min_width(r, ms, v, m, keyword, false) + icon_room(r.ty(v));
     for c in &comps {
         min_w = min_w.max(c.1);
     }
@@ -1044,6 +1044,17 @@ pub fn slot_text(r: &Repo, s: Eid) -> String {
     if value.is_empty() { name } else { format!("{name} = {value}") }
 }
 
+/// The width kept free on each side of the name for the icon drawn at a box's top right (components
+/// and artifacts, and their instances), so a long name does not run under it (estimated).
+pub const ICON_ROOM: f64 = 26.0;
+
+fn icon_room(view_ty: &str) -> f64 {
+    match view_ty {
+        "UMLComponentView" | "UMLArtifactView" | "UMLComponentInstanceView" | "UMLArtifactInstanceView" => 2.0 * ICON_ROOM,
+        _ => 0.0,
+    }
+}
+
 /// An object: the name compartment, then the slots (box form, like a class).
 fn layout_object(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     let wrap = r.bool(v, "wordWrap");
@@ -1055,7 +1066,7 @@ fn layout_object(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         let (w, h, rows) = sync_list(r, ms, sc, &items, "UMLSlotView", &texts, wrap);
         comps.push((sc, w, h, rows));
     }
-    let mut min_w = name_min_width(r, ms, v, m, None, false);
+    let mut min_w = name_min_width(r, ms, v, m, None, false) + icon_room(r.ty(v));
     for c in &comps {
         min_w = min_w.max(c.1);
     }
