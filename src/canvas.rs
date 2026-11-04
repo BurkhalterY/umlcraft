@@ -502,7 +502,10 @@ impl App {
         let origin = rect.min;
         let latest = pointer.latest_pos();
 
-        // drop from the explorer
+        // drop from the explorer: the cursor says whether the diagram takes it (model-explorer-view.js:161-224)
+        if let Some(eid) = resp.dnd_hover_payload::<Eid>() {
+            ui.ctx().set_cursor_icon(if self.can_drop_model(*eid) { egui::CursorIcon::Copy } else { egui::CursorIcon::NotAllowed });
+        }
         if let Some(eid) = resp.dnd_release_payload::<Eid>() {
             if let Some(pos) = latest {
                 let p = self.to_diagram(origin, pos);

@@ -2928,3 +2928,15 @@ fn splitters_resize_and_collapse_panels() {
     a.store_prefs();
     assert_eq!(a.prefs.get("_viewState.sidebar.size").and_then(|v| v.as_f64()), Some(a.panel_size("sidebar").round() as f64));
 }
+
+#[test]
+fn explorer_drop_acceptance() {
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let class = a.repo.all_of("UMLClass")[0];
+    assert!(a.can_drop_model(class));
+    let attr = a.repo.all_of("UMLAttribute")[0];
+    assert!(!a.can_drop_model(attr), "an attribute has no box of its own");
+    let assoc = a.repo.all_of("UMLAssociation")[0];
+    assert!(a.can_drop_model(assoc));
+}

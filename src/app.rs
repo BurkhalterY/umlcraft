@@ -697,6 +697,13 @@ impl App {
 
     /// Drop an element from the explorer at `p` (app-context.js:1145-1186, factory.js:871-1205). Returns
     /// the views to select, or an alert.
+    /// Whether a model dragged from the explorer can be dropped on the current diagram: an element
+    /// with a box, or a relationship whose two ends can be shown.
+    pub fn can_drop_model(&self, m: Eid) -> bool {
+        let ty = self.repo.ty(m);
+        self.diagram.is_some() && self.repo.alive(m) && (views::node_kind(ty).is_some() || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+    }
+
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
         let Some(d) = self.diagram else { return Ok(vec![]) };
         let ty = self.repo.ty(m).to_string();
