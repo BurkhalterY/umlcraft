@@ -68,6 +68,16 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             r("Add Super-Actor", "UMLActor", "UMLGeneralization", Plain, false, Above),
             r("Add Associated Use Case", "UMLUseCase", "UMLAssociation", Plain, false, Right),
         ],
+        // deployment and component buttons (uml-commands.js:1192-1251, 1830-1891)
+        "UMLNode" => vec![
+            r("Add Communicating Node", "UMLNode", "UMLCommunicationPath", Plain, false, Right),
+            r("Add Deployed Artifact", "UMLArtifact", "UMLDeployment", Plain, true, Below),
+            r("Add Deployed Component", "UMLComponent", "UMLDeployment", Plain, true, Below),
+        ],
+        "UMLComponent" => vec![
+            r("Add Provided Interface", "UMLInterface", "UMLInterfaceRealization", Plain, false, Above),
+            r("Add Required Interface", "UMLInterface", "UMLDependency", Plain, false, Above),
+        ],
         "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" | "UMLEnumeration" => vec![
             r("Add Sub-Type", model_ty_static(model_ty), "UMLGeneralization", Plain, true, Below),
             r("Add Super-Type", model_ty_static(model_ty), "UMLGeneralization", Plain, false, Above),

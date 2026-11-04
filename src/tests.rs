@@ -2669,3 +2669,21 @@ fn component_and_deployment_diagrams() {
     assert!(svg.contains("Node1") && svg.contains("Artifact1"));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn deployment_quick_edit_buttons() {
+    let mut a = App::new(None);
+    a.add_diagram(None, "UMLDeploymentDiagram");
+    let n = a.change(|a| a.create_node("UMLNode", rect(100.0, 100.0, 160.0, 80.0))).unwrap();
+    let acts = crate::related::actions("UMLNode");
+    let deployed = acts.iter().find(|x| x.label == "Add Deployed Artifact").copied().unwrap();
+    let v = a.add_related(n, deployed).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    assert_eq!(a.repo.ty(m), "UMLArtifact");
+    let dep = a.repo.all().find(|e| a.repo.ty(*e) == "UMLDeployment").unwrap();
+    assert_eq!((a.repo.refd(dep, "source"), a.repo.refd(dep, "target")), (Some(m), a.repo.refd(n, "model")));
+    assert!(crate::views::node_rect(&a.repo, v).y > 180.0, "below the node");
+    let path = acts.iter().find(|x| x.label == "Add Communicating Node").copied().unwrap();
+    a.add_related(n, path).unwrap();
+    assert!(a.repo.all().any(|e| a.repo.ty(e) == "UMLCommunicationPath"));
+}
