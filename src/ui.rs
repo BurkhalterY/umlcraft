@@ -742,6 +742,7 @@ impl App {
             "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
             "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
             "UMLObject" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("classifier", "type")],
+            "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
             "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
             // a reception names the signal it receives (uml-commands.js:1484)
             "UMLReception" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("signal", "type")],
@@ -924,6 +925,28 @@ impl App {
                     });
                     if sel != cur {
                         self.change_all(&targets, |a, o, f| a.repo.set(o, f, json!(sel)));
+                    }
+                }
+                // a reference list: its elements, for one element only, and "…" for the Element List
+                // Editor (property-editor-view.js:550-564)
+                "reflist" => {
+                    if single {
+                        let items = self.repo.ref_list(obj, &field);
+                        ui.vertical(|ui| {
+                            for x in &items {
+                                ui.horizontal(|ui| {
+                                    let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                                    icons::draw(ui.painter(), ir, icons::key_for(&self.repo, *x));
+                                    ui.label(egui::RichText::new(self.repo.name(*x)).size(12.0).color(TEXT()));
+                                });
+                            }
+                            if items.is_empty() {
+                                ui.label(egui::RichText::new("—").size(12.0).color(DIM()));
+                            }
+                        });
+                        if ui.small_button("…").on_hover_text("Edit the list").clicked() {
+                            self.list_editor = Some((obj, path, None));
+                        }
                     }
                 }
                 "owner" => {
@@ -2278,6 +2301,7 @@ impl App {
             || self.message.is_some()
             || self.diagram_picker.is_some()
             || self.color_dialog.is_some()
+            || self.list_editor.is_some()
             || self.font_dialog.is_some()
             || self.prefs_open.is_some()
             || self.tag_editor.is_some()
@@ -2318,6 +2342,7 @@ impl App {
         }
         self.diagram_picker_ui(ctx);
         self.color_dialog_ui(ctx);
+        self.list_editor_ui(ctx);
         self.print_dialog_ui(ctx);
         self.element_picker_ui(ctx);
         self.input_dialog_ui(ctx);

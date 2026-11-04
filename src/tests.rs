@@ -3462,3 +3462,35 @@ fn tag_reference_uses_the_element_picker() {
     assert_eq!(a.tag_edit.as_ref().unwrap().reference, Some(om));
     assert!(a.element_picker.is_none());
 }
+
+#[test]
+fn element_list_editor() {
+    let mut a = App::new(None);
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    let cv = a.add_constraint_to(v).unwrap();
+    let c = a.repo.refd(cv, "model").unwrap();
+    assert!(a.fields_for(c).contains(&("constrainedElements", "reflist")));
+    let other = a.change(|a| a.create_node("UMLClass", rect(240.0, 40.0, 100.0, 60.0))).unwrap();
+    let om = a.repo.refd(other, "model").unwrap();
+    // Add through the picker, twice
+    a.list_editor = Some((c, "constrainedElements", None));
+    for x in [m, om] {
+        a.open_element_picker(a.repo.root, "");
+        let p = a.element_picker.as_mut().unwrap();
+        p.list_add = true;
+        p.chosen = Some(x);
+        let p = a.element_picker.take().unwrap();
+        a.picker_ok(p);
+    }
+    assert_eq!(a.repo.ref_list(c, "constrainedElements"), vec![m, om]);
+    assert_eq!(a.list_editor, Some((c, "constrainedElements", Some(1))));
+    // it is saved as a list of references and reads back
+    let text = a.repo.serialize();
+    let b = Repo::parse(&text).unwrap();
+    let bc = b.all_of("UMLConstraint")[0];
+    assert_eq!(b.ref_list(bc, "constrainedElements").len(), 2);
+    // deleting a referenced element drops it from the list
+    a.delete_models(&[om]);
+    assert_eq!(a.repo.ref_list(c, "constrainedElements"), vec![m]);
+}

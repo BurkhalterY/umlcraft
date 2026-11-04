@@ -301,6 +301,22 @@ impl Repo {
         }
     }
     /// Set a field exactly (also null or default), keeping order.
+    /// The elements a reference-list field points at (`[{"$ref": id}, …]`), live ones only.
+    pub fn ref_list(&self, eid: Eid, key: &str) -> Vec<Eid> {
+        match self.raw(eid, key) {
+            Some(Value::Array(a)) => a.iter().filter_map(|v| self.by_ref(v)).filter(|x| self.alive(*x)).collect(),
+            _ => vec![],
+        }
+    }
+    /// Write a reference-list field; an empty list removes it.
+    pub fn set_ref_list(&mut self, eid: Eid, key: &str, items: &[Eid]) {
+        if items.is_empty() {
+            self.remove(eid, key);
+        } else {
+            let v: Vec<Value> = items.iter().map(|x| self.ref_to(*x)).collect();
+            self.set_raw(eid, key, Value::Array(v));
+        }
+    }
     pub fn set_raw(&mut self, eid: Eid, key: &str, v: Value) {
         self.insert_ordered(eid, key, F::V(v));
     }

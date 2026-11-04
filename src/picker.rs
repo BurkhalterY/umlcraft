@@ -22,6 +22,8 @@ pub struct ElementPicker {
     pub export_fragment: bool,
     /// The Tag dialog's reference: OK fills the dialog instead of setting a field.
     pub tag_reference: bool,
+    /// The Element List Editor's Add: OK appends to its list.
+    pub list_add: bool,
 }
 
 /// The element type a reference field accepts.
@@ -61,7 +63,7 @@ impl App {
         if let Some(c) = chosen {
             open.extend(self.repo.path(c));
         }
-        self.element_picker = Some(ElementPicker { obj, field: field.to_string(), ty: field_type(field), chosen, search: String::new(), open, fresh: true, export_fragment: false, tag_reference: false });
+        self.element_picker = Some(ElementPicker { obj, field: field.to_string(), ty: field_type(field), chosen, search: String::new(), open, fresh: true, export_fragment: false, tag_reference: false, list_add: false });
     }
 
     /// Apply a picked element (or none) to the reference, as one undo step.
@@ -118,7 +120,14 @@ impl App {
     /// OK in the Element Picker: fill the Tag dialog, export the fragment, or set the reference field.
     pub fn picker_ok(&mut self, p: ElementPicker) {
         self.element_picker = None;
-        if p.tag_reference {
+        if p.list_add {
+            if let (Some((obj, field, _)), Some(c)) = (self.list_editor, p.chosen.filter(|c| self.repo.alive(*c))) {
+                let mut items = self.repo.ref_list(obj, field);
+                items.push(c);
+                self.change(|a| a.repo.set_ref_list(obj, field, &items));
+                self.list_editor = Some((obj, field, Some(items.len() - 1)));
+            }
+        } else if p.tag_reference {
             if let Some(ed) = self.tag_edit.as_mut() {
                 ed.reference = p.chosen.filter(|c| self.repo.alive(*c));
             }
@@ -140,7 +149,7 @@ impl App {
     pub fn element_picker_ui(&mut self, ctx: &egui::Context) {
         let Some(mut p) = self.element_picker.clone() else { return };
         let (mut ok, mut cancel) = (false, false);
-        egui::Window::new("Select Element").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        egui::Window::new(if p.list_add { "Select Element to Add" } else { "Select Element" }).id(egui::Id::new("element-picker")).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
             ui.set_width(360.0);
             let r = ui.add(egui::TextEdit::singleline(&mut p.search).hint_text("Quick search").desired_width(f32::INFINITY));
             // Enter is OK, except in the search box (`use-enter-key`)
@@ -200,6 +209,80 @@ impl App {
             self.element_picker = None;
         } else {
             self.element_picker = Some(p);
+        }
+    }
+}
+
+impl App {
+    /// The Element List Editor (element-list-editor-dialog.js): titled `<element>.<field>`, the
+    /// referenced elements with icon, name and (path); Add opens the Element Picker "Select Element
+    /// to Add" with no type filter; Remove, Up and Down apply at once and keep the moved item selected.
+    pub fn list_editor_ui(&mut self, ctx: &egui::Context) {
+        let Some((obj, field, mut sel)) = self.list_editor else { return };
+        if !self.repo.alive(obj) {
+            self.list_editor = None;
+            return;
+        }
+        // the picker is open over the editor: wait for it
+        if self.element_picker.as_ref().map(|p| p.list_add).unwrap_or(false) {
+            return;
+        }
+        let items = self.repo.ref_list(obj, field);
+        let title = format!("{}.{}", self.repo.name(obj), field);
+        let (mut add, mut remove, mut up, mut down, mut close) = (false, false, false, false, false);
+        egui::Window::new(title).id(egui::Id::new("list-editor")).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            ui.set_min_width(360.0);
+            egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
+                if items.is_empty() {
+                    ui.weak("No elements");
+                }
+                for (i, x) in items.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), egui::Sense::hover());
+                        crate::icons::draw(ui.painter(), ir, crate::icons::key_for(&self.repo, *x));
+                        let owner = self.repo.parent(*x).map(|p| self.path_name(p)).unwrap_or_default();
+                        let label = format!("{} ({owner})", self.repo.name(*x));
+                        if ui.selectable_label(sel == Some(i), label).clicked() {
+                            sel = Some(i);
+                        }
+                    });
+                }
+            });
+            ui.separator();
+            ui.horizontal(|ui| {
+                add = ui.button("Add").clicked();
+                remove = ui.add_enabled(sel.is_some(), egui::Button::new("Remove")).clicked();
+                up = ui.add_enabled(sel.map(|i| i > 0).unwrap_or(false), egui::Button::new("Up")).clicked();
+                down = ui.add_enabled(sel.map(|i| i + 1 < items.len()).unwrap_or(false), egui::Button::new("Down")).clicked();
+                close = ui.button("Close").clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape));
+            });
+        });
+        self.list_editor = Some((obj, field, sel));
+        if close {
+            self.list_editor = None;
+        } else if add {
+            self.open_element_picker(self.repo.root, "");
+            if let Some(p) = self.element_picker.as_mut() {
+                p.ty = "Model";
+                p.list_add = true;
+                p.chosen = None;
+            }
+        } else if let Some(i) = sel {
+            let mut list = items.clone();
+            let to = if remove {
+                list.remove(i);
+                if list.is_empty() { None } else { Some(i.min(list.len() - 1)) }
+            } else if up && i > 0 {
+                list.swap(i, i - 1);
+                Some(i - 1)
+            } else if down && i + 1 < list.len() {
+                list.swap(i, i + 1);
+                Some(i + 1)
+            } else {
+                return;
+            };
+            self.change(|a| a.repo.set_ref_list(obj, field, &list));
+            self.list_editor = Some((obj, field, to));
         }
     }
 }

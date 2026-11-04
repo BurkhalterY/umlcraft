@@ -167,6 +167,8 @@ pub struct App {
     pub sys_clipboard: Option<arboard::Clipboard>,
     /// The colour field last changed and when, so a picker drag is one undo step.
     pub style_edit: Option<(String, std::time::Instant)>,
+    /// The Element List Editor: the element, the reference-list field and the selected row.
+    pub list_editor: Option<(Eid, &'static str, Option<usize>)>,
     /// The Color dialog, opened by Ctrl+Shift+I, Ctrl+Shift+L and the Style editor's swatches.
     pub color_dialog: Option<crate::style::ColorDialog>,
     /// The Font window (Ctrl+Shift+F): face and size as typed, and the text colour.
@@ -294,6 +296,7 @@ impl App {
             sys_clipboard: None,
             style_edit: None,
             color_dialog: None,
+            list_editor: None,
             font_dialog: None,
             prefs: crate::prefs::Prefs::default(),
             prefs_open: None,
