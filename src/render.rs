@@ -602,12 +602,25 @@ pub fn bounds(r: &Repo, d: Eid) -> Option<R> {
         if !r.alive(v) {
             continue;
         }
+        if !shown(r, v) {
+            continue;
+        }
         if is_edge(r, v) {
             for p in points_of(r, v) {
                 x1 = x1.min(p.x);
                 y1 = y1.min(p.y);
                 x2 = x2.max(p.x);
                 y2 = y2.max(p.y);
+            }
+            // its labels, which can sit away from the line (the original counts children too)
+            for l in r.list(v, "subViews") {
+                if shown(r, l) && !r.str(l, "text").is_empty() && r.has(l, "width") {
+                    let b = node_rect(r, l);
+                    x1 = x1.min(b.x);
+                    y1 = y1.min(b.y);
+                    x2 = x2.max(b.x + b.w);
+                    y2 = y2.max(b.y + b.h);
+                }
             }
         } else if is_node(r, v) {
             let mut boxes = vec![node_rect(r, v)];

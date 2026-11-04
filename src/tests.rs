@@ -3688,3 +3688,21 @@ fn mermaid_highlight_keeps_the_text() {
     let sec = job.sections.iter().find(|s| s.byte_range.start.0 <= at && at < s.byte_range.end.0).unwrap();
     assert_ne!(sec.format.color, job.sections[0].format.color, "the arrow is coloured");
 }
+
+#[test]
+fn export_bounds_include_line_labels() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(340.0, 40.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    a.repo.set(m, "name", json!("far away"));
+    let nl = a.repo.refd(e, "nameLabel").unwrap();
+    a.repo.set(nl, "distance", json!(400));
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let lb = crate::views::node_rect(&a.repo, nl);
+    let b = crate::render::bounds(&a.repo, d).unwrap();
+    assert!(b.y <= lb.y && b.y + b.h >= lb.y + lb.h && b.x <= lb.x && b.x + b.w >= lb.x + lb.w, "{b:?} covers {lb:?}");
+}
