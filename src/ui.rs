@@ -636,8 +636,23 @@ impl App {
         }
     }
 
-    fn prop_row(&mut self, ui: &mut egui::Ui, e: Eid, path: &'static str, kind: &str) {
-        let Some((obj, field)) = self.target(e, path) else { return };
+    /// Apply a change to every target as one undo step.
+    fn change_all(&mut self, targets: &[(Eid, String)], f: impl Fn(&mut App, Eid, &str)) {
+        self.change(|a| {
+            for (obj, field) in targets {
+                f(a, *obj, field);
+            }
+        });
+    }
+
+    /// One property row for one element, or for several (merged: a value they share, or blank with
+    /// "—"; a change applies to all of them) (property-editor-view.js:140-147, 185-204, 780-794).
+    fn prop_row(&mut self, ui: &mut egui::Ui, es: &[Eid], path: &'static str, kind: &str) {
+        let targets: Vec<(Eid, String)> = es.iter().filter_map(|e| self.target(*e, path)).collect();
+        let Some((obj, field)) = targets.first().cloned() else { return };
+        let single = targets.len() == 1;
+        let values: Vec<String> = targets.iter().map(|(o, f)| self.display_value(*o, f, kind)).collect();
+        let merged: Option<String> = values.iter().all(|v| *v == values[0]).then(|| values[0].clone());
         ui.horizontal(|ui| {
             ui.set_min_height(29.0);
             let (lr, _) = ui.allocate_exact_size(Vec2::new(116.0, 22.0), Sense::hover());
@@ -657,7 +672,7 @@ impl App {
             match kind {
                 "text" | "type" => {
                     // type and stereotype: the linked element's icon, then a picker button
-                    let var = kind == "type" || field == "stereotype";
+                    let var = (kind == "type" || field == "stereotype") && single;
                     let linked = if var { self.repo.raw(obj, &field).and_then(|v| self.repo.by_ref(v)).filter(|t| self.repo.alive(*t)) } else { None };
                     let mut fw = w;
                     if let Some(t) = linked {
@@ -669,12 +684,16 @@ impl App {
                     if var || combo {
                         fw -= 24.0 + ui.spacing().item_spacing.x;
                     }
-                    let cur = self.display_value(obj, &field, kind);
-                    let buf = self.prop_buf.entry(path.to_string()).or_insert(cur);
-                    let r = ui.add_sized(Vec2::new(fw, 23.0), egui::TextEdit::singleline(buf).font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
+                    let cur = merged.clone().unwrap_or_default();
+                    let buf = self.prop_buf.entry(path.to_string()).or_insert(cur.clone());
+                    let r = ui.add_sized(Vec2::new(fw, 23.0), egui::TextEdit::singleline(buf).hint_text("—").font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
                     if r.lost_focus() {
                         let text = buf.clone();
-                        self.commit_text(obj, &field, kind, text);
+                        if single {
+                            self.commit_text(obj, &field, kind, text);
+                        } else if text != cur {
+                            self.commit_all(&targets, kind, text);
+                        }
                     }
                     if var && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("…")).on_hover_text("Select Element").clicked() {
                         self.open_element_picker(obj, &field);
@@ -692,42 +711,82 @@ impl App {
                         });
                         if let Some(o) = picked {
                             self.prop_buf.insert(path.to_string(), o.clone());
-                            self.commit_text(obj, &field, kind, o);
+                            self.commit_all(&targets, kind, o);
                         }
                     }
                 }
                 "bool" => {
-                    let mut v = self.repo.bool(obj, &field);
+                    // mixed values show unchecked; a click sets them all
+                    let mut v = targets.iter().all(|(o, f)| self.repo.bool(*o, f));
                     if ui.checkbox(&mut v, "").changed() {
-                        let f = field.clone();
-                        self.change(|a| a.repo.set(obj, &f, json!(v)));
+                        self.change_all(&targets, |a, o, f| a.repo.set(o, f, json!(v)));
                     }
                 }
                 "enum" => {
-                    let cur = self.display_value(obj, &field, kind);
+                    let cur = merged.clone().unwrap_or_default();
                     let mut sel = cur.clone();
-                    egui::ComboBox::from_id_salt(path).selected_text(&sel).width(w).show_ui(ui, |ui| {
+                    let shown = if merged.is_some() { sel.clone() } else { "—".to_string() };
+                    egui::ComboBox::from_id_salt(path).selected_text(shown).width(w).show_ui(ui, |ui| {
                         for o in Self::enum_options(&field) {
                             ui.selectable_value(&mut sel, o.to_string(), *o);
                         }
                     });
                     if sel != cur {
-                        let f = field.clone();
-                        self.change(|a| a.repo.set(obj, &f, json!(sel)));
+                        self.change_all(&targets, |a, o, f| a.repo.set(o, f, json!(sel)));
                     }
                 }
                 "ref" => {
-                    if let Some(t) = self.repo.refd(obj, &field) {
-                        let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                        icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
-                        ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT));
-                    } else {
-                        ui.label(egui::RichText::new("—").size(12.0).color(DIM));
+                    let shared = targets.iter().map(|(o, f)| self.repo.refd(*o, f)).collect::<Vec<_>>();
+                    match shared[0].filter(|_| shared.iter().all(|x| *x == shared[0])) {
+                        Some(t) => {
+                            let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                            icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
+                            ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT));
+                        }
+                        None => {
+                            ui.label(egui::RichText::new("—").size(12.0).color(DIM));
+                        }
                     }
                 }
                 _ => {}
             }
         });
+    }
+
+    /// Commit a text to several elements as one undo step.
+    pub(crate) fn commit_all(&mut self, targets: &[(Eid, String)], kind: &str, text: String) {
+        let undo = self.undo.len();
+        for (obj, field) in targets {
+            self.commit_text(*obj, field, kind, text.clone());
+        }
+        // one step for the whole change
+        if self.undo.len() > undo + 1 {
+            self.undo.truncate(undo + 1);
+        }
+    }
+
+    /// The elements the Properties section edits: the models of the selected views when there are
+    /// several, otherwise the focused element.
+    pub(crate) fn prop_elements(&self) -> Vec<Eid> {
+        let mut models: Vec<Eid> = vec![];
+        for v in &self.selection {
+            if let Some(m) = self.repo.refd(*v, "model").filter(|m| self.repo.alive(*m)) {
+                if !models.contains(&m) {
+                    models.push(m);
+                }
+            }
+        }
+        if models.len() > 1 {
+            return models;
+        }
+        self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f)).into_iter().collect()
+    }
+
+    /// The fields several elements share: those of the first, kept when every other has the same one.
+    pub(crate) fn common_fields(&self, es: &[Eid]) -> Vec<(&'static str, &'static str)> {
+        let Some(first) = es.first() else { return vec![] };
+        let rest: Vec<Vec<(&'static str, &'static str)>> = es[1..].iter().map(|e| self.fields_for(*e)).collect();
+        self.fields_for(*first).into_iter().filter(|f| f.0 != "-" || es.len() == 1).filter(|f| rest.iter().all(|r| r.contains(f))).collect()
     }
 
     fn editors_ui(&mut self, ui: &mut egui::Ui) {
@@ -737,9 +796,11 @@ impl App {
             ui.label(egui::RichText::new("EDITORS").color(TEXT).size(13.0));
         });
         let focus = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f));
-        if self.prop_for != focus {
+        let es = self.prop_elements();
+        if self.prop_for != focus || self.prop_set != es {
             self.prop_buf.clear();
             self.prop_for = focus;
+            self.prop_set = es.clone();
             self.doc_buf = focus.map(|f| self.repo.str(f, "documentation")).unwrap_or_default();
         }
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
@@ -757,17 +818,23 @@ impl App {
                     }
                     ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER));
                 }
-                if section_header(ui, "Properties", focus.is_some() && self.props_open) && focus.is_some() {
+                if section_header(ui, "Properties", !es.is_empty() && self.props_open) && !es.is_empty() {
                     self.props_open = !self.props_open;
                 }
-                if let (Some(e), true) = (focus, self.props_open) {
+                if es.len() > 1 && self.props_open {
+                    // several elements: the fields they share, merged
+                    ui.label(egui::RichText::new(format!("{} elements", es.len())).size(12.0).color(DIM));
+                    for (path, kind) in self.common_fields(&es) {
+                        self.prop_row(ui, &es, path, kind);
+                    }
+                } else if let (Some(e), true) = (focus, self.props_open) {
                     for (path, kind) in self.fields_for(e) {
                         if path == "-" {
                             ui.add_space(8.0);
                             ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER));
                             ui.add_space(8.0);
                         } else {
-                            self.prop_row(ui, e, path, kind);
+                            self.prop_row(ui, &[e], path, kind);
                         }
                     }
                     let t = self.repo.ty(e).to_string();

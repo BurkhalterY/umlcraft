@@ -2224,3 +2224,28 @@ fn mermaid_class_diagrams() {
     assert!(a.generate_mermaid("sequenceDiagram\nA->>B: hi", &ms).is_err());
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn properties_of_several_elements() {
+    let mut a = App::new(None);
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(300.0, 40.0, 100.0, 60.0))).unwrap();
+    let u = a.change(|a| a.create_node("UMLUseCase", rect(40.0, 300.0, 100.0, 60.0))).unwrap();
+    let (m1, m2, mu) = (a.repo.refd(c1, "model").unwrap(), a.repo.refd(c2, "model").unwrap(), a.repo.refd(u, "model").unwrap());
+    a.select(vec![c1, c2]);
+    assert_eq!(a.prop_elements(), vec![m1, m2]);
+    let both = a.common_fields(&[m1, m2]);
+    assert!(both.contains(&("isActive", "bool")));
+    let mixed = a.common_fields(&[m1, mu]);
+    assert!(mixed.contains(&("name", "text")) && !mixed.contains(&("isActive", "bool")), "{mixed:?}");
+    // a text committed to both, as one undo step
+    let undo = a.undo.len();
+    let t = vec![(m1, "stereotype".to_string()), (m2, "stereotype".to_string())];
+    a.commit_all(&t, "text", "entity".into());
+    assert_eq!(a.undo.len(), undo + 1);
+    assert_eq!((crate::views::stereotype_text(&a.repo, m1), crate::views::stereotype_text(&a.repo, m2)), ("«entity»".to_string(), "«entity»".to_string()));
+    // one view selected: the focused element alone
+    a.select(vec![c1]);
+    a.focus = Some(m1);
+    assert_eq!(a.prop_elements(), vec![m1]);
+}

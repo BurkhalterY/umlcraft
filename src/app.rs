@@ -123,6 +123,8 @@ pub struct App {
     pub toolbox_for: Option<String>,
     pub prop_buf: HashMap<String, String>,
     pub prop_for: Option<Eid>,
+    /// The elements the Properties section shows when several are selected.
+    pub prop_set: Vec<Eid>,
     pub doc_buf: String,
     pub props_open: bool,
     pub style_open: bool,
@@ -240,6 +242,7 @@ impl App {
             toolbox_for: None,
             prop_buf: HashMap::new(),
             prop_for: None,
+            prop_set: vec![],
             doc_buf: String::new(),
             props_open: true,
             style_open: true,
@@ -444,6 +447,7 @@ impl App {
         self.selection = s.selection.into_iter().filter(|d| self.repo.alive(*d)).collect();
         self.focus = s.focus.filter(|d| self.repo.alive(*d));
         self.prop_for = None;
+        self.prop_set.clear();
     }
     /// Call before every change; then call `done`.
     pub fn checkpoint(&mut self) {
@@ -456,6 +460,7 @@ impl App {
     pub fn done(&mut self) {
         self.modified = true;
         self.prop_for = None;
+        self.prop_set.clear();
     }
     pub fn change<T>(&mut self, f: impl FnOnce(&mut App) -> T) -> T {
         self.checkpoint();
