@@ -553,12 +553,16 @@ impl App {
             let resp = resp.on_hover_text("Settings");
             egui::Popup::menu(&resp).show(|ui| self.explorer_settings_menu(ui));
         });
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        let out = egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
             let root = self.repo.root;
             self.tree(ui, root, 0);
             ui.add_space(8.0);
         });
+        // a shadow along the top while the tree is scrolled (model-explorer-view.js:704)
+        if out.state.offset.y > 0.5 {
+            scroll_shadow(ui.painter(), out.inner_rect);
+        }
         // quick search: an autocomplete under the box, names containing the text, at most 99, each with
         // its icon, label and " — parent"; picking one selects it in the tree (model-explorer-view.js:644-686)
         let q = self.search.trim().to_lowercase();
@@ -3020,5 +3024,14 @@ pub(crate) fn menu_label_for(label: &str, mac: bool) -> String {
     match label.trim_end().rsplit_once("  ") {
         Some((name, key)) if !key.trim().is_empty() => format!("{}  {}", name.trim_end(), crate::palette::shortcut_label(key.trim(), true)),
         _ => label.to_string(),
+    }
+}
+
+/// A soft shadow under the top edge of a scrolled list.
+fn scroll_shadow(p: &egui::Painter, r: Rect) {
+    for i in 0..6 {
+        let a = (60 - i * 10) as u8;
+        let y = r.top() + i as f32;
+        p.hline(r.x_range(), y, Stroke::new(1.0, Color32::from_black_alpha(a)));
     }
 }
