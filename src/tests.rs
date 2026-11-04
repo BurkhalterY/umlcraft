@@ -2774,3 +2774,20 @@ fn ownership_dot() {
     let after = String::from_utf8(crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap()).unwrap();
     assert_eq!(after.matches("<ellipse").count(), before.matches("<ellipse").count() + 1, "one dot");
 }
+
+#[test]
+fn derived_association_name() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 60.0))).unwrap();
+    let tool = crate::app::Tool { label: "", kind: "UMLAssociation", icon: "", line: true, init: crate::app::AssocInit::Plain };
+    let e = a.change(|a| a.create_edge(&tool, c1, c2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    a.repo.set(m, "name", json!("owns"));
+    a.repo.set(m, "isDerived", json!(true));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nl = a.repo.refd(e, "nameLabel").unwrap();
+    assert!(a.repo.str(nl, "text").ends_with("/owns"), "{}", a.repo.str(nl, "text"));
+}

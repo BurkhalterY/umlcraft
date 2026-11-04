@@ -1171,7 +1171,9 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     let vis = |x: Eid| if show_vis { vis_symbol(&r.str(x, "visibility")).to_string() } else { String::new() };
     let mut out = vec![];
     let name = r.name(m);
-    out.push(("nameLabel", if name.is_empty() { name } else { vis(m) + &name }));
+    // a derived association shows "/" before its name (StarUML 5.x)
+    let derived = if r.kind_of(m, "UMLAssociation") && r.bool(m, "isDerived") { "/" } else { "" };
+    out.push(("nameLabel", if name.is_empty() && derived.is_empty() { name } else { vis(m) + derived + &name }));
     let st = match r.ty(m) {
         "UMLInclude" => "«include»".to_string(),
         // a deployment is a «deploy» dependency (UML 2; the keyword is estimated for StarUML)
