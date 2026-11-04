@@ -921,6 +921,10 @@ impl App {
                     if var || combo {
                         fw -= 24.0 + ui.spacing().item_spacing.x;
                     }
+                    let create = var && kind == "type" && field == "type";
+                    if create {
+                        fw -= 24.0 + ui.spacing().item_spacing.x;
+                    }
                     let cur = merged.clone().unwrap_or_default();
                     let buf = self.prop_buf.entry(path.to_string()).or_insert(cur.clone());
                     let r = ui.add_sized(Vec2::new(fw, 23.0), egui::TextEdit::singleline(buf).hint_text("—").font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
@@ -934,6 +938,10 @@ impl App {
                     }
                     if var && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("…")).on_hover_text("Select Element").clicked() {
                         self.open_element_picker(obj, &field);
+                    }
+                    // Create Type: a new class, named in a dialog, becomes the type (uml-commands.js:1606)
+                    if create && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("+")).on_hover_text("Create Type").clicked() {
+                        self.input_dialog = Some(crate::input::InputDialog { message: "Enter type name".into(), text: String::new(), action: crate::input::InputAction::CreateType(obj), fresh: true });
                     }
                     if combo {
                         // an editable field plus the usual values (property-editor-view.js:445-479)

@@ -10,6 +10,8 @@ use serde_json::json;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum InputAction {
     RenameDiagram(Eid),
+    /// "Create Type": a new class of that name, set as the element's type (uml-commands.js:1606).
+    CreateType(Eid),
 }
 
 #[derive(Clone, Debug)]
@@ -35,6 +37,28 @@ impl App {
                 if self.repo.alive(d) && self.repo.name(d) != text {
                     self.change(|a| a.repo.set(d, "name", json!(text)));
                 }
+            }
+            InputAction::CreateType(e) => {
+                let name = text.trim().to_string();
+                if !self.repo.alive(e) || name.is_empty() {
+                    return;
+                }
+                // in the package that holds the element (the class goes next to its user)
+                let mut owner = self.repo.parent(e);
+                while let Some(o) = owner {
+                    if self.repo.kind_of(o, "UMLPackage") || self.repo.ty(o) == "Project" {
+                        break;
+                    }
+                    owner = self.repo.parent(o);
+                }
+                let Some(owner) = owner else { return };
+                let c = self.change(|a| {
+                    let c = a.repo.create("UMLClass", &[("name", json!(name))], Some((owner, "ownedElements")));
+                    a.repo.set_ref(e, "type", Some(c));
+                    c
+                });
+                self.reveal(c);
+                self.focus = Some(e);
             }
         }
     }

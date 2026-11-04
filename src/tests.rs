@@ -3643,3 +3643,17 @@ fn menu_labels_keep_their_text_off_macos() {
     assert_eq!(menu_label_for("Close Diagram  F4", true), "Close Diagram  F4");
     assert_eq!(menu_label_for("Plain", true), "Plain");
 }
+
+#[test]
+fn create_type_makes_a_class_and_sets_it() {
+    let mut a = App::new(None);
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    let at = a.change(|a| a.add_feature(m, "UMLAttribute")).unwrap();
+    let undo = a.undo.len();
+    a.apply_input(crate::input::InputAction::CreateType(at), "Money".into());
+    assert_eq!(a.undo.len(), undo + 1);
+    let t = a.repo.refd(at, "type").unwrap();
+    assert_eq!((a.repo.ty(t), a.repo.name(t).as_str()), ("UMLClass", "Money"));
+    assert_eq!(a.repo.parent(t), a.repo.parent(m), "next to the class that uses it");
+}
