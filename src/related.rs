@@ -159,7 +159,8 @@ impl App {
     /// Run a button: create the new element and its box, join them, select the new box and edit its name.
     /// One undo step.
     pub fn add_related(&mut self, v: Eid, a: Related) -> Option<Eid> {
-        let size = views::default_size(a.kind);
+        // a note added this way is 100×50 (uml-commands.js:684)
+        let size = if a.kind == "Note" { (100.0, 50.0) } else { views::default_size(a.kind) };
         let rect = self.related_rect(v, &a, size);
         let new = self.change(|app| {
             let n = app.create_node(a.kind, rect)?;
@@ -177,5 +178,31 @@ impl App {
         }
         self.pending_edit = Some(new);
         Some(new)
+    }
+}
+
+impl App {
+    /// Add Note on a line: a 100×50 note to the right of the line's name label, joined to the line by a
+    /// note link, as one undo step; the note's text edit opens (uml-commands.js:684).
+    pub fn add_note_to_edge(&mut self, e: Eid) -> Option<Eid> {
+        let anchor = match self.repo.refd(e, "nameLabel") {
+            Some(l) => node_rect(&self.repo, l),
+            None => {
+                let pts = views::points_of(&self.repo, e);
+                let mid = pts.get(pts.len() / 2).copied().unwrap_or_default();
+                R { x: mid.x, y: mid.y, w: 0.0, h: 0.0 }
+            }
+        };
+        let rect = R { x: (anchor.x + anchor.w + 20.0).round(), y: (anchor.y - 20.0).max(0.0).round(), w: 100.0, h: 50.0 };
+        let note = self.change(|app| {
+            let n = app.create_node("Note", rect)?;
+            app.repo.set(n, "text", json!(""));
+            let tool = Tool { label: "", kind: "NoteLink", icon: "", line: true, init: AssocInit::Plain };
+            app.create_edge(&tool, n, e);
+            Some(n)
+        })?;
+        self.select(vec![note]);
+        self.pending_edit = Some(note);
+        Some(note)
     }
 }

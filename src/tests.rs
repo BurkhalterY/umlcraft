@@ -2732,3 +2732,26 @@ fn text_box() {
     assert!(svg.contains(">boxed<") && svg.contains("stroke=\"#000000\""), "{svg}");
     assert!(a.broken_views(d).is_empty());
 }
+
+#[test]
+fn add_note_to_a_line() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 60.0))).unwrap();
+    let tool = crate::app::Tool { label: "", kind: "UMLAssociation", icon: "", line: true, init: crate::app::AssocInit::Plain };
+    let e = a.change(|a| a.create_edge(&tool, c1, c2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let undo = a.undo.len();
+    let n = a.add_note_to_edge(e).unwrap();
+    assert_eq!(a.undo.len(), undo + 1);
+    let b = crate::views::node_rect(&a.repo, n);
+    assert_eq!((b.w, b.h), (100.0, 50.0));
+    let link = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "UMLNoteLinkView").unwrap();
+    assert_eq!((a.repo.refd(link, "tail"), a.repo.refd(link, "head")), (Some(n), Some(e)));
+    // a class's Add Note is 100×50 too
+    let note = crate::related::actions("UMLClass").into_iter().find(|x| x.kind == "Note").unwrap();
+    let n2 = a.add_related(c1, note).unwrap();
+    assert_eq!(crate::views::node_rect(&a.repo, n2).w, 100.0);
+}

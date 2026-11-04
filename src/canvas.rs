@@ -1421,6 +1421,7 @@ impl App {
         let mut commit = None;
         let mut key: Option<ItemKey> = None;
         let mut related: Option<crate::related::Related> = None;
+        let mut edge_note: Option<Eid> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
             egui::Frame::NONE.fill(Color32::WHITE).stroke(Stroke::new(1.0, c32(render::SELECT_COLOR))).show(ui, |ui| {
                 ui.visuals_mut().override_text_color = Some(Color32::BLACK);
@@ -1580,8 +1581,18 @@ impl App {
                         });
                     }
                 }
+                // a line's name edit has Add Note too (quickedits/uml.json, uml-commands.js:684)
+                if let (None, EditKind::Name(m)) = (ed.host, &ed.kind) {
+                    let edge = self.diagram.and_then(|d| self.repo.list(d, "ownedViews").into_iter().find(|v| is_edge(&self.repo, *v) && self.repo.refd(*v, "model") == Some(*m)));
+                    if let Some(e) = edge {
+                        let b = ui.add(egui::Button::new(egui::RichText::new("+ Note").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Note");
+                        if b.is_pointer_button_down_on() {
+                            edge_note = Some(e);
+                        }
+                    }
+                }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if key.is_some() || related.is_some() {
+                if key.is_some() || related.is_some() || edge_note.is_some() {
                     commit = Some(true);
                 } else if esc {
                     commit = Some(false);
@@ -1602,6 +1613,9 @@ impl App {
         }
         if let (Some(a), Some(h)) = (related, host) {
             self.add_related(h, a);
+        }
+        if let Some(e) = edge_note.filter(|e| self.repo.alive(*e)) {
+            self.add_note_to_edge(e);
         }
     }
 
