@@ -155,6 +155,10 @@ returned nothing).
 | UI font | 13px Source Sans Pro (UMLCraft uses an installed Source Sans Pro, else Noto Sans; diagrams use Liberation Sans, metric-compatible with Arial) | live computed style |
 | Shortcuts | Ctrl+N/O/S, Ctrl+Shift+S, Ctrl+Z/Y, Delete, Ctrl+Delete, Ctrl+A; Format toggles Ctrl+Shift+H/V/N/M/J/A/O/T | `resources/default/keymaps/linux.json` |
 
+## HTTP API
+
+* A local server (127.0.0.1, port 58321) starts with the window, not for command-line commands; `settings.json` keys `apiServer` and `apiServerPort` turn it off or move it. `GET /` greets; `POST /generate_diagram {code}`, `/get_all_diagrams_info`, `/get_current_diagram_info` (records `{id, type, name, description}`) and `/get_diagram_image_by_id {diagramId}` (unknown id: 500 "Diagram not found or invalid ID") (`src/main-process/api-server.js:12-154`, `main.js:33-38`). UMLCraft's image answer is `{success, data, mimeType}` (estimated) and its greeting names UMLCraft.
+
 ## Keymap
 
 * `keymap.json` in the settings folder maps keystroke descriptors (`cmdctrl-alt-g`: modifiers then the key, case-insensitive, `cmdctrl` = Cmd on macOS and Ctrl elsewhere) to command ids; the user's bindings override the defaults for the same keystroke, and a bad file is logged and ignored (`ui/keymap-manager.js:49-54, 154-292`, `app-context.js:760-764`). UMLCraft's settings folder is `UMLCraft` instead of `StarUML`, and its command ids are the ones the Command Palette lists.

@@ -203,6 +203,8 @@ pub struct App {
     pub tree_rename: Option<(Eid, String, bool)>,
     /// The user's keymap.json bindings.
     pub user_keymap: Vec<(crate::keymap::Stroke, String)>,
+    /// Requests from the local HTTP API, answered each frame.
+    pub api_rx: Option<std::sync::mpsc::Receiver<crate::api::ApiRequest>>,
     pub md_preview: bool,
     pub md_buf: String,
     pub md_for: Option<Eid>,
@@ -304,6 +306,7 @@ impl App {
             theme_applied: None,
             tree_rename: None,
             user_keymap: vec![],
+            api_rx: None,
             md_preview: false,
             md_buf: String::new(),
             md_for: None,

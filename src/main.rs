@@ -5,6 +5,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod align;
+mod api;
 mod app;
 mod cli;
 mod clipboard;
@@ -213,6 +214,11 @@ fn main() -> eframe::Result {
                 a.apply_prefs();
                 if let Some(dir) = prefs::default_path().as_ref().and_then(|p| p.parent()) {
                     a.load_user_keymap(dir);
+                    // the local HTTP API, unless settings.json turns it off (main.js:33-38)
+                    let (on, port) = api::settings(dir);
+                    if on {
+                        a.api_rx = api::start(port, cc.egui_ctx.clone());
+                    }
                 }
             }
             match file {

@@ -141,6 +141,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/thumbs.rs` | View › Diagram Thumbnails |
 | `src/relview.rs` | View › Relationships: the relationships of the selected element |
 | `src/input.rs` | The input dialog (Working Diagrams › Rename) |
+| `src/api.rs` | The local HTTP API on port 58321 (diagram list, images, Mermaid generation) |
 | `src/keymap.rs` | The user's `keymap.json`: keystrokes bound to command ids |
 | `src/fragment.rs` | File › Import / Export › Fragment: `.mfj` files |
 | `src/templates.rs` | File › New From Template: the UML templates |

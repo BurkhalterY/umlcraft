@@ -2421,6 +2421,7 @@ impl eframe::App for App {
             self.theme_applied = Some(light);
         }
         self.handle_close(&ctx);
+        self.api_poll(&ctx);
         self.dropped_files(&ctx);
         // a command picked in the palette runs a frame later, once the palette is gone (command-palette.js:106-112)
         if let Some(id) = self.palette_run.take() {

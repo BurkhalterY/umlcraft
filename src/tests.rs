@@ -2552,3 +2552,50 @@ fn reorder_working_diagrams() {
     assert_eq!(a.open, vec![d1, d2, d3]);
     assert_eq!(a.diagram, Some(d3), "the current diagram stays current");
 }
+
+#[test]
+fn http_api() {
+    use std::io::{Read, Write};
+    let ms = measure();
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let (st, all) = a.api_answer("/get_all_diagrams_info", &json!({}), &ms);
+    let all: serde_json::Value = serde_json::from_str(&all).unwrap();
+    assert_eq!(st, 200);
+    assert_eq!(all.as_array().unwrap().len(), a.repo.all_of("Diagram").len());
+    assert_eq!(all[0]["type"], "UMLClassDiagram");
+    let (_, cur) = a.api_answer("/get_current_diagram_info", &json!({}), &ms);
+    let cur: serde_json::Value = serde_json::from_str(&cur).unwrap();
+    assert_eq!(cur["id"], a.repo.id(a.diagram.unwrap()));
+    let (st, img) = a.api_answer("/get_diagram_image_by_id", &json!({"diagramId": cur["id"]}), &ms);
+    assert_eq!(st, 200);
+    assert!(img.contains("\"data\":\"iVBOR"), "a base64 PNG");
+    let (st, err) = a.api_answer("/get_diagram_image_by_id", &json!({"diagramId": "nope"}), &ms);
+    assert_eq!((st, err.contains("Diagram not found or invalid ID")), (500, true));
+    let (st, _) = a.api_answer("/generate_diagram", &json!({}), &ms);
+    assert_eq!(st, 400);
+    let (st, ok) = a.api_answer("/generate_diagram", &json!({"code": "classDiagram\nA <|-- B"}), &ms);
+    assert_eq!((st, ok.as_str()), (200, "{\"success\":true}"));
+
+    // over a socket: the window answers while it polls
+    let ctx = egui::Context::default();
+    let port = 58000 + (std::process::id() % 1000) as u16;
+    a.api_rx = crate::api::start(port, ctx.clone());
+    assert!(a.api_rx.is_some());
+    let client = std::thread::spawn(move || {
+        let mut s = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+        let body = "{}";
+        write!(s, "POST /get_current_diagram_info HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len()).unwrap();
+        let mut out = String::new();
+        s.read_to_string(&mut out).unwrap();
+        out
+    });
+    let start = std::time::Instant::now();
+    while !client.is_finished() && start.elapsed().as_secs() < 10 {
+        a.api_poll(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let out = client.join().unwrap();
+    assert!(out.starts_with("HTTP/1.1 200 OK"), "{out}");
+    assert!(out.contains("\"type\":\"UMLClassDiagram\""));
+}
