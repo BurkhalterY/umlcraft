@@ -155,7 +155,8 @@ pub struct App {
     /// A view to centre on once the canvas size is known.
     pub centre_pending: Option<Eid>,
     /// Short notices shown at the bottom of the diagram area, with the time they appeared.
-    pub toasts: Vec<(String, std::time::Instant)>,
+    /// Toasts: text, when shown, and whether it is an error (red) rather than information.
+    pub toasts: Vec<(String, std::time::Instant, bool)>,
     /// Select In Diagram with several diagrams: the views to choose from and the chosen row.
     pub diagram_picker: Option<(Vec<Eid>, Option<usize>)>,
     /// The last text UMLCraft put on the clipboard, used when the system clipboard cannot be read.
@@ -1162,7 +1163,12 @@ impl App {
     }
 
     pub fn toast(&mut self, text: &str) {
-        self.toasts.push((text.to_string(), std::time::Instant::now()));
+        self.toasts.push((text.to_string(), std::time::Instant::now(), false));
+    }
+
+    /// An error toast (toast-manager.js:36-72).
+    pub fn toast_error(&mut self, text: &str) {
+        self.toasts.push((text.to_string(), std::time::Instant::now(), true));
     }
 
     /// Edit > Select In Diagram (Ctrl+D): the views of the focused model that sit directly in a

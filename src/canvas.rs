@@ -1074,16 +1074,17 @@ impl App {
             Drag::CreateEdge { tail, .. } => {
                 let Some(tool) = self.tool else { return };
                 if let Some(head) = self.hit_view(p, tool.kind != "NoteLink") {
-                    if self.can_connect(&tool, tail, head) {
-                        if let Some(v) = self.change(|a| a.create_edge(&tool, tail, head)) {
-                            self.select(vec![v]);
-                            if let Some(m) = self.repo.refd(v, "model") {
-                                self.reveal(m);
-                            }
-                            // its name edit opens, once the line is laid out (toolbox-view.js:196-208)
-                            if self.repo.has(v, "model") {
-                                self.pending_edit = Some(v);
-                            }
+                    if !self.can_connect(&tool, tail, head) {
+                        // a refused link is reported (uml-factory.js:19-146, toolbox-view.js:209-216)
+                        self.toast_error(&format!("Invalid connection ({})", tool.kind.trim_start_matches("UML")));
+                    } else if let Some(v) = self.change(|a| a.create_edge(&tool, tail, head)) {
+                        self.select(vec![v]);
+                        if let Some(m) = self.repo.refd(v, "model") {
+                            self.reveal(m);
+                        }
+                        // its name edit opens, once the line is laid out (toolbox-view.js:196-208)
+                        if self.repo.has(v, "model") {
+                            self.pending_edit = Some(v);
                         }
                     }
                 }

@@ -2245,14 +2245,15 @@ impl App {
 
     /// Toasts stack upward inside the diagram area and hide after 5 s (toast-manager.js:36-72).
     fn toasts_ui(&mut self, ctx: &egui::Context) {
-        self.toasts.retain(|(_, t)| t.elapsed().as_secs_f32() < 5.0);
+        self.toasts.retain(|(_, t, _)| t.elapsed().as_secs_f32() < 5.0);
         let Some(area) = self.canvas_rect else { return };
         let mut y = area.bottom() - 16.0;
-        for (i, (text, _)) in self.toasts.iter().enumerate().rev() {
+        for (i, (text, _, error)) in self.toasts.iter().enumerate().rev() {
             let pos = Pos2::new(area.left() + 16.0, y);
+            let (fill, edge, fg) = if *error { (Color32::from_rgb(0xc6, 0x3b, 0x3f), Color32::from_rgb(0xe5, 0x48, 0x4d), Color32::WHITE) } else { (LAYER1(), BORDER(), TEXT()) };
             let r = egui::Area::new(egui::Id::new(("toast", i))).order(egui::Order::Foreground).pivot(Align2::LEFT_BOTTOM).fixed_pos(pos).show(ctx, |ui| {
-                Frame::NONE.fill(LAYER1()).stroke(Stroke::new(1.0, BORDER())).corner_radius(CornerRadius::same(3)).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
-                    ui.label(egui::RichText::new(text).color(TEXT()).size(13.0));
+                Frame::NONE.fill(fill).stroke(Stroke::new(1.0, edge)).corner_radius(CornerRadius::same(3)).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
+                    ui.label(egui::RichText::new(text).color(fg).size(13.0));
                 });
             });
             y -= r.response.rect.height() + 6.0;

@@ -485,7 +485,7 @@ impl App {
             match self.generate_mermaid(&code, &ms) {
                 Ok(_) => self.mermaid_code = None,
                 Err(e) => {
-                    self.toast(&e);
+                    self.toast_error(&e);
                     self.mermaid_code = Some(code);
                 }
             }
