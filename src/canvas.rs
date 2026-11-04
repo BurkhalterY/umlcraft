@@ -1616,6 +1616,7 @@ impl App {
                 // an association end: aggregation, navigability and multiplicity dropdowns
                 // (quickedits/uml.json "uml.association-end1/2")
                 let mut picked_end: Option<(&'static str, String)> = None;
+                let mut picked_owner: Option<Option<Eid>> = None;
                 if let EditKind::Name(end) = ed.kind {
                     if self.repo.ty(end) == "UMLAssociationEnd" || self.repo.ty(end) == "UMLLinkEnd" {
                         ui.horizontal(|ui| {
@@ -1638,8 +1639,32 @@ impl App {
                                 .response
                                 .on_hover_text(hint);
                             }
+                            // Select Owner Attribute: an attribute of the classifier at the other end
+                            if self.repo.ty(end) == "UMLAssociationEnd" {
+                                let cur = self.repo.refd(end, "ownerAttribute");
+                                let shown = cur.map(|c| self.repo.name(c)).unwrap_or_else(|| "—".to_string());
+                                ui.menu_button(egui::RichText::new(format!("{shown} ▾")).size(11.0).color(Color32::WHITE), |ui| {
+                                    if ui.selectable_label(cur.is_none(), "(none)").clicked() {
+                                        picked_owner = Some(None);
+                                        ui.close();
+                                    }
+                                    for a in self.owner_attribute_options(end) {
+                                        if ui.selectable_label(cur == Some(a), self.repo.name(a)).clicked() {
+                                            picked_owner = Some(Some(a));
+                                            ui.close();
+                                        }
+                                    }
+                                })
+                                .response
+                                .on_hover_text("Owner Attribute");
+                            }
                         });
                     }
+                }
+                if let (Some(owner), EditKind::Name(end)) = (picked_owner, &ed.kind) {
+                    let end = *end;
+                    self.change(|a| a.repo.set_ref(end, "ownerAttribute", owner));
+                    ed.fresh = true;
                 }
                 if let (Some((field, value)), EditKind::Name(end)) = (picked_end.clone(), &ed.kind) {
                     let end = *end;
@@ -1695,7 +1720,7 @@ impl App {
                     commit = Some(false);
                 } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
                     commit = Some(true);
-                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() {
+                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() {
                     commit = Some(true);
                 }
             });
