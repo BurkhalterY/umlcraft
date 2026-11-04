@@ -752,6 +752,10 @@ impl App {
             if t == "UMLExtend" {
                 f.push(("condition", "text"));
             }
+            // the items an information flow conveys, edited in the Element List Editor
+            if t == "UMLInformationFlow" {
+                f.push(("conveyed", "reflist"));
+            }
             return f;
         }
         match t {

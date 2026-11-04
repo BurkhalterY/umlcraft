@@ -3545,4 +3545,6 @@ fn information_flow_diagrams() {
     assert_eq!(a.repo.str(a.repo.refd(e, "stereotypeLabel").unwrap(), "text"), "«flow»");
     let st = a.repo.refd(a.repo.refd(item, "nameCompartment").unwrap(), "stereotypeLabel").unwrap();
     assert_eq!(a.repo.str(st, "text"), "«information»");
+    let fm = a.repo.refd(e, "model").unwrap();
+    assert!(a.fields_for(fm).contains(&("conveyed", "reflist")));
 }
