@@ -248,7 +248,7 @@ pub(crate) fn order_rank(t: &str) -> u32 {
         "UMLAttribute" => 1105, "UMLOperation" => 1106, "UMLReception" => 1107, "UMLExtensionPoint" => 1108, "UMLSlot" => 1109,
         "UMLClass" => 1201, "UMLInterface" => 1202, "UMLSignal" => 1203, "UMLDataType" => 1204, "UMLPrimitiveType" => 1205,
         "UMLEnumeration" => 1206, "UMLArtifact" => 1207, "UMLComponent" => 1208, "UMLNode" => 1209, "UMLUseCase" => 1210, "UMLActor" => 1211,
-        "UMLInstance" => 1301, "UMLObject" => 1302, "UMLCollaboration" => 1401, "UMLStateMachine" => 1402, "UMLInteraction" => 1403, "UMLActivity" => 1404,
+        "UMLInstance" => 1301, "UMLObject" => 1302, "UMLCollaboration" => 1401, "UMLStateMachine" => 1402, "UMLInteraction" => 1403, "UMLActivity" => 1404, "UMLRegion" => 1407, "UMLTemplateParameterSubstitution" => 1102,
         "UMLAssociationEnd" => 1801, "UMLAssociation" => 1802, "UMLDependency" => 1806, "UMLGeneralization" => 1807, "UMLRealization" => 1808,
         "UMLInterfaceRealization" => 1809, "UMLComponentRealization" => 1810, "UMLAbstraction" => 1811, "UMLInclude" => 1816, "UMLExtend" => 1817,
         "UMLTransition" => 1819, "UMLMessage" => 1822, "UMLProfile" => 1901, "UMLStereotype" => 1903,
@@ -440,7 +440,7 @@ impl App {
     }
 
     /// What Model › Add offers under an element: (label, type, is a feature).
-    fn add_kinds(&self, e: Eid) -> Vec<(&'static str, &'static str, bool)> {
+    pub(crate) fn add_kinds(&self, e: Eid) -> Vec<(&'static str, &'static str, bool)> {
         let t = self.repo.ty(e);
         let mut adds = vec![];
         if self.repo.kind_of(e, "UMLPackage") || t == "Project" {
@@ -460,11 +460,23 @@ impl App {
         if t == "UMLProfile" {
             adds.push(("MetaClass", "UMLMetaClass", false));
         }
+        // behaviours: an interaction and an opaque behaviour in a classifier, a state machine and an
+        // activity in a classifier or a package (uml-commands.js:4272-4275)
+        let classifier = self.repo.kind_of(e, "UMLClassifier");
+        let package = self.repo.kind_of(e, "UMLPackage");
+        for (l, k, ok) in [("Interaction", "UMLInteraction", classifier), ("State Machine", "UMLStateMachine", classifier || package), ("Activity", "UMLActivity", classifier || package), ("Opaque Behavior", "UMLOpaqueBehavior", classifier)] {
+            if ok {
+                adds.push((l, k, false));
+            }
+        }
         // Model › Add › Constraint on any model element (uml.json)
         if self.repo.kind_of(e, "UMLModelElement") {
             adds.push(("Constraint", "UMLConstraint", false));
         }
-        for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Slot", "UMLSlot"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter")] {
+        for (l, k) in [
+            ("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Slot", "UMLSlot"), ("Literal", "UMLEnumerationLiteral"),
+            ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter"), ("Template Parameter Substitution", "UMLTemplateParameterSubstitution"),
+        ] {
             if self.can_add_feature(e, k) {
                 adds.push((l, k, true));
             }
@@ -817,6 +829,10 @@ impl App {
                 ("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("concurrency", "enum"), ("isQuery", "bool"),
                 ("isAbstract", "bool"), ("specification", "multiline"),
             ],
+            // behaviours (uml/metamodel.json: the visible attributes of UMLBehavior and UMLActivity)
+            "UMLOpaqueBehavior" | "UMLInteraction" | "UMLStateMachine" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isReentrant", "bool")],
+            "UMLActivity" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isReentrant", "bool"), ("isReadOnly", "bool"), ("isSingleExecution", "bool")],
+            "UMLTemplateParameterSubstitution" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("formal", "ref"), ("actual", "type")],
             "UMLParameter" => vec![("name", "text"), ("stereotype", "text"), ("type", "type"), ("multiplicity", "text"), ("defaultValue", "text"), ("direction", "enum")],
             "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
             "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],

@@ -4011,3 +4011,33 @@ fn nary_association_node_joins_classifiers() {
     assert!(matches!(a.editing.as_ref().map(|e| &e.kind), Some(crate::app::EditKind::Name(m)) if *m == nm));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn behaviours_and_substitutions_from_model_add() {
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    let pkg = a.repo.parent(cm).unwrap();
+    let kinds = |a: &App, e| a.add_kinds(e).into_iter().map(|k| k.1).collect::<Vec<_>>();
+    let on_class = kinds(&a, cm);
+    for k in ["UMLInteraction", "UMLStateMachine", "UMLActivity", "UMLOpaqueBehavior"] {
+        assert!(on_class.contains(&k), "a classifier takes {k}");
+    }
+    let on_pkg = kinds(&a, pkg);
+    assert!(on_pkg.contains(&"UMLStateMachine") && on_pkg.contains(&"UMLActivity"));
+    assert!(!on_pkg.contains(&"UMLInteraction") && !on_pkg.contains(&"UMLOpaqueBehavior"));
+    let sm = a.change(|a| a.add_model(cm, "UMLStateMachine"));
+    assert_eq!(a.repo.name(sm), "StateMachine1");
+    assert_eq!(a.repo.list(sm, "regions").len(), 1, "with its region");
+    // a template binding takes parameter substitutions
+    let t = a.change(|a| a.create_node("UMLClass", rect(300.0, 40.0, 160.0, 100.0))).unwrap();
+    let bind = tool("UMLTemplateBinding", AssocInit::Plain);
+    let b = a.change(|a| a.create_edge(&bind, c, t)).unwrap();
+    let bm = a.repo.refd(b, "model").unwrap();
+    assert!(kinds(&a, bm).contains(&"UMLTemplateParameterSubstitution"));
+    let s = a.change(|a| a.add_feature(bm, "UMLTemplateParameterSubstitution")).unwrap();
+    assert_eq!(a.repo.list(bm, "parameterSubstitutions"), vec![s]);
+    let text = a.repo.serialize();
+    assert!(text.contains("\"parameterSubstitutions\"") && !text.contains("\"isReentrant\""), "isReentrant keeps its default");
+    Repo::parse(&text).unwrap();
+}

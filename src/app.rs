@@ -1246,6 +1246,7 @@ impl App {
             "UMLEnumerationLiteral" => "literals",
             "UMLParameter" => "parameters",
             "UMLTemplateParameter" => "templateParameters",
+            "UMLTemplateParameterSubstitution" => "parameterSubstitutions",
             _ => return None,
         };
         let name = self.new_name(owner, ty);
@@ -1257,6 +1258,7 @@ impl App {
         match ty {
             "UMLEnumerationLiteral" => t == "UMLEnumeration",
             "UMLParameter" => t == "UMLOperation",
+            "UMLTemplateParameterSubstitution" => t == "UMLTemplateBinding",
             "UMLExtensionPoint" => t == "UMLUseCase",
             "UMLSlot" => self.repo.kind_of(owner, "UMLInstance"),
             // template parameters on classes, interfaces and the other boxes with compartments
@@ -1267,7 +1269,12 @@ impl App {
 
     pub fn add_model(&mut self, parent: Eid, ty: &str) -> Eid {
         let name = self.new_name(parent, ty);
-        self.repo.create(ty, &[("name", json!(name))], Some((parent, "ownedElements")))
+        let m = self.repo.create(ty, &[("name", json!(name))], Some((parent, "ownedElements")));
+        // a state machine starts with one region (uml-factory.js:606-626)
+        if ty == "UMLStateMachine" {
+            self.repo.create("UMLRegion", &[], Some((m, "regions")));
+        }
+        m
     }
 
     pub fn add_diagram(&mut self, parent: Option<Eid>, ty: &str) -> Eid {

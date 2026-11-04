@@ -105,6 +105,15 @@ fn build() -> HashMap<&'static str, Kind> {
     // a class bound to a template, with its parameter substitutions (uml/metamodel.json)
     def("UMLTemplateBinding", Some("UMLDirectedRelationship"), vec![("parameterSubstitutions", n())]);
     def("UMLCommunicationPath", Some("UMLAssociation"), vec![]);
+    // behaviours a classifier or package owns (uml/metamodel.json)
+    def("UMLBehavior", Some("UMLModelElement"), vec![("isReentrant", d(json!(true))), ("parameters", n()), ("preconditions", n()), ("postconditions", n())]);
+    def("UMLOpaqueBehavior", Some("UMLBehavior"), vec![]);
+    def("UMLInteractionFragment", Some("UMLBehavior"), vec![]);
+    def("UMLInteraction", Some("UMLInteractionFragment"), vec![("messages", n()), ("participants", n()), ("fragments", n())]);
+    def("UMLStateMachine", Some("UMLBehavior"), vec![("regions", n())]);
+    def("UMLRegion", Some("UMLModelElement"), vec![("vertices", n()), ("transitions", n())]);
+    def("UMLActivity", Some("UMLBehavior"), vec![("isReadOnly", d(json!(false))), ("isSingleExecution", d(json!(false))), ("nodes", n()), ("edges", n()), ("groups", n())]);
+    def("UMLTemplateParameterSubstitution", Some("UMLModelElement"), vec![("formal", n()), ("actual", n())]);
     def("UMLExtensionPoint", Some("UMLModelElement"), vec![("location", d(json!("")))]);
     def("UMLUseCase", Some("UMLClassifier"), vec![("extensionPoints", n())]);
     def("UMLActor", Some("UMLClassifier"), vec![]);
