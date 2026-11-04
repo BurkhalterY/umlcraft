@@ -1,8 +1,10 @@
 //! File > New From Template: the UML templates (extensions/essential/uml/templates). Each starts a new
-//! project with these models and empty diagrams. The original's templates also import the UML
-//! Standard Profile; UMLCraft's do not (it has no profile import yet).
+//! project with these models and empty diagrams, plus the UML Standard Profile.
+//!
+//! Model > Apply Profile > UML Standard Profile (v2) adds that profile to the open project
+//! (uml-commands.js:81-100).
 
-use crate::model::Repo;
+use crate::model::{Eid, Repo};
 use serde_json::json;
 
 /// A template: its menu label and its models, each with (diagram kind, diagram name).
@@ -47,6 +49,44 @@ pub const TEMPLATES: [Template; 4] = [
 ];
 
 /// A new project from a template; its first diagram opens by default.
+/// The stereotypes of the UML Standard Profile, in its order (uml/profiles/UMLStandardProfile.mfj).
+/// UMLCraft leaves out the profile's metaclasses, extensions, icons and diagrams.
+pub const STANDARD_STEREOTYPES: [&str; 36] = [
+    "Realization", "Specification", "entity", "File", "Document", "Executable", "Library", "Script", "Source", "Destroy", "Auxiliary", "Focus",
+    "Metaclass", "ImplementationClass", "Type", "Utility", "Entity", "Implementation", "Process", "Service", "Subsystem", "Create", "Call",
+    "Instantiate", "Responsibility", "Send", "Derive", "Refine", "Trace", "Framework", "ModelLibrary", "BuildComponent", "Metamodel",
+    "SystemModel", "control", "boundary",
+];
+/// The stereotypes that generalize File.
+const FILE_KINDS: [&str; 5] = ["Document", "Executable", "Library", "Script", "Source"];
+pub const STANDARD_PROFILE: &str = "UMLStandardProfile";
+
+/// Add the UML Standard Profile under the project, unless a profile of that name is there already.
+pub fn add_standard_profile(r: &mut Repo) -> Option<Eid> {
+    let root = r.root;
+    if r.all().any(|e| r.ty(e) == "UMLProfile" && r.name(e) == STANDARD_PROFILE) {
+        return None;
+    }
+    let p = r.create("UMLProfile", &[("name", json!(STANDARD_PROFILE))], Some((root, "ownedElements")));
+    let mut file = None;
+    for name in STANDARD_STEREOTYPES {
+        let st = r.create("UMLStereotype", &[("name", json!(name))], Some((p, "ownedElements")));
+        if name == "File" {
+            file = Some(st);
+        }
+        if let (true, Some(f)) = (FILE_KINDS.contains(&name), file) {
+            let (s, t) = (r.ref_to(st), r.ref_to(f));
+            r.create("UMLGeneralization", &[("source", s), ("target", t)], Some((st, "ownedElements")));
+        }
+    }
+    Some(p)
+}
+
+/// `add_standard_profile` on an App's project (for `App::change`).
+pub fn add_standard_profile_app(a: &mut crate::app::App) -> Option<Eid> {
+    add_standard_profile(&mut a.repo)
+}
+
 pub fn project(t: &Template) -> Repo {
     let mut r = Repo::blank();
     let root = r.root;
@@ -60,5 +100,6 @@ pub fn project(t: &Template) -> Repo {
             r.set(d, "defaultDiagram", json!(true));
         }
     }
+    add_standard_profile(&mut r);
     r
 }

@@ -128,6 +128,7 @@ pub const COMMANDS: &[Command] = &[
     c("view:statusbar", "Statusbar", "Ctrl+4"),
     c("view:toolbox", "Toolbox", "Ctrl+5"),
     c("view:editors", "Editors", "Ctrl+6"),
+    c("uml:apply-profile.uml-standard", "Apply UML Standard Profile (v2)", ""),
     c("help:documentation", "Documentation", ""),
     c("help:release-notes", "Release Notes", ""),
     c("help:about", "About UMLCraft", ""),
@@ -306,6 +307,7 @@ impl App {
             "help:documentation" => ctx.open_url(egui::OpenUrl::new_tab(crate::ui::DOCS_URL)),
             "help:release-notes" => ctx.open_url(egui::OpenUrl::new_tab(crate::ui::RELEASES_URL)),
             "help:about" => self.about_open = true,
+            "uml:apply-profile.uml-standard" => self.apply_standard_profile(),
             _ => {}
         }
     }

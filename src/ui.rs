@@ -1559,6 +1559,12 @@ impl App {
                     self.open_find();
                     ui.close();
                 }
+                ui.menu_button("Apply Profile", |ui| {
+                    if ui.button("UML Standard Profile (v2)").clicked() {
+                        self.apply_standard_profile();
+                        ui.close();
+                    }
+                });
                 let taggable = self.focus.map(|f| self.repo.alive(f) && self.repo.kind_of(f, "ExtensibleModel")).unwrap_or(false);
                 if ui.add_enabled(taggable, egui::Button::new("Tag Editor...       Ctrl+T")).clicked() {
                     self.open_tag_editor();

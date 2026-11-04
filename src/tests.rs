@@ -2341,7 +2341,7 @@ fn new_from_template() {
     let mut a = App::new(None);
     a.set_project(project(&TEMPLATES[1]), None);
     let models: Vec<String> = a.repo.list(a.repo.root, "ownedElements").into_iter().map(|m| a.repo.name(m)).collect();
-    assert_eq!(models, vec!["Use Case Model", "Analysis Model", "Design Model", "Implementation Model", "Deployment Model"]);
+    assert_eq!(models, vec!["Use Case Model", "Analysis Model", "Design Model", "Implementation Model", "Deployment Model", "UMLStandardProfile"]);
     let d = a.diagram.unwrap();
     assert_eq!((a.repo.ty(d), a.repo.name(d).as_str()), ("UMLUseCaseDiagram", "Use Cases"));
     assert_eq!(a.repo.all_of("Diagram").len(), 5);
@@ -3300,4 +3300,31 @@ fn state_machine_and_activity_rules() {
         assert!(rules.contains(&want), "{want} in {rules:?}");
     }
     assert!(!rules.contains(&"UML046"), "the merge has one outgoing edge");
+}
+
+#[test]
+fn uml_standard_profile() {
+    let mut a = App::new(None);
+    let undo = a.undo.len();
+    a.apply_standard_profile();
+    assert_eq!(a.undo.len(), undo + 1);
+    let p = a.repo.all().find(|e| a.repo.ty(*e) == "UMLProfile").unwrap();
+    assert_eq!(a.repo.name(p), "UMLStandardProfile");
+    assert_eq!(a.repo.parent(p), Some(a.repo.root));
+    let sts: Vec<_> = a.repo.list(p, "ownedElements");
+    assert_eq!(sts.len(), 36);
+    // the file kinds generalize File, and the stereotypes pass UML017 and UML018
+    let lib = sts.iter().copied().find(|s| a.repo.name(*s) == "Library").unwrap();
+    let g = a.repo.list(lib, "ownedElements")[0];
+    assert_eq!(a.repo.refd(g, "target").map(|f| a.repo.name(f)), Some("File".to_string()));
+    let rules: Vec<&str> = crate::validate::validate(&a.repo).into_iter().map(|p| p.rule).collect();
+    assert!(!rules.contains(&"UML017") && !rules.contains(&"UML018"), "{rules:?}");
+    // a second time: refused, nothing changes
+    a.apply_standard_profile();
+    assert_eq!(a.undo.len(), undo + 1);
+    assert_eq!(a.repo.all().filter(|e| a.repo.ty(*e) == "UMLProfile").count(), 1);
+    assert!(a.toasts.last().map(|t| t.2).unwrap_or(false), "an error toast");
+    // templates include it
+    let t = crate::templates::project(&crate::templates::TEMPLATES[0]);
+    assert!(t.all().any(|e| t.ty(e) == "UMLProfile"));
 }

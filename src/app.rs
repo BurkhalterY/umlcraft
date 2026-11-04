@@ -613,6 +613,22 @@ impl App {
         Some(cv)
     }
 
+    /// Model › Apply Profile › UML Standard Profile (v2), as one undo step (uml-commands.js:81-100).
+    pub fn apply_standard_profile(&mut self) {
+        let name = crate::templates::STANDARD_PROFILE;
+        if self.repo.all().any(|e| self.repo.ty(e) == "UMLProfile" && self.repo.name(e) == name) {
+            self.toast_error(&format!("{name} already exists."));
+            return;
+        }
+        match self.change(crate::templates::add_standard_profile_app) {
+            Some(p) => {
+                self.reveal(p);
+                self.toast(&format!("{name} is successfully applied. Look at under Project."));
+            }
+            None => self.toast_error(&format!("{name} already exists.")),
+        }
+    }
+
     /// A free line from `a` to `b` on the current diagram (common-factory.js:32-44).
     pub fn create_freeline(&mut self, a: P, b: P) -> Option<Eid> {
         let d = self.diagram?;
