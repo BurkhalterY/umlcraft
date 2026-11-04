@@ -141,6 +141,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/thumbs.rs` | View › Diagram Thumbnails |
 | `src/relview.rs` | View › Relationships: the relationships of the selected element |
 | `src/input.rs` | The input dialog (Working Diagrams › Rename) |
+| `src/templates.rs` | File › New From Template: the UML templates |
 | `src/picker.rs` | The Element Picker ("Select Element") and the name lookup of type and stereotype fields |
 | `src/pdf.rs` | Print to PDF: the dialog, its remembered options and a small PDF writer |
 | `src/canvas.rs`, `src/parse.rs`, `src/align.rs`, `src/clipboard.rs`, `src/style.rs`, `src/related.rs` | The diagram canvas, the typed attribute and operation lines, Format › Alignment, cut, copy and paste, view colours, and the inline edit's "add related element" buttons |

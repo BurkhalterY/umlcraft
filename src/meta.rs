@@ -98,6 +98,9 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLClassDiagram", Some("UMLDiagram"), vec![]);
     def("UMLUseCaseDiagram", Some("UMLDiagram"), vec![]);
     def("UMLPackageDiagram", Some("UMLDiagram"), vec![]);
+    // made by the templates; drawn read-only
+    def("UMLComponentDiagram", Some("UMLDiagram"), vec![]);
+    def("UMLDeploymentDiagram", Some("UMLDiagram"), vec![]);
 
     // UML views
     def("UMLCompartmentView", Some("NodeView"), vec![]);

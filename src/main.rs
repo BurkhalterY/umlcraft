@@ -31,6 +31,7 @@ mod render;
 mod selector;
 mod style;
 mod tags;
+mod templates;
 mod thumbs;
 mod ui;
 mod validate;

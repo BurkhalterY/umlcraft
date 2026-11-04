@@ -1167,6 +1167,17 @@ impl App {
                     self.cmd_new(&measure);
                     ui.close();
                 }
+                ui.menu_button("New From Template", |ui| {
+                    for t in &crate::templates::TEMPLATES {
+                        if ui.button(t.label).clicked() {
+                            if self.confirm_discard(&measure) {
+                                self.save_working_diagrams();
+                                self.set_project(crate::templates::project(t), None);
+                            }
+                            ui.close();
+                        }
+                    }
+                });
                 if ui.button("Open...                 Ctrl+O").clicked() {
                     self.cmd_open(&measure);
                     ui.close();

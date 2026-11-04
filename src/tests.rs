@@ -2307,3 +2307,21 @@ fn light_theme_preference() {
     crate::ui::set_light_theme(false);
     assert_eq!(crate::ui::TEXT(), dark_text);
 }
+
+#[test]
+fn new_from_template() {
+    use crate::templates::{project, TEMPLATES};
+    let mut a = App::new(None);
+    a.set_project(project(&TEMPLATES[1]), None);
+    let models: Vec<String> = a.repo.list(a.repo.root, "ownedElements").into_iter().map(|m| a.repo.name(m)).collect();
+    assert_eq!(models, vec!["Use Case Model", "Analysis Model", "Design Model", "Implementation Model", "Deployment Model"]);
+    let d = a.diagram.unwrap();
+    assert_eq!((a.repo.ty(d), a.repo.name(d).as_str()), ("UMLUseCaseDiagram", "Use Cases"));
+    assert_eq!(a.repo.all_of("Diagram").len(), 5);
+    // the file reads back, component and deployment diagrams included
+    let text = a.repo.serialize();
+    assert!(text.contains("UMLComponentDiagram") && text.contains("UMLDeploymentDiagram"));
+    Repo::parse(&text).unwrap();
+    a.set_project(project(&TEMPLATES[0]), None);
+    assert_eq!(a.repo.name(a.diagram.unwrap()), "Main");
+}
