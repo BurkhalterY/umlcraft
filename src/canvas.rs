@@ -231,7 +231,9 @@ impl App {
             return None;
         }
         let hs = 6.0 / self.zoom;
-        render::handle_points(&node_rect(&self.repo, v)).iter().position(|h| (p.x - h.x).abs() <= hs && (p.y - h.y).abs() <= hs)
+        let o = 4.0 / self.zoom;
+        let b = node_rect(&self.repo, v);
+        render::handle_points(&R { x: b.x - o, y: b.y - o, w: b.w + 2.0 * o, h: b.h + 2.0 * o }).iter().position(|h| (p.x - h.x).abs() <= hs && (p.y - h.y).abs() <= hs)
     }
 
     fn snap_v(&self, n: f64) -> f64 {
@@ -366,7 +368,9 @@ impl App {
                 let b = node_rect(&self.repo, v);
                 let r = Rect::from_two_pos(c.pos(P { x: b.x, y: b.y }), c.pos(P { x: b.x + b.w, y: b.y + b.h }));
                 c.painter.rect_stroke(r, 0.0, Stroke::new(1.0, sel), egui::StrokeKind::Middle);
-                for p in render::handle_points(&b) {
+                // centred 4 screen px outside the corners and edge midpoints (graphics.js:2726-2727)
+                let o = 4.0 / c.zoom;
+                for p in render::handle_points(&R { x: b.x - o, y: b.y - o, w: b.w + 2.0 * o, h: b.h + 2.0 * o }) {
                     handle(c, p);
                 }
             }
