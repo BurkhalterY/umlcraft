@@ -2492,7 +2492,10 @@ impl App {
         if self.about_open {
             // the app icon, name and version, and a link to the third-party software (about-dialog.js:31-47)
             let icon = app_icon(ctx);
-            egui::Window::new("About UMLCraft").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            // a modal window: a backdrop keeps the rest of the window out of reach (dialog-manager.js:242-313)
+            egui::Modal::new(egui::Id::new("about-dialog")).show(ctx, |ui| {
+                ui.label(egui::RichText::new("About UMLCraft").strong());
+                ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     if let Some(t) = &icon {
                         ui.add(egui::Image::new((t.id(), Vec2::splat(64.0))));
@@ -2510,8 +2513,10 @@ impl App {
                     ui.hyperlink_to("Third-party software", "https://github.com/BurkhalterY/umlcraft/network/dependencies");
                 });
                 ui.add_space(6.0);
-                // Enter presses OK and Esc cancels (dialog-manager.js:148-162)
-                if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
+                // Enter presses OK and Esc cancels (dialog-manager.js:148-162); OK has the focus
+                let ok = ui.button("OK");
+                focus_primary(ui, &ok);
+                if ok.clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
                     self.about_open = false;
                 }
             });
@@ -2530,9 +2535,15 @@ impl App {
         self.find_dialog_ui(ctx);
         self.font_dialog_ui(ctx);
         if let Some((title, detail)) = self.message.clone() {
-            egui::Window::new(title).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            egui::Modal::new(egui::Id::new("message-dialog")).show(ctx, |ui| {
+                ui.set_max_width(420.0);
+                ui.label(egui::RichText::new(title).strong());
+                ui.add_space(4.0);
                 ui.label(detail);
-                if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
+                ui.add_space(6.0);
+                let ok = ui.button("OK");
+                focus_primary(ui, &ok);
+                if ok.clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
                     self.message = None;
                 }
             });
@@ -3146,5 +3157,13 @@ fn scroll_shadow(p: &egui::Painter, r: Rect) {
         let a = (60 - i * 10) as u8;
         let y = r.top() + i as f32;
         p.hline(r.x_range(), y, Stroke::new(1.0, Color32::from_black_alpha(a)));
+    }
+}
+
+/// Give a dialog's primary button the keyboard when nothing else has it, as the original does when a
+/// dialog opens (dialog-manager.js:242-313).
+fn focus_primary(ui: &egui::Ui, button: &egui::Response) {
+    if ui.memory(|m| m.focused().is_none()) {
+        button.request_focus();
     }
 }
