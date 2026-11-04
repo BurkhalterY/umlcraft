@@ -162,7 +162,13 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
             let t = r.ty(*m);
             // a port or a part (quickedits/uml.json "uml.port", "uml.part")
             if t == "UMLPort" || t == "UMLAttribute" {
-                return vec![("Type…", "Select Type", "", ItemKey::SelectType), ("+ Type", "Create Type", "", ItemKey::CreateType), ("+ Part", "Add Connected Part", "", ItemKey::AddConnectedPart)];
+                let mut v = vec![("Type…", "Select Type", "", ItemKey::SelectType), ("+ Type", "Create Type", "", ItemKey::CreateType)];
+                if t == "UMLPort" {
+                    v.push(("+ Prov", "Add Provided Interface", "", ItemKey::PortInterface(true)));
+                    v.push(("+ Req", "Add Required Interface", "", ItemKey::PortInterface(false)));
+                }
+                v.push(("+ Part", "Add Connected Part", "", ItemKey::AddConnectedPart));
+                return v;
             }
             let ports = ("+ Port", "Add Port", "", ItemKey::AddPort);
             let parts = ("+ Part", "Add Part", "", ItemKey::AddPart);
@@ -212,6 +218,8 @@ pub enum ItemKey {
     SelectType,
     CreateType,
     AddConnectedPart,
+    /// A port's Add Provided Interface (true) and Add Required Interface (false)
+    PortInterface(bool),
 }
 
 impl App {
@@ -1603,6 +1611,9 @@ impl App {
                 self.input_dialog = Some(crate::input::InputDialog { message: "Enter a type name to create".into(), text: String::new(), action: crate::input::InputAction::CreatePartType(m), fresh: true });
             }
             (ItemKey::AddConnectedPart, _) => self.add_connected_part(host),
+            (ItemKey::PortInterface(provided), _) => {
+                self.add_port_interface(host, provided);
+            }
             (ItemKey::Delete, Some(f)) => {
                 let (Some(owner), Some(field)) = (self.repo.parent(f), self.repo.field_of(f)) else { return };
                 let i = self.repo.list(owner, &field).iter().position(|x| *x == f).unwrap_or(0);

@@ -202,6 +202,33 @@ impl App {
 }
 
 impl App {
+    /// A port's Add Provided or Required Interface: the interface goes on the side of the box the port
+    /// overhangs, joined by an interface realization or a dependency; a port with no classifier type
+    /// first gets a new class "<port>Type" next to its box's classifier (uml-commands.js:1192-1290).
+    pub fn add_port_interface(&mut self, v: Eid, provided: bool) -> Option<Eid> {
+        let m = self.repo.refd(v, "model")?;
+        let container = self.repo.refd(v, "containerView");
+        let place = match container.map(|c| (node_rect(&self.repo, v), node_rect(&self.repo, c))) {
+            Some((b, c)) if b.x + b.w > c.x + c.w => Place::Right,
+            Some((b, c)) if b.x < c.x => Place::Left,
+            Some((b, c)) if b.y + b.h > c.y + c.h => Place::Below,
+            _ => Place::Above,
+        };
+        if !self.repo.refd(m, "type").map(|t| self.repo.kind_of(t, "UMLClassifier")).unwrap_or(false) {
+            let owner = container.and_then(|c| self.repo.refd(c, "model")).and_then(|cm| self.repo.parent(cm));
+            if let Some(owner) = owner {
+                let name = format!("{}Type", self.repo.name(m));
+                self.change(|a| {
+                    let t = a.repo.create("UMLClass", &[("name", json!(name))], Some((owner, "ownedElements")));
+                    a.repo.set_ref(m, "type", Some(t));
+                });
+            }
+        }
+        let rel = if provided { "UMLInterfaceRealization" } else { "UMLDependency" };
+        let label = if provided { "Add Provided Interface" } else { "Add Required Interface" };
+        self.add_related(v, Related { label, kind: "UMLInterface", rel, init: AssocInit::Plain, from_new: false, place })
+    }
+
     /// Add Note on a line: a 100×50 note to the right of the line's name label, joined to the line by a
     /// note link, as one undo step; the note's text edit opens (uml-commands.js:684).
     pub fn add_note_to_edge(&mut self, e: Eid) -> Option<Eid> {

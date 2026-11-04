@@ -4360,7 +4360,7 @@ fn port_and_part_quick_edit_actions() {
     // a port's edit: Select Type, Create Type, Add Connected Part
     let pm = a.repo.refd(ports[0], "model").unwrap();
     let labels: Vec<&str> = item_buttons(&a.repo, &EditKind::Name(pm)).into_iter().map(|b| b.1).collect();
-    assert_eq!(labels, ["Select Type", "Create Type", "Add Connected Part"]);
+    assert_eq!(labels, ["Select Type", "Create Type", "Add Provided Interface", "Add Required Interface", "Add Connected Part"]);
     a.item_key(ports[0], EditKind::Name(pm), ItemKey::AddConnectedPart);
     assert_eq!(views_of(&a, "UMLPartView").len(), 3);
     let conn = a.repo.all().find(|e| a.repo.ty(*e) == "UMLConnector").expect("joined by a connector");
@@ -4403,4 +4403,28 @@ fn stereotype_icon_from_a_picture() {
     let img = image::load_from_memory(&out).unwrap().to_rgba8();
     assert!(img.pixels().any(|p| p.0 == [0, 0, 255, 255]), "the picture is drawn");
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_port_provides_and_requires_interfaces() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let p = a.change(|a| a.create_feature_box("UMLPort", crate::views::P { x: 400.0, y: 200.0 }, rect(0.0, 0.0, 0.0, 0.0))).unwrap();
+    let ms = measure();
+    let d = a.diagram.unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let pm = a.repo.refd(p, "model").unwrap();
+    a.item_key(p, EditKind::Name(pm), ItemKey::PortInterface(true));
+    let ty = a.repo.refd(pm, "type").expect("the port got a type");
+    assert_eq!(a.repo.name(ty), "Port1Type");
+    let real = a.repo.all().find(|e| a.repo.ty(*e) == "UMLInterfaceRealization").unwrap();
+    assert_eq!(a.repo.refd(real, "source"), Some(pm));
+    let iface = a.repo.refd(real, "target").unwrap();
+    let iv = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.refd(*v, "model") == Some(iface)).unwrap();
+    assert!(a.repo.f(iv, "left") > a.repo.f(c, "left") + a.repo.f(c, "width"), "on the side the port sits on");
+    a.item_key(p, EditKind::Name(pm), ItemKey::PortInterface(false));
+    assert!(a.repo.all().any(|e| a.repo.ty(e) == "UMLDependency" && a.repo.refd(e, "source") == Some(pm)));
+    assert_eq!(a.repo.refd(pm, "type"), Some(ty), "the type is made once");
 }
