@@ -166,6 +166,20 @@ pub fn validate(r: &Repo) -> Vec<Problem> {
                 }
             }
         }
+        // UML016: a metaclass names a type of the metamodel (rules.js:243); UMLCraft knows its own
+        // element kinds plus StarUML's behaviour and interaction kinds it reads but does not edit
+        if t == "UMLMetaClass" {
+            let n = r.name(e);
+            let extra = [
+                "Element", "Model", "ExtensibleModel", "Relationship", "Behavior", "OpaqueBehavior", "Activity", "StateMachine", "Interaction", "Collaboration", "CollaborationUse",
+                "Action", "State", "Pseudostate", "FinalState", "Region", "Transition", "Event", "Lifeline", "Message", "CombinedFragment", "InteractionOperand", "Port", "Connector",
+                "Instance", "ActivityNode", "ActivityEdge", "ControlFlow", "ObjectFlow", "ObjectNode", "Pin", "Slot", "Constraint", "Diagram", "View",
+            ];
+            let ok = crate::meta::known(&n) || crate::meta::known(&format!("UML{n}")) || extra.contains(&n.as_str());
+            if !n.is_empty() && !ok {
+                fail(e, "UML016", "Metaclass must name a type of the metamodel");
+            }
+        }
         if t == "UMLStereotype" {
             // UML017: a stereotype only generalizes stereotypes (rules.js:254)
             if parents(r, e).iter().any(|p| r.ty(*p) != "UMLStereotype") {

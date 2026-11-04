@@ -3575,6 +3575,11 @@ fn profile_diagrams() {
     assert_eq!(lbl(st), "«stereotype»");
     assert_eq!(lbl(mc), "«metaclass»");
     assert!(!crate::validate::validate(&a.repo).iter().any(|x| x.rule == "UML018"));
+    // UML016: "Class" is a metamodel type, "Wombat" is not
+    assert!(!crate::validate::validate(&a.repo).iter().any(|x| x.rule == "UML016"));
+    a.repo.set(mm, "name", json!("Wombat"));
+    assert!(crate::validate::validate(&a.repo).iter().any(|x| x.rule == "UML016"));
+    a.repo.set(mm, "name", json!("Class"));
     // a metaclass's Add Stereotype: a stereotype below, extending it
     let b = crate::related::actions("UMLMetaClass").into_iter().find(|b| b.label == "Add Stereotype").unwrap();
     let s2 = a.add_related(mc, b).unwrap();
