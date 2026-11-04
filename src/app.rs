@@ -870,7 +870,34 @@ impl App {
     /// the views to select, or an alert.
     /// Whether a model dragged from the explorer can be dropped on the current diagram: an element
     /// with a box, or a relationship whose two ends can be shown.
+    /// Whether a diagram of this type takes a view of the element (each diagram's canAcceptModel,
+    /// elements.js:5900-13990). Kinds UMLCraft only reads accept anything.
+    pub fn diagram_accepts(&self, d: Eid, m: Eid) -> bool {
+        const CLASS: &[&str] = &[
+            "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLInstance", "UMLPort", "UMLTemplateParameter", "UMLAttribute", "UMLOperation", "UMLReception",
+            "UMLEnumerationLiteral", "UMLSlot", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
+        ];
+        let kinds: Vec<&str> = match self.repo.ty(d) {
+            "UMLClassDiagram" => CLASS.to_vec(),
+            "UMLInformationFlowDiagram" => CLASS.iter().copied().chain(["UMLInformationFlow"]).collect(),
+            // component and deployment diagrams: the class diagram's list without slots
+            "UMLComponentDiagram" | "UMLDeploymentDiagram" => CLASS.iter().copied().filter(|k| *k != "UMLSlot").collect(),
+            "UMLPackageDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLSubsystem", "UMLClassifier", "UMLInstance", "UMLDependency"],
+            "UMLObjectDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier", "UMLInstance", "UMLSlot", "UMLDependency", "UMLLink"],
+            "UMLUseCaseDiagram" => vec![
+                "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
+                "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
+            ],
+            "UMLProfileDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLMetaClass", "UMLStereotype", "UMLEnumeration", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation"],
+            _ => return true,
+        };
+        kinds.iter().any(|k| self.repo.kind_of(m, k))
+    }
+
     pub fn can_drop_model(&self, m: Eid) -> bool {
+        if !self.diagram.map(|d| self.diagram_accepts(d, m)).unwrap_or(false) {
+            return false;
+        }
         let ty = self.repo.ty(m);
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
         self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
@@ -878,6 +905,10 @@ impl App {
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
         let Some(d) = self.diagram else { return Ok(vec![]) };
+        // the drop is checked again (app-context.js:1155-1157)
+        if !self.diagram_accepts(d, m) {
+            return Ok(vec![]);
+        }
         let ty = self.repo.ty(m).to_string();
         if m == d {
             // a 700×600 frame of the diagram, its top left at the drop point (factory.js:1174-1185)

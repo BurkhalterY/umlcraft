@@ -4140,3 +4140,22 @@ fn icon_with_label_shows_the_stereotype() {
         assert_eq!(a.repo.raw(st, "visible") != Some(&json!(false)), shown, "{display}");
     }
 }
+
+#[test]
+fn a_diagram_accepts_the_kinds_its_type_allows() {
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.package_for(Some(d));
+    let actor = a.change(|a| a.add_model(pkg, "UMLActor"));
+    let p2 = a.change(|a| a.add_model(pkg, "UMLPackage"));
+    let st = a.change(|a| a.add_model(pkg, "UMLStereotype"));
+    assert!(a.can_drop_model(actor) && a.can_drop_model(p2), "a class diagram takes classifiers and packages");
+    let od = a.change(|a| a.add_diagram(Some(pkg), "UMLObjectDiagram"));
+    assert_eq!(a.diagram, Some(od));
+    assert!(a.can_drop_model(actor), "an object diagram takes classifiers");
+    assert!(!a.can_drop_model(p2), "but not packages");
+    assert_eq!(a.drop_model(p2, crate::views::P { x: 10.0, y: 10.0 }), Ok(vec![]), "and the drop does nothing");
+    let prof = a.change(|a| a.add_diagram(Some(pkg), "UMLProfileDiagram"));
+    assert_eq!(a.diagram, Some(prof));
+    assert!(a.can_drop_model(st) && !a.can_drop_model(actor), "a profile diagram takes stereotypes, not actors");
+}
