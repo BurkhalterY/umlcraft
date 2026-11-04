@@ -3990,14 +3990,19 @@ fn inline_edit_buttons_carry_their_keys() {
     let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
     let e = a.change(|a| a.create_node("UMLEnumeration", rect(300.0, 40.0, 160.0, 100.0))).unwrap();
     let (cm, em) = (a.repo.refd(c, "model").unwrap(), a.repo.refd(e, "model").unwrap());
-    let hints = |k: &EditKind, a: &App| item_buttons(&a.repo, k).into_iter().map(|b| format!("{} ({})", b.1, b.2)).collect::<Vec<_>>();
-    assert_eq!(hints(&EditKind::Name(cm), &a), ["Add Attribute (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)"]);
+    let hints = |k: &EditKind, a: &App| item_buttons(&a.repo, k).into_iter().map(|b| if b.2.is_empty() { b.1.to_string() } else { format!("{} ({})", b.1, b.2) }).collect::<Vec<_>>();
+    assert_eq!(hints(&EditKind::Name(cm), &a), ["Add Attribute (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)", "Add Reception"]);
     assert_eq!(hints(&EditKind::Name(em), &a), ["Add Literal (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)"]);
     let keys: Vec<ItemKey> = item_buttons(&a.repo, &EditKind::Feature(cm)).into_iter().map(|b| b.3).collect();
     assert_eq!(keys, [ItemKey::Add, ItemKey::Delete, ItemKey::Move(true), ItemKey::Move(false)]);
     // a button does what its key does
     a.item_key(c, EditKind::Name(cm), ItemKey::Add);
     assert_eq!(a.repo.list(cm, "attributes").len(), 1);
+    // Add Reception shows the suppressed receptions again
+    assert!(a.repo.bool(c, "suppressReceptions"));
+    a.item_key(c, EditKind::Name(cm), ItemKey::AddReception);
+    assert_eq!(a.repo.list(cm, "receptions").len(), 1);
+    assert!(!a.repo.bool(c, "suppressReceptions"));
 }
 
 #[test]

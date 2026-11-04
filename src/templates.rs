@@ -65,10 +65,6 @@ pub const STANDARD_PROFILE_ELEMENTS: &[(&str, &[&str])] = &[
     ("UMLPackage", &[]), ("Framework", &["UMLPackage"]), ("ModelLibrary", &["UMLPackage"]),
     ("UMLModel", &[]), ("BuildComponent", &["UMLComponent"]), ("Metamodel", &["UMLModel"]), ("SystemModel", &["UMLModel"]), ("control", &["UMLClass"]), ("boundary", &["UMLClass"]),
 ];
-/// The stereotypes of the profile, in its order.
-pub fn standard_stereotypes() -> Vec<&'static str> {
-    STANDARD_PROFILE_ELEMENTS.iter().filter(|(n, _)| !n.starts_with("UML")).map(|(n, _)| *n).collect()
-}
 /// The stereotypes that generalize File.
 const FILE_KINDS: [&str; 5] = ["Document", "Executable", "Library", "Script", "Source"];
 pub const STANDARD_PROFILE: &str = "UMLStandardProfile";

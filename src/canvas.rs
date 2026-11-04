@@ -147,9 +147,10 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                 "UMLEnumeration" => vec![("+ Lit", "Add Literal", "Ctrl+Enter", ItemKey::Add), ADD_OP],
                 "UMLUseCase" => vec![("+ Ext", "Add Extension Point", "Ctrl+Enter", ItemKey::Add)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
-                // classes, interfaces, signals, data types, components, nodes, artifacts, stereotypes
-                // (actors take no attributes in UMLCraft)
-                _ if r.kind_of(*m, "UMLClassifier") && t != "UMLActor" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP],
+                // classes, interfaces, signals, data types, components, nodes, artifacts: Add Reception
+                // too, which has no key; stereotypes have none (actors take no attributes in UMLCraft)
+                "UMLStereotype" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP],
+                _ if r.kind_of(*m, "UMLClassifier") && t != "UMLActor" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP, ("+ Rec", "Add Reception", "", ItemKey::AddReception)],
                 _ => vec![],
             }
         }
@@ -178,6 +179,8 @@ pub enum ItemKey {
     Nav(bool),
     /// The class name edit's Add Template Parameter button
     AddTemplateParameter,
+    /// The Add Reception button of a classifier's name edit (no key)
+    AddReception,
 }
 
 impl App {
@@ -1471,6 +1474,7 @@ impl App {
             }
             (ItemKey::AddOperation, _) => self.add_item(host, m, "UMLOperation"),
             (ItemKey::AddTemplateParameter, _) => self.add_item(host, m, "UMLTemplateParameter"),
+            (ItemKey::AddReception, _) => self.add_item(host, m, "UMLReception"),
             (ItemKey::Delete, Some(f)) => {
                 let (Some(owner), Some(field)) = (self.repo.parent(f), self.repo.field_of(f)) else { return };
                 let i = self.repo.list(owner, &field).iter().position(|x| *x == f).unwrap_or(0);
@@ -1660,6 +1664,7 @@ impl App {
         let mut key: Option<ItemKey> = None;
         let mut related: Option<crate::related::Related> = None;
         let mut edge_note: Option<Eid> = None;
+        let mut add_subst: Option<Eid> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
             egui::Frame::NONE.fill(Color32::WHITE).stroke(Stroke::new(1.0, c32(render::SELECT_COLOR))).show(ui, |ui| {
                 ui.visuals_mut().override_text_color = Some(Color32::BLACK);
@@ -1742,7 +1747,8 @@ impl App {
                         // field loses focus before a release)
                         if ed.host.is_some() && !ed.multiline {
                             for (label, hint, keys, k) in item_buttons(&self.repo, &ed.kind) {
-                                let b = ui.add(egui::Button::new(egui::RichText::new(label).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(format!("{hint} ({keys})"));
+                                let tip = if keys.is_empty() { hint.to_string() } else { format!("{hint} ({keys})") };
+                                let b = ui.add(egui::Button::new(egui::RichText::new(label).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(tip);
                                 if b.is_pointer_button_down_on() {
                                     key = Some(k);
                                 }
@@ -1864,9 +1870,16 @@ impl App {
                             edge_note = Some(e);
                         }
                     }
+                    // a template binding adds a parameter substitution (quickedits/uml.json "uml.template-binding")
+                    if self.repo.ty(*m) == "UMLTemplateBinding" {
+                        let b = ui.add(egui::Button::new(egui::RichText::new("+ Subst").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Template Parameter Substitution");
+                        if b.is_pointer_button_down_on() {
+                            add_subst = Some(*m);
+                        }
+                    }
                 }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if key.is_some() || related.is_some() || edge_note.is_some() {
+                if key.is_some() || related.is_some() || edge_note.is_some() || add_subst.is_some() {
                     commit = Some(true);
                 } else if esc {
                     commit = Some(false);
@@ -1893,6 +1906,12 @@ impl App {
         }
         if let Some(e) = edge_note.filter(|e| self.repo.alive(*e)) {
             self.add_note_to_edge(e);
+        }
+        // the new substitution is selected in the explorer (uml-commands.js:1026-1034)
+        if let Some(b) = add_subst.filter(|b| self.repo.alive(*b)) {
+            if let Some(s) = self.change(|a| a.add_feature(b, "UMLTemplateParameterSubstitution")) {
+                self.reveal(s);
+            }
         }
     }
 
