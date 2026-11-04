@@ -1123,59 +1123,69 @@ impl App {
                     if section_header(ui, "Styles", self.style_open) {
                         self.style_open = !self.style_open;
                     }
-                    if self.style_open {
+                    let mut fold = egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), egui::Id::new("editor-styles"), self.style_open);
+                    fold.set_open(self.style_open);
+                    fold.show_body_unindented(ui, |ui| {
                         self.style_ui(ui);
                         ui.add_space(6.0);
-                    }
+                    });
                     ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
                 }
                 // Properties hides with nothing selected (property-editor-view.js:815-817)
                 if !es.is_empty() && section_header(ui, "Properties", self.props_open) {
                     self.props_open = !self.props_open;
                 }
-                if es.len() > 1 && self.props_open {
-                    // several elements: the fields they share, merged
-                    ui.label(egui::RichText::new(format!("{} elements", es.len())).size(12.0).color(DIM()));
-                    for (path, kind) in self.common_fields(&es) {
-                        self.prop_row(ui, &es, path, kind);
-                    }
-                } else if let (Some(e), true) = (focus, self.props_open) {
-                    for (path, kind) in self.fields_for(e) {
-                        if path == "-" {
-                            ui.add_space(8.0);
-                            ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
-                            ui.add_space(8.0);
-                        } else {
-                            self.prop_row(ui, &[e], path, kind);
+                // the body folds and unfolds with a slide (editors-holder-view.js:61-87)
+                if !es.is_empty() {
+                    let open = self.props_open;
+                    let mut fold = egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), egui::Id::new("editor-properties"), open);
+                    fold.set_open(open);
+                    fold.show_body_unindented(ui, |ui| {
+                    if es.len() > 1 {
+                        // several elements: the fields they share, merged
+                        ui.label(egui::RichText::new(format!("{} elements", es.len())).size(12.0).color(DIM()));
+                        for (path, kind) in self.common_fields(&es) {
+                            self.prop_row(ui, &es, path, kind);
                         }
-                    }
-                    let t = self.repo.ty(e).to_string();
-                    let mut buttons: Vec<(&str, &str)> = vec![];
-                    if t == "UMLEnumeration" {
-                        buttons.push(("+ Literal", "UMLEnumerationLiteral"));
-                    }
-                    if self.can_add_feature(e, "UMLAttribute") {
-                        buttons.push(("+ Attribute", "UMLAttribute"));
-                        buttons.push(("+ Operation", "UMLOperation"));
-                    }
-                    if t == "UMLOperation" {
-                        buttons.push(("+ Parameter", "UMLParameter"));
-                    }
-                    if !buttons.is_empty() {
-                        ui.add_space(6.0);
-                        ui.horizontal(|ui| {
-                            ui.add_space(116.0);
-                            for (label, ty) in buttons {
-                                if ui.add(egui::Button::new(egui::RichText::new(label).size(12.0)).fill(HOVER_ROW()).stroke(Stroke::new(1.0, INPUT_BORDER()))).clicked() {
-                                    if let Some(c) = self.change(|a| a.add_feature(e, ty)) {
-                                        self.focus = Some(c);
-                                        self.expanded.insert(e);
+                    } else if let Some(e) = focus {
+                        for (path, kind) in self.fields_for(e) {
+                            if path == "-" {
+                                ui.add_space(8.0);
+                                ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
+                                ui.add_space(8.0);
+                            } else {
+                                self.prop_row(ui, &[e], path, kind);
+                            }
+                        }
+                        let t = self.repo.ty(e).to_string();
+                        let mut buttons: Vec<(&str, &str)> = vec![];
+                        if t == "UMLEnumeration" {
+                            buttons.push(("+ Literal", "UMLEnumerationLiteral"));
+                        }
+                        if self.can_add_feature(e, "UMLAttribute") {
+                            buttons.push(("+ Attribute", "UMLAttribute"));
+                            buttons.push(("+ Operation", "UMLOperation"));
+                        }
+                        if t == "UMLOperation" {
+                            buttons.push(("+ Parameter", "UMLParameter"));
+                        }
+                        if !buttons.is_empty() {
+                            ui.add_space(6.0);
+                            ui.horizontal(|ui| {
+                                ui.add_space(116.0);
+                                for (label, ty) in buttons {
+                                    if ui.add(egui::Button::new(egui::RichText::new(label).size(12.0)).fill(HOVER_ROW()).stroke(Stroke::new(1.0, INPUT_BORDER()))).clicked() {
+                                        if let Some(c) = self.change(|a| a.add_feature(e, ty)) {
+                                            self.focus = Some(c);
+                                            self.expanded.insert(e);
+                                        }
                                     }
                                 }
-                            }
-                        });
-                        ui.add_space(6.0);
+                            });
+                            ui.add_space(6.0);
+                        }
                     }
+                    });
                 }
                 if !es.is_empty() {
                     ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
@@ -1185,12 +1195,16 @@ impl App {
                 if has_doc && section_header(ui, "Documentation", self.doc_open) {
                     self.doc_open = !self.doc_open;
                 }
-                if let (Some(e), true, true) = (focus, has_doc, self.doc_open) {
-                    let r = ui.add_sized(Vec2::new(ui.available_width(), 180.0), egui::TextEdit::multiline(&mut self.doc_buf).font(FontId::proportional(13.0)));
-                    if r.lost_focus() && self.repo.str(e, "documentation") != self.doc_buf {
-                        let text = self.doc_buf.clone();
-                        self.change(|a| a.repo.set(e, "documentation", json!(text)));
-                    }
+                if let (Some(e), true) = (focus, has_doc) {
+                    let mut fold = egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), egui::Id::new("editor-documentation"), self.doc_open);
+                    fold.set_open(self.doc_open);
+                    fold.show_body_unindented(ui, |ui| {
+                        let r = ui.add_sized(Vec2::new(ui.available_width(), 180.0), egui::TextEdit::multiline(&mut self.doc_buf).font(FontId::proportional(13.0)));
+                        if r.lost_focus() && self.repo.str(e, "documentation") != self.doc_buf {
+                            let text = self.doc_buf.clone();
+                            self.change(|a| a.repo.set(e, "documentation", json!(text)));
+                        }
+                    });
                 }
             });
         });
