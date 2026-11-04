@@ -2302,7 +2302,29 @@ impl App {
                     color = Some(crate::render::Rgba(c.r(), c.g(), c.b(), 255));
                 }
                 ui.end_row();
+                ui.label("");
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::splat(2.0);
+                    for row in crate::style::palette().chunks(16) {
+                        ui.horizontal(|ui| {
+                            for c in row {
+                                if swatch(ui, Color32::from_rgb(c.0, c.1, c.2), Vec2::splat(12.0)).on_hover_text(crate::style::hex(*c)).clicked() {
+                                    color = Some(*c);
+                                }
+                            }
+                        });
+                    }
+                });
+                ui.end_row();
             });
+            // the live preview, on the diagram's white with the chosen size and colour
+            let px = size.trim().parse::<f32>().ok().filter(|s| *s > 0.0).unwrap_or(13.0).min(42.0);
+            let fg = color.map(|c| Color32::from_rgb(c.0, c.1, c.2)).unwrap_or(Color32::BLACK);
+            ui.add_space(4.0);
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 60.0), egui::Sense::hover());
+            ui.painter().rect(rect, 0.0, Color32::WHITE, Stroke::new(1.0, BORDER()), egui::StrokeKind::Inside);
+            ui.painter().text(rect.center(), Align2::CENTER_CENTER, "AaBb123", egui::FontId::proportional(px), fg);
+            ui.add_space(4.0);
             ui.horizontal(|ui| {
                 ok = ui.button("OK").clicked();
                 cancel = ui.button("Cancel").clicked();
