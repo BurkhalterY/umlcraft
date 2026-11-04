@@ -2249,3 +2249,18 @@ fn properties_of_several_elements() {
     a.focus = Some(m1);
     assert_eq!(a.prop_elements(), vec![m1]);
 }
+
+#[test]
+fn explorer_commands_in_the_palette() {
+    let ctx = egui::Context::default();
+    let mut a = App::new(None);
+    assert!(crate::palette::matching("explorer:").len() >= 5);
+    a.run_command(&ctx, "explorer:sort-by-name");
+    assert!(a.sort_by_name);
+    a.run_command(&ctx, "explorer:sort-by-added");
+    assert!(!a.sort_by_name);
+    a.run_command(&ctx, "explorer:expand-all");
+    assert!(a.expanded.contains(&a.repo.root));
+    a.run_command(&ctx, "explorer:collapse-all");
+    assert!(a.expanded.is_empty());
+}
