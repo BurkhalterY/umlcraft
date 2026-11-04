@@ -169,6 +169,29 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             draw_name(c, r, v);
             return;
         }
+        "boundary" | "entity" | "control" => {
+            // the UML robustness icons above the name (estimated proportions)
+            let ih = b.h - views::NAME_MIN_H;
+            let rr = (ih / 2.0 - 1.0).min(b.w / 2.0 - 1.0).max(4.0);
+            let ctr = P { x: b.x + b.w / 2.0 + if info.map(|i| i.shape) == Some("boundary") { rr * 0.35 } else { 0.0 }, y: b.y + ih / 2.0 };
+            shadow_ellipse(c, r, v, ctr, rr, rr);
+            c.ellipse(ctr, rr, rr, Some(fill), Some(line));
+            match info.map(|i| i.shape).unwrap_or("") {
+                "boundary" => {
+                    let x0 = ctr.x - rr * 1.7;
+                    c.polyline(&[P { x: x0, y: ctr.y - rr }, P { x: x0, y: ctr.y + rr }], line, false);
+                    c.polyline(&[P { x: x0, y: ctr.y }, P { x: ctr.x - rr, y: ctr.y }], line, false);
+                }
+                "entity" => c.polyline(&[P { x: ctr.x - rr, y: ctr.y + rr }, P { x: ctr.x + rr, y: ctr.y + rr }], line, false),
+                _ => {
+                    let (tx, ty) = (ctr.x, ctr.y - rr);
+                    let a = rr * 0.35;
+                    c.polyline(&[P { x: tx + a, y: ty - a }, P { x: tx, y: ty }, P { x: tx + a, y: ty + a }], line, false);
+                }
+            }
+            draw_name(c, r, v);
+            return;
+        }
         "usecase" => {
             let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
             shadow_ellipse(c, r, v, ctr, b.w / 2.0, b.h / 2.0);

@@ -541,9 +541,26 @@ impl App {
         }
         let parent = self.package_for(Some(d));
         let name = self.new_name(parent, kind);
-        let m = self.repo.create(kind, &[("name", json!(name))], Some((parent, "ownedElements")));
+        // the Robustness tools make a class stereotyped «boundary», «entity» or «control», shown as an
+        // icon without compartments (robustness/main.js:17)
+        let robust = matches!(kind, "Boundary" | "Entity" | "Control");
+        let ty = if robust { "UMLClass" } else { kind };
+        let m = self.repo.create(ty, &[("name", json!(name))], Some((parent, "ownedElements")));
+        if robust {
+            let st_name = kind.to_lowercase();
+            let found = self.repo.all().find(|x| self.repo.ty(*x) == "UMLStereotype" && self.repo.name(*x) == st_name);
+            match found {
+                Some(st) => self.repo.set_ref(m, "stereotype", Some(st)),
+                None => self.repo.set(m, "stereotype", json!(st_name)),
+            }
+        }
         let v = views::create_node_view(&mut self.repo, d, m, rect)?;
         self.apply_view_defaults(v);
+        if robust {
+            self.repo.set(v, "stereotypeDisplay", json!("icon"));
+            self.repo.set(v, "suppressAttributes", json!(true));
+            self.repo.set(v, "suppressOperations", json!(true));
+        }
         Some(v)
     }
 

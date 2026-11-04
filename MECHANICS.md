@@ -91,6 +91,8 @@ returned nothing).
 
 * Word wrap: a view with `wordWrap` on breaks its labels between words to the label width, and its minimum width is the widest single word plus padding (`src/core/core.js:3705-3727, 3769-3790`). UMLCraft applies this to the name and the attribute, operation and literal rows of class-like boxes; notes and text wrap only while their `wordWrap` is on (default on).
 
+* Robustness: a class stereotyped «boundary», «entity» or «control» with Stereotype Display Icon (or Icon with Label) is drawn as the UML robustness icon with its name below; the Robustness tools create such a class with attributes and operations suppressed (`extensions/default/robustness/main.js:17`). UMLCraft draws its own icons in a 50×36 area (estimated).
+
 ## Exporting pictures
 
 * JPEG is the PNG flattened on white; Export All writes `<folder>/<png|jpg|svg>/<filenamify(path)>_<index>.<ext>`, the path joining owner names with "::" and filenamify turning `<>:"/\|?*` and control characters into "!" (`src/engine/default-commands.js:452-535`, `src/engine/diagram-export.js:130-134, 275-298`).

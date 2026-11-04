@@ -4,13 +4,13 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, Packages, Annotations) and Use Case diagrams (Use Cases, Annotations); every other diagram kind gets Annotations only (src/ui.rs:75-134).
+UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, Packages, Annotations) and Use Case diagrams (Use Cases, Annotations); every other diagram kind gets Annotations only (src/ui.rs:75-136).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
-| Robustness `uml.robustness` | UMLClassDiagram | Boundary | ❌ | extensions/default/robustness/toolbox/robustness.json |
-| Robustness `uml.robustness` | UMLClassDiagram | Entity | ❌ | extensions/default/robustness/toolbox/robustness.json |
-| Robustness `uml.robustness` | UMLClassDiagram | Control | ❌ | extensions/default/robustness/toolbox/robustness.json |
+| Robustness `uml.robustness` | UMLClassDiagram | Boundary | ✅ | extensions/default/robustness/toolbox/robustness.json |
+| Robustness `uml.robustness` | UMLClassDiagram | Entity | ✅ | extensions/default/robustness/toolbox/robustness.json |
+| Robustness `uml.robustness` | UMLClassDiagram | Control | ✅ | extensions/default/robustness/toolbox/robustness.json |
 | AWS `aws.elements` | AWSDiagram | AWS Group | ❌ | extensions/essential/aws/toolbox/aws.json |
 | AWS `aws.elements` | AWSDiagram | AWS Generic Group | ❌ | extensions/essential/aws/toolbox/aws.json |
 | AWS `aws.elements` | AWSDiagram | AWS Availability Zone | ❌ | extensions/essential/aws/toolbox/aws.json |

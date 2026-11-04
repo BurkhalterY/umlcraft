@@ -2494,3 +2494,21 @@ fn core_validation_rules() {
     got.sort();
     assert_eq!(got, vec!["CORE001", "CORE002", "CORE003"]);
 }
+
+#[test]
+fn robustness_tools() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let v = a.change(|a| a.create_node("Control", rect(40.0, 40.0, 50.0, 56.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    assert_eq!((a.repo.ty(m), a.repo.name(m).as_str()), ("UMLClass", "Control1"));
+    assert_eq!(crate::views::stereotype_text(&a.repo, m), "«control»");
+    assert!(a.repo.bool(v, "suppressAttributes") && a.repo.str(v, "stereotypeDisplay") == "icon");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info.get(&v).map(|i| i.shape), Some("control"));
+    // shown as a box again with the label display
+    a.repo.set(v, "stereotypeDisplay", json!("label"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info.get(&v).map(|i| i.shape), Some(""));
+}

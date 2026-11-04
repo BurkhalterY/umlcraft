@@ -18,6 +18,23 @@ pub const UC_MIN_W: f64 = 70.0; // use case min width, elements.js:96
 pub const UC_MIN_H: f64 = 32.0; // use case min height, elements.js:97
 pub const ACTOR_ICON_W: f64 = 26.0; // actor icon min width, elements.js:93
 pub const ACTOR_ICON_H: f64 = 55.0; // actor icon min height, elements.js:92
+/// The robustness icons (boundary, entity, control) of a class shown as an icon (estimated).
+pub const ROBUST_ICON_W: f64 = 50.0;
+pub const ROBUST_ICON_H: f64 = 36.0;
+
+/// The robustness kind of a class shown as an icon: "boundary", "entity" or "control".
+pub fn robustness_kind(r: &Repo, v: Eid, m: Eid) -> Option<&'static str> {
+    let display = r.str(v, "stereotypeDisplay");
+    if r.ty(m) != "UMLClass" || !(display == "icon" || display == "icon-label") {
+        return None;
+    }
+    match type_name(r, m, "stereotype").to_lowercase().as_str() {
+        "boundary" => Some("boundary"),
+        "entity" => Some("entity"),
+        "control" => Some("control"),
+        _ => None,
+    }
+}
 pub const NOTE_FOLD: f64 = 10.0; // note fold, elements.js:14261
 pub const FONT: &str = "Arial;13;0"; // default font
 pub const DEFAULT_LINE_STYLE: i64 = 1; // oblique, default.json:83
@@ -174,6 +191,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" => (160.0, 80.0),
         "UMLUseCase" => (120.0, 40.0),
         "UMLActor" => (40.0, 80.0),
+        "Boundary" | "Entity" | "Control" => (ROBUST_ICON_W, ROBUST_ICON_H + NAME_MIN_H),
         "UMLUseCaseSubject" => (240.0, 250.0),
         "Note" => (140.0, 60.0),
         "Text" => (60.0, 15.0),
@@ -780,6 +798,16 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         let (x, y, w, h) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"), r.f(v, "height"));
         layout_name(r, ms, v, m, x, y + h - NAME_MIN_H, w, keyword, true);
         return Info { shape: "interface", ..Default::default() };
+    }
+    // a boundary, entity or control class as its robustness icon, the name under it
+    if let Some(kind) = robustness_kind(r, v, m) {
+        hide_all(r);
+        let hide_st = display == "icon";
+        let min_w = name_min_width(r, ms, v, m, None, hide_st).max(ROBUST_ICON_W);
+        grow(r, v, min_w, NAME_MIN_H + ROBUST_ICON_H);
+        let (x, y, w, h) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"), r.f(v, "height"));
+        layout_name(r, ms, v, m, x, y + h - NAME_MIN_H, w, None, hide_st);
+        return Info { shape: kind, ..Default::default() };
     }
     if ty == "UMLActor" {
         hide_all(r);

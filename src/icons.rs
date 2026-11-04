@@ -172,6 +172,19 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(3.0, 3.5), (13.0, 3.5)], W);
             line(&[(8.0, 3.5), (8.0, 13.5)], W);
         }
+        "boundary" => {
+            p.circle_stroke(at(9.5, 8.0), 4.5 * s, st(W));
+            line(&[(2.5, 4.0), (2.5, 12.0)], W);
+            line(&[(2.5, 8.0), (5.0, 8.0)], W);
+        }
+        "entity" => {
+            p.circle_stroke(at(8.0, 7.5), 4.5 * s, st(W));
+            line(&[(3.5, 12.5), (12.5, 12.5)], W);
+        }
+        "control" => {
+            p.circle_stroke(at(8.0, 9.0), 4.5 * s, st(W));
+            line(&[(9.5, 3.0), (7.5, 4.5), (9.5, 6.0)], W);
+        }
         "select" => line(&[(4.0, 2.0), (12.0, 9.0), (8.5, 9.0), (10.5, 13.5), (9.0, 14.2), (7.0, 9.7), (4.0, 12.0), (4.0, 2.0)], W),
         "zoomIn" | "zoomOut" => {
             p.circle_stroke(at(7.0, 7.0), 4.5 * s, st(W));
