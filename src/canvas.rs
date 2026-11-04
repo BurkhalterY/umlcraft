@@ -7,6 +7,9 @@ use crate::views::{self, is_edge, is_node, node_rect, points_of, Measure, P, R};
 use egui::{Align2, Color32, FontFamily, FontId, Painter, Pos2, Rect, Sense, Shape, Stroke, Vec2};
 use serde_json::json;
 
+/// How long a rejected inline edit shakes, and how far (jQuery UI's shake: 400 ms, distance 10).
+pub const SHAKE_MS: u128 = 400;
+const SHAKE_DISTANCE: f32 = 10.0;
 pub const MINI_W: f32 = 130.0;
 pub const MINI_H: f32 = 100.0;
 pub const MINI_MARGIN: f32 = 15.0;
@@ -540,8 +543,10 @@ impl App {
             if let Some(pos) = pointer.interact_pos() {
                 resp.request_focus();
                 self.last_area = crate::app::Area::Canvas;
-                self.close_inline(true);
-                self.on_press(rect, pos, mods);
+                // a rejected edit stays open, and the press does nothing else
+                if self.try_close_inline(true) {
+                    self.on_press(rect, pos, mods);
+                }
             }
         }
         if resp.hovered() && pointer.button_pressed(egui::PointerButton::Middle) {
@@ -1259,12 +1264,12 @@ impl App {
         if t == "UMLConstraintView" {
             let Some(m) = self.repo.refd(v, "model") else { return };
             let text = self.repo.str(m, "specification");
-            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None });
+            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None, orig: None });
             return;
         }
         if t == "UMLNoteView" || t == "UMLTextView" || t == "UMLTextBoxView" || t == "UMLCustomTextView" {
             let text = self.repo.str(v, "text");
-            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None });
+            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None, orig: None });
             return;
         }
         let Some(m) = self.repo.refd(v, "model") else { return };
@@ -1286,7 +1291,7 @@ impl App {
                                 Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: 19.0 },
                                 _ => R { x: at.x - 50.0, y: at.y - 25.0, w: 100.0, h: 19.0 },
                             };
-                            self.editing = Some(Editing { kind: EditKind::Name(e), text: crate::parse::name_text(&self.repo, e), rect, multiline: false, center: true, fresh: true, host: None });
+                            self.editing = Some(Editing { kind: EditKind::Name(e), text: crate::parse::name_text(&self.repo, e), rect, multiline: false, center: true, fresh: true, host: None, orig: None });
                             return;
                         }
                     }
@@ -1297,7 +1302,7 @@ impl App {
                 Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: 19.0 },
                 _ => R { x: mid.x - 50.0, y: mid.y - 10.0, w: 100.0, h: 19.0 },
             };
-            self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: None });
+            self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: None, orig: None });
             return;
         }
         if let Some(iv) = p.and_then(|p| self.row_at(v, p)) {
@@ -1310,7 +1315,7 @@ impl App {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
         };
-        self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: Some(v) });
+        self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: Some(v), orig: None });
     }
 
     /// Open the inline edit on one compartment row (an attribute, operation or literal label).
@@ -1326,6 +1331,7 @@ impl App {
             center: false,
             fresh: true,
             host: Some(v),
+            orig: None,
         });
         true
     }
@@ -1471,8 +1477,55 @@ impl App {
         }
     }
 
+    /// The grammar an inline edit's text must follow, if any (quickedits/uml.json): names, objects,
+    /// attributes, operations, literals, receptions, template parameters and slots. Notes and texts
+    /// are free text, and so is an extension point's "name: location", UMLCraft's own form.
+    pub fn edit_grammar(&self, kind: &EditKind) -> Option<crate::parse::Grammar> {
+        use crate::parse::Grammar;
+        match kind {
+            EditKind::Text(_) => None,
+            EditKind::Name(m) if self.repo.kind_of(*m, "UMLInstance") => Some(Grammar::Object),
+            EditKind::Name(_) => Some(Grammar::Name),
+            EditKind::Feature(f) => match self.repo.ty(*f) {
+                "UMLOperation" => Some(Grammar::Operation),
+                "UMLSlot" => Some(Grammar::Slot),
+                "UMLTemplateParameter" => Some(Grammar::TemplateParameter),
+                "UMLReception" | "UMLEnumerationLiteral" => Some(Grammar::Name),
+                "UMLExtensionPoint" => None,
+                _ => Some(Grammar::Attribute),
+            },
+        }
+    }
+
+    /// Whether the open inline edit holds a changed text its grammar rejects.
+    pub fn edit_rejected(&self) -> bool {
+        let Some(e) = &self.editing else { return false };
+        e.orig.as_deref() != Some(e.text.as_str()) && self.edit_grammar(&e.kind).map(|g| !crate::parse::parses(g, &e.text)).unwrap_or(false)
+    }
+
+    /// Commit the inline edit the way the person asked for it (Enter, a click away): a text the
+    /// grammar rejects keeps the edit open, shaking, with its text selected, and nothing changes
+    /// (uml-commands.js:320-325; quickedit-manager.js:407-427). While it shakes it cannot close.
+    pub fn try_close_inline(&mut self, commit: bool) -> bool {
+        if self.edit_shake.map(|t| t.elapsed().as_millis() < SHAKE_MS).unwrap_or(false) {
+            return false;
+        }
+        if commit && self.edit_rejected() {
+            self.edit_shake = Some(std::time::Instant::now());
+            if let Some(e) = self.editing.as_mut() {
+                e.fresh = true;
+            }
+            return false;
+        }
+        self.close_inline(commit);
+        true
+    }
+
     pub fn close_inline(&mut self, commit: bool) {
+        // a text its grammar rejects is dropped when the edit has to close (another diagram opens)
+        let commit = commit && !self.edit_rejected();
         let Some(e) = self.editing.take() else { return };
+        self.edit_shake = None;
         // the canvas takes the keyboard back, so Enter can open the edit again (quickedit-manager.js:680-682)
         self.refocus_canvas = true;
         if !commit {
@@ -1547,8 +1600,23 @@ impl App {
 
     fn inline_editor(&mut self, ui: &mut egui::Ui, rect: Rect) {
         let Some(mut ed) = self.editing.take() else { return };
+        if ed.orig.is_none() {
+            ed.orig = Some(ed.text.clone());
+        }
         let to = |p: P| Pos2::new(rect.min.x + ((p.x - self.scroll.x) * self.zoom) as f32, rect.min.y + ((p.y - self.scroll.y) * self.zoom) as f32);
-        let pos = to(P { x: ed.rect.x, y: ed.rect.y });
+        let mut pos = to(P { x: ed.rect.x, y: ed.rect.y });
+        // a rejected text shakes the editor left and right, three times
+        if let Some(t) = self.edit_shake {
+            let ms = t.elapsed().as_millis();
+            if ms < SHAKE_MS {
+                let phase = (ms as f32 / SHAKE_MS as f32) * 3.0;
+                let tri = 1.0 - 4.0 * ((phase + 0.25).fract() - 0.5).abs();
+                pos.x += SHAKE_DISTANCE * tri;
+                ui.ctx().request_repaint();
+            } else {
+                self.edit_shake = None;
+            }
+        }
         let w = ((ed.rect.w * self.zoom) as f32).max(60.0);
         let h = ((ed.rect.h * self.zoom) as f32).max(if ed.multiline { 40.0 } else { 20.0 });
         let mut commit = None;
@@ -1764,7 +1832,10 @@ impl App {
         let (host, kind) = (ed.host, ed.kind.clone());
         self.editing = Some(ed);
         if let Some(c) = commit {
-            self.close_inline(c);
+            if !self.try_close_inline(c) {
+                // refused: the buttons and keys that wanted the edit closed do nothing
+                return;
+            }
         }
         if let (Some(k), Some(h)) = (key, host) {
             self.item_key(h, kind, k);

@@ -104,6 +104,9 @@ pub struct Editing {
     pub fresh: bool,
     /// The box the edit belongs to (a class view for its name and its compartment items).
     pub host: Option<Eid>,
+    /// The text the edit showed when it opened (taken on its first frame): only a changed text is
+    /// checked against the grammar.
+    pub orig: Option<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -132,6 +135,8 @@ pub struct App {
     pub drag: Option<Drag>,
     pub hover: Option<Eid>,
     pub editing: Option<Editing>,
+    /// When a rejected inline edit started shaking (it cannot close for 400 ms, quickedit-manager.js:407-427).
+    pub edit_shake: Option<std::time::Instant>,
     pub info: HashMap<Eid, Info>,
     pub expanded: HashSet<Eid>,
     pub search: String,
@@ -277,6 +282,7 @@ impl App {
             drag: None,
             hover: None,
             editing: None,
+            edit_shake: None,
             info: HashMap::new(),
             expanded: HashSet::new(),
             search: String::new(),

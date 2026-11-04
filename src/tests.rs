@@ -3907,3 +3907,53 @@ fn shape_tools_and_their_minimum_size() {
     assert!(svg.contains("<ellipse") || svg.contains("ellipse"), "the ellipse is drawn");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn quick_edit_grammars_accept_and_reject_like_the_original() {
+    use crate::parse::{parses, Grammar::*};
+    for (g, ok) in [
+        (Name, "<<entity>> +Order"), (Name, "Order Item"), (Name, "it's"), (Name, "a[1]"),
+        (Attribute, "-id: int[1] = 0"), (Attribute, "<< st >> #name : List<String> [0..*] = x"), (Attribute, "x"),
+        (Operation, "+placeOrder(item: Order, qty: int): boolean"), (Operation, "f()"), (Operation, "f(in a, out b: int[*] = 3, inout c)"), (Operation, "g(): void[0..1]"),
+        (TemplateParameter, "T: Class[] = Object"), (Object, ""), (Object, ": Order"), (Object, "o1: Order"), (Slot, "x: int = 1"), (Name, "emoji 🦀"),
+    ] {
+        assert!(parses(g, ok), "{g:?} accepts {ok:?}");
+    }
+    for (g, bad) in [
+        (Name, ""), (Name, "a: B"), (Name, "f(x)"), (Name, "<<st"), (Name, "a = b"),
+        (Attribute, "a: b: c"), (Attribute, "a = b = c"), (Attribute, "it's"), (Attribute, "f()"), (Attribute, "a: b[x]"),
+        (Operation, "f(a, )"), (Operation, "f(a"), (Operation, "f(): (x)"), (TemplateParameter, "+T"), (Slot, "x = 1 = 2"),
+    ] {
+        assert!(!parses(g, bad), "{g:?} rejects {bad:?}");
+    }
+}
+
+#[test]
+fn a_rejected_inline_edit_stays_open_and_changes_nothing() {
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    let name = a.repo.name(m);
+    a.edit_view(c, None);
+    let ed = a.editing.as_mut().unwrap();
+    ed.orig = Some(ed.text.clone());
+    ed.text = "Bad: Name".into();
+    assert!(!a.try_close_inline(true), "refused");
+    assert!(a.editing.as_ref().unwrap().fresh, "the text is selected again");
+    assert!(a.edit_shake.is_some());
+    assert!(!a.try_close_inline(false), "it cannot close while it shakes");
+    assert_eq!(a.repo.name(m), name, "nothing changed");
+    // once the shake is over a valid text goes through
+    a.edit_shake = Some(std::time::Instant::now() - std::time::Duration::from_millis(500));
+    a.editing.as_mut().unwrap().text = "Good Name".into();
+    assert!(a.try_close_inline(true));
+    assert!(a.editing.is_none());
+    assert_eq!(a.repo.name(m), "Good Name");
+    // an unchanged text is never checked, and a forced close drops a rejected one
+    a.edit_view(c, None);
+    a.editing.as_mut().unwrap().orig = Some("Good Name".into());
+    a.editing.as_mut().unwrap().text = "".into();
+    a.close_inline(true);
+    assert!(a.editing.is_none());
+    assert_eq!(a.repo.name(m), "Good Name", "an empty name is rejected, so it is dropped");
+}
