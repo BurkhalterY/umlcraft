@@ -92,6 +92,15 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             r("Add Sub-Stereotype", "UMLStereotype", "UMLGeneralization", Plain, true, Below),
             r("Add Super-Stereotype", "UMLStereotype", "UMLGeneralization", Plain, false, Above),
         ],
+        // a state: a new state joined by an outgoing (right) or incoming (left) transition, an
+        // initial state above and a final state below (uml-commands.js:2933-3215; sides of the
+        // transitions estimated)
+        "UMLState" => vec![
+            r("Add Outgoing Transition", "UMLState", "UMLTransition", Plain, false, Right),
+            r("Add Incoming Transition", "UMLState", "UMLTransition", Plain, true, Left),
+            r("Add Initial State", "Initial", "UMLTransition", Plain, true, Above),
+            r("Add Final State", "UMLFinalState", "UMLTransition", Plain, false, Below),
+        ],
         // an object: a linked object to the right (uml-commands.js:1675)
         "UMLObject" => vec![r("Add Linked Object", "UMLObject", "UMLLink", Plain, false, Right)],
         "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" | "UMLEnumeration" => vec![

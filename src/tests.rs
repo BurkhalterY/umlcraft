@@ -4663,3 +4663,29 @@ fn a_transition_expression_is_edited_inline() {
     assert_eq!(a.repo.refd(st, "tail"), a.repo.refd(st, "head"));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn state_buttons_add_states_with_transitions() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let s = a.change(|a| a.create_node("UMLState", rect(200.0, 200.0, 100.0, 40.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    let act = |l: &str| crate::related::actions("UMLState").into_iter().find(|x| x.label == l).unwrap();
+    let ends = |a: &App, n: crate::model::Eid| {
+        let e = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "UMLTransitionView" && (a.repo.refd(*v, "tail") == Some(n) || a.repo.refd(*v, "head") == Some(n))).unwrap();
+        (a.repo.refd(e, "tail").unwrap(), a.repo.refd(e, "head").unwrap())
+    };
+    let out = a.add_related(s, act("Add Outgoing Transition")).unwrap();
+    assert!(crate::views::node_rect(&a.repo, out).x > 300.0);
+    assert_eq!(ends(&a, out), (s, out));
+    let init = a.add_related(s, act("Add Initial State")).unwrap();
+    let im = a.repo.refd(init, "model").unwrap();
+    assert_eq!((a.repo.ty(im), a.repo.str(im, "kind").as_str()), ("UMLPseudostate", "initial"));
+    assert!(crate::views::node_rect(&a.repo, init).y < 200.0, "above");
+    assert_eq!(ends(&a, init), (init, s));
+    let fin = a.add_related(s, act("Add Final State")).unwrap();
+    assert!(crate::views::node_rect(&a.repo, fin).y > 240.0, "below");
+    assert_eq!(ends(&a, fin), (s, fin));
+    assert_eq!(a.repo.parent(im), a.repo.parent(sm), "in the same region");
+}
