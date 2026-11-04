@@ -265,6 +265,34 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         c.rect(R { x: ix - 4.0, y: iy + 3.0, w: 8.0, h: 4.0 }, Some(fill), Some(line));
         c.rect(R { x: ix - 4.0, y: iy + 9.0, w: 8.0, h: 4.0 }, Some(fill), Some(line));
     }
+    // stereotype display Decoration (with or without the label): a small icon at the top right, for
+    // the stereotypes UMLCraft has icons for (interfaces and the robustness stereotypes)
+    let display = r.str(v, "stereotypeDisplay");
+    if display == "decoration" || display == "decoration-label" {
+        if let Some(m) = r.refd(v, "model") {
+            let st = views::type_name(r, m, "stereotype").to_lowercase();
+            let c0 = P { x: b.x + b.w - 14.0, y: b.y + 12.0 };
+            let rr = 5.0;
+            let kind = if r.ty(m) == "UMLInterface" { "interface" } else { st.as_str() };
+            match kind {
+                "interface" => c.ellipse(c0, rr, rr, Some(fill), Some(line)),
+                "boundary" => {
+                    c.ellipse(P { x: c0.x + 2.0, y: c0.y }, rr, rr, Some(fill), Some(line));
+                    c.polyline(&[P { x: c0.x - 6.0, y: c0.y - rr }, P { x: c0.x - 6.0, y: c0.y + rr }], line, false);
+                    c.polyline(&[P { x: c0.x - 6.0, y: c0.y }, P { x: c0.x - 3.0, y: c0.y }], line, false);
+                }
+                "entity" => {
+                    c.ellipse(c0, rr, rr, Some(fill), Some(line));
+                    c.polyline(&[P { x: c0.x - rr, y: c0.y + rr }, P { x: c0.x + rr, y: c0.y + rr }], line, false);
+                }
+                "control" => {
+                    c.ellipse(c0, rr, rr, Some(fill), Some(line));
+                    c.polyline(&[P { x: c0.x + 2.0, y: c0.y - rr - 2.0 }, P { x: c0.x, y: c0.y - rr }, P { x: c0.x + 2.0, y: c0.y - rr + 2.0 }], line, false);
+                }
+                _ => {}
+            }
+        }
+    }
     if ty == "UMLArtifactView" {
         // the artifact icon at the top right: a page with a folded corner
         let (ix, iy, f) = (b.x + b.w - 20.0, b.y + 6.0, 4.0);
