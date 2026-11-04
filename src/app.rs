@@ -342,14 +342,11 @@ impl App {
         }
     }
 
+    /// The window title: "• " when modified, "<file name> — " when there is a file, then the app name
+    /// (titlebar-view.js:34-47).
     pub fn title(&self) -> String {
-        let base = self
-            .filename
-            .as_ref()
-            .and_then(|p| p.file_name())
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| "Untitled".into());
-        format!("{base}{} — UMLCraft", if self.modified { " •" } else { "" })
+        let base = self.filename.as_ref().and_then(|p| p.file_name()).map(|s| format!("{} — ", s.to_string_lossy())).unwrap_or_default();
+        format!("{}{base}UMLCraft", if self.modified { "• " } else { "" })
     }
 
     pub fn open_path(&mut self, p: PathBuf) {

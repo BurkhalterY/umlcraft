@@ -2264,3 +2264,15 @@ fn explorer_commands_in_the_palette() {
     a.run_command(&ctx, "explorer:collapse-all");
     assert!(a.expanded.is_empty());
 }
+
+#[test]
+fn window_title_format() {
+    let mut a = App::new(None);
+    assert_eq!(a.title(), "UMLCraft");
+    a.modified = true;
+    assert_eq!(a.title(), "• UMLCraft");
+    a.filename = Some(std::path::PathBuf::from("/tmp/x/model.mdj"));
+    assert_eq!(a.title(), "• model.mdj — UMLCraft");
+    a.modified = false;
+    assert_eq!(a.title(), "model.mdj — UMLCraft");
+}
