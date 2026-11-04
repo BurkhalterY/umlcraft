@@ -561,7 +561,7 @@ impl App {
             ],
             "UMLOperation" => vec![
                 ("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("concurrency", "enum"), ("isQuery", "bool"),
-                ("isAbstract", "bool"), ("specification", "text"),
+                ("isAbstract", "bool"), ("specification", "multiline"),
             ],
             "UMLParameter" => vec![("name", "text"), ("stereotype", "text"), ("type", "type"), ("multiplicity", "text"), ("defaultValue", "text"), ("direction", "enum")],
             "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
@@ -713,6 +713,16 @@ impl App {
                             self.prop_buf.insert(path.to_string(), o.clone());
                             self.commit_all(&targets, kind, o);
                         }
+                    }
+                }
+                "multiline" => {
+                    // a 70 px text area, committed on blur (property-editor-view.js:215-234)
+                    let cur = merged.clone().unwrap_or_default();
+                    let buf = self.prop_buf.entry(path.to_string()).or_insert(cur.clone());
+                    let r = ui.add_sized(Vec2::new(w, 70.0), egui::TextEdit::multiline(buf).hint_text("—").font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
+                    if r.lost_focus() && *buf != cur {
+                        let text = buf.clone();
+                        self.commit_all(&targets, "text", text);
                     }
                 }
                 "bool" => {
