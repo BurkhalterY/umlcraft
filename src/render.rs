@@ -513,7 +513,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLComponentRealizationView" => head = Some(End::Triangle),
         "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" => head = Some(End::Arrow),
         "UMLContainmentView" => head = Some(End::CirclePlus),
-        "UMLAssociationView" | "UMLCommunicationPathView" => {
+        "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
             if let Some(m) = r.refd(e, "model") {
                 tail = assoc_end(r, r.child(m, "end1"));
                 head = assoc_end(r, r.child(m, "end2"));

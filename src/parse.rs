@@ -54,7 +54,9 @@ fn take_visibility<'a>(r: &mut Repo, e: Eid, s: &'a str) -> &'a str {
 /// The text a name edit starts with: `<<stereotype>> name`.
 pub fn name_text(r: &Repo, e: Eid) -> String {
     let st = crate::views::type_name(r, e, "stereotype");
-    if st.is_empty() { r.name(e) } else { format!("<<{st}>> {}", r.name(e)) }
+    // an object's edit also holds its classifier: "name : Class" (uml-object.pegjs)
+    let name = crate::views::display_name(r, e);
+    if st.is_empty() { name } else { format!("<<{st}>> {name}") }
 }
 
 /// Name expression `<<stereotype>> [+|#|-|~]name`: no stereotype clears it (uml-name.pegjs).

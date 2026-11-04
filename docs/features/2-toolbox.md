@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, Packages, Annotations) and Use Case diagrams (Use Cases, Annotations); every other diagram kind gets Annotations only (src/ui.rs:80-149).
+UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, Packages, Annotations) and Use Case diagrams (Use Cases, Annotations); every other diagram kind gets Annotations only (src/ui.rs:80-150).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -228,12 +228,12 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Collaboration Use | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Role Binding | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Realization | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Object | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Object | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Artifact Instance | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Component Instance | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Node Instance | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Link | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Directed Link | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Link | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Directed Link | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Link Object | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Lifeline | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Message | ❌ | extensions/essential/uml/toolbox/uml.json |

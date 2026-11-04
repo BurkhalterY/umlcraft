@@ -104,6 +104,12 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLInclude", Some("UMLDirectedRelationship"), vec![]);
     // an association class: the class and the association it details (estimated field names)
     def("UMLAssociationClassLink", Some("UMLModelElement"), vec![("classSide", n()), ("associationSide", n())]);
+    // objects, their slots and the links between them (object diagrams; field names estimated)
+    def("UMLInstance", Some("UMLModelElement"), vec![("classifier", n()), ("slots", n())]);
+    def("UMLObject", Some("UMLInstance"), vec![]);
+    def("UMLSlot", Some("UMLModelElement"), vec![("definingFeature", n()), ("type", n()), ("value", d(json!("")))]);
+    def("UMLLink", Some("UMLUndirectedRelationship"), vec![("association", n())]);
+    def("UMLLinkEnd", Some("UMLRelationshipEnd"), vec![]);
     def("UMLExtend", Some("UMLDirectedRelationship"), vec![("condition", d(json!(""))), ("extensionLocations", n())]);
     def("UMLUseCaseSubject", Some("UMLSubsystem"), vec![("represent", n())]);
     def("UMLDiagram", Some("Diagram"), vec![]);
@@ -112,17 +118,18 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLPackageDiagram", Some("UMLDiagram"), vec![]);
     def("UMLComponentDiagram", Some("UMLDiagram"), vec![]);
     def("UMLDeploymentDiagram", Some("UMLDiagram"), vec![]);
+    def("UMLObjectDiagram", Some("UMLDiagram"), vec![]);
 
     // UML views
     def("UMLCompartmentView", Some("NodeView"), vec![]);
     def("UMLNameCompartmentView", Some("UMLCompartmentView"), vec![("stereotypeLabel", n()), ("nameLabel", n()), ("namespaceLabel", n()), ("propertyLabel", n())]);
     def("UMLListCompartmentView", Some("UMLCompartmentView"), vec![]);
-    for name in ["UMLAttributeView", "UMLOperationView", "UMLReceptionView", "UMLEnumerationLiteralView", "UMLExtensionPointView"] {
+    for name in ["UMLAttributeView", "UMLOperationView", "UMLReceptionView", "UMLEnumerationLiteralView", "UMLExtensionPointView", "UMLSlotView"] {
         def(name, Some("LabelView"), vec![]);
     }
     for name in [
         "UMLAttributeCompartmentView", "UMLOperationCompartmentView", "UMLReceptionCompartmentView", "UMLTemplateParameterCompartmentView",
-        "UMLEnumerationLiteralCompartmentView", "UMLExtensionPointCompartmentView", "UMLQualifierCompartmentView",
+        "UMLEnumerationLiteralCompartmentView", "UMLExtensionPointCompartmentView", "UMLQualifierCompartmentView", "UMLSlotCompartmentView",
     ] {
         def(name, Some("UMLListCompartmentView"), vec![]);
     }
@@ -143,6 +150,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLSubsystemView", Some("UMLPackageView"), vec![]);
     def("UMLUseCaseView", Some("UMLClassifierView"), vec![("extensionPointCompartment", n())]);
     def("UMLUseCaseSubjectView", Some("UMLGeneralNodeView"), vec![]);
+    def("UMLObjectView", Some("UMLGeneralNodeView"), vec![("slotCompartment", n())]);
     def("UMLCustomTextView", Some("NodeView"), vec![("text", d(json!(""))), ("wordWrap", d(json!(true))), ("horzAlign", d(json!(0))), ("vertAlign", d(json!(3)))]);
     def("UMLCustomNoteView", Some("UMLCustomTextView"), vec![]);
     def("UMLNoteView", Some("UMLCustomNoteView"), vec![]);
@@ -167,6 +175,7 @@ fn build() -> HashMap<&'static str, Kind> {
         def(name, Some("UMLGeneralEdgeView"), vec![]);
     }
     def("UMLCommunicationPathView", Some("UMLAssociationView"), vec![]);
+    def("UMLLinkView", Some("UMLUndirectedRelationshipView"), vec![]);
     t
 }
 

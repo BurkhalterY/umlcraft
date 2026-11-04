@@ -169,6 +169,8 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         "UMLComponent" => k("UMLComponentView", true, true, false),
         "UMLArtifact" => k("UMLArtifactView", true, true, false),
         "UMLNode" => k("UMLNodeView", true, true, false),
+        // an object: its name and classifier underlined, then its slots
+        "UMLObject" => k("UMLObjectView", false, false, false),
         _ => None,
     }
 }
@@ -186,15 +188,16 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "UMLTemplateBinding" => "UMLTemplateBindingView",
         "UMLDeployment" => "UMLDeploymentView",
         "UMLCommunicationPath" => "UMLCommunicationPathView",
+        "UMLLink" => "UMLLinkView",
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 15] = [
+const KNOWN_EDGE_VIEWS: [&str; 16] = [
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
-    "UMLTemplateBindingView", "UMLConstraintLinkView",
+    "UMLTemplateBindingView", "UMLConstraintLinkView", "UMLLinkView",
 ];
 
 /// Size used when the person clicks instead of dragging (estimated).
@@ -332,6 +335,10 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
     }
     let nc = name_compartment(r, v, model);
     r.set_ref(v, "nameCompartment", Some(nc));
+    if kind.view == "UMLObjectView" {
+        let s = list_compartment(r, v, model, "UMLSlotCompartmentView", true);
+        r.set_ref(v, "slotCompartment", Some(s));
+    }
     if kind.classifier {
         let a = list_compartment(r, v, model, "UMLAttributeCompartmentView", !kind.suppress);
         r.set_ref(v, "attributeCompartment", Some(a));
@@ -664,6 +671,18 @@ fn name_parts(r: &Repo, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) ->
     })
 }
 
+/// The text of a box's name: an object (an instance) also shows its classifier, "name : Class".
+pub fn display_name(r: &Repo, m: Eid) -> String {
+    let name = r.name(m);
+    if !r.kind_of(m, "UMLInstance") {
+        return name;
+    }
+    match r.refd(m, "classifier") {
+        Some(c) => format!("{name} : {}", r.name(c)),
+        None => name,
+    }
+}
+
 fn name_style(r: &Repo, m: Eid) -> u8 {
     if r.bool(m, "isAbstract") { 3 } else { 1 }
 }
@@ -684,9 +703,13 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
         }
     }
     if let Some(nm) = p.nm {
-        let name = r.name(m);
+        let name = display_name(r, m);
         r.set(nm, "text", json!(name));
         set_label_font(r, ms, nm, Some(style as i64));
+        // an object's name is underlined (UML instance notation)
+        if r.kind_of(m, "UMLInstance") {
+            r.set(nm, "underline", json!(true));
+        }
         items.push(nm);
     }
     if let Some(ns) = p.ns {
@@ -719,7 +742,7 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
 fn name_min_width(r: &Repo, ms: &dyn Measure, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) -> f64 {
     let wrap = r.bool(v, "wordWrap");
     let width = |t: &str, style: u8| if wrap { widest_word(ms, t, style) } else { ms.width(t, style) };
-    let mut w = width(&r.name(m), name_style(r, m));
+    let mut w = width(&display_name(r, m), name_style(r, m));
     if let Some(p) = name_parts(r, v, m, keyword, hide_st) {
         if p.show_st {
             w = w.max(width(&p.st_text, 0));
@@ -1002,6 +1025,51 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     Info { shape: "", compartments: out, is_active: r.bool(m, "isActive"), templ }
 }
 
+/// A slot's line: "name: type = value" (the defining feature's name when the slot has none; estimated).
+pub fn slot_text(r: &Repo, s: Eid) -> String {
+    let mut name = r.name(s);
+    if name.is_empty() {
+        name = r.refd(s, "definingFeature").map(|f| r.name(f)).unwrap_or_default();
+    }
+    let ty = type_name(r, s, "type");
+    if !ty.is_empty() {
+        name = format!("{name}: {ty}");
+    }
+    let value = r.str(s, "value");
+    if value.is_empty() { name } else { format!("{name} = {value}") }
+}
+
+/// An object: the name compartment, then the slots (box form, like a class).
+fn layout_object(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
+    let wrap = r.bool(v, "wordWrap");
+    let mut comps: Vec<(Eid, f64, f64, Vec<Row>)> = vec![];
+    if let Some(sc) = r.refd(v, "slotCompartment") {
+        r.remove(sc, "visible");
+        let items = r.list(m, "slots");
+        let texts: Vec<String> = items.iter().map(|s| slot_text(r, *s)).collect();
+        let (w, h, rows) = sync_list(r, ms, sc, &items, "UMLSlotView", &texts, wrap);
+        comps.push((sc, w, h, rows));
+    }
+    let mut min_w = name_min_width(r, ms, v, m, None, false);
+    for c in &comps {
+        min_w = min_w.max(c.1);
+    }
+    let (x, y) = (r.f(v, "left"), r.f(v, "top"));
+    let w0 = if r.bool(v, "autoResize") { min_w } else { r.f(v, "width").max(min_w) };
+    let name_h = layout_name(r, ms, v, m, x, y, w0, None, false);
+    let min_h = name_h + comps.iter().map(|c| c.2).sum::<f64>();
+    grow(r, v, min_w, min_h);
+    let w = r.f(v, "width");
+    let mut cy = y + name_h;
+    let mut out = vec![];
+    for (c, _, h, rows) in comps {
+        place_list(r, ms, c, x, cy, w, h, &rows);
+        out.push(Comp { y: cy, rows });
+        cy += h;
+    }
+    Info { shape: "", compartments: out, ..Default::default() }
+}
+
 fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
     let (face, size) = view_font(r, v);
     let scaled = Scaled { ms, face, size };
@@ -1013,6 +1081,11 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
             if k.classifier && k.view == t {
                 return layout_classifier(r, ms, v, m);
             }
+        }
+    }
+    if t == "UMLObjectView" {
+        if let Some(m) = m {
+            return layout_object(r, ms, v, m);
         }
     }
     if t == "UMLPackageView" || t == "UMLSubsystemView" {

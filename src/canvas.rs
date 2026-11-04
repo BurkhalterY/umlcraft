@@ -1334,7 +1334,7 @@ impl App {
         match ty {
             "UMLOperation" => Some("suppressOperations"),
             "UMLReception" => Some("suppressReceptions"),
-            "UMLExtensionPoint" => None,
+            "UMLExtensionPoint" | "UMLSlot" => None,
             "UMLEnumerationLiteral" => Some("suppressLiterals"),
             "UMLTemplateParameter" => None,
             _ => Some("suppressAttributes"),
@@ -1374,6 +1374,7 @@ impl App {
                 let ty = match self.repo.ty(m) {
                     "UMLEnumeration" => "UMLEnumerationLiteral",
                     "UMLUseCase" => "UMLExtensionPoint",
+                    "UMLObject" => "UMLSlot",
                     _ => "UMLAttribute",
                 };
                 self.add_item(host, m, ty);
@@ -1445,6 +1446,22 @@ impl App {
                     self.change(|a| a.repo.set(v, "text", json!(e.text)));
                 }
             }
+            EditKind::Name(m) if self.repo.kind_of(m, "UMLInstance") => {
+                // "<<st>> vis name : Class": the class is looked up by name (uml-object.pegjs)
+                if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
+                    let (n, c) = e.text.split_once(':').unwrap_or((&e.text, ""));
+                    let c = c.trim();
+                    let cls = if c.is_empty() { None } else { self.resolve_name(m, c, "UMLClassifier") };
+                    self.change(|a| {
+                        crate::parse::apply_name(&mut a.repo, m, n);
+                        if c.is_empty() {
+                            a.repo.remove(m, "classifier");
+                        } else if let Some(x) = cls {
+                            a.repo.set_ref(m, "classifier", Some(x));
+                        }
+                    });
+                }
+            }
             EditKind::Name(m) => {
                 if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
                     self.change(|a| crate::parse::apply_name(&mut a.repo, m, &e.text));
@@ -1456,6 +1473,17 @@ impl App {
                     self.change(|a| {
                         if ty == "UMLOperation" {
                             crate::parse::apply_operation(&mut a.repo, f, &e.text);
+                        } else if ty == "UMLSlot" {
+                            // "<<st>> vis name : type = value" (uml-slot.pegjs)
+                            let (head, val) = e.text.split_once('=').unwrap_or((&e.text, ""));
+                            let (n, t) = head.split_once(':').unwrap_or((head, ""));
+                            crate::parse::apply_name(&mut a.repo, f, n);
+                            if t.trim().is_empty() {
+                                a.repo.remove(f, "type");
+                            } else {
+                                a.repo.set(f, "type", json!(t.trim()));
+                            }
+                            a.repo.set(f, "value", json!(val.trim()));
                         } else if ty == "UMLExtensionPoint" {
                             // "name: location"
                             let (n, loc) = e.text.split_once(':').unwrap_or((&e.text, ""));

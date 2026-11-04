@@ -3189,3 +3189,53 @@ fn use_case_extension_points() {
     let row = a.info.get(&v).unwrap().compartments[0].rows[0].iv;
     assert_eq!(a.repo.str(row, "text"), "Help: after login");
 }
+
+#[test]
+fn object_diagrams() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let ms = measure();
+    let mut a = App::new(None);
+    let cls = a.change(|a| a.create_node("UMLClass", rect(40.0, 300.0, 100.0, 60.0))).unwrap();
+    let cm = a.repo.refd(cls, "model").unwrap();
+    a.repo.set(cm, "name", json!("Book"));
+    let d = a.add_diagram(None, "UMLObjectDiagram");
+    let o1 = a.change(|a| a.create_node("UMLObject", rect(40.0, 40.0, 100.0, 40.0))).unwrap();
+    let o2 = a.change(|a| a.create_node("UMLObject", rect(300.0, 40.0, 100.0, 40.0))).unwrap();
+    assert_eq!(a.repo.ty(o1), "UMLObjectView");
+    let m1 = a.repo.refd(o1, "model").unwrap();
+    // "name : Class" sets the classifier, and the name is drawn underlined
+    a.edit_view(o1, None);
+    a.editing.as_mut().unwrap().text = "b1 : Book".into();
+    a.close_inline(true);
+    assert_eq!((a.repo.name(m1).as_str(), a.repo.refd(m1, "classifier")), ("b1", Some(cm)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nl = a.repo.refd(a.repo.refd(o1, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "b1 : Book");
+    assert!(a.repo.bool(nl, "underline"));
+    // Ctrl+Enter adds a slot, edited as "name = value"
+    a.item_key(o1, EditKind::Name(m1), ItemKey::Add);
+    let slot = a.repo.list(m1, "slots")[0];
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    a.edit_item(o1, slot);
+    a.editing.as_mut().unwrap().text = "title : String = \"Dune\"".into();
+    a.close_inline(true);
+    assert_eq!((a.repo.name(slot).as_str(), a.repo.str(slot, "value").as_str()), ("title", "\"Dune\""));
+    assert_eq!(crate::views::slot_text(&a.repo, slot), "title: String = \"Dune\"");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info.get(&o1).unwrap().compartments[0].rows.len(), 1);
+    // links join objects only
+    let t = tool("UMLLink", AssocInit::Directed);
+    assert!(a.can_connect(&t, o1, o2));
+    let e = a.change(|a| a.create_edge(&t, o1, o2)).unwrap();
+    assert_eq!(a.repo.ty(e), "UMLLinkView");
+    let lm = a.repo.refd(e, "model").unwrap();
+    let end2 = a.repo.child(lm, "end2").unwrap();
+    assert_eq!((a.repo.ty(end2), a.repo.str(end2, "navigable").as_str()), ("UMLLinkEnd", "navigable"));
+    assert!(a.broken_views(d).is_empty());
+    // it all reads back
+    let text = a.repo.serialize();
+    let b = Repo::parse(&text).unwrap();
+    assert_eq!(b.all_of("UMLSlot").len(), 1);
+    assert_eq!(b.all_of("UMLObjectDiagram").len(), 1);
+}

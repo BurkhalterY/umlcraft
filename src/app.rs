@@ -914,6 +914,8 @@ impl App {
         let classifier = |m: Eid| r.kind_of(m, "UMLClassifier");
         match kind {
             "UMLAssociation" => classifier(tm) && classifier(hm),
+            // a link joins two objects (uml-factory.js)
+            "UMLLink" => r.kind_of(tm, "UMLInstance") && r.kind_of(hm, "UMLInstance"),
             // deployment diagrams: a path joins two nodes, a deployment puts a classifier on a node and a
             // component realization realizes a component (uml-factory.js:19-146)
             "UMLCommunicationPath" => r.ty(tm) == "UMLNode" && r.ty(hm) == "UMLNode",
@@ -953,11 +955,13 @@ impl App {
         }
         let tm = self.repo.refd(tail, "model")?;
         let hm = self.repo.refd(head, "model")?;
-        let m = if tool.kind == "UMLAssociation" || tool.kind == "UMLCommunicationPath" {
+        let m = if tool.kind == "UMLAssociation" || tool.kind == "UMLCommunicationPath" || tool.kind == "UMLLink" {
             let m = self.repo.create(tool.kind, &[], Some((tm, "ownedElements")));
             let (r1, r2) = (self.repo.ref_to(tm), self.repo.ref_to(hm));
-            let e1 = self.repo.create("UMLAssociationEnd", &[("reference", r1)], Some((m, "end1")));
-            let e2 = self.repo.create("UMLAssociationEnd", &[("reference", r2)], Some((m, "end2")));
+            // a link joins two objects through link ends
+            let end = if tool.kind == "UMLLink" { "UMLLinkEnd" } else { "UMLAssociationEnd" };
+            let e1 = self.repo.create(end, &[("reference", r1)], Some((m, "end1")));
+            let e2 = self.repo.create(end, &[("reference", r2)], Some((m, "end2")));
             match tool.init {
                 AssocInit::Directed => {
                     self.repo.set(e1, "navigable", json!("unspecified"));
@@ -1060,6 +1064,7 @@ impl App {
             "UMLOperation" => "operations",
             "UMLReception" => "receptions",
             "UMLExtensionPoint" => "extensionPoints",
+            "UMLSlot" => "slots",
             "UMLEnumerationLiteral" => "literals",
             "UMLParameter" => "parameters",
             "UMLTemplateParameter" => "templateParameters",
@@ -1075,6 +1080,7 @@ impl App {
             "UMLEnumerationLiteral" => t == "UMLEnumeration",
             "UMLParameter" => t == "UMLOperation",
             "UMLExtensionPoint" => t == "UMLUseCase",
+            "UMLSlot" => self.repo.kind_of(owner, "UMLInstance"),
             // template parameters on classes, interfaces and the other boxes with compartments
             "UMLTemplateParameter" => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase" && t != "UMLEnumeration",
             _ => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase",

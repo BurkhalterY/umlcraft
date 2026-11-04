@@ -123,6 +123,7 @@ const CLASS_GROUPS: &[Group] = &[
         label: "Packages",
         items: &[node("Package", "UMLPackage", "package"), node("Model", "UMLModel", "model"), node("Subsystem", "UMLSubsystem", "package"), line("Dependency", "UMLDependency", "dependency", AssocInit::Plain), line("Containment", "Containment", "containment", AssocInit::Plain)],
     },
+    INSTANCES,
     // the robustness extension's group (robustness/toolbox/robustness.json)
     Group { id: "robustness", label: "Robustness", items: &[node("Boundary", "Boundary", "boundary"), node("Entity", "Entity", "entity"), node("Control", "Control", "control")] },
     ANNOTATIONS,
@@ -173,13 +174,25 @@ const COMPONENT_GROUPS: &[Group] = &[
     },
     ANNOTATIONS,
 ];
+// objects and links (uml.json "uml.instance": UMLClassDiagram, UMLObjectDiagram, …)
+const INSTANCES: Group = Group {
+    id: "instance",
+    label: "Instances",
+    items: &[
+        node("Object", "UMLObject", "object"),
+        line("Link", "UMLLink", "association", AssocInit::Plain),
+        line("Directed Link", "UMLLink", "directed", AssocInit::Directed),
+    ],
+};
+const OBJECT_GROUPS: &[Group] = &[INSTANCES, ANNOTATIONS];
 // a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 5] = [
+const DIAGRAM_KINDS: [(&str, &str); 6] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
+    ("Object Diagram", "UMLObjectDiagram"),
     ("Component Diagram", "UMLComponentDiagram"),
     ("Deployment Diagram", "UMLDeploymentDiagram"),
     ("Use Case Diagram", "UMLUseCaseDiagram"),
@@ -384,6 +397,7 @@ impl App {
                 ("Package", "UMLPackage"), ("Profile", "UMLProfile"), ("Class", "UMLClass"), ("Interface", "UMLInterface"), ("Signal", "UMLSignal"),
                 ("DataType", "UMLDataType"), ("PrimitiveType", "UMLPrimitiveType"), ("Enumeration", "UMLEnumeration"), ("Stereotype", "UMLStereotype"),
                 ("Actor", "UMLActor"), ("Use Case", "UMLUseCase"), ("Subsystem", "UMLSubsystem"), ("Component", "UMLComponent"), ("Artifact", "UMLArtifact"), ("Node", "UMLNode"),
+                ("Object", "UMLObject"),
             ] {
                 adds.push((l, k, false));
             }
@@ -392,7 +406,7 @@ impl App {
         if self.repo.kind_of(e, "UMLModelElement") {
             adds.push(("Constraint", "UMLConstraint", false));
         }
-        for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter")] {
+        for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Slot", "UMLSlot"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter")] {
             if self.can_add_feature(e, k) {
                 adds.push((l, k, true));
             }
@@ -715,6 +729,8 @@ impl App {
             "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
             // a reception names the signal it receives (uml-commands.js:1484)
             "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
+            "UMLObject" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("classifier", "type")],
+            "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
             "UMLReception" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("signal", "type")],
             "UMLAssociationEnd" => end(""),
             _ if r.kind_of(e, "UMLClassifier") => {
@@ -1164,6 +1180,7 @@ impl App {
                 Some("UMLPackageDiagram") => self.open_groups.insert("package"),
                 Some("UMLComponentDiagram") => self.open_groups.insert("component"),
                 Some("UMLDeploymentDiagram") => self.open_groups.insert("deployment"),
+                Some("UMLObjectDiagram") => self.open_groups.insert("instance"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1184,6 +1201,7 @@ impl App {
             Some("UMLClassDiagram") => CLASS_GROUPS,
             Some("UMLUseCaseDiagram") => USECASE_GROUPS,
             Some("UMLPackageDiagram") => PACKAGE_GROUPS,
+            Some("UMLObjectDiagram") => OBJECT_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

@@ -28,6 +28,10 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLComponent" => "component",
         "UMLArtifact" => "artifact",
         "UMLNode" => "node",
+        "UMLObject" => "object",
+        "UMLSlot" => "attribute",
+        "UMLLink" => "association",
+        "UMLObjectDiagram" => "diagram-class",
         "UMLComponentRealization" => "realization",
         "UMLDeployment" | "UMLTemplateBinding" => "dependency",
         "UMLCommunicationPath" => "association",
@@ -83,6 +87,10 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             rect_at(2.0, 2.5, 12.0, 11.0, Y);
             line(&[(2.0, 6.0), (14.0, 6.0)], Y);
             line(&[(2.0, 9.5), (14.0, 9.5)], Y);
+        }
+        "object" => {
+            rect_at(2.0, 3.5, 12.0, 9.0, Y);
+            line(&[(4.5, 7.0), (11.5, 7.0)], Y);
         }
         "interface" => {
             p.circle_stroke(at(11.0, 8.0), 3.3 * s, st(Y));
