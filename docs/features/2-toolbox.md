@@ -175,8 +175,8 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Viewpoint | ❌ | extensions/essential/sysml/toolbox/sysml.json |
 | Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Conform | ❌ | extensions/essential/sysml/toolbox/sysml.json |
 | Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Expose | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Information Flows `uml.information-flow` | UMLInformationFlowDiagram | Information Item | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Information Flows `uml.information-flow` | UMLInformationFlowDiagram | Information Flow | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Information Flows `uml.information-flow` | UMLInformationFlowDiagram | Information Item | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Information Flows `uml.information-flow` | UMLInformationFlowDiagram | Information Flow | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Package | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Use Case Subject | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Use Case | ✅ | extensions/essential/uml/toolbox/uml.json |

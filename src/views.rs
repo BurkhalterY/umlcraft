@@ -171,6 +171,7 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         "UMLNode" => k("UMLNodeView", true, true, false),
         // an object: its name and classifier underlined, then its slots
         "UMLObject" => k("UMLObjectView", false, false, false),
+        "UMLInformationItem" => k("UMLInformationItemView", true, true, false),
         "UMLArtifactInstance" => k("UMLArtifactInstanceView", false, false, false),
         "UMLComponentInstance" => k("UMLComponentInstanceView", false, false, false),
         "UMLNodeInstance" => k("UMLNodeInstanceView", false, false, false),
@@ -192,15 +193,16 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "UMLDeployment" => "UMLDeploymentView",
         "UMLCommunicationPath" => "UMLCommunicationPathView",
         "UMLLink" => "UMLLinkView",
+        "UMLInformationFlow" => "UMLInformationFlowView",
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 16] = [
+const KNOWN_EDGE_VIEWS: [&str; 17] = [
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
-    "UMLTemplateBindingView", "UMLConstraintLinkView", "UMLLinkView",
+    "UMLTemplateBindingView", "UMLConstraintLinkView", "UMLLinkView", "UMLInformationFlowView",
 ];
 
 /// Size used when the person clicks instead of dragging (estimated).
@@ -835,6 +837,7 @@ fn keyword_of(ty: &str) -> Option<&'static str> {
         "UMLDataType" => Some("dataType"),
         "UMLPrimitiveType" => Some("primitive"),
         "UMLSignal" => Some("signal"),
+        "UMLInformationItem" => Some("information"),
         _ => None,
     }
 }
@@ -1344,6 +1347,8 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
         "UMLExtend" => "«extend»".to_string(),
         // a template binding shows the «bind» keyword (UML 2; estimated for StarUML)
         "UMLTemplateBinding" if stereotype_text(r, m).is_empty() => "«bind»".to_string(),
+        // an information flow shows «flow» (UML 2; estimated for StarUML)
+        "UMLInformationFlow" if stereotype_text(r, m).is_empty() => "«flow»".to_string(),
         _ => stereotype_text(r, m),
     };
     out.push(("stereotypeLabel", st));

@@ -189,17 +189,29 @@ const INSTANCES: Group = Group {
     ],
 };
 const OBJECT_GROUPS: &[Group] = &[INSTANCES, ANNOTATIONS];
+// information flow diagrams: their own group, then the use case and basic class tools (uml.json)
+const INFO_FLOW_GROUPS: &[Group] = &[
+    Group {
+        id: "information-flow",
+        label: "Information Flows",
+        items: &[node("Information Item", "UMLInformationItem", "class"), line("Information Flow", "UMLInformationFlow", "dependency", AssocInit::Plain)],
+    },
+    USECASE_GROUPS[0],
+    CLASS_GROUPS[0],
+    ANNOTATIONS,
+];
 // a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 6] = [
+const DIAGRAM_KINDS: [(&str, &str); 7] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
     ("Component Diagram", "UMLComponentDiagram"),
     ("Deployment Diagram", "UMLDeploymentDiagram"),
     ("Use Case Diagram", "UMLUseCaseDiagram"),
+    ("Information Flow Diagram", "UMLInformationFlowDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -401,7 +413,7 @@ impl App {
                 ("Package", "UMLPackage"), ("Profile", "UMLProfile"), ("Class", "UMLClass"), ("Interface", "UMLInterface"), ("Signal", "UMLSignal"),
                 ("DataType", "UMLDataType"), ("PrimitiveType", "UMLPrimitiveType"), ("Enumeration", "UMLEnumeration"), ("Stereotype", "UMLStereotype"),
                 ("Actor", "UMLActor"), ("Use Case", "UMLUseCase"), ("Subsystem", "UMLSubsystem"), ("Component", "UMLComponent"), ("Artifact", "UMLArtifact"), ("Node", "UMLNode"),
-                ("Object", "UMLObject"),
+                ("Object", "UMLObject"), ("Information Item", "UMLInformationItem"),
             ] {
                 adds.push((l, k, false));
             }
@@ -1237,6 +1249,7 @@ impl App {
                 Some("UMLComponentDiagram") => self.open_groups.insert("component"),
                 Some("UMLDeploymentDiagram") => self.open_groups.insert("deployment"),
                 Some("UMLObjectDiagram") => self.open_groups.insert("instance"),
+                Some("UMLInformationFlowDiagram") => self.open_groups.insert("information-flow"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1258,6 +1271,7 @@ impl App {
             Some("UMLUseCaseDiagram") => USECASE_GROUPS,
             Some("UMLPackageDiagram") => PACKAGE_GROUPS,
             Some("UMLObjectDiagram") => OBJECT_GROUPS,
+            Some("UMLInformationFlowDiagram") => INFO_FLOW_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

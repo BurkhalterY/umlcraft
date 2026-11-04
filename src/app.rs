@@ -1002,6 +1002,7 @@ impl App {
             "UMLCommunicationPath" => r.ty(tm) == "UMLNode" && r.ty(hm) == "UMLNode",
             "UMLDeployment" => classifier(tm) && r.ty(hm) == "UMLNode" && tm != hm,
             "UMLComponentRealization" => classifier(tm) && r.ty(hm) == "UMLComponent" && tm != hm,
+            "UMLInformationFlow" => tm != hm,
             // the bound classifier points at its template
             "UMLTemplateBinding" => classifier(tm) && classifier(hm) && tm != hm,
             "UMLGeneralization" => classifier(tm) && classifier(hm) && tm != hm,
@@ -1179,7 +1180,7 @@ impl App {
             _ => self.package_for(self.diagram),
         };
         // a structural diagram made right under the Project goes in a new model "Model" (uml-factory.js:150-180)
-        let structural = matches!(ty, "UMLClassDiagram" | "UMLPackageDiagram" | "UMLObjectDiagram" | "UMLComponentDiagram" | "UMLDeploymentDiagram" | "UMLUseCaseDiagram");
+        let structural = matches!(ty, "UMLClassDiagram" | "UMLPackageDiagram" | "UMLObjectDiagram" | "UMLComponentDiagram" | "UMLDeploymentDiagram" | "UMLUseCaseDiagram" | "UMLInformationFlowDiagram");
         let target = if structural && self.repo.ty(target) == "Project" {
             self.repo.create("UMLModel", &[("name", json!("Model"))], Some((target, "ownedElements")))
         } else {

@@ -3528,3 +3528,21 @@ fn structural_diagrams_under_the_project_get_a_model() {
     let d2 = a.change(|a| a.add_diagram(Some(m), "UMLUseCaseDiagram"));
     assert_eq!(a.repo.parent(d2), Some(m));
 }
+
+#[test]
+fn information_flow_diagrams() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.add_diagram(None, "UMLInformationFlowDiagram");
+    let actor = a.change(|a| a.create_node("UMLActor", rect(40.0, 40.0, 40.0, 70.0))).unwrap();
+    let item = a.change(|a| a.create_node("UMLInformationItem", rect(240.0, 40.0, 120.0, 60.0))).unwrap();
+    assert_eq!(a.repo.ty(item), "UMLInformationItemView");
+    let t = tool("UMLInformationFlow", AssocInit::Plain);
+    assert!(a.can_connect(&t, actor, item));
+    let e = a.change(|a| a.create_edge(&t, actor, item)).unwrap();
+    assert_eq!(a.repo.ty(e), "UMLInformationFlowView");
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(e, "stereotypeLabel").unwrap(), "text"), "«flow»");
+    let st = a.repo.refd(a.repo.refd(item, "nameCompartment").unwrap(), "stereotypeLabel").unwrap();
+    assert_eq!(a.repo.str(st, "text"), "«information»");
+}
