@@ -488,7 +488,11 @@ impl App {
         let Some(dir) = rfd::FileDialog::new().set_title("Select a folder where HTML docs to be exported").pick_folder() else { return };
         match self.export_html(&dir.join("html-docs"), ms) {
             Ok(()) => self.toast("HTML docs exported successfully."),
-            Err(e) => self.message = Some(("Failed to export HTML docs.".into(), e)),
+            // an error toast, as in the original; the reason goes to the log (html-export/main.js:242-245)
+            Err(e) => {
+                eprintln!("Failed to export HTML docs: {e}");
+                self.toast_error("Failed to export HTML docs.");
+            }
         }
     }
 }

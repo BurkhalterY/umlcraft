@@ -2397,7 +2397,7 @@ impl App {
     /// "File not found: <path>" (open-recent/main.js:59).
     fn open_recent(&mut self, ms: &EguiMeasure, p: std::path::PathBuf) {
         if !p.exists() {
-            self.toast(&format!("File not found: {}", p.display()));
+            self.toast_error(&format!("File not found: {}", p.display()));
             let mut list = self.recent_files();
             list.retain(|x| *x != p);
             self.set_recent(list);
