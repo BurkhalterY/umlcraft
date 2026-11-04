@@ -397,6 +397,13 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             draw_name(c, r, v);
             if let Some(m) = r.refd(v, "model") {
                 let rows = views::state_activity_rows(r, m);
+                // a composite state: its regions under a line below the name and activities (estimated)
+                if r.list(m, "regions").iter().any(|x| r.alive(*x)) {
+                    let nh = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "height")).unwrap_or(views::NAME_MIN_H);
+                    let size = views::view_font(r, v).1;
+                    let y = b.y + nh + if rows.is_empty() { 0.0 } else { rows.len() as f64 * size + 2.0 * views::PAD };
+                    c.polyline(&[P { x: b.x, y }, P { x: b.x + b.w, y }], line, false);
+                }
                 if !rows.is_empty() {
                     let nh = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "height")).unwrap_or(views::NAME_MIN_H);
                     let y = b.y + nh;

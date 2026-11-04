@@ -263,6 +263,7 @@ const STATECHART_GROUPS: &[Group] = &[
         id: "statechart-adv",
         label: "Statechart (Advanced)",
         items: &[
+            node("Composite State", "CompositeState", "state"),
             node("Junction", "Junction", "initial"),
             node("Shallow History", "ShallowHistory", "history"),
             node("Deep History", "DeepHistory", "history"),

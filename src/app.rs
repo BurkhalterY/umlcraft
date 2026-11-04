@@ -772,16 +772,24 @@ impl App {
         }
         // a statechart's states go in the first region of its state machine (uml-factory.js:2005)
         let pseudo = views::pseudostate_kind(kind);
-        if pseudo.is_some() || kind == "UMLState" || kind == "UMLFinalState" {
+        if pseudo.is_some() || kind == "UMLState" || kind == "UMLFinalState" || kind == "CompositeState" {
             let region = self.statechart_region(d)?;
-            let ty = if pseudo.is_some() { "UMLPseudostate" } else { kind };
+            let ty = if pseudo.is_some() { "UMLPseudostate" } else if kind == "CompositeState" { "UMLState" } else { kind };
             let name = self.new_name(region, ty);
             let m = self.repo.create(ty, &[("name", json!(name))], Some((region, "vertices")));
             if let Some(k) = pseudo {
                 self.repo.set(m, "kind", json!(k));
             }
+            if kind == "CompositeState" {
+                self.repo.create("UMLRegion", &[], Some((m, "regions")));
+            }
             let v = views::create_node_view(&mut self.repo, d, m, rect)?;
             self.apply_view_defaults(v);
+            // drawn inside a state: it goes in that state (its first region)
+            let host = self.repo.list(d, "ownedViews").into_iter().rev().find(|c| *c != v && self.repo.ty(*c) == "UMLStateView" && { let b = views::node_rect(&self.repo, *c); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h });
+            if let Some(c) = host {
+                self.set_container(&[v], Some(c));
+            }
             return Some(v);
         }
         let parent = self.package_for(Some(d));
@@ -834,7 +842,12 @@ impl App {
     /// hold boxes, and never themselves or a box that contains them.
     pub fn can_contain_view(&self, container: Eid, v: Eid) -> bool {
         let ct = self.repo.ty(container);
-        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView") || !views::is_node(&self.repo, v) {
+        // a state holds states and pseudostates, which then belong to its first region
+        let vertex = |x: Eid| self.repo.refd(x, "model").map(|m| self.repo.kind_of(m, "UMLVertex")).unwrap_or(false);
+        if ct == "UMLStateView" && !vertex(v) {
+            return false;
+        }
+        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView" || ct == "UMLStateView") || !views::is_node(&self.repo, v) {
             return false;
         }
         // not the view itself or anything inside it
@@ -880,6 +893,21 @@ impl App {
                 };
                 a.push(self.repo.ref_to(v));
                 self.repo.set_raw(c, "containedViews", json!(a));
+            }
+            // a state or pseudostate goes in the first region of the state it is put in, or of the
+            // diagram's state machine when released (uml/main.js:24-41)
+            if let Some(vm) = self.repo.refd(v, "model").filter(|m| self.repo.kind_of(*m, "UMLVertex")) {
+                let region = match to.and_then(|c| self.repo.refd(c, "model")).filter(|s| self.repo.kind_of(*s, "UMLState")) {
+                    Some(s) => Some(match self.repo.list(s, "regions").into_iter().find(|x| self.repo.alive(*x)) {
+                        Some(rg) => rg,
+                        None => self.repo.create("UMLRegion", &[], Some((s, "regions"))),
+                    }),
+                    None => self.statechart_region(d),
+                };
+                if let Some(rg) = region.filter(|rg| self.repo.parent(vm) != Some(*rg)) {
+                    self.repo.relocate(vm, rg, "vertices");
+                }
+                continue;
             }
             let target = match to {
                 Some(c) if self.repo.ty(c) == "UMLUseCaseSubjectView" => None,

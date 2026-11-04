@@ -300,6 +300,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLPart" => (80.0, 30.0),
         "UMLPort" => (PORT_SIZE, PORT_SIZE),
         "UMLState" => (100.0, 40.0),
+        "CompositeState" => (200.0, 150.0),
         "UMLFinalState" => (FINAL_SIZE, FINAL_SIZE),
         "Fork" | "Join" => (8.0, 60.0),
         _ if pseudostate_kind(kind).is_some() => (PSEUDO_SIZE, PSEUDO_SIZE),

@@ -4728,3 +4728,31 @@ fn a_state_machine_dropped_on_a_statechart_is_a_submachine_state() {
     let sm = a.repo.parent(d).unwrap();
     assert_eq!(a.repo.parent(s), Some(a.repo.list(sm, "regions")[0]));
 }
+
+#[test]
+fn states_drawn_in_a_composite_state_belong_to_its_region() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let top = a.repo.list(a.repo.parent(d).unwrap(), "regions")[0];
+    let c = a.change(|a| a.create_node("CompositeState", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    let inner_region = a.repo.list(cm, "regions")[0];
+    let s = a.change(|a| a.create_node("UMLState", rect(150.0, 160.0, 100.0, 40.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    assert_eq!(a.repo.refd(s, "containerView"), Some(c));
+    assert_eq!(a.repo.parent(sm), Some(inner_region));
+    // released on the canvas, it goes back to the state machine's region
+    a.change(|a| a.set_container(&[s], None));
+    assert_eq!(a.repo.parent(sm), Some(top));
+    assert!(a.can_contain_view(c, s));
+    // a note is not held by a state
+    let n = a.change(|a| a.create_node("Note", rect(120.0, 120.0, 60.0, 40.0))).unwrap();
+    assert!(!a.can_contain_view(c, n));
+    // a simple state takes a state too, which gives it a region
+    let s2 = a.change(|a| a.create_node("UMLState", rect(500.0, 100.0, 200.0, 100.0))).unwrap();
+    a.change(|a| a.set_container(&[s], Some(s2)));
+    let m2 = a.repo.refd(s2, "model").unwrap();
+    assert_eq!(a.repo.parent(sm), a.repo.list(m2, "regions").first().copied());
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
