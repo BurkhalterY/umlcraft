@@ -134,6 +134,35 @@ fn short_label(l: &str) -> String {
     format!("+ {}", l.trim_start_matches("Add "))
 }
 
+/// The buttons right of an inline edit's field that also have a key: on a box's name, Add
+/// Attribute (Literal, Slot, Extension Point) and Add Operation; on a compartment item, Add, Delete,
+/// Move Up and Move Down. Each is shown with its hint and key, "Add Attribute (Ctrl+Enter)"
+/// (quickedits/uml.json components with a `key`; quickedit-manager.js:385-394).
+pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static str, &'static str, &'static str, ItemKey)> {
+    const ADD_OP: (&str, &str, &str, ItemKey) = ("+ Op", "Add Operation", "Ctrl+Shift+Enter", ItemKey::AddOperation);
+    match kind {
+        EditKind::Name(m) => {
+            let t = r.ty(*m);
+            match t {
+                "UMLEnumeration" => vec![("+ Lit", "Add Literal", "Ctrl+Enter", ItemKey::Add), ADD_OP],
+                "UMLUseCase" => vec![("+ Ext", "Add Extension Point", "Ctrl+Enter", ItemKey::Add)],
+                _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
+                // classes, interfaces, signals, data types, components, nodes, artifacts, stereotypes
+                // (actors take no attributes in UMLCraft)
+                _ if r.kind_of(*m, "UMLClassifier") && t != "UMLActor" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP],
+                _ => vec![],
+            }
+        }
+        EditKind::Feature(_) => vec![
+            ("+", "Add", "Ctrl+Enter", ItemKey::Add),
+            ("✕", "Delete", "Ctrl+Delete", ItemKey::Delete),
+            ("▲", "Move Up", "Ctrl+Up", ItemKey::Move(true)),
+            ("▼", "Move Down", "Ctrl+Down", ItemKey::Move(false)),
+        ],
+        EditKind::Text(_) => vec![],
+    }
+}
+
 /// Keys of the inline edit on a class name or a compartment item.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum ItemKey {
@@ -1700,7 +1729,18 @@ impl App {
                                 }
                             });
                         }
-                        ui.add(te)
+                        let resp = ui.add(te);
+                        // the item buttons with a key, on a box's name or item (taken on press, as the
+                        // field loses focus before a release)
+                        if ed.host.is_some() && !ed.multiline {
+                            for (label, hint, keys, k) in item_buttons(&self.repo, &ed.kind) {
+                                let b = ui.add(egui::Button::new(egui::RichText::new(label).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(format!("{hint} ({keys})"));
+                                if b.is_pointer_button_down_on() {
+                                    key = Some(k);
+                                }
+                            }
+                        }
+                        resp
                     })
                     .inner;
                 if let (Some(v), Some(m)) = (picked_vis, vis_target) {
