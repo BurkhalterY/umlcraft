@@ -4126,3 +4126,17 @@ fn profile_stereotype_icons() {
     let back = Repo::parse(&text).unwrap();
     assert!(back.all_of("UMLImage").len() == 1);
 }
+
+#[test]
+fn icon_with_label_shows_the_stereotype() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let b = a.change(|a| a.create_node("Boundary", rect(20.0, 20.0, 10.0, 10.0))).unwrap();
+    let st = a.repo.refd(a.repo.refd(b, "nameCompartment").unwrap(), "stereotypeLabel").unwrap();
+    for (display, shown) in [("icon", false), ("icon-label", true)] {
+        a.change(|a| a.repo.set(b, "stereotypeDisplay", json!(display)));
+        a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+        assert_eq!(a.repo.raw(st, "visible") != Some(&json!(false)), shown, "{display}");
+    }
+}

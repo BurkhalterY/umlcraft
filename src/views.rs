@@ -930,7 +930,9 @@ fn name_parts(r: &Repo, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) ->
             st_text = format!("«{k}»");
         }
     }
-    let show_st = !st_text.is_empty() && (display == "label" || display == "decoration-label") && !hide_st;
+    // the label forms show the stereotype: Label, Decoration with Label, Icon with Label
+    // (UMLGeneralNodeView.sizeObject, elements.js:4860-4883)
+    let show_st = !st_text.is_empty() && (display == "label" || display == "decoration-label" || display == "icon-label") && !hide_st;
     let parent = r.parent(m).map(|p| r.name(p)).unwrap_or_default();
     Some(NameParts {
         nc,
