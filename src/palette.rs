@@ -127,6 +127,9 @@ pub const COMMANDS: &[Command] = &[
     c("view:statusbar", "Statusbar", "Ctrl+4"),
     c("view:toolbox", "Toolbox", "Ctrl+5"),
     c("view:editors", "Editors", "Ctrl+6"),
+    c("help:documentation", "Documentation", ""),
+    c("help:release-notes", "Release Notes", ""),
+    c("help:about", "About UMLCraft", ""),
 ];
 
 /// Commands whose id or name contains the text, case-insensitive (command-palette.js:53-55).
@@ -299,6 +302,9 @@ impl App {
             "view:statusbar" => self.show_statusbar = !self.show_statusbar,
             "view:toolbox" => self.show_toolbox = !self.show_toolbox,
             "view:editors" => self.show_editors = !self.show_editors,
+            "help:documentation" => ctx.open_url(egui::OpenUrl::new_tab(crate::ui::DOCS_URL)),
+            "help:release-notes" => ctx.open_url(egui::OpenUrl::new_tab(crate::ui::RELEASES_URL)),
+            "help:about" => self.about_open = true,
             _ => {}
         }
     }

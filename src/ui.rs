@@ -20,6 +20,9 @@ pub const TOOLBOX_HEIGHT: f32 = 400.0;
 pub const EDITORS_HEIGHT: f32 = 400.0;
 pub const HEADER_HEIGHT: f32 = 34.0;
 pub const SCREENSHOT_FRAMES: u32 = 120;
+/// Help › Documentation and Release Notes open these pages.
+pub const DOCS_URL: &str = "https://github.com/BurkhalterY/umlcraft#readme";
+pub const RELEASES_URL: &str = "https://github.com/BurkhalterY/umlcraft/releases";
 /// The grab handle a hidden sidebar or navigator leaves at the window edge (resizer.js:238-258).
 const GRIP_HIDDEN: f32 = 4.0;
 
@@ -1611,7 +1614,17 @@ impl App {
                     ui.close();
                 }
             });
+            // Help: Documentation, Release Notes and About (default-commands.js:1152-1178)
             ui.menu_button("Help", |ui| {
+                if ui.button("Documentation...").clicked() {
+                    ui.ctx().open_url(egui::OpenUrl::new_tab(DOCS_URL));
+                    ui.close();
+                }
+                if ui.button("Release Notes...").clicked() {
+                    ui.ctx().open_url(egui::OpenUrl::new_tab(RELEASES_URL));
+                    ui.close();
+                }
+                ui.separator();
                 if ui.button("About UMLCraft").clicked() {
                     self.about_open = true;
                     ui.close();
