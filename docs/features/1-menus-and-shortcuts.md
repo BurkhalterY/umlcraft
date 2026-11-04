@@ -431,8 +431,8 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | mermaid-example-dropdown | Entity Relationship Diagram | `mermaid:example-er-diagram` | ❌ |  |
 | mermaid-example-dropdown | Requirement Diagram | `mermaid:example-requirement-diagram` | ❌ |  |
 | mermaid-example-dropdown | Mindmap | `mermaid:example-mindmap` | ❌ |  |
-| #relationship-view div.listview | Select Related Element | `relationship-view:select-related-element` | ❌ |  |
-| #relationship-view div.listview | Select Relationship | `relationship-view:select-relationship` | ❌ |  |
+| #relationship-view div.listview | Select Related Element | `relationship-view:select-related-element` | ✅ | the Relationships panel row's context menu selects the element at the other end (src/relview.rs:85-89) |
+| #relationship-view div.listview | Select Relationship | `relationship-view:select-relationship` | ✅ | the Relationships panel row's context menu selects the relationship (src/relview.rs:90-93) |
 | model-explorer | *(the menu as a whole)* |  | 🟡 | the explorer menu has Add, Add Diagram, Open Diagram, Tag Editor, Select In Diagram, Cut, Copy, Paste, Move Up, Move Down and Delete from Model; no constraint or behaviour items (src/ui.rs:417) |
 | model-explorer | Model › Add › Tag | `common:tag` | ✅ | Model › Add › Tag and the explorer Add menu create a string tag "Tag<n>" (src/ui.rs:395-404) |
 | model-explorer | Model › Add › Entry Activity | `uml:create-model.entry-activity` | ❌ |  |
