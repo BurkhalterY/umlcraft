@@ -2219,6 +2219,22 @@ fn html_docs_export() {
     assert!(bp.contains("<h2>Receptions</h2>") && bp.contains(&a.repo.name(rc)));
     let index = std::fs::read_to_string(dir.join("contents/element_index.html")).unwrap();
     assert!(index.contains("<h2>UMLClass ("));
+    // the generic sections: properties, tags, relationships and the diagrams that show it
+    assert!(bp.contains("<h2>Properties</h2>") && bp.contains("<td>isAbstract</td><td><span class=\"label\">false</span></td>"), "a default value as a label");
+    assert!(bp.contains("<h2>Relationships</h2>") && bp.contains("<h2>Diagrams</h2>"));
+    let _ = std::fs::remove_dir_all(&dir);
+    let t = a.change(|a| a.repo.create("Tag", &[("name", json!("reviewed")), ("kind", json!("boolean")), ("checked", json!(true))], Some((book, "tags"))));
+    let lib = a.repo.all().find(|e| a.repo.name(*e) == "LibraryItem").unwrap();
+    let dep = a.change(|a| { let (s, t) = (a.repo.ref_to(book), a.repo.ref_to(lib)); a.repo.create("UMLDependency", &[("source", s), ("target", t)], Some((book, "ownedElements"))) });
+    a.export_html(&dir, &ms).unwrap();
+    let bp = std::fs::read_to_string(dir.join(format!("contents/{}.html", md5_hex(&a.repo.id(book))))).unwrap();
+    assert!(bp.contains("<h2>Tags</h2>") && bp.contains("<td>reviewed</td><td><span class=\"label\">boolean</span></td><td><span class=\"label\">true</span></td>"));
+    assert!(bp.contains("<h2>Dependencies</h2>"));
+    let lp = std::fs::read_to_string(dir.join(format!("contents/{}.html", md5_hex(&a.repo.id(lib))))).unwrap();
+    assert!(lp.contains("<h2>Dependants</h2>"));
+    let index = std::fs::read_to_string(dir.join("contents/element_index.html")).unwrap();
+    assert!(index.contains("<h2>Tag (1)</h2>") && index.contains("reviewed"), "tags are in the index under Tag");
+    let _ = (t, dep);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
