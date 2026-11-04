@@ -211,6 +211,8 @@ pub struct App {
     pub md_editing: bool,
     /// Give the keyboard back to the canvas on the next frame (after an inline edit closes).
     pub refocus_canvas: bool,
+    /// The selection as the canvas last saw it, to notice changes.
+    pub last_selection: Vec<Eid>,
     /// When the last auto-backup was written.
     pub last_backup: std::time::Instant,
     /// The Print to PDF dialog is open.
@@ -312,6 +314,7 @@ impl App {
             md_for: None,
             md_editing: false,
             refocus_canvas: false,
+            last_selection: vec![],
             last_backup: std::time::Instant::now(),
             print_open: false,
             element_picker: None,

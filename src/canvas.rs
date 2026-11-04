@@ -307,6 +307,15 @@ impl App {
                 self.centre_on(P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 });
             }
         }
+        // a changed selection gives the canvas the keyboard, unless a text field is being typed in
+        // (diagram-manager.js:657-660)
+        if self.selection != self.last_selection {
+            self.last_selection = self.selection.clone();
+            // the explorer keeps the keyboard when its own clicks select views
+            if !self.selection.is_empty() && self.editing.is_none() && self.last_area != crate::app::Area::Explorer && !crate::ui::text_field_focused(ui.ctx()) {
+                self.refocus_canvas = true;
+            }
+        }
         if std::mem::take(&mut self.refocus_canvas) {
             resp.request_focus();
         }

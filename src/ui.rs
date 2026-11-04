@@ -2377,7 +2377,7 @@ fn draw_lock(p: &egui::Painter, c: Pos2) {
 
 /// True while a text field has the keyboard (the diagram canvas can hold focus too, and then the
 /// editing shortcuts such as Ctrl+Z must still work).
-fn text_field_focused(ctx: &egui::Context) -> bool {
+pub(crate) fn text_field_focused(ctx: &egui::Context) -> bool {
     ctx.memory(|m| m.focused()).map(|id| egui::TextEdit::load_state(ctx, id).is_some()).unwrap_or(false)
 }
 

@@ -2613,3 +2613,25 @@ fn add_template_parameter_from_the_inline_edit() {
     assert_eq!(t.len(), 1);
     assert_eq!(a.focus, Some(t[0]));
 }
+
+#[test]
+fn selection_change_focuses_the_canvas() {
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 160.0, 80.0))).unwrap();
+    let mut frame = |a: &mut App| {
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            egui::CentralPanel::default().show_inside(ui, |ui| a.canvas_ui(ui));
+        });
+        out.textures_delta.clear();
+    };
+    frame(&mut a);
+    assert!(ctx.memory(|m| m.focused()).is_none());
+    // a selection made elsewhere (Quick Find, the Find results…) gives the canvas the keyboard
+    a.last_area = crate::app::Area::Canvas;
+    a.select(vec![c]);
+    frame(&mut a);
+    frame(&mut a);
+    assert!(ctx.memory(|m| m.focused()).is_some());
+}
