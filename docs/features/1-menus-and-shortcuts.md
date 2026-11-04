@@ -239,7 +239,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Model › Add › Enumeration Literal | `factory:create-model` |  | ✅ | explorer Add, Model menu, Editors button (src/ui.rs:369) | extensions/essential/uml/menus/uml.json |
 | Model › Add › Attribute | `factory:create-model` |  | ✅ | explorer Add, Model menu, Editors button (src/ui.rs:369) | extensions/essential/uml/menus/uml.json |
 | Model › Add › Operation | `factory:create-model` |  | ✅ | explorer Add, Model menu, Editors button (src/ui.rs:369) | extensions/essential/uml/menus/uml.json |
-| Model › Add › Reception | `factory:create-model` |  | ✅ | explorer Add and Model menu, on classifiers that take attributes; drawn as «signal» name (src/ui.rs:385; src/app.rs:978) | extensions/essential/uml/menus/uml.json |
+| Model › Add › Reception | `factory:create-model` |  | ✅ | explorer Add and Model menu, on classifiers that take attributes; drawn as «signal» name (src/ui.rs:385; src/app.rs:992-1003) | extensions/essential/uml/menus/uml.json |
 | Model › Add › Extension Point | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
 | Model › Add › Slot | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
 | Model › Add › Interaction Operand | `factory:create-model` |  | ❌ |  | extensions/essential/uml/menus/uml.json |
