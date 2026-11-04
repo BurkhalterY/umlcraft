@@ -45,7 +45,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLGeneralization" => "generalization",
         "UMLDependency" | "UMLInclude" | "UMLExtend" => "dependency",
         "UMLInterfaceRealization" | "UMLRealization" => "realization",
-        "Tag" => "attribute",
+        "Tag" => "tag",
         _ if r.kind_of(e, "Diagram") || t.ends_with("Diagram") => "diagram",
         _ if t.ends_with("Relationship") || t.ends_with("Flow") || t.ends_with("Link") || t.ends_with("Connector") || t.ends_with("Transition") || t.ends_with("Message") => "association",
         _ => "generic",
@@ -176,6 +176,10 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(2.0, 4.0), (14.0, 4.0)], B);
             dashed(&[(8.0, 4.0), (8.0, 9.0)], B);
             rect_at(4.5, 9.5, 7.0, 5.0, B);
+        }
+        "tag" => {
+            line(&[(2.0, 7.5), (7.5, 2.0), (14.0, 2.0), (14.0, 8.5), (8.5, 14.0), (2.0, 7.5)], W);
+            p.circle_stroke(at(11.0, 5.0), 1.2 * s, st(W));
         }
         "freeline" => line(&[(2.0, 13.0), (6.0, 5.0), (10.0, 11.0), (14.0, 3.0)], W),
         "containment" => {

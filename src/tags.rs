@@ -202,9 +202,36 @@ impl App {
                         Row::Slot(a) => (self.repo.name(*a), String::new(), true),
                     };
                     let st = if slot { self.stereotype_of(e).map(|s| format!("«{}» ", self.repo.name(s))).unwrap_or_default() } else { String::new() };
-                    let text = format!("{st}{name} = {value}");
-                    let text = if matches!(row, Row::Slot(_)) { egui::RichText::new(text).weak() } else { egui::RichText::new(text) };
-                    let r = ui.selectable_label(self.tag_row.as_ref() == Some(row), text);
+                    // the tag icon, the name, the value styled by kind, and the referenced element's
+                    // icon for a reference (tag-editor-dialog.js:27-41, 97-112)
+                    let (kind, referenced) = match row {
+                        Row::Tag(t) => (self.repo.str(*t, "kind"), self.repo.refd(*t, "reference").filter(|_| self.repo.str(*t, "kind") == "reference")),
+                        Row::Slot(_) => (String::new(), None),
+                    };
+                    let mut job = egui::text::LayoutJob::default();
+                    let dim = matches!(row, Row::Slot(_));
+                    let base = if dim { crate::ui::DIM() } else { crate::ui::TEXT() };
+                    let fmt = |c: egui::Color32| egui::TextFormat { font_id: egui::FontId::proportional(13.0), color: c, ..Default::default() };
+                    job.append(&format!("{st}{name} = "), 0.0, fmt(base));
+                    let value_color = match kind.as_str() {
+                        "boolean" | "number" => egui::Color32::from_rgb(0x4f, 0x99, 0xff),
+                        "reference" => egui::Color32::from_rgb(0xd8, 0xa0, 0x3c),
+                        "hidden" => crate::ui::DIM(),
+                        _ => base,
+                    };
+                    job.append(&value, 0.0, fmt(value_color));
+                    let r = ui
+                        .horizontal(|ui| {
+                            let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), egui::Sense::hover());
+                            crate::icons::draw(ui.painter(), ir, "tag");
+                            let r = ui.selectable_label(self.tag_row.as_ref() == Some(row), job);
+                            if let Some(x) = referenced {
+                                let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), egui::Sense::hover());
+                                crate::icons::draw(ui.painter(), ir, crate::icons::key_for(&self.repo, x));
+                            }
+                            r
+                        })
+                        .inner;
                     if r.clicked() {
                         self.tag_row = Some(row.clone());
                     }
