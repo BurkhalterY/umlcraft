@@ -529,6 +529,18 @@ pub fn template_parameter_text(r: &Repo, t: Eid) -> String {
     s
 }
 
+/// A reception's line: its stereotype (or «signal»), visibility and name (UML 2; the exact form is
+/// estimated for StarUML).
+pub fn reception_text(r: &Repo, x: Eid, show: Show) -> String {
+    let st = stereotype_text(r, x);
+    let mut s = if st.is_empty() { "«signal»".to_string() } else { st };
+    s.push(' ');
+    if show.vis {
+        s += vis_symbol(&r.str(x, "visibility"));
+    }
+    s + &r.name(x)
+}
+
 pub fn operation_text(r: &Repo, o: Eid, show: Show) -> String {
     let mut s = stereotype_text(r, o);
     if !s.is_empty() {
@@ -905,6 +917,18 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
             let texts: Vec<String> = items.iter().map(|o| operation_text(r, *o, show)).collect();
             let (w, h, rows) = sync_list(r, ms, oc, &items, "UMLOperationView", &texts, wrap);
             comps.push((oc, w, h, rows));
+        }
+    }
+    // receptions, under the operations; shown only when not suppressed, which is the default
+    if let Some(rc) = r.refd(v, "receptionCompartment") {
+        if r.bool(v, "suppressReceptions") {
+            hide_comp(r, Some(rc));
+        } else {
+            r.remove(rc, "visible");
+            let items = r.list(m, "receptions");
+            let texts: Vec<String> = items.iter().map(|x| reception_text(r, *x, show)).collect();
+            let (w, h, rows) = sync_list(r, ms, rc, &items, "UMLReceptionView", &texts, wrap);
+            comps.push((rc, w, h, rows));
         }
     }
     // template parameters: a dashed box over the top-right corner (estimated placement)

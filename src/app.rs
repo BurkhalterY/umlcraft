@@ -993,6 +993,7 @@ impl App {
         let field = match ty {
             "UMLAttribute" => "attributes",
             "UMLOperation" => "operations",
+            "UMLReception" => "receptions",
             "UMLEnumerationLiteral" => "literals",
             "UMLParameter" => "parameters",
             "UMLTemplateParameter" => "templateParameters",

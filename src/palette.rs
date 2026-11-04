@@ -74,6 +74,7 @@ pub const COMMANDS: &[Command] = &[
     c("format:show-operation-signature", "Show Operation Signature", "Ctrl+Shift+J"),
     c("format:suppress-attributes", "Suppress Attributes", "Ctrl+Shift+A"),
     c("format:suppress-operations", "Suppress Operations", "Ctrl+Shift+O"),
+    c("format:suppress-receptions", "Suppress Receptions", "Ctrl+Shift+E"),
     c("format:suppress-literals", "Suppress Literals", "Ctrl+Shift+T"),
     c("alignment:send-to-back", "Send To Back", ""),
     c("alignment:bring-to-front", "Bring To Front", ""),
@@ -199,7 +200,7 @@ impl App {
         let toggles = [
             ("format:auto-resize", "autoResize"), ("format:show-shadow", "showShadow"), ("format:word-wrap", "wordWrap"), ("format:show-visibility", "showVisibility"),
             ("format:show-namespace", "showNamespace"), ("format:show-property", "showProperty"), ("format:show-type", "showType"), ("format:show-multiplicity", "showMultiplicity"), ("format:show-operation-signature", "showOperationSignature"),
-            ("format:suppress-attributes", "suppressAttributes"), ("format:suppress-operations", "suppressOperations"), ("format:suppress-literals", "suppressLiterals"),
+            ("format:suppress-attributes", "suppressAttributes"), ("format:suppress-operations", "suppressOperations"), ("format:suppress-receptions", "suppressReceptions"), ("format:suppress-literals", "suppressLiterals"),
         ];
         if let Some((_, f)) = toggles.iter().find(|t| t.0 == id) {
             self.toggle_flag(f);

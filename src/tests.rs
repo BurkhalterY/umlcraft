@@ -3034,3 +3034,34 @@ fn template_binding_tool() {
     let st = a.repo.refd(e, "stereotypeLabel").unwrap();
     assert_eq!(a.repo.str(st, "text"), "«bind»");
 }
+
+#[test]
+fn receptions_show_when_not_suppressed() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    assert!(a.can_add_feature(m, "UMLReception"));
+    let rcp = a.change(|a| a.add_feature(m, "UMLReception")).unwrap();
+    assert_eq!(a.repo.list(m, "receptions"), vec![rcp]);
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let rc = a.repo.refd(v, "receptionCompartment").unwrap();
+    assert!(!a.repo.bool(rc, "visible"), "suppressed by default");
+    a.select(vec![v]);
+    a.toggle_flag("suppressReceptions");
+    let h0 = a.repo.f(v, "height");
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.repo.bool(rc, "visible"));
+    let rows = a.repo.list(rc, "subViews");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(a.repo.str(rows[0], "text"), format!("«signal» +{}", a.repo.name(rcp)));
+    assert!(a.repo.f(v, "height") >= h0);
+    // Ctrl+Shift+E toggles it back
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let ev = egui::Event::Key { key: egui::Key::E, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::COMMAND | egui::Modifiers::SHIFT };
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+    out.textures_delta.clear();
+    assert!(a.repo.bool(v, "suppressReceptions"));
+}

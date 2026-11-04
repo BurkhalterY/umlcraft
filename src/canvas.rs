@@ -1231,7 +1231,8 @@ impl App {
         let b = node_rect(&self.repo, iv);
         self.editing = Some(Editing {
             kind: EditKind::Feature(item),
-            text: self.repo.str(iv, "text"),
+            // a reception is edited as a name expression, without its «signal» keyword
+            text: if self.repo.ty(item) == "UMLReception" { crate::parse::name_text(&self.repo, item) } else { self.repo.str(iv, "text") },
             rect: R { x: b.x - 2.0, y: b.y - 3.0, w: b.w.max(120.0) + 4.0, h: 19.0 },
             multiline: false,
             center: false,
@@ -1287,6 +1288,7 @@ impl App {
     fn suppress_flag(ty: &str) -> Option<&'static str> {
         match ty {
             "UMLOperation" => Some("suppressOperations"),
+            "UMLReception" => Some("suppressReceptions"),
             "UMLEnumerationLiteral" => Some("suppressLiterals"),
             "UMLTemplateParameter" => None,
             _ => Some("suppressAttributes"),
@@ -1404,6 +1406,8 @@ impl App {
                     self.change(|a| {
                         if ty == "UMLOperation" {
                             crate::parse::apply_operation(&mut a.repo, f, &e.text);
+                        } else if ty == "UMLReception" {
+                            crate::parse::apply_name(&mut a.repo, f, &e.text);
                         } else if ty == "UMLTemplateParameter" {
                             crate::parse::apply_template_parameter(&mut a.repo, f, &e.text);
                         } else {

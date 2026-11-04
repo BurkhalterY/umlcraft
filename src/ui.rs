@@ -382,7 +382,7 @@ impl App {
                 adds.push((l, k, false));
             }
         }
-        for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter")] {
+        for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter")] {
             if self.can_add_feature(e, k) {
                 adds.push((l, k, true));
             }
@@ -1924,7 +1924,7 @@ impl App {
                     self.open_color_dialog(field);
                 }
             }
-            for (key, field) in [(Key::R, "autoResize"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::T, "suppressLiterals")] {
+            for (key, field) in [(Key::R, "autoResize"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals")] {
                 if hit(sc(cs, key)) {
                     self.toggle_flag(field);
                 }
@@ -2541,7 +2541,7 @@ pub struct WorkingRow(pub Eid);
 pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 12] = [
+const FORMAT_TOGGLES: [(&str, &str); 13] = [
     ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
     ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
     ("wordWrap", "Word Wrap                         Ctrl+Shift+W"),
@@ -2553,6 +2553,7 @@ const FORMAT_TOGGLES: [(&str, &str); 12] = [
     ("showOperationSignature", "Show Operation Signature    Ctrl+Shift+J"),
     ("suppressAttributes", "Suppress Attributes             Ctrl+Shift+A"),
     ("suppressOperations", "Suppress Operations            Ctrl+Shift+O"),
+    ("suppressReceptions", "Suppress Receptions            Ctrl+Shift+E"),
     ("suppressLiterals", "Suppress Literals                 Ctrl+Shift+T"),
 ];
 
