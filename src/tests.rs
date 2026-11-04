@@ -3253,3 +3253,51 @@ fn object_diagrams() {
     assert_eq!(b.all_of("UMLSlot").len(), 1);
     assert_eq!(b.all_of("UMLObjectDiagram").len(), 1);
 }
+
+#[test]
+fn state_machine_and_activity_rules() {
+    use crate::model::Eid;
+    use crate::validate::validate;
+    let mut r = Repo::blank();
+    let root = r.root;
+    let model = r.children(root)[0].1;
+    let sm = r.create("UMLStateMachine", &[("name", json!("SM"))], Some((model, "ownedElements")));
+    let region = r.create("UMLRegion", &[], Some((sm, "regions")));
+    let v = |r: &mut Repo, ty: &str, kind: &str| {
+        let props: Vec<(&str, Value)> = if kind.is_empty() { vec![("name", json!("S"))] } else { vec![("kind", json!(kind))] };
+        r.create(ty, &props, Some((region, "vertices")))
+    };
+    let init = v(&mut r, "UMLPseudostate", "initial");
+    let init2 = v(&mut r, "UMLPseudostate", "initial");
+    let s1 = v(&mut r, "UMLState", "");
+    let s2 = v(&mut r, "UMLState", "");
+    let fin = v(&mut r, "UMLFinalState", "");
+    let fork = v(&mut r, "UMLPseudostate", "fork");
+    let tr = |r: &mut Repo, a: Eid, b: Eid, guard: &str| {
+        let (sa, sb) = (r.ref_to(a), r.ref_to(b));
+        r.create("UMLTransition", &[("source", sa), ("target", sb), ("guard", json!(guard))], Some((region, "transitions")))
+    };
+    tr(&mut r, init, s1, "x > 0");
+    tr(&mut r, init, s2, "");
+    tr(&mut r, fin, s1, "");
+    tr(&mut r, s1, fork, "");
+    tr(&mut r, fork, fin, "");
+    let _ = init2;
+    // an activity with a merge of mixed flows and a final node with an exit
+    let act = r.create("UMLActivity", &[("name", json!("A"))], Some((model, "ownedElements")));
+    let node = |r: &mut Repo, ty: &str| r.create(ty, &[], Some((act, "nodes")));
+    let (merge, a1, a2, fnode) = (node(&mut r, "UMLMergeNode"), node(&mut r, "UMLAction"), node(&mut r, "UMLAction"), node(&mut r, "UMLActivityFinalNode"));
+    let flow = |r: &mut Repo, ty: &str, a: Eid, b: Eid| {
+        let (sa, sb) = (r.ref_to(a), r.ref_to(b));
+        r.create(ty, &[("source", sa), ("target", sb)], Some((act, "edges")))
+    };
+    flow(&mut r, "UMLControlFlow", a1, merge);
+    flow(&mut r, "UMLObjectFlow", merge, a2);
+    flow(&mut r, "UMLObjectFlow", a1, a2);
+    flow(&mut r, "UMLControlFlow", fnode, a1);
+    let rules: Vec<&str> = validate(&r).into_iter().map(|p| p.rule).collect();
+    for want in ["UML021", "UML022", "UML025", "UML030", "UML033", "UML041", "UML047", "UML050", "UML057"] {
+        assert!(rules.contains(&want), "{want} in {rules:?}");
+    }
+    assert!(!rules.contains(&"UML046"), "the merge has one outgoing edge");
+}

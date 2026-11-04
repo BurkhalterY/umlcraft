@@ -200,6 +200,168 @@ pub fn validate(r: &Repo) -> Vec<Problem> {
             }
         }
     }
+    out.extend(behaviour_rules(r, &all));
+    out
+}
+
+/// UML021-UML057: state machine and activity rules (rules.js:309-775). UMLCraft does not edit these
+/// diagrams, but checks them in projects made with StarUML. The messages are UMLCraft's own wording.
+fn behaviour_rules(r: &Repo, all: &[Eid]) -> Vec<Problem> {
+    let mut out = vec![];
+    let mut fail = |elem: Eid, rule: &'static str, message: &'static str| out.push(Problem { elem, rule, message });
+    let len = |e: Eid, k: &str| r.list(e, k).len();
+    let has_guard = |t: Eid| !r.str(t, "guard").trim().is_empty();
+    // transitions and activity edges as (edge, source, target)
+    let edges = |ty: &[&str]| -> Vec<(Eid, Eid, Eid)> {
+        all.iter().filter(|x| ty.contains(&r.ty(**x))).filter_map(|x| Some((*x, r.refd(*x, "source")?, r.refd(*x, "target")?))).collect()
+    };
+    let trans = edges(&["UMLTransition"]);
+    let flows = edges(&["UMLControlFlow", "UMLObjectFlow"]);
+    let outgoing = |es: &[(Eid, Eid, Eid)], v: Eid| -> Vec<Eid> { es.iter().filter(|x| x.1 == v).map(|x| x.0).collect() };
+    let incoming = |es: &[(Eid, Eid, Eid)], v: Eid| -> Vec<Eid> { es.iter().filter(|x| x.2 == v).map(|x| x.0).collect() };
+    let pkind = |v: Eid| if r.ty(v) == "UMLPseudostate" { r.str(v, "kind") } else { String::new() };
+    let is_state = |v: Eid| r.ty(v) == "UMLState";
+    for &e in all {
+        let t = r.ty(e);
+        if t == "UMLPseudostate" {
+            let (ins, outs) = (incoming(&trans, e), outgoing(&trans, e));
+            match r.str(e, "kind").as_str() {
+                "initial" => {
+                    if outs.len() > 1 {
+                        fail(e, "UML021", "Initial pseudostate can have at most one outgoing transition");
+                    }
+                    if outs.iter().any(|x| len(*x, "triggers") > 0 || has_guard(*x)) {
+                        fail(e, "UML022", "Outgoing transition of an initial pseudostate cannot have a trigger or a guard");
+                    }
+                }
+                "deepHistory" | "shallowHistory" if outs.len() > 1 => fail(e, "UML023", "History pseudostate can have at most one outgoing transition"),
+                "join" if ins.len() < 2 || outs.len() != 1 => fail(e, "UML024", "Join pseudostate must have at least two incoming transitions and one outgoing transition"),
+                "fork" if outs.len() < 2 || ins.len() != 1 => fail(e, "UML025", "Fork pseudostate must have at least two outgoing transitions and one incoming transition"),
+                "junction" if ins.is_empty() || outs.is_empty() => fail(e, "UML026", "Junction pseudostate must have at least one incoming and one outgoing transition"),
+                "choice" if ins.is_empty() || outs.is_empty() => fail(e, "UML027", "Choice pseudostate must have at least one incoming and one outgoing transition"),
+                _ => {}
+            }
+        }
+        if t == "UMLState" {
+            if len(e, "connections") > 0 && r.refd(e, "submachine").is_none() {
+                fail(e, "UML028", "Only submachine states can have connection point references");
+            }
+            if r.refd(e, "submachine").is_some() && len(e, "regions") > 0 {
+                fail(e, "UML029", "State cannot have both a submachine and regions");
+            }
+        }
+        if t == "UMLRegion" {
+            let count = |k: &str| r.list(e, "vertices").into_iter().filter(|v| pkind(*v) == k).count();
+            if count("initial") > 1 {
+                fail(e, "UML030", "Region can have at most one initial vertex");
+            }
+            if count("deepHistory") > 1 {
+                fail(e, "UML031", "Region can have at most one deep history vertex");
+            }
+            if count("shallowHistory") > 1 {
+                fail(e, "UML032", "Region can have at most one shallow history vertex");
+            }
+        }
+        if t == "UMLFinalState" {
+            for (cond, rule, msg) in [
+                (!outgoing(&trans, e).is_empty(), "UML033", "Final state cannot have outgoing transitions"),
+                (len(e, "regions") > 0, "UML034", "Final state cannot have regions"),
+                (r.refd(e, "submachine").is_some(), "UML035", "Final state cannot reference a submachine"),
+                (len(e, "entryActivities") > 0, "UML036", "Final state cannot have an entry behaviour"),
+                (len(e, "exitActivities") > 0, "UML037", "Final state cannot have an exit behaviour"),
+                (len(e, "doActivities") > 0, "UML038", "Final state cannot have a do activity"),
+            ] {
+                if cond {
+                    fail(e, rule, msg);
+                }
+            }
+        }
+        if t == "UMLTransition" {
+            let (Some(s), Some(g)) = (r.refd(e, "source"), r.refd(e, "target")) else { continue };
+            let plain = len(e, "triggers") == 0 && !has_guard(e);
+            if pkind(s) == "fork" {
+                if !plain {
+                    fail(e, "UML039", "Fork segment cannot have guards or triggers");
+                }
+                if !is_state(g) {
+                    fail(e, "UML041", "Fork segment must target a state");
+                }
+            }
+            if pkind(g) == "join" {
+                if !plain {
+                    fail(e, "UML040", "Join segment cannot have guards or triggers");
+                }
+                if !is_state(s) {
+                    fail(e, "UML042", "Join segment must come from a state");
+                }
+            }
+            if r.ty(s) == "UMLPseudostate" && pkind(s) != "initial" && len(e, "triggers") > 0 {
+                fail(e, "UML043", "Transition from a pseudostate cannot have triggers");
+            }
+        }
+        // UML044: a state machine's context is not an interface
+        if t == "UMLStateMachine" && r.parent(e).map(|p| r.ty(p) == "UMLInterface").unwrap_or(false) {
+            fail(e, "UML044", "State machine cannot be owned by an interface");
+        }
+        // activities
+        let (ins, outs) = (incoming(&flows, e), outgoing(&flows, e));
+        let mixed = || {
+            let es: Vec<Eid> = ins.iter().chain(outs.iter()).copied().collect();
+            !(es.iter().all(|x| r.ty(*x) == "UMLObjectFlow") || es.iter().all(|x| r.ty(*x) == "UMLControlFlow"))
+        };
+        match t {
+            "UMLDecisionNode" if ins.is_empty() || ins.len() > 2 || outs.is_empty() => fail(e, "UML045", "Decision node must have one or two incoming edges and at least one outgoing edge"),
+            "UMLMergeNode" => {
+                if outs.len() != 1 {
+                    fail(e, "UML046", "Merge node must have exactly one outgoing edge");
+                }
+                if mixed() {
+                    fail(e, "UML047", "Edges of a merge node must be all object flows or all control flows");
+                }
+            }
+            "UMLInitialNode" => {
+                if !ins.is_empty() {
+                    fail(e, "UML048", "Initial node cannot have incoming edges");
+                }
+                if outs.iter().any(|x| r.ty(*x) != "UMLControlFlow") {
+                    fail(e, "UML049", "Only control flows can leave an initial node");
+                }
+            }
+            "UMLActivityFinalNode" | "UMLFlowFinalNode" if !outs.is_empty() => fail(e, "UML050", "Final node cannot have outgoing edges"),
+            "UMLForkNode" => {
+                if ins.len() != 1 {
+                    fail(e, "UML051", "Fork node must have exactly one incoming edge");
+                }
+                if mixed() {
+                    fail(e, "UML052", "Edges of a fork node must be all object flows or all control flows");
+                }
+            }
+            "UMLJoinNode" => {
+                if outs.len() != 1 {
+                    fail(e, "UML053", "Join node must have exactly one outgoing edge");
+                }
+                if mixed() {
+                    fail(e, "UML054", "Edges of a join node must be all object flows or all control flows");
+                }
+            }
+            "UMLObjectNode" if !r.bool(e, "isControlType") && ins.iter().chain(outs.iter()).any(|x| r.ty(*x) != "UMLObjectFlow") => {
+                fail(e, "UML055", "Edges of an object node must be object flows")
+            }
+            "UMLControlFlow" => {
+                let object = |v: Option<Eid>| v.map(|v| r.ty(v) == "UMLObjectNode" && !r.bool(v, "isControlType")).unwrap_or(false);
+                if object(r.refd(e, "source")) || object(r.refd(e, "target")) {
+                    fail(e, "UML056", "Control flow cannot connect an object node");
+                }
+            }
+            "UMLObjectFlow" => {
+                let action = |v: Option<Eid>| v.map(|v| r.ty(v) == "UMLAction").unwrap_or(false);
+                if action(r.refd(e, "source")) && action(r.refd(e, "target")) {
+                    fail(e, "UML057", "Object flow cannot connect two actions directly");
+                }
+            }
+            _ => {}
+        }
+    }
     out
 }
 
