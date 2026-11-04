@@ -2049,7 +2049,8 @@ impl App {
                 ui.label(concat!("UMLCraft ", env!("CARGO_PKG_VERSION")));
                 ui.label("A UML modeler for class and use case diagrams that opens and saves .mdj model files.");
                 ui.label("Written in Rust with egui. The source code is in the app folder of this project; its README lists every file.");
-                if ui.button("OK").clicked() {
+                // Enter presses OK and Esc cancels (dialog-manager.js:148-162)
+                if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
                     self.about_open = false;
                 }
             });
@@ -2068,7 +2069,7 @@ impl App {
         if let Some((title, detail)) = self.message.clone() {
             egui::Window::new(title).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
                 ui.label(detail);
-                if ui.button("OK").clicked() {
+                if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
                     self.message = None;
                 }
             });

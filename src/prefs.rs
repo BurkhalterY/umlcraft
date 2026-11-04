@@ -328,6 +328,10 @@ impl App {
         let Some(section) = self.prefs_open.clone() else { return };
         let mut open = true;
         let mut pick = None;
+        // Esc closes, as the window's X does
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !egui::Popup::is_any_open(ctx) {
+            open = false;
+        }
         egui::Window::new("Preferences").open(&mut open).collapsible(false).resizable(true).default_size([620.0, 460.0]).anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO).show(ctx, |ui| {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {

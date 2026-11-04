@@ -118,6 +118,10 @@ impl App {
         egui::Window::new("Select Element").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
             ui.set_width(360.0);
             let r = ui.add(egui::TextEdit::singleline(&mut p.search).hint_text("Quick search").desired_width(f32::INFINITY));
+            // Enter is OK, except in the search box (`use-enter-key`)
+            if !r.has_focus() && !r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                ok = true;
+            }
             if p.fresh {
                 r.request_focus();
             }

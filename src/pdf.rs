@@ -243,6 +243,11 @@ impl App {
                 save = ui.button("Save").clicked();
                 cancel = ui.button("Cancel").clicked();
             });
+            // Enter saves and Esc cancels, unless a size list is open (dialog-manager.js:148-162)
+            if !egui::Popup::is_any_open(ui.ctx()) {
+                save |= ui.input(|i| i.key_pressed(egui::Key::Enter));
+                cancel |= ui.input(|i| i.key_pressed(egui::Key::Escape));
+            }
         });
         if o != before {
             self.set_print_options(&o);
