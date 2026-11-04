@@ -649,7 +649,7 @@ impl App {
     }
 
     // ------------------------------------------------------------ editors
-    fn fields_for(&self, e: Eid) -> Vec<(&'static str, &'static str)> {
+    pub(crate) fn fields_for(&self, e: Eid) -> Vec<(&'static str, &'static str)> {
         let r = &self.repo;
         let t = r.ty(e);
         let end = |p: &str| -> Vec<(&'static str, &'static str)> {
@@ -703,6 +703,8 @@ impl App {
             ],
             "UMLParameter" => vec![("name", "text"), ("stereotype", "text"), ("type", "type"), ("multiplicity", "text"), ("defaultValue", "text"), ("direction", "enum")],
             "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
+            // a reception names the signal it receives (uml-commands.js:1484)
+            "UMLReception" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("signal", "type")],
             "UMLAssociationEnd" => end(""),
             _ if r.kind_of(e, "UMLClassifier") => {
                 let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isAbstract", "bool"), ("isFinalSpecialization", "bool"), ("isLeaf", "bool")];

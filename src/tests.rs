@@ -3065,3 +3065,16 @@ fn receptions_show_when_not_suppressed() {
     out.textures_delta.clear();
     assert!(a.repo.bool(v, "suppressReceptions"));
 }
+
+#[test]
+fn reception_signal_is_a_reference() {
+    let mut a = App::new(None);
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let s = a.change(|a| a.create_node("UMLSignal", rect(240.0, 40.0, 100.0, 60.0))).unwrap();
+    let (m, sm) = (a.repo.refd(v, "model").unwrap(), a.repo.refd(s, "model").unwrap());
+    let rc = a.change(|a| a.add_feature(m, "UMLReception")).unwrap();
+    assert!(a.fields_for(rc).contains(&("signal", "type")));
+    let name = a.repo.name(sm);
+    a.commit_text(rc, "signal", "type", name);
+    assert_eq!(a.repo.refd(rc, "signal"), Some(sm));
+}

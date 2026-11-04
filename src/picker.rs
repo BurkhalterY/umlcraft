@@ -26,6 +26,7 @@ pub struct ElementPicker {
 pub fn field_type(field: &str) -> &'static str {
     match field {
         "stereotype" => "UMLStereotype",
+        "signal" => "UMLSignal",
         _ => "UMLClassifier",
     }
 }
