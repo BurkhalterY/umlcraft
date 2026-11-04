@@ -55,7 +55,12 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             r("Add Super-Interface", "UMLInterface", "UMLGeneralization", Plain, false, Above),
             r("Add Realizing Class", "UMLClass", "UMLInterfaceRealization", Plain, true, Below),
         ],
-        "UMLPackage" | "UMLModel" | "UMLSubsystem" => vec![
+        // a subsystem has the interface buttons instead (quickedits/uml.json "uml.subsystem")
+        "UMLSubsystem" => vec![
+            r("Add Provided Interface", "UMLInterface", "UMLInterfaceRealization", Plain, false, Above),
+            r("Add Required Interface", "UMLInterface", "UMLDependency", Plain, false, Above),
+        ],
+        "UMLPackage" | "UMLModel" => vec![
             r("Add Sub-Package", "UMLPackage", "Containment", Plain, true, Below),
             r("Add Dependant Package", "UMLPackage", "UMLDependency", Plain, true, Below),
             r("Add Depending Package", "UMLPackage", "UMLDependency", Plain, false, Above),

@@ -4198,3 +4198,16 @@ fn views_paste_into_any_diagram_that_takes_their_kinds() {
     a.paste_text(&note_text);
     assert!(a.message.is_none() && a.repo.list(inf, "ownedViews").len() == 1, "such as a note");
 }
+
+#[test]
+fn a_subsystem_offers_its_interfaces() {
+    let mut a = App::new(None);
+    let s = a.change(|a| a.create_node("UMLSubsystem", rect(40.0, 200.0, 200.0, 120.0))).unwrap();
+    let labels: Vec<&str> = crate::related::actions("UMLSubsystem").iter().map(|r| r.label).collect();
+    assert_eq!(labels, ["Add Provided Interface", "Add Required Interface", "Add Note", "Add Constraint"]);
+    let provided = crate::related::actions("UMLSubsystem")[0];
+    a.add_related(s, provided);
+    let sm = a.repo.refd(s, "model").unwrap();
+    let real = a.repo.all().find(|e| a.repo.ty(*e) == "UMLInterfaceRealization").expect("the realization is made");
+    assert_eq!(a.repo.refd(real, "source"), Some(sm));
+}
