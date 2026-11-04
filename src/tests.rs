@@ -4492,3 +4492,26 @@ fn a_combined_fragment_takes_operands() {
     assert_eq!(a.repo.field_of(op).as_deref(), Some("operands"));
     assert!(a.fields_for(op).iter().any(|f| f.0 == "guard"));
 }
+
+#[test]
+fn a_failing_inline_command_shows_an_error_toast() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let mut a = App::new(None);
+    a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let ty = a.change(|a| a.create_node("UMLClass", rect(600.0, 100.0, 100.0, 60.0))).unwrap();
+    let part = a.change(|a| a.create_feature_box("UMLPart", crate::views::P { x: 151.0, y: 151.0 }, rect(150.0, 150.0, 120.0, 60.0))).unwrap();
+    let pm = a.repo.refd(part, "model").unwrap();
+    let tm = a.repo.refd(ty, "model").unwrap();
+    a.change(|a| a.repo.set_ref(pm, "type", Some(tm)));
+    let port = a.change(|a| a.create_feature_box("UMLPort", crate::views::P { x: 270.0, y: 170.0 }, rect(0.0, 0.0, 0.0, 0.0))).unwrap();
+    assert_eq!(a.repo.refd(port, "containerView"), Some(part));
+    // the part loses its type: a connected part can no longer go in it
+    a.change(|a| a.repo.set_ref(pm, "type", None));
+    let n = a.repo.all().count();
+    let m = a.repo.refd(port, "model").unwrap();
+    a.item_key(port, EditKind::Name(m), ItemKey::AddConnectedPart);
+    let t = a.toasts.last().unwrap();
+    assert_eq!((t.0.as_str(), t.2), ("Type should be assigned to have internal Parts", true));
+    assert_eq!(a.repo.all().count(), n, "nothing created");
+}

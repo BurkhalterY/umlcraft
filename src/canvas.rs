@@ -1507,6 +1507,7 @@ impl App {
 
     /// Add an item of this kind to the box's model, show its compartment and edit it
     /// (uml-commands.js:784-823).
+    /// An inline-edit command that fails shows its message as an error toast (quickedit-manager.js:547-553).
     /// Add Port and Add Part on a box's name edit: a port on the right border, under the ones there
     /// (the original picks a random point on the box), or a part inside, right of the last part or
     /// at +10, +30 (uml-commands.js:1411-1459). The new one's name edit opens.
@@ -1517,14 +1518,14 @@ impl App {
         let made = if port {
             let n = inside.iter().filter(|v| self.repo.ty(**v) == "UMLPortView").count() as f64;
             let at = P { x: b.x + b.w, y: (b.y + 30.0 + 20.0 * n).min(b.y + b.h - views::PORT_SIZE) };
-            self.change(|a| a.create_feature_on(host, "UMLPort", at, R::default()).ok())
+            self.change(|a| a.create_feature_on(host, "UMLPort", at, R::default()).map_err(|e| a.toast_error(&e)).ok())
         } else {
             let last = inside.iter().filter(|v| self.repo.ty(**v) == "UMLPartView").map(|v| node_rect(&self.repo, *v)).max_by(|a, b| (a.x + a.w).total_cmp(&(b.x + b.w)));
             let at = match last {
                 Some(l) => P { x: l.x + l.w + 10.0, y: l.y },
                 None => P { x: b.x + 10.0, y: b.y + 30.0 },
             };
-            self.change(|a| a.create_feature_on(host, "UMLPart", at, R { x: at.x, y: at.y, w: 0.0, h: 0.0 }).ok())
+            self.change(|a| a.create_feature_on(host, "UMLPart", at, R { x: at.x, y: at.y, w: 0.0, h: 0.0 }).map_err(|e| a.toast_error(&e)).ok())
         };
         if let Some(v) = made {
             self.select(vec![v]);
@@ -1549,7 +1550,7 @@ impl App {
         };
         let conn = crate::app::Tool { label: "", kind: "UMLConnector", icon: "", line: true, init: crate::app::AssocInit::Plain };
         let made = self.change(|a| {
-            let p = a.create_feature_on(container, "UMLPart", at, R { x: at.x, y: at.y, w, h }).ok()?;
+            let p = a.create_feature_on(container, "UMLPart", at, R { x: at.x, y: at.y, w, h }).map_err(|e| a.toast_error(&e)).ok()?;
             a.create_edge(&conn, v, p)?;
             Some(p)
         });
