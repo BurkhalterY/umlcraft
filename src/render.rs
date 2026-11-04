@@ -112,6 +112,18 @@ fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid) {
     }
 }
 
+/// A stereotype's icon in its box: the script drawn, or the picture fitted to its own ratio and
+/// centred (drawStereotypeIcon, elements.js:270-330).
+pub fn draw_stereotype_icon(c: &mut dyn Canvas, b: R, icon: &views::StereotypeIcon, line: Rgba, fill: Rgba) {
+    match icon {
+        views::StereotypeIcon::Script(s) => draw_icon_script(c, b, s, line, fill),
+        views::StereotypeIcon::Picture(data, w, h) => {
+            let f = fit_ratio(b, w.max(1.0), h.max(1.0));
+            c.image(R { x: b.x + ((b.w - f.w) / 2.0).round(), y: b.y + ((b.h - f.h) / 2.0).round(), ..f }, data);
+        }
+    }
+}
+
 /// The largest box of the ratio `w`:`h` that fits in `b`, centred (computeIconRect, elements.js:4702-4721).
 pub fn fit_ratio(b: R, w: f64, h: f64) -> R {
     if w <= 0.0 || h <= 0.0 {
@@ -363,10 +375,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         "stereotype-icon" => {
             // the stereotype's icon in the square above the name, then the compartments' rows
             // without a box (drawAsIconicForm and drawIcon, elements.js:4723-4740, 5107-5120)
-            if let (Some((script, iw, ih)), Some(nc)) = (r.refd(v, "model").and_then(|m| views::stereotype_icon(r, m)), r.refd(v, "nameCompartment")) {
+            if let (Some((icon, iw, ih)), Some(nc)) = (r.refd(v, "model").and_then(|m| views::stereotype_icon(r, m)), r.refd(v, "nameCompartment")) {
                 let area = fit_ratio(R { x: b.x, y: b.y, w: b.w, h: (r.f(nc, "top") - b.y).max(0.0) }, 100.0, 100.0);
                 let square = R { x: b.x + (b.w - area.w) / 2.0, ..area };
-                draw_icon_script(c, fit_ratio(square, iw.max(1.0), ih.max(1.0)), &script, line, fill);
+                draw_stereotype_icon(c, fit_ratio(square, iw.max(1.0), ih.max(1.0)), &icon, line, fill);
             }
             draw_name(c, r, v);
             if let Some(i) = info {
@@ -527,10 +539,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
     // the stereotypes UMLCraft has icons for (interfaces and the robustness stereotypes)
     let display = r.str(v, "stereotypeDisplay");
     let profile_icon = r.refd(v, "model").and_then(|m| views::stereotype_icon(r, m)).filter(|_| r.refd(v, "model").map(|m| r.ty(m) != "UMLInterface").unwrap_or(false));
-    if let (Some((script, iw, ih)), true) = (&profile_icon, display == "decoration" || display == "decoration-label") {
+    if let (Some((icon, iw, ih)), true) = (&profile_icon, display == "decoration" || display == "decoration-label") {
         // a profile stereotype's icon in the 24 × 24 box at the top right (drawAsDecorationForm, elements.js:5086-5105)
         let bx = R { x: b.x + b.w - views::PAD - views::DECORATION_ICON, y: b.y + views::PAD, w: views::DECORATION_ICON, h: views::DECORATION_ICON };
-        draw_icon_script(c, fit_ratio(bx, iw.max(1.0), ih.max(1.0)), script, line, fill);
+        draw_stereotype_icon(c, fit_ratio(bx, iw.max(1.0), ih.max(1.0)), icon, line, fill);
     } else if display == "decoration" || display == "decoration-label" {
         if let Some(m) = r.refd(v, "model") {
             let st = views::type_name(r, m, "stereotype").to_lowercase();

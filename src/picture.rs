@@ -109,3 +109,37 @@ pub fn decode(url: &str) -> Option<image::RgbaImage> {
     }
     image::load_from_memory(&bytes).ok().map(|i| i.to_rgba8())
 }
+
+/// The largest side a stereotype's icon picture keeps (image-utils.js:3-4).
+pub const ICON_MAX: u32 = 500;
+
+/// A picture file for a stereotype icon's `image`: scaled down to at most 500 pixels on its longer
+/// side and stored again as PNG (JPEG for the other kinds, as the original's canvas does), with
+/// its new and original sizes (image-utils.js:6-42). A square picture is scaled too, which the
+/// original's two `>` tests skip.
+pub fn load_icon_picture(path: &Path) -> Result<(String, u32, u32, u32, u32), String> {
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase();
+    if !matches!(ext.as_str(), "jpg" | "jpeg" | "png" | "gif") {
+        return Err(format!("{} is not a JPEG, PNG or GIF picture.", path.display()));
+    }
+    let img = image::open(path).map_err(|e| e.to_string())?;
+    let (ow, oh) = (img.width(), img.height());
+    let (mut w, mut h) = (ow, oh);
+    if w.max(h) > ICON_MAX {
+        if w >= h {
+            h = ((h as f64) * ICON_MAX as f64 / w as f64).round().max(1.0) as u32;
+            w = ICON_MAX;
+        } else {
+            w = ((w as f64) * ICON_MAX as f64 / h as f64).round().max(1.0) as u32;
+            h = ICON_MAX;
+        }
+    }
+    let img = if (w, h) == (ow, oh) { img } else { img.resize_exact(w, h, image::imageops::FilterType::Triangle) };
+    let png = ext == "png";
+    let mut bytes = std::io::Cursor::new(Vec::new());
+    let format = if png { image::ImageFormat::Png } else { image::ImageFormat::Jpeg };
+    let img = if png { img } else { image::DynamicImage::ImageRgb8(img.to_rgb8()) };
+    img.write_to(&mut bytes, format).map_err(|e| e.to_string())?;
+    let mime = if png { "image/png" } else { "image/jpeg" };
+    Ok((format!("data:{mime};base64,{}", base64_encode(bytes.get_ref())), w, h, ow, oh))
+}

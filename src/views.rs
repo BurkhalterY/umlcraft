@@ -31,11 +31,26 @@ pub const ARTIFACT_ICON_H: f64 = 40.0;
 /// The robustness kind of a class shown as an icon: "boundary", "entity" or "control".
 /// A stereotype icon's script, if the stereotype of the view's element has one (`!icon w h` in its
 /// icon's content), with the icon's minimum size (elements.js:270-275, 4693-4700).
-pub fn stereotype_icon(r: &Repo, m: Eid) -> Option<(String, f64, f64)> {
+pub fn stereotype_icon(r: &Repo, m: Eid) -> Option<(StereotypeIcon, f64, f64)> {
     let st = r.refd(m, "stereotype")?;
     let icon = r.child(st, "icon")?;
     let content = r.str(icon, "content");
-    content.trim_start().starts_with("!icon").then(|| (content, r.f(icon, "width"), r.f(icon, "height")))
+    let (w, h) = (r.f(icon, "width"), r.f(icon, "height"));
+    if content.trim_start().starts_with("!icon") {
+        return Some((StereotypeIcon::Script(content), w, h));
+    }
+    // a picture: JSON {width, height, data} in `image` (property-editor-view.js:385-398)
+    let img: Value = serde_json::from_str(&r.str(icon, "image")).ok()?;
+    let data = img.get("data")?.as_str()?.to_string();
+    let (iw, ih) = (img.get("width")?.as_f64()?, img.get("height")?.as_f64()?);
+    Some((StereotypeIcon::Picture(data, iw, ih), w, h))
+}
+
+/// How a stereotype's icon is given: an icon script, or a picture with its size.
+#[derive(Clone, Debug, PartialEq)]
+pub enum StereotypeIcon {
+    Script(String),
+    Picture(String, f64, f64),
 }
 
 pub fn robustness_kind(r: &Repo, v: Eid, m: Eid) -> Option<&'static str> {

@@ -4133,7 +4133,7 @@ fn profile_stereotype_icons() {
     assert_eq!(a.info[&c].shape, "");
     assert!(crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap().contains("#ff0000"));
     // the icon's size is edited as integers
-    assert_eq!(a.fields_for(icon), vec![("width", "int"), ("height", "int"), ("content", "multiline")]);
+    assert_eq!(a.fields_for(icon), vec![("width", "int"), ("height", "int"), ("image", "image"), ("content", "multiline")]);
     let text = a.repo.serialize();
     assert!(text.contains("\"UMLImage\""));
     let back = Repo::parse(&text).unwrap();
@@ -4376,4 +4376,31 @@ fn port_and_part_quick_edit_actions() {
     a.apply_input(dialog.action, "Plug".into());
     let ty = a.repo.refd(pm, "type").unwrap();
     assert_eq!((a.repo.name(ty), a.repo.parent(ty)), ("Plug".to_string(), Some(cm)), "the new type goes in the classifier");
+}
+
+#[test]
+fn stereotype_icon_from_a_picture() {
+    let ms = measure();
+    let dir = std::env::temp_dir().join(format!("umlcraft-icon-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let png = dir.join("wide.png");
+    image::RgbaImage::from_pixel(1000, 400, image::Rgba([0, 0, 255, 255])).save(&png).unwrap();
+    let (data, w, h, ow, oh) = crate::picture::load_icon_picture(&png).unwrap();
+    assert_eq!((w, h, ow, oh), (500, 200, 1000, 400), "scaled to 500 on the longer side");
+    assert!(data.starts_with("data:image/png;base64,"));
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.package_for(Some(d));
+    let st = a.change(|a| a.add_model(pkg, "UMLStereotype"));
+    let icon = a.repo.child(st, "icon").unwrap();
+    a.change(|a| a.repo.set(icon, "image", json!(json!({ "width": w, "height": h, "data": data }).to_string())));
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 10.0, 10.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    a.change(|a| { a.repo.set_ref(m, "stereotype", Some(st)); a.repo.set(c, "stereotypeDisplay", json!("icon")); });
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info[&c].shape, "stereotype-icon");
+    let out = crate::render::to_png(&a.repo, d, &a.info, &ms, 1.0).unwrap();
+    let img = image::load_from_memory(&out).unwrap().to_rgba8();
+    assert!(img.pixels().any(|p| p.0 == [0, 0, 255, 255]), "the picture is drawn");
+    let _ = std::fs::remove_dir_all(&dir);
 }

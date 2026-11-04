@@ -859,7 +859,7 @@ impl App {
             "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
             "UMLObject" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("classifier", "type")],
             // a stereotype's icon: its minimum size and its icon script (uml/metamodel.json UMLImage)
-            "UMLImage" => vec![("width", "int"), ("height", "int"), ("content", "multiline")],
+            "UMLImage" => vec![("width", "int"), ("height", "int"), ("image", "image"), ("content", "multiline")],
             "UMLCollaborationUse" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type")],
             "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
             "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
@@ -1097,6 +1097,33 @@ impl App {
                     if let Some(p) = pick.filter(|p| *p != cur) {
                         let f = field.clone();
                         self.change(|a| a.repo.set_ref(obj, &f, p));
+                    }
+                }
+                // a picture: "(Image)" or "—", a browse button and a delete button (property-editor-view.js:342-402)
+                "image" => {
+                    let set = !self.repo.str(obj, &field).is_empty();
+                    ui.label(egui::RichText::new(if set { "(Image)" } else { "—" }).size(12.0).color(if set { TEXT() } else { DIM() }));
+                    if single && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("…")).on_hover_text("Select an image").clicked() {
+                        if let Some(path) = rfd::FileDialog::new().set_title("Select an image").add_filter("Images", &["jpg", "jpeg", "png", "gif"]).pick_file() {
+                            match crate::picture::load_icon_picture(&path) {
+                                Ok((data, w, h, ow, oh)) => {
+                                    if ow > crate::picture::ICON_MAX || oh > crate::picture::ICON_MAX {
+                                        self.message = Some(("Image".into(), "Image is too large, so it will be resized smaller.".into()));
+                                    }
+                                    let value = json!({ "width": w, "height": h, "data": data }).to_string();
+                                    let f = field.clone();
+                                    self.change(|a| a.repo.set(obj, &f, json!(value)));
+                                }
+                                Err(e) => self.toast_error(&e),
+                            }
+                        }
+                    }
+                    if set && single && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("×")).on_hover_text("Delete the image").clicked() {
+                        let ok = rfd::MessageDialog::new().set_description("Do you want to delete this image?").set_buttons(rfd::MessageButtons::OkCancel).show();
+                        if ok == rfd::MessageDialogResult::Ok {
+                            let f = field.clone();
+                            self.change(|a| a.repo.remove(obj, &f));
+                        }
                     }
                 }
                 // an integer: a typed value that is not a whole number is ignored (property-editor-view.js:274-330)
