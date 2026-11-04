@@ -80,6 +80,8 @@ fn build() -> HashMap<&'static str, Kind> {
     // profiles: a metaclass names a UML type; an extension joins a stereotype to it (names estimated)
     def("UMLMetaClass", Some("UMLModelElement"), vec![]);
     def("UMLExtension", Some("UMLDirectedRelationship"), vec![]);
+    // the diamond an n-ary association's ends meet at (elements.js:2096)
+    def("UMLNaryAssociationNode", Some("UMLClassifier"), vec![]);
     def("UMLInterface", Some("UMLClassifier"), vec![]);
     def("UMLSignal", Some("UMLClassifier"), vec![]);
     def("UMLDataType", Some("UMLClassifier"), vec![]);
@@ -178,6 +180,9 @@ fn build() -> HashMap<&'static str, Kind> {
     for name in ["RectangleView", "RoundRectView", "EllipseView"] {
         def(name, Some("ShapeView"), vec![]);
     }
+    // a node with floating labels around it, placed by angle and distance from its centre (elements.js:5162-5188)
+    def("UMLFloatingNodeView", Some("NodeView"), vec![("nameLabel", n()), ("stereotypeLabel", n()), ("propertyLabel", n()), ("showProperty", d(json!(true)))]);
+    def("UMLNaryAssociationNodeView", Some("UMLFloatingNodeView"), vec![("showVisibility", d(json!(false)))]);
     def("HyperlinkView", Some("NodeView"), vec![("nameLabel", n()), ("typeLabel", n())]);
     def("UMLCustomTextView", Some("NodeView"), vec![("text", d(json!(""))), ("wordWrap", d(json!(true))), ("horzAlign", d(json!(0))), ("vertAlign", d(json!(3)))]);
     def("UMLCustomNoteView", Some("UMLCustomTextView"), vec![]);

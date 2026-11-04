@@ -270,6 +270,23 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             draw_label(c, r, nl, fc);
             return;
         }
+        "nary" => {
+            // a diamond touching the middle of each side, with its shadow (elements.js:6619-6652)
+            let (cx, cy) = (b.x + b.w / 2.0, b.y + b.h / 2.0);
+            let diamond = [P { x: b.x, y: cy }, P { x: cx, y: b.y }, P { x: b.x + b.w, y: cy }, P { x: cx, y: b.y + b.h }];
+            if r.bool(v, "showShadow") {
+                let s = Rgba(SHADOW_COLOR.0, SHADOW_COLOR.1, SHADOW_COLOR.2, (255.0 * SHADOW_ALPHA) as u8);
+                let sp: Vec<P> = diamond.iter().map(|p| P { x: p.x + SHADOW_OFFSET, y: p.y + SHADOW_OFFSET }).collect();
+                c.polygon(&sp, Some(s), None);
+            }
+            c.polygon(&diamond, Some(fill), Some(line));
+            for f in ["stereotypeLabel", "nameLabel", "propertyLabel"] {
+                if let Some(lv) = r.refd(v, f) {
+                    draw_label(c, r, lv, fc);
+                }
+            }
+            return;
+        }
         "hyperlink" => {
             // a filled box split after "link" (elements.js:14102-14107)
             let (Some(nl), Some(tl)) = (r.refd(v, "nameLabel"), r.refd(v, "typeLabel")) else { return };

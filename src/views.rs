@@ -43,6 +43,8 @@ pub const FRAME_MIN_H: f64 = 30.0; // elements.js:219
 const FRAME_CONTENT_MIN_W: f64 = 10.0; // elements.js:220
 const FRAME_CONTENT_MIN_H: f64 = 30.0; // elements.js:221
 const LABEL_INTERVAL: f64 = 3.0; // elements.js:62
+pub const NARY_MIN_W: f64 = 30.0; // elements.js:82
+pub const NARY_MIN_H: f64 = 22.0; // elements.js:83
 pub const HYPERLINK_MIN_W: f64 = 100.0; // elements.js:231
 pub const HYPERLINK_MIN_H: f64 = 20.0; // elements.js:232
 pub const NOTE_FOLD: f64 = 10.0; // note fold, elements.js:14261
@@ -235,6 +237,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "Frame" => (FRAME_MIN_W, FRAME_MIN_H),
         "Hyperlink" => (HYPERLINK_MIN_W, HYPERLINK_MIN_H),
         "Rect" | "RoundRect" | "Ellipse" => (50.0, 50.0),
+        "UMLNaryAssociationNode" => (NARY_MIN_W, NARY_MIN_H),
         _ => (100.0, 60.0),
     }
 }
@@ -411,6 +414,54 @@ pub fn create_frame_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, rect: R
     r.set_ref(v, "nameLabel", Some(nm));
     r.set_ref(v, "frameTypeLabel", Some(ty));
     v
+}
+
+/// An n-ary association node's diamond, with its name, stereotype and property labels floating
+/// around it (UMLFloatingNodeView, elements.js:5162-5188).
+pub fn create_nary_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Eid {
+    let m = r.ref_to(model);
+    let v = r.create(
+        "UMLNaryAssociationNodeView",
+        &[("model", m.clone()), ("font", json!(FONT)), ("parentStyle", json!(false)), ("containerChangeable", json!(false)), ("left", num(rect.x)), ("top", num(rect.y)), ("width", num(rect.w)), ("height", num(rect.h))],
+        Some((diagram, "ownedViews")),
+    );
+    let pi = std::f64::consts::PI;
+    for (field, alpha, distance) in [("nameLabel", 3.0 * pi / 4.0, 20.0), ("stereotypeLabel", 3.0 * pi / 4.0, 35.0), ("propertyLabel", -3.0 * pi / 4.0, 20.0)] {
+        let l = r.create("NodeLabelView", &[("model", m.clone()), ("font", json!(FONT)), ("alpha", json!(alpha)), ("distance", json!(distance)), ("height", json!(LABEL_H))], Some((v, "subViews")));
+        r.set_ref(v, field, Some(l));
+    }
+    v
+}
+
+/// A floating label's box: its text's size, centred on the point at its angle and distance from
+/// the host's centre (NodeParasiticView.arrange, core.js:3600-3616).
+fn place_floating_label(r: &mut Repo, ms: &dyn Measure, host: Eid, lv: Eid, text: &str, shown: bool) {
+    r.set(lv, "text", json!(text));
+    r.set(lv, "visible", json!(shown && !text.is_empty()));
+    let w = ms.width(text, 0).ceil();
+    let h = ms.size();
+    let b = node_rect(r, host);
+    let c = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+    let off = point_away_line(c, c, r.f(lv, "alpha"), r.f(lv, "distance"));
+    set_box(r, lv, off.x + c.x - w / 2.0, off.y + c.y - h / 2.0, w, h);
+}
+
+/// An n-ary association node: at least 30×22, with its name (and visibility when shown), its
+/// stereotype and its properties around it (UMLNaryAssociationNodeView, elements.js:6596-6617).
+fn layout_nary(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    grow(r, v, NARY_MIN_W, NARY_MIN_H);
+    let mut name = r.name(m);
+    if r.bool(v, "showVisibility") {
+        name = format!("{}{name}", vis_symbol(&r.str(m, "visibility")));
+    }
+    let st = stereotype_text(r, m);
+    let prop = property_text(r, m);
+    let show_prop = r.bool(v, "showProperty");
+    for (field, text, shown) in [("nameLabel", name, true), ("stereotypeLabel", st, true), ("propertyLabel", prop, show_prop)] {
+        if let Some(lv) = r.refd(v, field) {
+            place_floating_label(r, ms, v, lv, &text, shown);
+        }
+    }
 }
 
 /// A hyperlink's view: a bold "link" label and the target's name (HyperlinkView, elements.js:14060-14073).
@@ -807,7 +858,7 @@ pub struct Comp {
 pub struct Info {
     /// The template parameter box at the top-right corner, when there are template parameters.
     pub templ: Option<Comp>,
-    /// "interface", "actor", "usecase", "package", "subject", "frame", "hyperlink" or ""
+    /// "interface", "actor", "usecase", "package", "subject", "frame", "hyperlink", "nary" or ""
     pub shape: &'static str,
     pub compartments: Vec<Comp>,
     pub is_active: bool,
@@ -1315,6 +1366,12 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
             grow(r, v, w.ceil(), 20.0);
         }
         return Info::default();
+    }
+    if t == "UMLNaryAssociationNodeView" {
+        if let Some(m) = m {
+            layout_nary(r, ms, v, m);
+        }
+        return Info { shape: "nary", ..Default::default() };
     }
     if t == "HyperlinkView" {
         layout_hyperlink(r, ms, v);

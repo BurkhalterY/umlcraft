@@ -41,6 +41,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLInformationFlow" => "dependency",
         "UMLComponentRealization" => "realization",
         "Hyperlink" => "hyperlink",
+        "UMLNaryAssociationNode" => "nary",
         "UMLDeployment" | "UMLTemplateBinding" => "dependency",
         "UMLCommunicationPath" => "association",
         "UMLClassDiagram" | "UMLPackageDiagram" => "diagram-class",
@@ -211,6 +212,7 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
         }
         "notelink" => dashed(&[(3.0, 13.0), (13.0, 3.0)], W),
         "rect" => rect_at(2.0, 3.0, 12.0, 10.0, W),
+        "nary" => line(&[(1.5, 8.0), (8.0, 3.5), (14.5, 8.0), (8.0, 12.5), (1.5, 8.0)], Y),
         "roundrect" => {
             p.rect_stroke(Rect::from_min_size(at(2.0, 3.0), Vec2::new(12.0 * s, 10.0 * s)), (3.0 * s) as f32, st(W), egui::StrokeKind::Middle);
         }

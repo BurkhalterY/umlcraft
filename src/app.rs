@@ -736,6 +736,13 @@ impl App {
         }
         let parent = self.package_for(Some(d));
         let name = self.new_name(parent, kind);
+        // an n-ary association node starts without a name (uml.json "model-init")
+        if kind == "UMLNaryAssociationNode" {
+            let m = self.repo.create(kind, &[("name", json!(""))], Some((parent, "ownedElements")));
+            let v = views::create_nary_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
         // a hyperlink is a model element of the diagram's owner, linking to nothing yet
         if kind == "Hyperlink" {
             let m = self.repo.create("Hyperlink", &[("name", json!(name))], Some((parent, "ownedElements")));
@@ -1039,6 +1046,11 @@ impl App {
                 let linked = r.all_of("UMLAssociationClassLink").into_iter().any(|l| r.refd(l, "associationSide") == Some(hm));
                 return r.ty(tm) == "UMLClass" && r.ty(hm) == "UMLAssociation" && !linked;
             }
+            // with an n-ary association node, the other end is the class it links (uml-factory.js:743-761)
+            let nary = |m: Eid| r.ty(m) == "UMLNaryAssociationNode";
+            if nary(tm) || nary(hm) {
+                return (nary(tm) && r.ty(hm) == "UMLClass") || (nary(hm) && r.ty(tm) == "UMLClass");
+            }
             return r.kind_of(tm, "UMLClassifier") && r.kind_of(hm, "UMLClassifier");
         }
         if views::is_edge(r, tail) || views::is_edge(r, head) {
@@ -1156,6 +1168,14 @@ impl App {
         };
         if views::is_edge(&self.repo, head) {
             return link(self, tail, head);
+        }
+        // a class and an n-ary association node: only the link, from the class (uml-factory.js:743-761)
+        let nary = |a: &App, v: Eid| a.repo.refd(v, "model").map(|m| a.repo.ty(m) == "UMLNaryAssociationNode").unwrap_or(false);
+        if !objects && nary(self, head) {
+            return link(self, tail, head);
+        }
+        if !objects && nary(self, tail) {
+            return link(self, head, tail);
         }
         let assoc = Tool { label: "", kind: rel, icon: "", line: true, init: AssocInit::Plain };
         let e = self.create_edge(&assoc, tail, head)?;

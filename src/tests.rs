@@ -3975,3 +3975,39 @@ fn inline_edit_buttons_carry_their_keys() {
     a.item_key(c, EditKind::Name(cm), ItemKey::Add);
     assert_eq!(a.repo.list(cm, "attributes").len(), 1);
 }
+
+#[test]
+fn nary_association_node_joins_classifiers() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let n = a.change(|a| a.create_node("UMLNaryAssociationNode", rect(200.0, 200.0, 10.0, 10.0))).unwrap();
+    assert_eq!(a.repo.ty(n), "UMLNaryAssociationNodeView");
+    let nm = a.repo.refd(n, "model").unwrap();
+    assert_eq!((a.repo.ty(nm), a.repo.name(nm)), ("UMLNaryAssociationNode", String::new()), "it starts unnamed");
+    let cs: Vec<_> = (0..3).map(|i| a.change(|a| a.create_node("UMLClass", rect(40.0 + 200.0 * i as f64, 20.0, 100.0, 60.0))).unwrap()).collect();
+    let assoc = tool("UMLAssociation", AssocInit::Plain);
+    for c in &cs {
+        assert!(a.can_connect(&assoc, *c, n), "an association joins a class to the node");
+        a.change(|a| a.create_edge(&assoc, *c, n)).unwrap();
+    }
+    // the Association Class tool links a class to the node, without a new class
+    let ac = tool("AssociationClass", AssocInit::Plain);
+    assert!(a.can_connect(&ac, cs[0], n) && a.can_connect(&ac, n, cs[1]));
+    let link = a.change(|a| a.create_edge(&ac, n, cs[1])).unwrap();
+    assert_eq!(a.repo.ty(link), "UMLAssociationClassLinkView");
+    let lm = a.repo.refd(link, "model").unwrap();
+    assert_eq!((a.repo.refd(lm, "classSide"), a.repo.refd(lm, "associationSide")), (a.repo.refd(cs[1], "model"), Some(nm)));
+    assert_eq!(a.repo.refd(link, "tail"), Some(cs[1]), "drawn from the class");
+    a.change(|a| a.repo.set(nm, "name", json!("Booking")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.repo.f(n, "width") >= 30.0 && a.repo.f(n, "height") >= 22.0);
+    let nl = a.repo.refd(n, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "Booking");
+    let centre = (a.repo.f(n, "left") + a.repo.f(n, "width") / 2.0, a.repo.f(n, "top") + a.repo.f(n, "height") / 2.0);
+    let label_centre = (a.repo.f(nl, "left") + a.repo.f(nl, "width") / 2.0, a.repo.f(nl, "top") + a.repo.f(nl, "height") / 2.0);
+    assert_eq!((label_centre.0 - centre.0, label_centre.1 - centre.1), (-15.0, -15.0), "the name floats up and to the left");
+    a.edit_view(n, None);
+    assert!(matches!(a.editing.as_ref().map(|e| &e.kind), Some(crate::app::EditKind::Name(m)) if *m == nm));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
