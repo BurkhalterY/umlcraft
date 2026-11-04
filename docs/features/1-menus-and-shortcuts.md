@@ -61,7 +61,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | `ctrl-shift-r` | `format:auto-resize` | ✅ | Ctrl+Shift+R and a check item in Format (main and canvas menus) and Styles: inverts the shared autoResize, or sets it when mixed (src/ui.rs:2109, 2737; src/app.rs:1587-1618) | resources/default/keymaps/linux.json |
 | `ctrl-shift-h` | `format:show-shadow` | ✅ | Ctrl+Shift+H and a check item in Format (main and canvas menus): inverts the shared value, or sets it when mixed (src/app.rs:1609, 1625; src/ui.rs:2216, 2038) | resources/default/keymaps/linux.json |
 | `ctrl-shift-k` | `format:inherit-style` | ❌ |  | resources/default/keymaps/linux.json |
-| `ctrl-t` | `model:tag-editor` | ✅ | Ctrl+T, Model › Tag Editor..., and the canvas and explorer menus (src/ui.rs:1691, 2236; src/tags.rs:171-272) | resources/default/keymaps/linux.json |
+| `ctrl-t` | `model:tag-editor` | ✅ | Ctrl+T, Model › Tag Editor..., and the canvas and explorer menus (src/ui.rs:1691, 2236; src/tags.rs:171-275) | resources/default/keymaps/linux.json |
 | `ctrl-p` | `view:quick-find` | ✅ | Ctrl+P and View › Quick Find... (src/ui.rs:1722, 2239; src/palette.rs:180-215, 344) | resources/default/keymaps/linux.json |
 | `ctrl-shift-p` | `view:command-palette` | ✅ | Ctrl+Shift+P and View › Command Palette... (src/ui.rs:2110; src/palette.rs:63-172, 225-342) | resources/default/keymaps/linux.json |
 | `f4` | `view:close-diagram` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:2270, 2004; src/app.rs:1376) | resources/default/keymaps/linux.json |
@@ -321,7 +321,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Format › Inherit Style | `format:inherit-style` | `ctrl-shift-k` | ❌ |  | resources/default/menus/linux.json |
 | Model › Add Diagram | `model:add-diagram` |  | 🟡 | Model › Add Diagram and the explorer menu offer Class, Package, Component, Deployment and Use Case diagrams, the kinds UMLCraft edits (src/ui.rs:223, 500, 1671) | resources/default/menus/linux.json |
 | Model › Add | `model:add` |  | 🟡 | Model › Add and the explorer Add menu offer Model, Package, Profile, Class, Interface, Signal, DataType, PrimitiveType, Enumeration, Stereotype, Actor, Use Case and the features that apply (src/ui.rs:422-489) | resources/default/menus/linux.json |
-| Model › Tag Editor... | `model:tag-editor` | `ctrl-t` | ✅ | Ctrl+T, Model › Tag Editor..., and the canvas and explorer menus (src/ui.rs:1691, 2236; src/tags.rs:171-272) | resources/default/menus/linux.json |
+| Model › Tag Editor... | `model:tag-editor` | `ctrl-t` | ✅ | Ctrl+T, Model › Tag Editor..., and the canvas and explorer menus (src/ui.rs:1691, 2236; src/tags.rs:171-275) | resources/default/menus/linux.json |
 | Tools › Extension Manager... | `tools:extension-manager` |  | ➖ | UMLCraft has no extension system | resources/default/menus/linux.json |
 | View › Quick Find... | `view:quick-find` | `ctrl-p` | ✅ | Ctrl+P and View › Quick Find... (src/ui.rs:1722, 2239; src/palette.rs:180-215, 344) | resources/default/menus/linux.json |
 | View › Command Palette... | `view:command-palette` | `ctrl-shift-p` | ✅ | Ctrl+Shift+P and View › Command Palette... (src/ui.rs:2110; src/palette.rs:63-172, 225-342) | resources/default/menus/linux.json |
@@ -423,7 +423,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | diagram-canvas | Select In Explorer | `edit:select-in-explorer` | ✅ | Ctrl+E (src/ui.rs:2180) |
 | diagram-canvas | Select In Diagram | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:1515; src/ui.rs:2189, 1632, 519; src/canvas.rs:1823) |
 | diagram-canvas | Open Sub-Diagram | `edit:open-sub-diagram` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:1493; src/ui.rs:1636, 2186; src/canvas.rs:1828) |
-| diagram-canvas | Tag Editor... | `model:tag-editor` | ✅ | Ctrl+T, Model › Tag Editor..., and the canvas and explorer menus (src/ui.rs:1691, 2236; src/tags.rs:171-272) |
+| diagram-canvas | Tag Editor... | `model:tag-editor` | ✅ | Ctrl+T, Model › Tag Editor..., and the canvas and explorer menus (src/ui.rs:1691, 2236; src/tags.rs:171-275) |
 | mermaid-example-dropdown | Class Diagram | `mermaid:example-class-diagram` | ✅ | an "Example: Class" button fills in a class diagram example (src/mermaid.rs:468-470) |
 | mermaid-example-dropdown | Sequence Diagram | `mermaid:example-sequence-diagram` | ❌ |  |
 | mermaid-example-dropdown | State Diagram | `mermaid:example-state-diagram` | ❌ |  |

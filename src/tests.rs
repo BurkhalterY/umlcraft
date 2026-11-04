@@ -3706,3 +3706,32 @@ fn export_bounds_include_line_labels() {
     let b = crate::render::bounds(&a.repo, d).unwrap();
     assert!(b.y <= lb.y && b.y + b.h >= lb.y + lb.h && b.x <= lb.x && b.x + b.w >= lb.x + lb.w, "{b:?} covers {lb:?}");
 }
+
+#[test]
+fn tag_dialog_keys() {
+    let mut a = App::new(None);
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    a.focus = Some(m);
+    a.open_tag_editor();
+    a.edit_tag(None);
+    a.tag_edit.as_mut().unwrap().name = "owner".into();
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let key = |k| egui::Event::Key { key: k, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+    let mut frame = |a: &mut App, k| {
+        let mut out = ctx.run_ui(egui::RawInput { events: vec![key(k)], ..Default::default() }, |ui| a.dialogs(ui.ctx()));
+        out.textures_delta.clear();
+    };
+    // Enter is OK in the Tag dialog; the editor stays open
+    frame(&mut a, egui::Key::Enter);
+    assert!(a.tag_edit.is_none() && a.tag_editor.is_some());
+    assert_eq!(a.repo.list(m, "tags").len(), 1);
+    // Esc in the dialog cancels it only
+    a.edit_tag(None);
+    frame(&mut a, egui::Key::Escape);
+    assert!(a.tag_edit.is_none() && a.tag_editor.is_some(), "the editor stays");
+    // Esc in the editor closes it
+    frame(&mut a, egui::Key::Escape);
+    assert!(a.tag_editor.is_none());
+}

@@ -181,6 +181,8 @@ impl App {
             self.tag_editor = None;
             return;
         };
+        // a key the Tag dialog takes (Esc) must not also close the editor in the same frame
+        let dialog_open = self.tag_edit.is_some() || self.element_picker.is_some();
         if self.tag_edit.is_some() {
             self.tag_dialog_ui(ctx, e);
         }
@@ -260,7 +262,8 @@ impl App {
                         }
                     }
                 }
-                if ui.button("Close").clicked() {
+                // Esc closes the editor, unless the Tag dialog is open over it
+                if ui.button("Close").clicked() || (!dialog_open && ui.input(|i| i.key_pressed(egui::Key::Escape))) {
                     close = true;
                 }
             });
@@ -345,6 +348,9 @@ impl App {
             ui.horizontal(|ui| {
                 ok = ui.button("OK").clicked();
                 cancel = ui.button("Cancel").clicked();
+                // Enter is OK (Ctrl+Enter in the options box), Esc cancels (dialog-manager.js:148-162)
+                ok |= ui.input(|i| i.key_pressed(egui::Key::Enter) && (i.modifiers.command || ed.kind != "enum"));
+                cancel |= ui.input(|i| i.key_pressed(egui::Key::Escape));
             });
         });
         if ok && !ed.name.trim().is_empty() {

@@ -484,6 +484,9 @@ impl App {
                 ok = ui.button("OK").clicked();
                 cancel = ui.button("Cancel").clicked();
             });
+            // the code is a textarea: Ctrl+Enter is OK, Esc cancels (dialog-manager.js:148-162)
+            ok |= ui.input(|i| i.modifiers.command && i.key_pressed(egui::Key::Enter));
+            cancel |= ui.input(|i| i.key_pressed(egui::Key::Escape));
         });
         if ok {
             let ms = crate::canvas::EguiMeasure { ctx: ctx.clone() };
