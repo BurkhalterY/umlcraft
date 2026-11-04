@@ -3494,3 +3494,25 @@ fn element_list_editor() {
     a.delete_models(&[om]);
     assert_eq!(a.repo.ref_list(c, "constrainedElements"), vec![m]);
 }
+
+#[test]
+fn operation_constraint_kinds() {
+    use crate::app::{SelectOne, SelectPurpose};
+    let mut a = App::new(None);
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    let op = a.change(|a| a.add_feature(m, "UMLOperation")).unwrap();
+    for (i, field) in [(1, "preconditions"), (3, "postconditions"), (0, "ownedElements")] {
+        a.select_one = Some(SelectOne { message: String::new(), options: vec![], selected: i, purpose: SelectPurpose::ConstraintKind(op) });
+        // Enter is OK
+        let ctx = egui::Context::default();
+        crate::setup_fonts(&ctx);
+        let ev = egui::Event::Key { key: egui::Key::Enter, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+        let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.dialogs(ui.ctx()));
+        out.textures_delta.clear();
+        assert!(a.select_one.is_none());
+        let list = a.repo.list(op, field);
+        assert_eq!(list.len(), 1, "{field}");
+        assert_eq!(a.repo.ty(list[0]), "UMLConstraint");
+    }
+}

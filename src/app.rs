@@ -61,6 +61,24 @@ pub enum Drag {
     Segment { edge: Eid, index: usize, start: P, orig: Vec<P>, horizontal: bool, changed: bool },
 }
 
+/// A "Select One" dialog: a message and radio buttons; OK runs the purpose with the chosen index.
+#[derive(Clone, Debug)]
+pub struct SelectOne {
+    pub message: String,
+    pub options: Vec<&'static str>,
+    pub selected: usize,
+    pub purpose: SelectPurpose,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SelectPurpose {
+    /// Model › Add › Constraint on an operation: the field the constraint goes in.
+    ConstraintKind(Eid),
+}
+
+/// The constraint kinds of an operation and the field each goes in (uml-commands.js:185).
+pub const OPERATION_CONSTRAINTS: [(&str, &str); 4] = [("Typical", "ownedElements"), ("Precondition", "preconditions"), ("BodyCondition", "bodyConditions"), ("Postcondition", "postconditions")];
+
 pub mod egui_pos {
     #[derive(Clone, Copy, Debug)]
     pub struct Pos {
@@ -167,6 +185,8 @@ pub struct App {
     pub sys_clipboard: Option<arboard::Clipboard>,
     /// The colour field last changed and when, so a picker drag is one undo step.
     pub style_edit: Option<(String, std::time::Instant)>,
+    /// A "Select One" dialog waiting for an answer (dialog-manager.js:433-476).
+    pub select_one: Option<SelectOne>,
     /// The Element List Editor: the element, the reference-list field and the selected row.
     pub list_editor: Option<(Eid, &'static str, Option<usize>)>,
     /// The Color dialog, opened by Ctrl+Shift+I, Ctrl+Shift+L and the Style editor's swatches.
@@ -297,6 +317,7 @@ impl App {
             style_edit: None,
             color_dialog: None,
             list_editor: None,
+            select_one: None,
             font_dialog: None,
             prefs: crate::prefs::Prefs::default(),
             prefs_open: None,
@@ -638,6 +659,23 @@ impl App {
             self.apply_standard_profile();
         }
         ok
+    }
+
+    /// Answer a "Select One" dialog with the chosen option.
+    pub fn select_one_ok(&mut self, d: SelectOne) {
+        match d.purpose {
+            SelectPurpose::ConstraintKind(op) if self.repo.alive(op) => {
+                let field = OPERATION_CONSTRAINTS.get(d.selected).map(|x| x.1).unwrap_or("ownedElements");
+                let c = self.change(|a| {
+                    let name = a.new_name(op, "UMLConstraint");
+                    a.repo.create("UMLConstraint", &[("name", json!(name))], Some((op, field)))
+                });
+                self.expanded.insert(op);
+                self.focus = Some(c);
+                self.reveal(c);
+            }
+            _ => {}
+        }
     }
 
     /// Model › Apply Profile › UML Standard Profile (v2), as one undo step (uml-commands.js:81-100).

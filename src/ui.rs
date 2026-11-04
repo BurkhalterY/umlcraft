@@ -430,6 +430,19 @@ impl App {
             return;
         }
         for (l, k, feature) in self.add_kinds(e) {
+            // a constraint on an operation: which kind, in a Select One dialog (uml-commands.js:185)
+            if k == "UMLConstraint" && self.repo.ty(e) == "UMLOperation" {
+                if ui.button(l).clicked() {
+                    self.select_one = Some(crate::app::SelectOne {
+                        message: "Select the kind of constraint".into(),
+                        options: crate::app::OPERATION_CONSTRAINTS.iter().map(|x| x.0).collect(),
+                        selected: 0,
+                        purpose: crate::app::SelectPurpose::ConstraintKind(e),
+                    });
+                    ui.close();
+                }
+                continue;
+            }
             if ui.button(l).clicked() {
                 let created = self.change(|a| if feature { a.add_feature(e, k) } else { Some(a.add_model(e, k)) });
                 self.expanded.insert(e);
@@ -2302,6 +2315,7 @@ impl App {
             || self.diagram_picker.is_some()
             || self.color_dialog.is_some()
             || self.list_editor.is_some()
+            || self.select_one.is_some()
             || self.font_dialog.is_some()
             || self.prefs_open.is_some()
             || self.tag_editor.is_some()
@@ -2343,6 +2357,7 @@ impl App {
         self.diagram_picker_ui(ctx);
         self.color_dialog_ui(ctx);
         self.list_editor_ui(ctx);
+        self.select_one_ui(ctx);
         self.print_dialog_ui(ctx);
         self.element_picker_ui(ctx);
         self.input_dialog_ui(ctx);
@@ -2565,6 +2580,35 @@ impl App {
             self.color_dialog = None;
         } else {
             self.color_dialog = Some(d);
+        }
+    }
+
+    /// The "Select One" dialog: the message, one radio button per option, OK (or Enter) and Cancel
+    /// (or Esc) (dialog-manager.js:433-476, select-radio-dialog.html).
+    fn select_one_ui(&mut self, ctx: &egui::Context) {
+        let Some(mut d) = self.select_one.clone() else { return };
+        let (mut ok, mut cancel) = (false, false);
+        egui::Window::new("Select One").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            ui.label(&d.message);
+            ui.add_space(4.0);
+            for (i, o) in d.options.iter().enumerate() {
+                ui.radio_value(&mut d.selected, i, *o);
+            }
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ok = ui.button("OK").clicked();
+                cancel = ui.button("Cancel").clicked();
+            });
+            ok |= ui.input(|i| i.key_pressed(egui::Key::Enter));
+            cancel |= ui.input(|i| i.key_pressed(egui::Key::Escape));
+        });
+        if ok {
+            self.select_one = None;
+            self.select_one_ok(d);
+        } else if cancel {
+            self.select_one = None;
+        } else {
+            self.select_one = Some(d);
         }
     }
 
