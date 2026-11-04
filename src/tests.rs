@@ -2188,6 +2188,8 @@ fn html_docs_export() {
     let ms = measure();
     let mut a = App::new(None);
     a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let book = a.repo.all().find(|e| a.repo.name(*e) == "Book" && a.repo.ty(*e) == "UMLClass").unwrap();
+    let rc = a.add_feature(book, "UMLReception").unwrap();
     let dir = std::env::temp_dir().join(format!("umlcraft-html-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     a.export_html(&dir, &ms).unwrap();
@@ -2199,9 +2201,9 @@ fn html_docs_export() {
     assert!(dir.join(format!("diagrams/{id}.svg")).exists());
     let page = std::fs::read_to_string(dir.join(format!("contents/{id}.html"))).unwrap();
     assert!(page.contains(&format!("usemap=\"#map-{id}\"")) && page.contains("<area shape=\"rect\""));
-    let book = a.repo.all().find(|e| a.repo.name(*e) == "Book" && a.repo.ty(*e) == "UMLClass").unwrap();
     let bp = std::fs::read_to_string(dir.join(format!("contents/{}.html", md5_hex(&a.repo.id(book))))).unwrap();
     assert!(bp.contains("Generalized Elements") && bp.contains("LibraryItem") && bp.contains("<h2>Attributes</h2>"));
+    assert!(bp.contains("<h2>Receptions</h2>") && bp.contains(&a.repo.name(rc)));
     let index = std::fs::read_to_string(dir.join("contents/element_index.html")).unwrap();
     assert!(index.contains("<h2>UMLClass ("));
     let _ = std::fs::remove_dir_all(&dir);

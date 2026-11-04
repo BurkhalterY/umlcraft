@@ -214,6 +214,9 @@ impl App {
                     .map(|p| views::type_name(&self.repo, p, "type"))
                     .unwrap_or_default(),
                 "UMLTemplateParameter" => self.repo.str(*i, "parameterType"),
+                // a reception's signal; an extension point's location
+                "UMLReception" => views::type_name(&self.repo, *i, "signal"),
+                "UMLExtensionPoint" => self.repo.str(*i, "location"),
                 _ => views::type_name(&self.repo, *i, "type"),
             };
             let shown = if self.repo.ty(*i) == "UMLOperation" { views::operation_text(&self.repo, *i, views::Show { vis: false, ..views::Show::ALL }) } else { self.repo.name(*i) };
@@ -321,8 +324,14 @@ impl App {
         self.member_table(&mut b, "Literals", &r.list(e, "literals"));
         self.member_table(&mut b, "Attributes", &r.list(e, "attributes"));
         self.member_table(&mut b, "Operations", &r.list(e, "operations"));
+        self.member_table(&mut b, "Receptions", &r.list(e, "receptions"));
+        self.member_table(&mut b, "Extension Points", &r.list(e, "extensionPoints"));
         self.member_table(&mut b, "Parameters", &r.list(e, "parameters"));
-        let owned: Vec<Eid> = self.doc_children(e).into_iter().filter(|c| !matches!(r.ty(*c), "UMLAttribute" | "UMLOperation" | "UMLEnumerationLiteral" | "UMLParameter" | "UMLTemplateParameter")).collect();
+        let owned: Vec<Eid> = self
+            .doc_children(e)
+            .into_iter()
+            .filter(|c| !matches!(r.ty(*c), "UMLAttribute" | "UMLOperation" | "UMLReception" | "UMLExtensionPoint" | "UMLEnumerationLiteral" | "UMLParameter" | "UMLTemplateParameter"))
+            .collect();
         self.links_section(&mut b, "Owned Elements", &owned);
         Self::html_page(&self.display_name(e), &b)
     }
