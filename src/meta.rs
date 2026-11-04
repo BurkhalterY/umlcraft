@@ -127,6 +127,8 @@ fn build() -> HashMap<&'static str, Kind> {
     // states, transitions, events and actions, for the explorer (uml/metamodel.json)
     def("UMLVertex", Some("UMLModelElement"), vec![]);
     def("UMLState", Some("UMLVertex"), vec![("regions", n()), ("entryActivities", n()), ("doActivities", n()), ("exitActivities", n()), ("submachine", n()), ("connections", n())]);
+    def("UMLPseudostate", Some("UMLVertex"), vec![("kind", d(json!("initial")))]);
+    def("UMLFinalState", Some("UMLState"), vec![]);
     def("UMLTransition", Some("UMLDirectedRelationship"), vec![("kind", d(json!("external"))), ("guard", d(json!(""))), ("triggers", n()), ("effects", n())]);
     def("UMLEvent", Some("UMLModelElement"), vec![("kind", d(json!("anyReceive"))), ("value", d(json!(""))), ("expression", d(json!(""))), ("targetOperation", n()), ("targetSignal", n())]);
     def("UMLActivityNode", Some("UMLModelElement"), vec![]);
@@ -164,6 +166,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLClassDiagram", Some("UMLDiagram"), vec![]);
     def("UMLCompositeStructureDiagram", Some("UMLDiagram"), vec![]);
     def("UMLUseCaseDiagram", Some("UMLDiagram"), vec![]);
+    def("UMLStatechartDiagram", Some("UMLDiagram"), vec![]);
     def("UMLPackageDiagram", Some("UMLDiagram"), vec![]);
     def("UMLComponentDiagram", Some("UMLDiagram"), vec![]);
     def("UMLDeploymentDiagram", Some("UMLDiagram"), vec![]);
@@ -203,6 +206,10 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLUseCaseSubjectView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLObjectView", Some("UMLGeneralNodeView"), vec![("slotCompartment", n())]);
     def("UMLCollaborationView", Some("UMLGeneralNodeView"), vec![("templateParameterCompartment", n())]);
+    // statecharts: a state with its name, pseudostates and final states as small marks (estimated fields)
+    def("UMLStateView", Some("UMLGeneralNodeView"), vec![]);
+    def("UMLPseudostateView", Some("UMLGeneralNodeView"), vec![]);
+    def("UMLFinalStateView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLCollaborationUseView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLPartView", Some("UMLGeneralNodeView"), vec![("showMultiplicity", d(json!(true)))]);
     def("UMLMetaClassView", Some("UMLGeneralNodeView"), vec![]);
@@ -246,7 +253,7 @@ fn build() -> HashMap<&'static str, Kind> {
         ("tailMultiplicityLabel", n()), ("headRoleNameLabel", n()), ("headPropertyLabel", n()), ("headMultiplicityLabel", n()),
     ]);
     def("UMLAssociationView", Some("UMLUndirectedRelationshipView"), vec![("tailQualifiersCompartment", n()), ("headQualifiersCompartment", n())]);
-    for name in ["UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView", "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLComponentRealizationView", "UMLDeploymentView", "UMLTemplateBindingView", "UMLInformationFlowView", "UMLExtensionView"] {
+    for name in ["UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView", "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLComponentRealizationView", "UMLDeploymentView", "UMLTemplateBindingView", "UMLInformationFlowView", "UMLExtensionView", "UMLTransitionView"] {
         def(name, Some("UMLGeneralEdgeView"), vec![]);
     }
     def("UMLCommunicationPathView", Some("UMLAssociationView"), vec![]);

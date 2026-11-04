@@ -214,6 +214,9 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         // dashed ellipses with their name (elements.js:7022-7280)
         "UMLCollaboration" => k("UMLCollaborationView", false, false, false),
         "UMLCollaborationUse" => k("UMLCollaborationUseView", false, false, false),
+        "UMLState" => k("UMLStateView", false, false, false),
+        "UMLPseudostate" => k("UMLPseudostateView", false, false, false),
+        "UMLFinalState" => k("UMLFinalStateView", false, false, false),
         "UMLArtifactInstance" => k("UMLArtifactInstanceView", false, false, false),
         "UMLComponentInstance" => k("UMLComponentInstanceView", false, false, false),
         "UMLNodeInstance" => k("UMLNodeInstanceView", false, false, false),
@@ -239,12 +242,13 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "UMLLink" => "UMLLinkView",
         "UMLInformationFlow" => "UMLInformationFlowView",
         "UMLExtension" => "UMLExtensionView",
+        "UMLTransition" => "UMLTransitionView",
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 21] = [
-    "UMLConnectorView", "UMLRoleBindingView",
+const KNOWN_EDGE_VIEWS: [&str; 22] = [
+    "UMLConnectorView", "UMLRoleBindingView", "UMLTransitionView",
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
@@ -252,6 +256,27 @@ const KNOWN_EDGE_VIEWS: [&str; 21] = [
 ];
 
 /// Size used when the person clicks instead of dragging (estimated).
+/// Statechart marks (sizes estimated): pseudostates are 20 px circles or diamonds, a final state 26 px.
+pub const PSEUDO_SIZE: f64 = 20.0;
+pub const FINAL_SIZE: f64 = 26.0;
+
+/// The pseudostate kind a statechart tool makes (uml.json "uml.statechart", "model-init" kind).
+pub fn pseudostate_kind(tool: &str) -> Option<&'static str> {
+    Some(match tool {
+        "Initial" => "initial",
+        "Choice" => "choice",
+        "Join" => "join",
+        "Fork" => "fork",
+        "Junction" => "junction",
+        "ShallowHistory" => "shallowHistory",
+        "DeepHistory" => "deepHistory",
+        "EntryPoint" => "entryPoint",
+        "ExitPoint" => "exitPoint",
+        "Terminate" => "terminate",
+        _ => return None,
+    })
+}
+
 pub fn default_size(kind: &str) -> (f64, f64) {
     match kind {
         "UMLClass" => (160.0, 100.0),
@@ -274,6 +299,10 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "Image" => (100.0, 100.0),
         "UMLPart" => (80.0, 30.0),
         "UMLPort" => (PORT_SIZE, PORT_SIZE),
+        "UMLState" => (100.0, 40.0),
+        "UMLFinalState" => (FINAL_SIZE, FINAL_SIZE),
+        "Fork" | "Join" => (8.0, 60.0),
+        _ if pseudostate_kind(kind).is_some() => (PSEUDO_SIZE, PSEUDO_SIZE),
         "UMLNaryAssociationNode" => (NARY_MIN_W, NARY_MIN_H),
         _ => (100.0, 60.0),
     }
@@ -462,6 +491,30 @@ pub fn create_frame_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, rect: R
 /// A collaboration or collaboration use: at least √2 times its name (the ellipse around it) and the
 /// use case minimum, the name centred; a use shows "name: Collaboration" once typed
 /// (elements.js:7076-7134, 7238-7279).
+/// A state's internal activities, one row each: `entry/ name`, `do/ name`, `exit/ name`.
+pub fn state_activity_rows(r: &Repo, m: Eid) -> Vec<String> {
+    let mut out = vec![];
+    for (field, label) in [("entryActivities", "entry"), ("doActivities", "do"), ("exitActivities", "exit")] {
+        for b in r.list(m, field).into_iter().filter(|b| r.alive(*b)) {
+            out.push(format!("{label}/ {}", r.name(b)));
+        }
+    }
+    out
+}
+
+/// A state: a rounded box with its name on top and its activities under a line (sizes estimated).
+fn layout_state(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    let rows = state_activity_rows(r, m);
+    let lh = ms.size();
+    let rows_w = rows.iter().map(|t| ms.width(t, 0)).fold(0.0, f64::max) + 2.0 * PAD;
+    let rows_h = if rows.is_empty() { 0.0 } else { rows.len() as f64 * lh + 2.0 * PAD };
+    let min_w = name_min_width(r, ms, v, m, None, false).max(rows_w.ceil()).max(40.0);
+    grow(r, v, min_w, NAME_MIN_H + rows_h);
+    let (x, y, w) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"));
+    let nh = layout_name(r, ms, v, m, x, y, w, None, false);
+    grow(r, v, min_w, nh + rows_h);
+}
+
 fn layout_collaboration(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
     let typed = (r.ty(m) == "UMLCollaborationUse").then(|| r.refd(m, "type").map(|t| r.name(t))).flatten().filter(|n| !n.is_empty());
     let mut min_w = name_min_width(r, ms, v, m, None, false);
@@ -1609,6 +1662,27 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         layout_frame(r, ms, v);
         return Info { shape: "frame", ..Default::default() };
     }
+    if t == "UMLStateView" {
+        if let Some(m) = m {
+            layout_state(r, ms, v, m);
+        }
+        return Info { shape: "state", ..Default::default() };
+    }
+    if t == "UMLPseudostateView" || t == "UMLFinalStateView" {
+        // a fixed mark, except fork and join bars, which keep the size they were drawn at
+        let kind = m.map(|m| r.str(m, "kind")).unwrap_or_default();
+        if t == "UMLFinalStateView" {
+            r.set(v, "width", num(FINAL_SIZE));
+            r.set(v, "height", num(FINAL_SIZE));
+        } else if kind != "fork" && kind != "join" {
+            r.set(v, "width", num(PSEUDO_SIZE));
+            r.set(v, "height", num(PSEUDO_SIZE));
+        }
+        if let Some(nc) = r.refd(v, "nameCompartment") {
+            r.set_raw(nc, "visible", json!(false));
+        }
+        return Info { shape: if t == "UMLFinalStateView" { "final" } else { "pseudostate" }, ..Default::default() };
+    }
     if t == "UMLCollaborationView" || t == "UMLCollaborationUseView" {
         if let Some(m) = m {
             layout_collaboration(r, ms, v, m);
@@ -1878,6 +1952,27 @@ pub fn point_away_line(p1: P, p2: P, alpha: f64, distance: f64) -> P {
     P { x: (distance * (th + alpha).cos()).floor(), y: (-distance * (th + alpha).sin()).floor() }
 }
 
+/// A transition's label: `trigger1, trigger2 [guard] / effect` (uml-transition.pegjs), each part
+/// only when present.
+pub fn transition_text(r: &Repo, m: Eid) -> String {
+    let triggers: Vec<String> = r.list(m, "triggers").into_iter().filter(|t| r.alive(*t)).map(|t| r.name(t)).collect();
+    let mut s = triggers.join(", ");
+    let guard = r.str(m, "guard");
+    if !guard.is_empty() {
+        if !s.is_empty() {
+            s.push(' ');
+        }
+        s.push_str(&format!("[{guard}]"));
+    }
+    if let Some(e) = r.list(m, "effects").into_iter().find(|e| r.alive(*e)) {
+        if !s.is_empty() {
+            s.push(' ');
+        }
+        s.push_str(&format!("/ {}", r.name(e)));
+    }
+    s
+}
+
 fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     let Some(m) = r.refd(e, "model") else { return vec![] };
     let show_vis = r.bool(e, "showVisibility");
@@ -1886,7 +1981,11 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     let name = r.name(m);
     // a derived association shows "/" before its name (StarUML 5.x)
     let derived = if r.kind_of(m, "UMLAssociation") && r.bool(m, "isDerived") { "/" } else { "" };
-    out.push(("nameLabel", if name.is_empty() && derived.is_empty() { name } else { vis(m) + derived + &name }));
+    if r.ty(m) == "UMLTransition" {
+        out.push(("nameLabel", transition_text(r, m)));
+    } else {
+        out.push(("nameLabel", if name.is_empty() && derived.is_empty() { name } else { vis(m) + derived + &name }));
+    }
     let st = match r.ty(m) {
         "UMLInclude" => "«include»".to_string(),
         // a deployment is a «deploy» dependency (UML 2; the keyword is estimated for StarUML)

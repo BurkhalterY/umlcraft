@@ -242,13 +242,43 @@ const INFO_FLOW_GROUPS: &[Group] = &[
     CLASS_GROUPS[0],
     ANNOTATIONS,
 ];
+// statechart diagrams (uml.json "uml.statechart", "uml.statechart-adv")
+const STATECHART_GROUPS: &[Group] = &[
+    Group {
+        id: "statechart",
+        label: "Statechart (Basic)",
+        items: &[
+            node("Simple State", "UMLState", "state"),
+            node("Initial State", "Initial", "initial"),
+            node("Choice", "Choice", "choice"),
+            node("Join", "Join", "fork"),
+            node("Fork", "Fork", "fork"),
+            node("Final State", "UMLFinalState", "final"),
+            line("Transition", "UMLTransition", "dependency", AssocInit::Plain),
+        ],
+    },
+    Group {
+        id: "statechart-adv",
+        label: "Statechart (Advanced)",
+        items: &[
+            node("Junction", "Junction", "initial"),
+            node("Shallow History", "ShallowHistory", "history"),
+            node("Deep History", "DeepHistory", "history"),
+            node("Entry Point", "EntryPoint", "final"),
+            node("Exit Point", "ExitPoint", "final"),
+            node("Terminate", "Terminate", "terminate"),
+            node("Frame", "Frame", "frame"),
+        ],
+    },
+    ANNOTATIONS,
+];
 // a composite structure diagram: the two class groups and Composite Structure (uml.json)
 const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE, ANNOTATIONS];
 // a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 9] = [
+const DIAGRAM_KINDS: [(&str, &str); 10] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -258,6 +288,7 @@ const DIAGRAM_KINDS: [(&str, &str); 9] = [
     ("Use Case Diagram", "UMLUseCaseDiagram"),
     ("Information Flow Diagram", "UMLInformationFlowDiagram"),
     ("Profile Diagram", "UMLProfileDiagram"),
+    ("Statechart Diagram", "UMLStatechartDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -1467,6 +1498,7 @@ impl App {
                 Some("UMLInformationFlowDiagram") => self.open_groups.insert("information-flow"),
                 Some("UMLProfileDiagram") => self.open_groups.insert("profile"),
                 Some("UMLCompositeStructureDiagram") => self.open_groups.insert("compositestructure"),
+                Some("UMLStatechartDiagram") => self.open_groups.insert("statechart"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1491,6 +1523,7 @@ impl App {
             Some("UMLInformationFlowDiagram") => INFO_FLOW_GROUPS,
             Some("UMLProfileDiagram") => PROFILE_GROUPS,
             Some("UMLCompositeStructureDiagram") => COMPOSITE_GROUPS,
+            Some("UMLStatechartDiagram") => STATECHART_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

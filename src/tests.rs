@@ -4590,3 +4590,45 @@ fn an_association_end_qualifier_is_drawn_at_its_end() {
     assert_eq!(pts[0].x, b.x + b.w, "the line starts on the qualifier box");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn a_statechart_diagram_with_states_and_a_transition() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let sm = a.repo.parent(d).unwrap();
+    assert_eq!(a.repo.ty(sm), "UMLStateMachine");
+    let region = a.repo.list(sm, "regions")[0];
+    assert_eq!(a.diagram, Some(d));
+    let init = a.change(|a| a.create_node("Initial", rect(40.0, 40.0, 20.0, 20.0))).unwrap();
+    let s1 = a.change(|a| a.create_node("UMLState", rect(120.0, 30.0, 100.0, 40.0))).unwrap();
+    let fin = a.change(|a| a.create_node("UMLFinalState", rect(320.0, 40.0, 26.0, 26.0))).unwrap();
+    let ch = a.change(|a| a.create_node("Choice", rect(200.0, 160.0, 60.0, 60.0))).unwrap();
+    let (im, s1m) = (a.repo.refd(init, "model").unwrap(), a.repo.refd(s1, "model").unwrap());
+    assert_eq!((a.repo.ty(im), a.repo.str(im, "kind").as_str()), ("UMLPseudostate", "initial"));
+    assert_eq!(a.repo.list(region, "vertices").len(), 4, "every vertex in the first region");
+    let t = tool("UMLTransition", AssocInit::Plain);
+    assert!(a.can_connect(&t, init, s1));
+    let e1 = a.change(|a| a.create_edge(&t, init, s1)).unwrap();
+    let e2 = a.change(|a| a.create_edge(&t, s1, fin)).unwrap();
+    assert_eq!(a.repo.ty(e1), "UMLTransitionView");
+    let tm = a.repo.refd(e2, "model").unwrap();
+    assert_eq!(a.repo.list(region, "transitions").len(), 2);
+    // the label: triggers, guard and effect
+    let ev = a.change(|a| a.add_feature(tm, "UMLEvent")).unwrap();
+    a.change(|a| a.repo.set(ev, "name", json!("done")));
+    a.change(|a| a.repo.set(tm, "guard", json!("ok")));
+    let ef = a.change(|a| a.repo.create("UMLOpaqueBehavior", &[("name", json!("log"))], Some((tm, "effects"))));
+    let _ = ef;
+    assert_eq!(crate::views::transition_text(&a.repo, tm), "done [ok] / log");
+    let act = a.change(|a| a.repo.create("UMLOpaqueBehavior", &[("name", json!("greet"))], Some((s1m, "entryActivities"))));
+    let _ = act;
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let l = a.repo.refd(e2, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(l, "text"), "done [ok] / log");
+    assert_eq!((a.repo.f(ch, "width"), a.repo.f(ch, "height")), (crate::views::PSEUDO_SIZE, crate::views::PSEUDO_SIZE), "a fixed mark");
+    assert!(a.repo.f(s1, "height") > crate::views::NAME_MIN_H, "room for the entry activity");
+    assert_eq!(a.info[&s1].shape, "state");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

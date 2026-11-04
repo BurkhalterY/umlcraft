@@ -91,7 +91,7 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
       <h3>Use case diagrams</h3>
       Actors, use cases, use case subjects and packages, with associations, generalizations, dependencies, includes and extends. Boundaries stay behind what they contain and carry it along when you move them.
       <br><br>
-      Every other diagram kind in a StarUML file (sequence, state, activity, flowchart and more) opens, is drawn from its saved shapes, and is saved back exactly as it was.
+      Composite structure diagrams (ports, parts, connectors) and statechart diagrams (states, pseudostates, transitions) are editable too. Every other diagram kind in a StarUML file (sequence, activity, flowchart and more) opens, is drawn from its saved shapes, and is saved back exactly as it was.
     </td>
   </tr>
 </table>
@@ -100,7 +100,7 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
 
 | Area | What you get |
 |---|---|
-| **Editing** | Rubber-band (by overlap) and Shift selection, Tab to walk the views, moving with snap to grid, dropping boxes into packages and subjects, eight resize handles, auto resize, bend points, rectilinear segments, reconnecting a line by its end, draggable line labels, four line styles, arrow-key nudging, Ctrl+drag to pan; Robustness boundary, entity and control icons; free lines, containment lines, association classes, template bindings, constraints, and object diagrams with objects, instances, slots and links |
+| **Editing** | Rubber-band (by overlap) and Shift selection, Tab to walk the views, moving with snap to grid, dropping boxes into packages and subjects, eight resize handles, auto resize, bend points, rectilinear segments, reconnecting a line by its end, draggable line labels, four line styles, arrow-key nudging, Ctrl+drag to pan; Robustness boundary, entity and control icons; free lines, containment lines, association classes, template bindings, constraints, qualifiers, object diagrams with objects, instances, slots and links, composite structures with ports, parts and connectors, and statecharts with states, pseudostates and transitions |
 | **Clipboard** | Cut, copy and paste of views (as new views of the same models) and of model elements (as deep copies), through the system clipboard; copy a diagram as a picture |
 | **Typing on the diagram** | `<<stereotype>> +Name`, attributes and operations parsed as you type; Ctrl+Enter adds an attribute (a literal, extension point or slot where that fits), Ctrl+Shift+Enter an operation, Ctrl+Delete removes one, Up/Down walk them; association role names with aggregation, navigability and multiplicity menus; word wrap; buttons that add a sub-class, super-class, interface, associated class, note… with its relationship |
 | **Format** | Fonts and sizes, fill, line and text colours (a Color dialog with opacity and a palette), shadow, show/suppress compartments and visibility, stereotype display, align, distribute, size equally, bring to front and send to back, automatic layout in four directions, generated overview, type hierarchy and package structure diagrams, class diagrams from Mermaid code, all from the Format menu, a Styles panel and the original's shortcuts |

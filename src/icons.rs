@@ -43,6 +43,10 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "Hyperlink" => "hyperlink",
         "UMLNaryAssociationNode" => "nary",
         "UMLCollaboration" | "UMLCollaborationUse" => "collaboration",
+        "UMLState" => "state",
+        "UMLFinalState" => "final",
+        "UMLPseudostate" => "initial",
+        "UMLTransition" => "dependency",
         "UMLDeployment" | "UMLTemplateBinding" => "dependency",
         "UMLCommunicationPath" => "association",
         "UMLClassDiagram" | "UMLPackageDiagram" | "UMLCompositeStructureDiagram" => "diagram-class",
@@ -220,6 +224,30 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
         "port" => {
             rect_at(2.0, 2.0, 10.0, 12.0, Y);
             rect_at(9.5, 6.0, 4.0, 4.0, Y);
+        }
+        "state" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(13.0 * s, 9.0 * s)), (3.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "initial" => {
+            p.circle_filled(at(8.0, 8.0), (4.5 * s) as f32, Y);
+        }
+        "final" => {
+            p.circle_stroke(at(8.0, 8.0), (6.0 * s) as f32, st(Y));
+            p.circle_filled(at(8.0, 8.0), (3.5 * s) as f32, Y);
+        }
+        "choice" => line(&[(8.0, 2.0), (14.0, 8.0), (8.0, 14.0), (2.0, 8.0), (8.0, 2.0)], Y),
+        "fork" => {
+            p.rect_filled(Rect::from_min_size(at(6.5, 1.5), Vec2::new(3.0 * s, 13.0 * s)), 0.0, Y);
+        }
+        "history" => {
+            p.circle_stroke(at(8.0, 8.0), (6.0 * s) as f32, st(Y));
+            line(&[(5.5, 5.0), (5.5, 11.0)], Y);
+            line(&[(10.5, 5.0), (10.5, 11.0)], Y);
+            line(&[(5.5, 8.0), (10.5, 8.0)], Y);
+        }
+        "terminate" => {
+            line(&[(3.0, 3.0), (13.0, 13.0)], Y);
+            line(&[(3.0, 13.0), (13.0, 3.0)], Y);
         }
         "part" => {
             rect_at(1.5, 1.5, 13.0, 13.0, Y);

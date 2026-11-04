@@ -264,7 +264,8 @@ Read from the StarUML source through the feature inventory (`docs/features/`), w
 
 * Label text widths come from the system's Arial-compatible font (Liberation Sans), so widths can differ by a pixel.
 * The menu bar is drawn inside the window (22 px) instead of by the system, as egui apps do.
-* Only Class and Use Case diagrams have a toolbox; other diagram kinds are drawn as plain boxes and lines (estimated look).
+* Only the diagram kinds UMLCraft edits have a toolbox (class, package, object, composite structure, component, deployment, use case, information flow, profile and statechart); other diagram kinds are drawn as plain boxes and lines (estimated look).
+* Statecharts (estimated look and sizes): a state is a rounded box (radius 10) with its name and, under a line, one `entry/ name`, `do/ name` or `exit/ name` row per activity; an initial pseudostate is a filled 20 px circle, a choice a 20 px diamond, a junction a small filled circle, histories a circle with H or H*, an entry point an empty circle, an exit point a circle with an X, terminate an X, fork and join a filled bar (8 × 60 on a click); a final state is a 26 px circle around a filled one. A transition is a solid line with an open arrow labelled `trigger1, trigger2 [guard] / effect`, owned by its source's region (`extensions/essential/uml/grammars/uml-transition.pegjs`, `uml-factory.js:2005`).
 * Rectilinear routing is a simple elbow (estimated); the original's router was not read.
 * Template parameters are drawn in a dashed box whose right and top edges reach 10 px past the class's top-right corner (estimated; `views.rs` TEMPLATE_OUT); their text is `«stereotype» name: type = default`.
 * Line styles 2 (rounded rectilinear) and 3 (curve) are drawn from the points: rounded corners of radius 10, and quadratic curves through the segment midpoints that bend towards each point (estimated, `views.rs` drawn_points).

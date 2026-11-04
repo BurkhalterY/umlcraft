@@ -744,6 +744,16 @@ impl App {
         Some(v)
     }
 
+    /// The region a statechart diagram's states go in: the first region of the state machine that
+    /// owns the diagram, made if it has none.
+    pub fn statechart_region(&mut self, d: Eid) -> Option<Eid> {
+        let sm = self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLStateMachine")?;
+        match self.repo.list(sm, "regions").into_iter().find(|x| self.repo.alive(*x)) {
+            Some(rg) => Some(rg),
+            None => Some(self.repo.create("UMLRegion", &[], Some((sm, "regions")))),
+        }
+    }
+
     pub fn create_node(&mut self, kind: &str, rect: R) -> Option<Eid> {
         let d = self.diagram?;
         if matches!(kind, "Note" | "Text" | "TextBox" | "Rect" | "RoundRect" | "Ellipse" | "Image") {
@@ -757,6 +767,20 @@ impl App {
                 _ => "UMLTextView",
             };
             let v = views::create_note_view(&mut self.repo, d, rect, ty);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // a statechart's states go in the first region of its state machine (uml-factory.js:2005)
+        let pseudo = views::pseudostate_kind(kind);
+        if pseudo.is_some() || kind == "UMLState" || kind == "UMLFinalState" {
+            let region = self.statechart_region(d)?;
+            let ty = if pseudo.is_some() { "UMLPseudostate" } else { kind };
+            let name = self.new_name(region, ty);
+            let m = self.repo.create(ty, &[("name", json!(name))], Some((region, "vertices")));
+            if let Some(k) = pseudo {
+                self.repo.set(m, "kind", json!(k));
+            }
+            let v = views::create_node_view(&mut self.repo, d, m, rect)?;
             self.apply_view_defaults(v);
             return Some(v);
         }
@@ -914,6 +938,7 @@ impl App {
                 "UMLEnumerationLiteral", "UMLCollaborationUse", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
             ],
             "UMLObjectDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier", "UMLInstance", "UMLSlot", "UMLDependency", "UMLLink"],
+            "UMLStatechartDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLVertex", "UMLTransition"],
             "UMLUseCaseDiagram" => vec![
                 "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
@@ -1145,6 +1170,8 @@ impl App {
             "UMLGeneralization" => classifier(tm) && classifier(hm) && tm != hm,
             "UMLInterfaceRealization" => classifier(tm) && r.ty(hm) == "UMLInterface",
             "UMLInclude" | "UMLExtend" => r.ty(tm) == "UMLUseCase" && r.ty(hm) == "UMLUseCase",
+            // a transition joins two vertices: states and pseudostates
+            "UMLTransition" => r.kind_of(tm, "UMLVertex") && r.kind_of(hm, "UMLVertex"),
             _ => true,
         }
     }
@@ -1200,7 +1227,12 @@ impl App {
             m
         } else {
             let (s, t) = (self.repo.ref_to(tm), self.repo.ref_to(hm));
-            self.repo.create(tool.kind, &[("source", s), ("target", t)], Some((tm, "ownedElements")))
+            // a transition belongs to the region of its source state
+            let owner = match self.repo.parent(tm) {
+                Some(rg) if tool.kind == "UMLTransition" && self.repo.ty(rg) == "UMLRegion" => (rg, "transitions"),
+                _ => (tm, "ownedElements"),
+            };
+            self.repo.create(tool.kind, &[("source", s), ("target", t)], Some(owner))
         };
         views::create_edge_view(&mut self.repo, d, Some(m), tail, head)
     }
@@ -1472,6 +1504,16 @@ impl App {
         };
         // a composite structure diagram outside a classifier goes in a new collaboration, named
         // "Composite Structures1"… (uml-factory.js:213-244)
+        // a statechart diagram goes in a state machine: the target if it is one, else a new one with
+        // one region (uml-factory.js:529-571, 606)
+        let target = if ty == "UMLStatechartDiagram" && self.repo.ty(target) != "UMLStateMachine" {
+            let name = self.new_name(target, "UMLStateMachine");
+            let sm = self.repo.create("UMLStateMachine", &[("name", json!(name))], Some((target, "ownedElements")));
+            self.repo.create("UMLRegion", &[], Some((sm, "regions")));
+            sm
+        } else {
+            target
+        };
         let (target, name) = if ty == "UMLCompositeStructureDiagram" && !self.repo.kind_of(target, "UMLClassifier") {
             let names: HashSet<String> = self.repo.children(target).into_iter().map(|(_, c)| self.repo.name(c)).collect();
             let name = (1..).map(|i| format!("Composite Structures{i}")).find(|n| !names.contains(n)).unwrap();

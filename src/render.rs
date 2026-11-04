@@ -390,6 +390,61 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             }
             return;
         }
+        "state" => {
+            // a rounded box, the name on top and the activities under a line (estimated)
+            let pts = round_rect(b, 10.0);
+            c.polygon(&pts, Some(fill), Some(line));
+            draw_name(c, r, v);
+            if let Some(m) = r.refd(v, "model") {
+                let rows = views::state_activity_rows(r, m);
+                if !rows.is_empty() {
+                    let nh = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "height")).unwrap_or(views::NAME_MIN_H);
+                    let y = b.y + nh;
+                    c.polyline(&[P { x: b.x, y }, P { x: b.x + b.w, y }], line, false);
+                    let size = views::view_font(r, v).1;
+                    let fc = color(r, v, "fontColor", BLACK);
+                    for (i, t) in rows.iter().enumerate() {
+                        c.text(t, R { x: b.x + views::PAD, y: y + views::PAD + i as f64 * size, w: b.w - 2.0 * views::PAD, h: size }, 0, 0, size, fc, false);
+                    }
+                }
+            }
+            return;
+        }
+        "final" => {
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+            let rad = b.w.min(b.h) / 2.0;
+            c.ellipse(ctr, rad, rad, Some(fill), Some(line));
+            c.ellipse(ctr, rad - 5.0, rad - 5.0, Some(line), None);
+            return;
+        }
+        "pseudostate" => {
+            let kind = r.refd(v, "model").map(|m| r.str(m, "kind")).unwrap_or_default();
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+            let rad = b.w.min(b.h) / 2.0;
+            match kind.as_str() {
+                "choice" => c.polygon(&[P { x: ctr.x, y: b.y }, P { x: b.x + b.w, y: ctr.y }, P { x: ctr.x, y: b.y + b.h }, P { x: b.x, y: ctr.y }], Some(fill), Some(line)),
+                "fork" | "join" => c.rect(b, Some(line), Some(line)),
+                "junction" => c.ellipse(ctr, rad / 2.0, rad / 2.0, Some(line), Some(line)),
+                "shallowHistory" | "deepHistory" => {
+                    c.ellipse(ctr, rad, rad, Some(fill), Some(line));
+                    let t = if kind == "deepHistory" { "H*" } else { "H" };
+                    let size = views::view_font(r, v).1;
+                    c.text(t, R { x: b.x, y: ctr.y - size / 2.0, w: b.w, h: size }, 2, 0, size, color(r, v, "fontColor", BLACK), false);
+                }
+                "entryPoint" => c.ellipse(ctr, rad, rad, Some(fill), Some(line)),
+                "exitPoint" | "terminate" => {
+                    if kind == "exitPoint" {
+                        c.ellipse(ctr, rad, rad, Some(fill), Some(line));
+                    }
+                    let d = rad * std::f64::consts::FRAC_1_SQRT_2;
+                    c.polyline(&[P { x: ctr.x - d, y: ctr.y - d }, P { x: ctr.x + d, y: ctr.y + d }], line, false);
+                    c.polyline(&[P { x: ctr.x - d, y: ctr.y + d }, P { x: ctr.x + d, y: ctr.y - d }], line, false);
+                }
+                // initial: a filled circle
+                _ => c.ellipse(ctr, rad, rad, Some(line), Some(line)),
+            }
+            return;
+        }
         "collaboration" => {
             // a dashed ellipse (elements.js:7214-7227, 7275-7279)
             let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
@@ -757,7 +812,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLComponentRealizationView" => head = Some(End::Triangle),
         // an extension: a solid line with a filled triangle at the metaclass
         "UMLExtensionView" => head = Some(End::FilledTriangle),
-        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" => head = Some(End::Arrow),
+        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" | "UMLTransitionView" => head = Some(End::Arrow),
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
             if let Some(m) = r.refd(e, "model") {
