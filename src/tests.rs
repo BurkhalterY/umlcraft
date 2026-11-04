@@ -2276,3 +2276,21 @@ fn window_title_format() {
     a.modified = false;
     assert_eq!(a.title(), "model.mdj — UMLCraft");
 }
+
+#[test]
+fn drop_into_a_container() {
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.change(|a| a.create_node("UMLPackage", rect(40.0, 40.0, 300.0, 200.0))).unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(500.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    let owner = a.repo.parent(m);
+    let vs = a.drop_model(m, crate::views::P { x: 100.0, y: 100.0 }).unwrap();
+    let v = vs[0];
+    assert_eq!(a.repo.refd(v, "containerView"), Some(pkg));
+    assert_eq!(a.repo.parent(m), owner, "the model stays");
+    // outside any container: none
+    let vs = a.drop_model(m, crate::views::P { x: 700.0, y: 400.0 }).unwrap();
+    assert_eq!(a.repo.refd(vs[0], "containerView"), None);
+    let _ = d;
+}

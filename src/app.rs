@@ -649,6 +649,23 @@ impl App {
         }
         let v = self.change(|a| {
             let v = a.place_node(d, m, p)?;
+            // inside whatever container box is under the drop point (app-context.js:1146-1189); the
+            // model stays where it is
+            let under = a.repo.list(d, "ownedViews").into_iter().rev().find(|c| {
+                *c != v && !matches!(a.repo.raw(*c, "visible"), Some(serde_json::Value::Bool(false))) && {
+                    let b = views::node_rect(&a.repo, *c);
+                    p.x >= b.x && p.y >= b.y && p.x <= b.x + b.w && p.y <= b.y + b.h
+                } && a.can_contain_view(*c, v)
+            });
+            if let Some(c) = under {
+                a.repo.set_ref(v, "containerView", Some(c));
+                let mut list = match a.repo.raw(c, "containedViews") {
+                    Some(serde_json::Value::Array(l)) => l.clone(),
+                    _ => vec![],
+                };
+                list.push(a.repo.ref_to(v));
+                a.repo.set_raw(c, "containedViews", json!(list));
+            }
             a.add_relationship_views(d, m, v);
             Some(v)
         });
