@@ -62,6 +62,7 @@ fn serve(stream: TcpStream, tx: &Sender<ApiRequest>, ctx: &egui::Context) -> std
     let mut parts = line.split_whitespace();
     let (method, path) = (parts.next().unwrap_or("").to_string(), parts.next().unwrap_or("/").to_string());
     let mut len = 0usize;
+    let mut json_body = false;
     loop {
         let mut h = String::new();
         if r.read_line(&mut h)? == 0 || h.trim().is_empty() {
@@ -70,6 +71,9 @@ fn serve(stream: TcpStream, tx: &Sender<ApiRequest>, ctx: &egui::Context) -> std
         if let Some((k, v)) = h.split_once(':') {
             if k.trim().eq_ignore_ascii_case("content-length") {
                 len = v.trim().parse().unwrap_or(0);
+            }
+            if k.trim().eq_ignore_ascii_case("content-type") {
+                json_body = v.trim().to_ascii_lowercase().starts_with("application/json");
             }
         }
     }
@@ -80,6 +84,11 @@ fn serve(stream: TcpStream, tx: &Sender<ApiRequest>, ctx: &egui::Context) -> std
     }
     if method != "POST" {
         return respond(&stream, 404, "application/json", &json!({"error": "Not found"}).to_string());
+    }
+    // only JSON requests: a web page cannot send those to this server without a CORS preflight,
+    // which it never grants
+    if !json_body {
+        return respond(&stream, 400, "application/json", &json!({"error": "Content-Type must be application/json"}).to_string());
     }
     let body: Value = if body.is_empty() { json!({}) } else { serde_json::from_slice(&body).unwrap_or(Value::Null) };
     let (rtx, rrx) = channel();
