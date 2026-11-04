@@ -1118,6 +1118,27 @@ impl App {
         if ui.interact(vr, egui::Id::new("validation-indicator"), Sense::click()).on_hover_text(tip).clicked() {
             self.show_validation = !self.show_validation;
         }
+        // theme button: a moon in the dark theme, a sun in the light one; a click switches theme.default
+        let tr = Rect::from_min_max(Pos2::new(vr.left() - 33.0, rect.top()), Pos2::new(vr.left(), rect.bottom()));
+        p.vline(tr.left(), rect.y_range(), Stroke::new(1.0, BORDER()));
+        let c = tr.center();
+        if light_theme() {
+            p.circle_filled(c, 4.0, TEXT());
+            for i in 0..8 {
+                let a = i as f32 * std::f32::consts::FRAC_PI_4;
+                let d = Vec2::new(a.cos(), a.sin());
+                p.line_segment([c + d * 6.0, c + d * 8.0], Stroke::new(1.5, TEXT()));
+            }
+        } else {
+            p.circle_filled(c, 7.0, TEXT());
+            p.circle_filled(c + Vec2::new(3.5, -3.0), 6.0, LAYER1());
+        }
+        let theme_tip = if light_theme() { "Dark Theme" } else { "Light Theme" };
+        if ui.interact(tr, egui::Id::new("theme-button"), Sense::click()).on_hover_text(theme_tip).clicked() {
+            let next = if light_theme() { "dark" } else { "light" };
+            self.prefs.set("theme.default", json!(next));
+            self.prefs.flush();
+        }
         // left side: where the focused element sits
         let Some(f) = self.focus.filter(|f| self.repo.alive(*f)) else { return };
         let mut chain = self.repo.path(f);
