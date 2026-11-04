@@ -1469,6 +1469,22 @@ impl App {
                     }
                 }
             });
+            ui.menu_button("Window", |ui| {
+                if ui.button("Minimize").clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                    ui.close();
+                }
+                if ui.button("Full Screen").clicked() {
+                    let full = ui.ctx().input(|i| i.viewport().fullscreen.unwrap_or(false));
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Fullscreen(!full));
+                    ui.close();
+                }
+                ui.separator();
+                if ui.button("Bring All to Front").clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Focus);
+                    ui.close();
+                }
+            });
             ui.menu_button("Help", |ui| {
                 if ui.button("About UMLCraft").clicked() {
                     self.about_open = true;
