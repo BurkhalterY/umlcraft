@@ -727,6 +727,13 @@ impl App {
         }
         let parent = self.package_for(Some(d));
         let name = self.new_name(parent, kind);
+        // a hyperlink is a model element of the diagram's owner, linking to nothing yet
+        if kind == "Hyperlink" {
+            let m = self.repo.create("Hyperlink", &[("name", json!(name))], Some((parent, "ownedElements")));
+            let v = views::create_hyperlink_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
         // the Robustness tools make a class stereotyped «boundary», «entity» or «control», shown as an
         // icon without compartments (robustness/main.js:17)
         let robust = matches!(kind, "Boundary" | "Entity" | "Control");
@@ -849,7 +856,7 @@ impl App {
     pub fn can_drop_model(&self, m: Eid) -> bool {
         let ty = self.repo.ty(m);
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
-        self.diagram.is_some() && self.repo.alive(m) && (self.diagram == Some(m) || views::node_kind(ty).is_some() || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
@@ -858,6 +865,19 @@ impl App {
         if m == d {
             // a 700×600 frame of the diagram, its top left at the drop point (factory.js:1174-1185)
             return Ok(self.create_frame(d, Some(d), views::R { x: p.x, y: p.y, w: 700.0, h: 600.0 }).into_iter().collect());
+        }
+        if self.is_diagram(m) {
+            // another diagram: a hyperlink to it, at its minimum size (factory.js:1186-1198)
+            let v = self.change(|a| {
+                let v = a.create_node("Hyperlink", views::R { x: p.x, y: p.y, w: 0.0, h: 0.0 })?;
+                let link = a.repo.refd(v, "model")?;
+                a.repo.set_ref(link, "reference", Some(m));
+                Some(v)
+            });
+            if let Some(link) = v.and_then(|v| self.repo.refd(v, "model")) {
+                self.reveal(link);
+            }
+            return Ok(v.into_iter().collect());
         }
         if views::edge_view_of(&ty).is_some() && self.rel_ends(m).is_some() {
             return self.drop_relationship(d, m, p);

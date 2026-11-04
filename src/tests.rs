@@ -3833,7 +3833,45 @@ fn dropping_the_open_diagram_makes_a_frame_of_it() {
     assert_eq!(a.repo.ty(f), "UMLFrameView");
     assert_eq!(a.repo.refd(f, "model"), Some(d));
     assert_eq!((a.repo.f(f, "left"), a.repo.f(f, "top"), a.repo.f(f, "width"), a.repo.f(f, "height")), (20.0, 30.0, 700.0, 600.0));
+    // another diagram makes a hyperlink to it
     let other = a.change(|a| a.add_diagram(None, "UMLClassDiagram"));
     a.open_diagram(d);
-    assert!(!a.can_drop_model(other), "another diagram would be a hyperlink, which UMLCraft does not have");
+    assert!(a.can_drop_model(other));
+    let vs = a.drop_model(other, crate::views::P { x: 40.0, y: 700.0 }).unwrap();
+    let hv = vs[0];
+    assert_eq!(a.repo.ty(hv), "HyperlinkView");
+    let link = a.repo.refd(hv, "model").unwrap();
+    assert_eq!(a.repo.ty(link), "Hyperlink");
+    assert_eq!(a.repo.refd(link, "reference"), Some(other));
+    assert_eq!(a.label_of(link), format!("(link to {})", a.repo.name(other)));
+    let ms = measure();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(hv, "nameLabel").unwrap(), "text"), a.repo.name(other));
+    assert_eq!(a.repo.str(a.repo.refd(hv, "typeLabel").unwrap(), "text"), "link");
+    assert!(a.repo.f(hv, "width") >= crate::views::HYPERLINK_MIN_W && a.repo.f(hv, "height") >= crate::views::HYPERLINK_MIN_H);
+}
+
+#[test]
+fn hyperlink_tool_shows_its_url_or_its_name() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let v = a.change(|a| a.create_node("Hyperlink", rect(20.0, 20.0, 10.0, 10.0))).unwrap();
+    let link = a.repo.refd(v, "model").unwrap();
+    assert_eq!(a.repo.name(link), "Hyperlink1");
+    assert_eq!(a.label_of(link), "(none)");
+    a.change(|a| a.repo.set(link, "url", json!("https://example.com")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nl = a.repo.refd(v, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "https://example.com");
+    assert_eq!(a.label_of(link), "(link to https://example.com)");
+    a.change(|a| a.repo.set(link, "showName", json!(true)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(nl, "text"), "Hyperlink1");
+    assert_eq!(a.label_of(link), "(link: Hyperlink1)");
+    assert_eq!(a.fields_for(link).iter().map(|f| f.0).collect::<Vec<_>>(), ["name", "reference", "url", "showName"]);
+    a.edit_view(v, None);
+    assert!(a.editing.is_none(), "no inline edit");
+    let back = Repo::parse(&a.repo.serialize()).unwrap();
+    assert_eq!(back.all_of("Hyperlink").len(), 1);
 }

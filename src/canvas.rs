@@ -589,6 +589,19 @@ impl App {
                     // a frame showing a diagram opens it (app-context.js:1355-1359)
                     match self.repo.refd(v, "model") {
                         Some(d) if self.repo.ty(v) == "UMLFrameView" && self.repo.kind_of(d, "Diagram") => self.open_diagram(d),
+                        Some(link) if self.repo.ty(v) == "HyperlinkView" => {
+                            // a hyperlink: a diagram opens and is selected in the explorer, another element
+                            // is selected there, a URL opens in the browser (app-context.js:1340-1354)
+                            let url = self.repo.str(link, "url");
+                            if let Some(x) = self.repo.refd(link, "reference") {
+                                self.reveal(x);
+                                if self.is_diagram(x) {
+                                    self.open_diagram(x);
+                                }
+                            } else if !url.is_empty() {
+                                ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+                            }
+                        }
                         _ => self.edit_view(v, Some(p)),
                     }
                 } else {
@@ -1237,8 +1250,8 @@ impl App {
 
     pub fn edit_view(&mut self, v: Eid, p: Option<P>) {
         let t = self.repo.ty(v).to_string();
-        // a frame has no inline edit
-        if t == "UMLFrameView" {
+        // frames and hyperlinks have no inline edit
+        if t == "UMLFrameView" || t == "HyperlinkView" {
             return;
         }
         // a constraint edits its specification (uml-commands.js:669)

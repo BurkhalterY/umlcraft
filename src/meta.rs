@@ -29,6 +29,8 @@ fn build() -> HashMap<&'static str, Kind> {
     def("ExtensibleModel", Some("Model"), vec![("documentation", d(json!(""))), ("tags", n())]);
     def("Tag", Some("Model"), vec![("kind", n()), ("value", n()), ("reference", n()), ("checked", d(json!(false))), ("number", d(json!(0))), ("options", d(json!(""))), ("hidden", d(json!(false)))]);
     def("Relationship", Some("ExtensibleModel"), vec![]);
+    // a link to an element or a URL; showName shows its own name instead (core.js:1308-1334)
+    def("Hyperlink", Some("Model"), vec![("reference", n()), ("url", d(json!(""))), ("showName", d(json!(false)))]);
     def("DirectedRelationship", Some("Relationship"), vec![("source", n()), ("target", n())]);
     def("RelationshipEnd", Some("ExtensibleModel"), vec![("reference", n())]);
     def("UndirectedRelationship", Some("Relationship"), vec![("end1", n()), ("end2", n())]);
@@ -171,6 +173,7 @@ fn build() -> HashMap<&'static str, Kind> {
     // a frame shows a model element (often a diagram) by name, with a tab naming the diagram kind
     def("UMLCustomFrameView", Some("NodeView"), vec![("nameLabel", n()), ("frameTypeLabel", n())]);
     def("UMLFrameView", Some("UMLCustomFrameView"), vec![("showType", d(json!(false))), ("showNamespace", d(json!(false))), ("showDiagramName", d(json!(false)))]);
+    def("HyperlinkView", Some("NodeView"), vec![("nameLabel", n()), ("typeLabel", n())]);
     def("UMLCustomTextView", Some("NodeView"), vec![("text", d(json!(""))), ("wordWrap", d(json!(true))), ("horzAlign", d(json!(0))), ("vertAlign", d(json!(3)))]);
     def("UMLCustomNoteView", Some("UMLCustomTextView"), vec![]);
     def("UMLNoteView", Some("UMLCustomNoteView"), vec![]);

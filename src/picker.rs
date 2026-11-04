@@ -33,6 +33,7 @@ pub fn field_type(field: &str) -> &'static str {
     match field {
         "stereotype" => "UMLStereotype",
         "signal" => "UMLSignal",
+        "reference" => "Model",
         _ => "UMLClassifier",
     }
 }

@@ -257,6 +257,16 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             draw_label(c, r, nl, fc);
             return;
         }
+        "hyperlink" => {
+            // a filled box split after "link" (elements.js:14102-14107)
+            let (Some(nl), Some(tl)) = (r.refd(v, "nameLabel"), r.refd(v, "typeLabel")) else { return };
+            c.rect(b, Some(fill), Some(line));
+            let x = r.f(tl, "left") + r.f(tl, "width") + views::PAD;
+            c.polyline(&[P { x, y: b.y }, P { x, y: b.y + b.h }], line, false);
+            draw_label(c, r, tl, fc);
+            draw_label(c, r, nl, fc);
+            return;
+        }
         "package" => {
             let tab_w = (b.w * views::PKG_TAB_RATIO).round();
             let th = views::PKG_TAB_H;

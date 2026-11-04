@@ -87,6 +87,7 @@ const ANNOTATIONS: Group = Group {
         line("Free Line", "FreeLine", "freeline", AssocInit::Plain),
         node("Note", "Note", "note"),
         line("Note Link", "NoteLink", "notelink", AssocInit::Plain),
+        node("Hyperlink", "Hyperlink", "hyperlink"),
     ],
 };
 const CLASS_GROUPS: &[Group] = &[
@@ -294,6 +295,19 @@ impl App {
         }
         if t == "Tag" {
             return format!("{name} = {}", r.str(e, "value"));
+        }
+        // a hyperlink: its name with showName, else what it links to (core.js:1322-1333)
+        if t == "Hyperlink" {
+            let url = r.str(e, "url");
+            return if r.bool(e, "showName") {
+                format!("(link: {})", if name.is_empty() { "(Hyperlink)" } else { &name })
+            } else if let Some(x) = r.refd(e, "reference") {
+                format!("(link to {})", r.name(x))
+            } else if !url.is_empty() {
+                format!("(link to {url})")
+            } else {
+                "(none)".to_string()
+            };
         }
         if name.is_empty() { format!("({})", t.trim_start_matches("UML")) } else { name }
     }
@@ -757,6 +771,9 @@ impl App {
         if self.is_diagram(e) {
             return vec![("name", "text"), ("defaultDiagram", "bool")];
         }
+        if t == "Hyperlink" {
+            return vec![("name", "text"), ("reference", "link"), ("url", "text"), ("showName", "bool")];
+        }
         if t == "UMLAssociation" {
             let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isDerived", "bool"), ("-", "")];
             f.extend(end("end1"));
@@ -1036,6 +1053,19 @@ impl App {
                     if let Some(p) = pick.filter(|p| *p != cur) {
                         let f = field.clone();
                         self.change(|a| a.repo.set_ref(obj, &f, p));
+                    }
+                }
+                // a hyperlink's element: its icon and name, and "…" for the Element Picker
+                "link" => {
+                    if let Some(t) = self.repo.refd(obj, &field).filter(|t| self.repo.alive(*t)) {
+                        let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                        icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
+                        ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT()));
+                    } else {
+                        ui.label(egui::RichText::new("—").size(12.0).color(DIM()));
+                    }
+                    if single && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("…")).on_hover_text("Select Element").clicked() {
+                        self.open_element_picker(obj, &field);
                     }
                 }
                 "ref" => {

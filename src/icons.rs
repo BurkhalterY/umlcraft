@@ -40,6 +40,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLProfileDiagram" => "diagram-class",
         "UMLInformationFlow" => "dependency",
         "UMLComponentRealization" => "realization",
+        "Hyperlink" => "hyperlink",
         "UMLDeployment" | "UMLTemplateBinding" => "dependency",
         "UMLCommunicationPath" => "association",
         "UMLClassDiagram" | "UMLPackageDiagram" => "diagram-class",
@@ -209,6 +210,11 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(10.5, 2.5), (10.5, 5.5), (13.5, 5.5)], W);
         }
         "notelink" => dashed(&[(3.0, 13.0), (13.0, 3.0)], W),
+        "hyperlink" => {
+            // two chain links
+            rect_at(1.5, 5.5, 7.0, 5.0, W);
+            rect_at(7.5, 5.5, 7.0, 5.0, W);
+        }
         "textbox" => {
             rect_at(2.0, 3.0, 12.0, 10.0, W);
             line(&[(5.0, 5.5), (11.0, 5.5)], W);

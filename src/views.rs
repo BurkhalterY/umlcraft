@@ -43,6 +43,8 @@ pub const FRAME_MIN_H: f64 = 30.0; // elements.js:219
 const FRAME_CONTENT_MIN_W: f64 = 10.0; // elements.js:220
 const FRAME_CONTENT_MIN_H: f64 = 30.0; // elements.js:221
 const LABEL_INTERVAL: f64 = 3.0; // elements.js:62
+pub const HYPERLINK_MIN_W: f64 = 100.0; // elements.js:231
+pub const HYPERLINK_MIN_H: f64 = 20.0; // elements.js:232
 pub const NOTE_FOLD: f64 = 10.0; // note fold, elements.js:14261
 pub const FONT: &str = "Arial;13;0"; // default font
 pub const DEFAULT_LINE_STYLE: i64 = 1; // oblique, default.json:83
@@ -231,6 +233,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "Text" => (60.0, 15.0),
         "TextBox" => (100.0, 40.0),
         "Frame" => (FRAME_MIN_W, FRAME_MIN_H),
+        "Hyperlink" => (HYPERLINK_MIN_W, HYPERLINK_MIN_H),
         _ => (100.0, 60.0),
     }
 }
@@ -395,6 +398,50 @@ pub fn create_frame_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, rect: R
     r.set_ref(v, "nameLabel", Some(nm));
     r.set_ref(v, "frameTypeLabel", Some(ty));
     v
+}
+
+/// A hyperlink's view: a bold "link" label and the target's name (HyperlinkView, elements.js:14060-14073).
+pub fn create_hyperlink_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Eid {
+    let m = r.ref_to(model);
+    let v = r.create(
+        "HyperlinkView",
+        &[("model", m), ("font", json!(FONT)), ("parentStyle", json!(false)), ("left", num(rect.x)), ("top", num(rect.y)), ("width", num(rect.w)), ("height", num(rect.h))],
+        Some((diagram, "ownedViews")),
+    );
+    let nm = label(r, v, &[("height", json!(LABEL_H)), ("horizontalAlignment", json!(0))]);
+    let ty = label(r, v, &[("font", json!("Arial;13;1")), ("height", json!(LABEL_H)), ("horizontalAlignment", json!(0))]);
+    r.set_ref(v, "nameLabel", Some(nm));
+    r.set_ref(v, "typeLabel", Some(ty));
+    v
+}
+
+/// What a hyperlink's view shows after "link": its name with showName, else the referenced
+/// element's name, else its URL (HyperlinkView.update, elements.js:14108-14122).
+pub fn hyperlink_text(r: &Repo, m: Eid) -> String {
+    if r.bool(m, "showName") {
+        r.name(m)
+    } else if let Some(x) = r.refd(m, "reference") {
+        r.name(x)
+    } else {
+        r.str(m, "url")
+    }
+}
+
+/// A hyperlink's labels and minimum size (HyperlinkView.sizeObject and arrangeObject, elements.js:14075-14100).
+fn layout_hyperlink(r: &mut Repo, ms: &dyn Measure, v: Eid) {
+    let (Some(nl), Some(tl)) = (r.refd(v, "nameLabel"), r.refd(v, "typeLabel")) else { return };
+    let text = r.refd(v, "model").map(|m| hyperlink_text(r, m)).unwrap_or_default();
+    r.set(nl, "text", json!(text));
+    r.set(tl, "text", json!("link"));
+    let (size, face, style) = (ms.size(), ms.face(), font_style_of(r, v));
+    r.set(nl, "font", json!(font_str(&face, size, style)));
+    r.set(tl, "font", json!(font_str(&face, size, 1)));
+    let tw = ms.width("link", 1).ceil();
+    let nw = ms.width(&text, style as u8).ceil();
+    grow(r, v, (tw + nw + (PAD + PAD) * 2.0).max(HYPERLINK_MIN_W), (size + PAD + PAD).max(HYPERLINK_MIN_H));
+    let (x, y) = (r.f(v, "left"), r.f(v, "top"));
+    set_box(r, tl, x + PAD, y + PAD, tw, size);
+    set_box(r, nl, x + PAD + tw + PAD + PAD, y + PAD, nw, size);
 }
 
 /// The short diagram kind a frame's tab shows for an element or a diagram ("class", "uc"…), or ""
@@ -747,7 +794,7 @@ pub struct Comp {
 pub struct Info {
     /// The template parameter box at the top-right corner, when there are template parameters.
     pub templ: Option<Comp>,
-    /// "interface", "actor", "usecase", "package", "subject", "frame" or ""
+    /// "interface", "actor", "usecase", "package", "subject", "frame", "hyperlink" or ""
     pub shape: &'static str,
     pub compartments: Vec<Comp>,
     pub is_active: bool,
@@ -1255,6 +1302,10 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
             grow(r, v, w.ceil(), 20.0);
         }
         return Info::default();
+    }
+    if t == "HyperlinkView" {
+        layout_hyperlink(r, ms, v);
+        return Info { shape: "hyperlink", ..Default::default() };
     }
     if t == "UMLFrameView" {
         layout_frame(r, ms, v);
