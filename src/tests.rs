@@ -3875,3 +3875,35 @@ fn hyperlink_tool_shows_its_url_or_its_name() {
     let back = Repo::parse(&a.repo.serialize()).unwrap();
     assert_eq!(back.all_of("Hyperlink").len(), 1);
 }
+
+#[test]
+fn shape_tools_and_their_minimum_size() {
+    use egui::{Modifiers, Pos2};
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let d = a.diagram.unwrap();
+    for (kind, ty) in [("Rect", "RectangleView"), ("RoundRect", "RoundRectView"), ("Ellipse", "EllipseView")] {
+        a.tool = Some(crate::app::Tool { label: "", kind, icon: "", line: false, init: AssocInit::Plain });
+        // a 20×30 drag is enlarged to the 50×50 minimum
+        a.on_press(canvas, Pos2::new(100.0, 100.0), Modifiers::NONE);
+        a.on_move(canvas, Pos2::new(120.0, 130.0));
+        a.on_release(canvas.min, Pos2::new(120.0, 130.0));
+        let v = *a.repo.list(d, "ownedViews").last().unwrap();
+        assert_eq!(a.repo.ty(v), ty);
+        assert!(a.repo.refd(v, "model").is_none(), "a shape is a view only");
+        assert_eq!((a.repo.f(v, "width"), a.repo.f(v, "height")), (50.0, 50.0));
+    }
+    // a larger drag keeps its size
+    a.tool = Some(crate::app::Tool { label: "", kind: "Note", icon: "", line: false, init: AssocInit::Plain });
+    a.on_press(canvas, Pos2::new(300.0, 300.0), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(500.0, 320.0));
+    a.on_release(canvas.min, Pos2::new(500.0, 320.0));
+    let n = *a.repo.list(d, "ownedViews").last().unwrap();
+    assert_eq!((a.repo.f(n, "width"), a.repo.f(n, "height")), (200.0, 40.0), "a note is at least 40 tall");
+    let mut svg = String::new();
+    let ms = measure();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    svg.push_str(&crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap());
+    assert!(svg.contains("<ellipse") || svg.contains("ellipse"), "the ellipse is drawn");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

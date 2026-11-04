@@ -715,10 +715,13 @@ impl App {
 
     pub fn create_node(&mut self, kind: &str, rect: R) -> Option<Eid> {
         let d = self.diagram?;
-        if kind == "Note" || kind == "Text" || kind == "TextBox" {
+        if matches!(kind, "Note" | "Text" | "TextBox" | "Rect" | "RoundRect" | "Ellipse") {
             let ty = match kind {
                 "Note" => "UMLNoteView",
                 "TextBox" => "UMLTextBoxView",
+                "Rect" => "RectangleView",
+                "RoundRect" => "RoundRectView",
+                "Ellipse" => "EllipseView",
                 _ => "UMLTextView",
             };
             let v = views::create_note_view(&mut self.repo, d, rect, ty);

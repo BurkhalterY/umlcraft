@@ -88,6 +88,9 @@ const ANNOTATIONS: Group = Group {
         node("Note", "Note", "note"),
         line("Note Link", "NoteLink", "notelink", AssocInit::Plain),
         node("Hyperlink", "Hyperlink", "hyperlink"),
+        node("Rectangle", "Rect", "rect"),
+        node("Rounded Rectangle", "RoundRect", "roundrect"),
+        node("Ellipse", "Ellipse", "ellipse"),
     ],
 };
 const CLASS_GROUPS: &[Group] = &[

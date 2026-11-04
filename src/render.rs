@@ -110,6 +110,19 @@ fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid) {
     }
 }
 
+/// A rectangle with corners rounded to radius `rad`, as a polygon (8 steps per corner).
+fn round_rect(b: R, rad: f64) -> Vec<P> {
+    let mut pts = vec![];
+    let corners = [(b.x + b.w - rad, b.y + rad, -90.0), (b.x + b.w - rad, b.y + b.h - rad, 0.0), (b.x + rad, b.y + b.h - rad, 90.0), (b.x + rad, b.y + rad, 180.0)];
+    for (cx, cy, start) in corners {
+        for i in 0..=8 {
+            let a = (start + 90.0 * i as f64 / 8.0_f64).to_radians();
+            pts.push(P { x: cx + rad * a.cos(), y: cy + rad * a.sin() });
+        }
+    }
+    pts
+}
+
 fn shadow_rect(c: &mut dyn Canvas, r: &Repo, v: Eid, b: R) {
     if r.bool(v, "showShadow") {
         let s = Rgba(SHADOW_COLOR.0, SHADOW_COLOR.1, SHADOW_COLOR.2, (255.0 * SHADOW_ALPHA) as u8);
@@ -293,6 +306,19 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         c.polygon(&pts, Some(fill), Some(line));
         c.polyline(&[P { x: b.x + b.w - f, y: b.y }, P { x: b.x + b.w - f, y: b.y + f }, P { x: b.x + b.w, y: b.y + f }], line, false);
         draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 0.0);
+        return;
+    }
+    // plain shapes, filled and outlined, with no shadow (elements.js:14337-14378)
+    if ty == "RectangleView" {
+        c.rect(b, Some(fill), Some(line));
+        return;
+    }
+    if ty == "RoundRectView" {
+        c.polygon(&round_rect(b, b.w.min(b.h) / 8.0), Some(fill), Some(line));
+        return;
+    }
+    if ty == "EllipseView" {
+        c.ellipse(P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 }, b.w / 2.0, b.h / 2.0, Some(fill), Some(line));
         return;
     }
     if ty == "UMLTextBoxView" {

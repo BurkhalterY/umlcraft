@@ -173,6 +173,11 @@ fn build() -> HashMap<&'static str, Kind> {
     // a frame shows a model element (often a diagram) by name, with a tab naming the diagram kind
     def("UMLCustomFrameView", Some("NodeView"), vec![("nameLabel", n()), ("frameTypeLabel", n())]);
     def("UMLFrameView", Some("UMLCustomFrameView"), vec![("showType", d(json!(false))), ("showNamespace", d(json!(false))), ("showDiagramName", d(json!(false)))]);
+    // plain shapes: a rectangle, a rounded rectangle, an ellipse (elements.js:14332-14378)
+    def("ShapeView", Some("NodeView"), vec![]);
+    for name in ["RectangleView", "RoundRectView", "EllipseView"] {
+        def(name, Some("ShapeView"), vec![]);
+    }
     def("HyperlinkView", Some("NodeView"), vec![("nameLabel", n()), ("typeLabel", n())]);
     def("UMLCustomTextView", Some("NodeView"), vec![("text", d(json!(""))), ("wordWrap", d(json!(true))), ("horzAlign", d(json!(0))), ("vertAlign", d(json!(3)))]);
     def("UMLCustomNoteView", Some("UMLCustomTextView"), vec![]);

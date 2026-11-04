@@ -210,6 +210,13 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(10.5, 2.5), (10.5, 5.5), (13.5, 5.5)], W);
         }
         "notelink" => dashed(&[(3.0, 13.0), (13.0, 3.0)], W),
+        "rect" => rect_at(2.0, 3.0, 12.0, 10.0, W),
+        "roundrect" => {
+            p.rect_stroke(Rect::from_min_size(at(2.0, 3.0), Vec2::new(12.0 * s, 10.0 * s)), (3.0 * s) as f32, st(W), egui::StrokeKind::Middle);
+        }
+        "ellipse" => {
+            p.add(Shape::ellipse_stroke(at(8.0, 8.0), Vec2::new(6.5 * s, 5.0 * s), st(W)));
+        }
         "hyperlink" => {
             // two chain links
             rect_at(1.5, 5.5, 7.0, 5.0, W);

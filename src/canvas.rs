@@ -1123,7 +1123,8 @@ impl App {
                     // both corners snap to the grid (diagram-editor.js:979-1038)
                     let (x1, y1) = (self.snap_v(raw.x), self.snap_v(raw.y));
                     let (x2, y2) = (self.snap_v(raw.x + raw.w), self.snap_v(raw.y + raw.h));
-                    R { x: x1, y: y1, w: (x2 - x1).max(1.0), h: (y2 - y1).max(1.0) }
+                    let (mw, mh) = views::tool_min_size(tool.kind).unwrap_or((1.0, 1.0));
+                    R { x: x1, y: y1, w: (x2 - x1).max(mw), h: (y2 - y1).max(mh) }
                 };
                 if tool.kind == "Frame" {
                     // a frame first asks which element it shows (uml-commands.js:244-262)

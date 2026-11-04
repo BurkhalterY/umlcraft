@@ -234,7 +234,20 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "TextBox" => (100.0, 40.0),
         "Frame" => (FRAME_MIN_W, FRAME_MIN_H),
         "Hyperlink" => (HYPERLINK_MIN_W, HYPERLINK_MIN_H),
+        "Rect" | "RoundRect" | "Ellipse" => (50.0, 50.0),
         _ => (100.0, 60.0),
+    }
+}
+
+/// The smallest box an annotation tool makes: a drag smaller than this is enlarged (the toolbox
+/// items' `min-width` and `min-height`, common/toolbox/common.json; factory.js:279-292).
+pub fn tool_min_size(kind: &str) -> Option<(f64, f64)> {
+    match kind {
+        "Text" | "TextBox" => Some((60.0, 15.0)),
+        "Note" => Some((70.0, 40.0)),
+        "Hyperlink" => Some((70.0, 20.0)),
+        "Rect" | "RoundRect" | "Ellipse" => Some((50.0, 50.0)),
+        _ => None,
     }
 }
 
