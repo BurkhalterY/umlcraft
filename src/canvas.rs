@@ -1060,7 +1060,7 @@ impl App {
                     let v = a.create_node(tool.kind, r);
                     if let (Some(v), Some(d)) = (v, a.diagram) {
                         let t = a.repo.ty(v);
-                        if t == "UMLUseCaseSubjectView" || t == "UMLPackageView" {
+                        if t == "UMLUseCaseSubjectView" || t == "UMLPackageView" || t == "UMLSubsystemView" {
                             // containers sit behind what they contain
                             let mut list = a.repo.list(d, "ownedViews");
                             list.retain(|x| *x != v);

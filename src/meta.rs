@@ -133,6 +133,7 @@ fn build() -> HashMap<&'static str, Kind> {
     }
     def("UMLEnumerationView", Some("UMLClassifierView"), vec![("suppressLiterals", d(json!(false))), ("enumerationLiteralCompartment", n())]);
     def("UMLPackageView", Some("UMLGeneralNodeView"), vec![]);
+    def("UMLSubsystemView", Some("UMLPackageView"), vec![]);
     def("UMLUseCaseView", Some("UMLClassifierView"), vec![("extensionPointCompartment", n())]);
     def("UMLUseCaseSubjectView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLCustomTextView", Some("NodeView"), vec![("text", d(json!(""))), ("wordWrap", d(json!(true))), ("horzAlign", d(json!(0))), ("vertAlign", d(json!(3)))]);

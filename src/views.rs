@@ -163,6 +163,8 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         "UMLUseCase" => k("UMLUseCaseView", true, true, false),
         "UMLActor" => k("UMLActorView", true, true, false),
         "UMLUseCaseSubject" => k("UMLUseCaseSubjectView", false, false, false),
+        // a subsystem is drawn like a package (estimated)
+        "UMLSubsystem" => k("UMLSubsystemView", false, false, false),
         // component and deployment diagrams (uml.json "uml.component", "uml.deployment")
         "UMLComponent" => k("UMLComponentView", true, true, false),
         "UMLArtifact" => k("UMLArtifactView", true, true, false),
@@ -198,7 +200,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
     match kind {
         "UMLClass" => (160.0, 100.0),
         "UMLInterface" => (140.0, 80.0),
-        "UMLEnumeration" | "UMLPackage" | "UMLModel" => (140.0, 100.0),
+        "UMLEnumeration" | "UMLPackage" | "UMLModel" | "UMLSubsystem" => (140.0, 100.0),
         "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" => (160.0, 80.0),
         "UMLUseCase" => (120.0, 40.0),
         "UMLActor" => (40.0, 80.0),

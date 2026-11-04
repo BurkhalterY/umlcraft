@@ -108,7 +108,7 @@ const CLASS_GROUPS: &[Group] = &[
     Group {
         id: "package",
         label: "Packages",
-        items: &[node("Package", "UMLPackage", "package"), node("Model", "UMLModel", "model"), line("Dependency", "UMLDependency", "dependency", AssocInit::Plain)],
+        items: &[node("Package", "UMLPackage", "package"), node("Model", "UMLModel", "model"), node("Subsystem", "UMLSubsystem", "package"), line("Dependency", "UMLDependency", "dependency", AssocInit::Plain)],
     },
     // the robustness extension's group (robustness/toolbox/robustness.json)
     Group { id: "robustness", label: "Robustness", items: &[node("Boundary", "Boundary", "boundary"), node("Entity", "Entity", "entity"), node("Control", "Control", "control")] },
@@ -370,7 +370,7 @@ impl App {
             for (l, k) in [
                 ("Package", "UMLPackage"), ("Profile", "UMLProfile"), ("Class", "UMLClass"), ("Interface", "UMLInterface"), ("Signal", "UMLSignal"),
                 ("DataType", "UMLDataType"), ("PrimitiveType", "UMLPrimitiveType"), ("Enumeration", "UMLEnumeration"), ("Stereotype", "UMLStereotype"),
-                ("Actor", "UMLActor"), ("Use Case", "UMLUseCase"), ("Component", "UMLComponent"), ("Artifact", "UMLArtifact"), ("Node", "UMLNode"),
+                ("Actor", "UMLActor"), ("Use Case", "UMLUseCase"), ("Subsystem", "UMLSubsystem"), ("Component", "UMLComponent"), ("Artifact", "UMLArtifact"), ("Node", "UMLNode"),
             ] {
                 adds.push((l, k, false));
             }

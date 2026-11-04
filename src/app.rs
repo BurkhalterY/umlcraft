@@ -581,7 +581,7 @@ impl App {
     /// hold boxes, and never themselves or a box that contains them.
     pub fn can_contain_view(&self, container: Eid, v: Eid) -> bool {
         let ct = self.repo.ty(container);
-        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLUseCaseSubjectView") || !views::is_node(&self.repo, v) {
+        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView") || !views::is_node(&self.repo, v) {
             return false;
         }
         // not the view itself or anything inside it

@@ -2687,3 +2687,17 @@ fn deployment_quick_edit_buttons() {
     a.add_related(n, path).unwrap();
     assert!(a.repo.all().any(|e| a.repo.ty(e) == "UMLCommunicationPath"));
 }
+
+#[test]
+fn subsystems() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let s = a.change(|a| a.create_node("UMLSubsystem", rect(40.0, 40.0, 300.0, 200.0))).unwrap();
+    assert_eq!(a.repo.ty(s), "UMLSubsystemView");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info.get(&s).map(|i| i.shape), Some("package"));
+    let c = a.change(|a| a.create_node("UMLClass", rect(500.0, 40.0, 100.0, 60.0))).unwrap();
+    assert!(a.can_contain_view(s, c), "it holds boxes like a package");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
