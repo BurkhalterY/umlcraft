@@ -919,6 +919,9 @@ impl App {
                 if [4, 5, 6].contains(&h) {
                     y2 = self.snap_from(o.y + o.h, o.y + o.h + dy);
                 }
+                // edges stop at the canvas origin (diagram-editor.js:1201-1285)
+                x1 = x1.max(0.0);
+                y1 = y1.max(0.0);
                 if x2 - x1 < 20.0 {
                     if x1 != o.x { x1 = x2 - 20.0 } else { x2 = x1 + 20.0 }
                 }

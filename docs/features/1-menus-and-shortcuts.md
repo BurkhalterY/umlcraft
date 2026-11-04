@@ -49,8 +49,8 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | `ctrl-shift-down` | `edit:move-down` | ✅ | Ctrl+Shift+Down, Edit and explorer menus: swaps with the next sibling of the same explorer group (src/app.rs:1117; src/ui.rs:1635, 1857) | resources/default/keymaps/linux.json |
 | `ctrl-a` | `edit:select-all` | ✅ | Ctrl+A (src/ui.rs:1842) | resources/default/keymaps/linux.json |
 | `ctrl-e` | `edit:select-in-explorer` | ✅ | Ctrl+E (src/ui.rs:1845) | resources/default/keymaps/linux.json |
-| `ctrl-d` | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:1157; src/ui.rs:1854, 1340, 406; src/canvas.rs:1652) | resources/default/keymaps/linux.json |
-| `ctrl-shift-d` | `edit:open-sub-diagram` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:1135; src/ui.rs:1344, 1851; src/canvas.rs:1657) | resources/default/keymaps/linux.json |
+| `ctrl-d` | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:1157; src/ui.rs:1854, 1340, 406; src/canvas.rs:1655) | resources/default/keymaps/linux.json |
+| `ctrl-shift-d` | `edit:open-sub-diagram` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:1135; src/ui.rs:1344, 1851; src/canvas.rs:1660) | resources/default/keymaps/linux.json |
 | `ctrl-shift-f` | `format:font` | ✅ | Ctrl+Shift+F and Format › Font... (main and canvas menus) open the Font window: face, size and colour pre-filled with the merged values. The face is stored but drawn with the Arial-compatible font (src/ui.rs:1752, 1352, 2138-2195; src/style.rs:74) | resources/default/keymaps/linux.json |
 | `ctrl-shift-i` | `format:fill-color` | ✅ | Ctrl+Shift+I opens a colour window; Format › Fill Color (main and canvas menus) has a colour picker; both apply the merged colour to the selected views (src/ui.rs:1765, 1603, 2205; src/style.rs:35) | resources/default/keymaps/linux.json |
 | `ctrl-shift-l` | `format:line-color` | ✅ | Ctrl+Shift+L opens a colour window; Format › Line Color has a colour picker (src/ui.rs:1765, 1603, 2205; src/style.rs:35) | resources/default/keymaps/linux.json |
@@ -69,10 +69,10 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | `shift-f4` | `view:close-all-diagrams` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:1922, 1669; src/app.rs:1086) | resources/default/keymaps/linux.json |
 | `ctrl-shift-]` | `view:next-diagram` | ✅ | Ctrl+Shift+] (also reported as Ctrl+Shift+}), wraps to the first (src/ui.rs:1939, 1436; src/app.rs:1096) | resources/default/keymaps/linux.json |
 | `ctrl-shift-[` | `view:previous-diagram` | ✅ | Ctrl+Shift+[ (also reported as Ctrl+Shift+{), wraps to the last (src/ui.rs:1942, 1440; src/app.rs:1096) | resources/default/keymaps/linux.json |
-| `ctrl-plus` | `view:zoom-in` | ✅ | Ctrl+= / Ctrl++, keeps the screen centre (src/ui.rs:1884; src/canvas.rs:1731) | resources/default/keymaps/linux.json |
-| `ctrl-minus` | `view:zoom-out` | ✅ | Ctrl+-, keeps the screen centre (src/ui.rs:1887; src/canvas.rs:1731) | resources/default/keymaps/linux.json |
-| `ctrl-0` | `view:actual-size` | ✅ | Ctrl+0, keeps the screen centre (src/ui.rs:1890; src/canvas.rs:1731) | resources/default/keymaps/linux.json |
-| `ctrl-9` | `view:fit-to-window` | ✅ | Ctrl+9, centred on the bounding box (src/ui.rs:1911; src/canvas.rs:1743) | resources/default/keymaps/linux.json |
+| `ctrl-plus` | `view:zoom-in` | ✅ | Ctrl+= / Ctrl++, keeps the screen centre (src/ui.rs:1884; src/canvas.rs:1734) | resources/default/keymaps/linux.json |
+| `ctrl-minus` | `view:zoom-out` | ✅ | Ctrl+-, keeps the screen centre (src/ui.rs:1887; src/canvas.rs:1734) | resources/default/keymaps/linux.json |
+| `ctrl-0` | `view:actual-size` | ✅ | Ctrl+0, keeps the screen centre (src/ui.rs:1890; src/canvas.rs:1734) | resources/default/keymaps/linux.json |
+| `ctrl-9` | `view:fit-to-window` | ✅ | Ctrl+9, centred on the bounding box (src/ui.rs:1911; src/canvas.rs:1746) | resources/default/keymaps/linux.json |
 | `ctrl-g` | `view:show-grid` | ✅ | Ctrl+G (src/ui.rs:1918) | resources/default/keymaps/linux.json |
 | `ctrl-shift-g` | `view:snap-to-grid` | ✅ | Ctrl+Shift+G, checked before Ctrl+G so it is not taken as Show Grid (src/ui.rs:1915) | resources/default/keymaps/linux.json |
 | `ctrl-1` | `view:sidebar` | ✅ | View › Sidebar check item and Ctrl+1; kept in the preferences file (src/ui.rs:1467-1472, 1925-1931; src/prefs.rs:85-91) | resources/default/keymaps/linux.json |
@@ -307,8 +307,8 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Edit › Move Down | `edit:move-down` | `ctrl-shift-down` | ✅ | Ctrl+Shift+Down, Edit and explorer menus: swaps with the next sibling of the same explorer group (src/app.rs:1117; src/ui.rs:1635, 1857) | resources/default/menus/linux.json |
 | Edit › Select All | `edit:select-all` | `ctrl-a` | ✅ | Ctrl+A (src/ui.rs:1842) | resources/default/menus/linux.json |
 | Edit › Select In Explorer | `edit:select-in-explorer` | `ctrl-e` | ✅ | Ctrl+E (src/ui.rs:1845) | resources/default/menus/linux.json |
-| Edit › Select In Diagram | `edit:select-in-diagram` | `ctrl-d` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:1157; src/ui.rs:1854, 1340, 406; src/canvas.rs:1652) | resources/default/menus/linux.json |
-| Edit › Open Sub-Diagram | `edit:open-sub-diagram` | `ctrl-shift-d` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:1135; src/ui.rs:1344, 1851; src/canvas.rs:1657) | resources/default/menus/linux.json |
+| Edit › Select In Diagram | `edit:select-in-diagram` | `ctrl-d` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:1157; src/ui.rs:1854, 1340, 406; src/canvas.rs:1655) | resources/default/menus/linux.json |
+| Edit › Open Sub-Diagram | `edit:open-sub-diagram` | `ctrl-shift-d` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:1135; src/ui.rs:1344, 1851; src/canvas.rs:1660) | resources/default/menus/linux.json |
 | Format › Font... | `format:font` | `ctrl-shift-f` | ✅ | Ctrl+Shift+F and Format › Font... (main and canvas menus) open the Font window: face, size and colour pre-filled with the merged values. The face is stored but drawn with the Arial-compatible font (src/ui.rs:1752, 1352, 2138-2195; src/style.rs:74) | resources/default/menus/linux.json |
 | Format › Fill Color... | `format:fill-color` | `ctrl-shift-i` | ✅ | Ctrl+Shift+I opens a colour window; Format › Fill Color (main and canvas menus) has a colour picker; both apply the merged colour to the selected views (src/ui.rs:1765, 1603, 2205; src/style.rs:35) | resources/default/menus/linux.json |
 | Format › Line Color... | `format:line-color` | `ctrl-shift-l` | ✅ | Ctrl+Shift+L opens a colour window; Format › Line Color has a colour picker (src/ui.rs:1765, 1603, 2205; src/style.rs:35) | resources/default/menus/linux.json |
@@ -330,10 +330,10 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | View › Close All Diagrams | `view:close-all-diagrams` | `shift-f4` | ✅ | Shift+F4, View menu and Working Diagrams menu (src/ui.rs:1922, 1669; src/app.rs:1086) | resources/default/menus/linux.json |
 | View › Next Diagram | `view:next-diagram` | `ctrl-shift-]` | ✅ | Ctrl+Shift+] (also reported as Ctrl+Shift+}), wraps to the first (src/ui.rs:1939, 1436; src/app.rs:1096) | resources/default/menus/linux.json |
 | View › Previous Diagram | `view:previous-diagram` | `ctrl-shift-[` | ✅ | Ctrl+Shift+[ (also reported as Ctrl+Shift+{), wraps to the last (src/ui.rs:1942, 1440; src/app.rs:1096) | resources/default/menus/linux.json |
-| View › Zoom In | `view:zoom-in` | `ctrl-plus` | ✅ | Ctrl+= / Ctrl++, keeps the screen centre (src/ui.rs:1884; src/canvas.rs:1731) | resources/default/menus/linux.json |
-| View › Zoom Out | `view:zoom-out` | `ctrl-minus` | ✅ | Ctrl+-, keeps the screen centre (src/ui.rs:1887; src/canvas.rs:1731) | resources/default/menus/linux.json |
-| View › Actual Size | `view:actual-size` | `ctrl-0` | ✅ | Ctrl+0, keeps the screen centre (src/ui.rs:1890; src/canvas.rs:1731) | resources/default/menus/linux.json |
-| View › Fit To Window | `view:fit-to-window` | `ctrl-9` | ✅ | Ctrl+9, centred on the bounding box (src/ui.rs:1911; src/canvas.rs:1743) | resources/default/menus/linux.json |
+| View › Zoom In | `view:zoom-in` | `ctrl-plus` | ✅ | Ctrl+= / Ctrl++, keeps the screen centre (src/ui.rs:1884; src/canvas.rs:1734) | resources/default/menus/linux.json |
+| View › Zoom Out | `view:zoom-out` | `ctrl-minus` | ✅ | Ctrl+-, keeps the screen centre (src/ui.rs:1887; src/canvas.rs:1734) | resources/default/menus/linux.json |
+| View › Actual Size | `view:actual-size` | `ctrl-0` | ✅ | Ctrl+0, keeps the screen centre (src/ui.rs:1890; src/canvas.rs:1734) | resources/default/menus/linux.json |
+| View › Fit To Window | `view:fit-to-window` | `ctrl-9` | ✅ | Ctrl+9, centred on the bounding box (src/ui.rs:1911; src/canvas.rs:1746) | resources/default/menus/linux.json |
 | View › Show Grid | `view:show-grid` | `ctrl-g` | ✅ | Ctrl+G (src/ui.rs:1918) | resources/default/menus/linux.json |
 | View › Snap to Grid | `view:snap-to-grid` | `ctrl-shift-g` | ✅ | Ctrl+Shift+G, checked before Ctrl+G so it is not taken as Show Grid (src/ui.rs:1915) | resources/default/menus/linux.json |
 | View › Sidebar | `view:sidebar` | `ctrl-1` | ✅ | View › Sidebar check item and Ctrl+1; kept in the preferences file (src/ui.rs:1467-1472, 1925-1931; src/prefs.rs:85-91) | resources/default/menus/linux.json |
@@ -355,7 +355,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 
 | Context | Item | Command | UMLCraft | Notes |
 |---|---|---|---|---|
-| diagram-canvas | *(the menu as a whole)* |  | 🟡 | the canvas menu has Cut, Copy, Copy Diagram As Image, Paste, Edit, Add Literal/Attribute/Operation, Line Style (four styles), Format (show/suppress toggles and Alignment), Select In Explorer, Select In Diagram, Open Sub-Diagram, Delete, Delete from Model; on empty canvas Paste, Select All and Fit To Window. Missing: the font, colour, stereotype-display, auto-resize and add-related items (src/canvas.rs:1596) |
+| diagram-canvas | *(the menu as a whole)* |  | 🟡 | the canvas menu has Cut, Copy, Copy Diagram As Image, Paste, Edit, Add Literal/Attribute/Operation, Line Style (four styles), Format (show/suppress toggles and Alignment), Select In Explorer, Select In Diagram, Open Sub-Diagram, Delete, Delete from Model; on empty canvas Paste, Select All and Fit To Window. Missing: the font, colour, stereotype-display, auto-resize and add-related items (src/canvas.rs:1599) |
 | diagram-canvas | Format › Alignment › Send To Back | `alignment:send-to-back` | ✅ | Format › Alignment › Send To Back moves the selected top-level views to the start of ownedViews (src/align.rs:146; src/ui.rs:1719) |
 | diagram-canvas | Format › Alignment › Bring To Front | `alignment:bring-to-front` | ✅ | Format › Alignment › Bring To Front moves the selected top-level views to the end of ownedViews (src/align.rs:146; src/ui.rs:1719) |
 | diagram-canvas | Format › Alignment › Align Left | `alignment:align-left` | ✅ | left of every selected node set to the minimum left (src/align.rs:55) |
@@ -421,8 +421,8 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | diagram-canvas | Delete | `edit:delete` | ✅ | Delete key and Edit menu (src/canvas.rs:593, src/ui.rs:1321) |
 | diagram-canvas | Delete From Model | `edit:delete-from-model` | ✅ | Ctrl+Delete (src/ui.rs:1839) |
 | diagram-canvas | Select In Explorer | `edit:select-in-explorer` | ✅ | Ctrl+E (src/ui.rs:1845) |
-| diagram-canvas | Select In Diagram | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:1157; src/ui.rs:1854, 1340, 406; src/canvas.rs:1652) |
-| diagram-canvas | Open Sub-Diagram | `edit:open-sub-diagram` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:1135; src/ui.rs:1344, 1851; src/canvas.rs:1657) |
+| diagram-canvas | Select In Diagram | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:1157; src/ui.rs:1854, 1340, 406; src/canvas.rs:1655) |
+| diagram-canvas | Open Sub-Diagram | `edit:open-sub-diagram` | ✅ | Ctrl+Shift+D, Edit and canvas menus: opens the first diagram the element owns, or toasts "No sub-diagram in the selected element" (src/app.rs:1135; src/ui.rs:1344, 1851; src/canvas.rs:1660) |
 | diagram-canvas | Tag Editor... | `model:tag-editor` | ✅ | Ctrl+T, Model › Tag Editor..., and the canvas and explorer menus (src/ui.rs:1393, 1901; src/tags.rs:171-245) |
 | mermaid-example-dropdown | Class Diagram | `mermaid:example-class-diagram` | ✅ | an "Example: Class" button fills in a class diagram example (src/mermaid.rs:468-470) |
 | mermaid-example-dropdown | Sequence Diagram | `mermaid:example-sequence-diagram` | ❌ |  |
@@ -448,7 +448,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | model-explorer | Delete From Model | `edit:delete-from-model` | ✅ | Ctrl+Delete (src/ui.rs:1839) |
 | model-explorer | Move Up | `edit:move-up` | ✅ | Ctrl+Shift+Up, Edit and explorer menus: swaps with the previous sibling of the same explorer group (src/app.rs:1117; src/ui.rs:1635, 1857) |
 | model-explorer | Move Down | `edit:move-down` | ✅ | Ctrl+Shift+Down, Edit and explorer menus: swaps with the next sibling of the same explorer group (src/app.rs:1117; src/ui.rs:1635, 1857) |
-| model-explorer | Select In Diagram | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:1157; src/ui.rs:1854, 1340, 406; src/canvas.rs:1652) |
+| model-explorer | Select In Diagram | `edit:select-in-diagram` | ✅ | Ctrl+D, Edit menu, canvas and explorer menus: one view opens its diagram, selects and centres it; several open the "Select Diagram to show" picker; none toasts "No diagrams to show" (src/app.rs:1157; src/ui.rs:1854, 1340, 406; src/canvas.rs:1655) |
 | working-diagrams | *(the menu as a whole)* |  | ✅ | right-clicking a row opens Close Diagram, Close Other Diagrams, Close All Diagrams and Rename, acting on the current diagram (src/ui.rs:1002-1010, 1681) |
 | working-diagrams | Close Diagram | `view:close-diagram` | ✅ | F4, View menu and Working Diagrams menu; the diagram that slides into its place, or the first, becomes current (src/ui.rs:1935, 1669; src/app.rs:1021) |
 | working-diagrams | Close Other Diagrams | `view:close-other-diagrams` | ✅ | Ctrl+F4, View menu and Working Diagrams menu (src/ui.rs:1932, 1669; src/app.rs:1081) |
