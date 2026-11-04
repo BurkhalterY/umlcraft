@@ -4232,3 +4232,53 @@ fn association_end_order_arrow() {
     a.change(|a| a.repo.set(e, "showEndOrder", json!("hide")));
     assert_eq!(polys(&a), plain);
 }
+
+#[test]
+fn ports_parts_and_connectors() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    // a port clicked near the right border goes onto it
+    let p = a.change(|a| a.create_feature_box("UMLPort", crate::views::P { x: 390.0, y: 200.0 }, rect(0.0, 0.0, 0.0, 0.0))).unwrap();
+    let pm = a.repo.refd(p, "model").unwrap();
+    assert_eq!((a.repo.ty(pm), a.repo.name(pm)), ("UMLPort", "Port1".to_string()));
+    assert_eq!(a.repo.parent(pm), Some(cm));
+    assert_eq!(a.repo.field_of(pm).as_deref(), Some("attributes"));
+    assert_eq!(a.repo.refd(p, "containerView"), Some(c));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let (x, y, w) = (a.repo.f(p, "left"), a.repo.f(p, "top"), a.repo.f(p, "width"));
+    assert_eq!(w, 14.0);
+    let right = a.repo.f(c, "left") + a.repo.f(c, "width");
+    assert_eq!(x + 7.0, right, "its centre is on the right border");
+    assert!(y > 100.0 && y < 300.0);
+    // a part drawn inside: a composite attribute in a box
+    let part = a.change(|a| a.create_feature_box("UMLPart", crate::views::P { x: 151.0, y: 151.0 }, rect(150.0, 150.0, 100.0, 40.0))).unwrap();
+    let am = a.repo.refd(part, "model").unwrap();
+    assert_eq!((a.repo.name(am), a.repo.str(am, "aggregation")), ("Part1".to_string(), "composite".to_string()));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nl = a.repo.refd(a.repo.refd(part, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "Part1");
+    // outside any box: refused
+    assert_eq!(a.create_feature_box("UMLPort", crate::views::P { x: 900.0, y: 900.0 }, rect(0.0, 0.0, 0.0, 0.0)), Err("UMLPort cannot be placed here.".to_string()));
+    // a port on a part without a type is refused; with a type it goes to that type
+    assert_eq!(a.create_feature_box("UMLPort", crate::views::P { x: 160.0, y: 160.0 }, rect(0.0, 0.0, 0.0, 0.0)), Err("Type should be assigned to have Ports".to_string()));
+    // a connector joins the port and the part
+    let conn = tool("UMLConnector", AssocInit::Plain);
+    assert!(a.can_connect(&conn, p, part) && !a.can_connect(&conn, c, part));
+    let e = a.change(|a| a.create_edge(&conn, p, part)).unwrap();
+    assert_eq!(a.repo.ty(e), "UMLConnectorView");
+    let em = a.repo.refd(e, "model").unwrap();
+    assert_eq!(a.repo.ty(a.repo.child(em, "end1").unwrap()), "UMLConnectorEnd");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // moving the class carries its port and part
+    let before = a.repo.f(part, "left");
+    let canvas = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    a.select(vec![]);
+    a.on_press(canvas, egui::Pos2::new(250.0, 110.0), egui::Modifiers::NONE);
+    a.on_move(canvas, egui::Pos2::new(270.0, 110.0));
+    a.on_release(canvas.min, egui::Pos2::new(270.0, 110.0));
+    assert_eq!(a.repo.f(part, "left"), before + 20.0);
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

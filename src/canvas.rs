@@ -1170,6 +1170,25 @@ impl App {
                     let (mw, mh) = views::tool_min_size(tool.kind).unwrap_or((1.0, 1.0));
                     R { x: x1, y: y1, w: (x2 - x1).max(mw), h: (y2 - y1).max(mh) }
                 };
+                if tool.kind == "UMLPort" || tool.kind == "UMLPart" {
+                    // a port is placed at the point (a "point" tool), a part takes the box; both go on the
+                    // classifier box under the point (toolbox/uml.json "parasitic")
+                    if !self.tool_sticky {
+                        self.tool = None;
+                    }
+                    let at = P { x: self.snap_v(p.x), y: self.snap_v(p.y) };
+                    let rect = if tool.kind == "UMLPart" && (raw.w >= 10.0 || raw.h >= 10.0) { r } else { R { x: at.x, y: at.y, w: 80.0, h: 30.0 } };
+                    let kind = tool.kind;
+                    let made = self.change(|a| a.create_feature_box(kind, if kind == "UMLPart" { P { x: rect.x + 1.0, y: rect.y + 1.0 } } else { at }, rect).map_err(|e| { a.toast_error(&e); e }).ok());
+                    if let Some(v) = made {
+                        self.select(vec![v]);
+                        if let Some(m) = self.repo.refd(v, "model") {
+                            self.reveal(m);
+                        }
+                        self.pending_edit = Some(v);
+                    }
+                    return;
+                }
                 if tool.kind == "Frame" {
                     // a frame first asks which element it shows (uml-commands.js:244-262)
                     if !self.tool_sticky {
@@ -1350,7 +1369,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| self.repo.ty(v) == "UMLNaryAssociationNodeView"));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView")));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),

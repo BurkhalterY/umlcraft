@@ -94,11 +94,18 @@ const ANNOTATIONS: Group = Group {
     ],
 };
 // the Composite Structure group (uml.json "uml.compositestructure": class, composite structure and
-// component diagrams), with the items UMLCraft has: no ports, parts, connectors or role bindings
+// component diagrams), with the items UMLCraft has: no role bindings
 const COMPOSITE: Group = Group {
     id: "compositestructure",
     label: "Composite Structure",
-    items: &[node("Collaboration", "UMLCollaboration", "collaboration"), node("Collaboration Use", "UMLCollaborationUse", "collaboration"), line("Realization", "UMLRealization", "realization", AssocInit::Plain)],
+    items: &[
+        node("Collaboration", "UMLCollaboration", "collaboration"),
+        node("Port", "UMLPort", "port"),
+        node("Part", "UMLPart", "part"),
+        line("Connector", "UMLConnector", "association", AssocInit::Plain),
+        node("Collaboration Use", "UMLCollaborationUse", "collaboration"),
+        line("Realization", "UMLRealization", "realization", AssocInit::Plain),
+    ],
 };
 const CLASS_GROUPS: &[Group] = &[
     Group {

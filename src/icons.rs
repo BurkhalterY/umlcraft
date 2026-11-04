@@ -213,6 +213,14 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
         }
         "notelink" => dashed(&[(3.0, 13.0), (13.0, 3.0)], W),
         "rect" => rect_at(2.0, 3.0, 12.0, 10.0, W),
+        "port" => {
+            rect_at(2.0, 2.0, 10.0, 12.0, Y);
+            rect_at(9.5, 6.0, 4.0, 4.0, Y);
+        }
+        "part" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, Y);
+            rect_at(4.0, 6.0, 8.0, 5.0, Y);
+        }
         "collaboration" => {
             let pts: Vec<(f32, f32)> = (0..=24).map(|i| { let a = std::f32::consts::TAU * i as f32 / 24.0; (8.0 + 6.5 * a.cos(), 8.0 + 4.5 * a.sin()) }).collect();
             dashed(&pts, Y);

@@ -1096,6 +1096,8 @@ impl App {
         let classifier = |m: Eid| r.kind_of(m, "UMLClassifier");
         match kind {
             "UMLAssociation" => classifier(tm) && classifier(hm),
+            // a connector joins two features: ports, parts or attributes (uml-factory.js:32-38)
+            "UMLConnector" => r.kind_of(tm, "UMLFeature") && r.kind_of(hm, "UMLFeature"),
             // a link joins two objects (uml-factory.js)
             "UMLLink" => r.kind_of(tm, "UMLInstance") && r.kind_of(hm, "UMLInstance"),
             // deployment diagrams: a path joins two nodes, a deployment puts a classifier on a node and a
@@ -1143,11 +1145,15 @@ impl App {
         }
         let tm = self.repo.refd(tail, "model")?;
         let hm = self.repo.refd(head, "model")?;
-        let m = if tool.kind == "UMLAssociation" || tool.kind == "UMLCommunicationPath" || tool.kind == "UMLLink" {
+        let m = if tool.kind == "UMLAssociation" || tool.kind == "UMLCommunicationPath" || tool.kind == "UMLLink" || tool.kind == "UMLConnector" {
             let m = self.repo.create(tool.kind, &[], Some((tm, "ownedElements")));
             let (r1, r2) = (self.repo.ref_to(tm), self.repo.ref_to(hm));
             // a link joins two objects through link ends
-            let end = if tool.kind == "UMLLink" { "UMLLinkEnd" } else { "UMLAssociationEnd" };
+            let end = match tool.kind {
+                "UMLLink" => "UMLLinkEnd",
+                "UMLConnector" => "UMLConnectorEnd",
+                _ => "UMLAssociationEnd",
+            };
             let e1 = self.repo.create(end, &[("reference", r1)], Some((m, "end1")));
             let e2 = self.repo.create(end, &[("reference", r2)], Some((m, "end2")));
             match tool.init {
@@ -1297,6 +1303,48 @@ impl App {
             "UMLTemplateParameter" => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase" && t != "UMLEnumeration",
             _ => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase",
         }
+    }
+
+    /// The Port and Part tools: a port on the border of the classifier box under the point, or a part
+    /// inside it, its model a new attribute of that classifier (a composite one for a part). On a part,
+    /// they go to the part's type. Elsewhere they are refused (uml-factory.js:996-1100).
+    pub fn create_feature_box(&mut self, kind: &str, at: P, rect: R) -> Result<Eid, String> {
+        let d = self.diagram.ok_or_else(String::new)?;
+        let refused = format!("{} cannot be placed here.", if kind == "UMLPort" { "UMLPort" } else { "UMLAttribute" });
+        let host = self
+            .repo
+            .list(d, "ownedViews")
+            .into_iter()
+            .rev()
+            .filter(|v| views::is_node(&self.repo, *v) && self.repo.ty(*v) != "UMLPortView" && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
+            .find(|v| {
+                let b = views::node_rect(&self.repo, *v);
+                at.x >= b.x && at.y >= b.y && at.x <= b.x + b.w && at.y <= b.y + b.h
+            })
+            .ok_or(refused.clone())?;
+        let hm = self.repo.refd(host, "model").ok_or(refused.clone())?;
+        let owner = if self.repo.ty(hm) == "UMLAttribute" {
+            match self.repo.refd(hm, "type").filter(|t| self.repo.kind_of(*t, "UMLClassifier")) {
+                Some(t) => t,
+                None => return Err(if kind == "UMLPort" { "Type should be assigned to have Ports".into() } else { "Type should be assigned to have internal Parts".into() }),
+            }
+        } else if self.repo.kind_of(hm, "UMLClassifier") {
+            hm
+        } else {
+            return Err(refused);
+        };
+        let prefix = if kind == "UMLPort" { "Port" } else { "Part" };
+        let names: HashSet<String> = self.repo.list(owner, "attributes").into_iter().map(|a| self.repo.name(a)).collect();
+        let name = (1..).map(|i| format!("{prefix}{i}")).find(|n| !names.contains(n)).unwrap();
+        let v = if kind == "UMLPort" {
+            let m = self.repo.create("UMLPort", &[("name", json!(name))], Some((owner, "attributes")));
+            views::create_port_view(&mut self.repo, d, m, host, at)
+        } else {
+            let m = self.repo.create("UMLAttribute", &[("name", json!(name)), ("aggregation", json!("composite"))], Some((owner, "attributes")));
+            views::create_part_view(&mut self.repo, d, m, host, rect)
+        };
+        self.apply_view_defaults(v);
+        Ok(v)
     }
 
     pub fn add_model(&mut self, parent: Eid, ty: &str) -> Eid {

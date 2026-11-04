@@ -389,6 +389,29 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             draw_name(c, r, v);
             return;
         }
+        "port" => {
+            // a filled square on the border, its labels floating by it (elements.js:6950-6953)
+            c.rect(b, Some(fill), Some(line));
+            for f in ["stereotypeLabel", "nameLabel", "propertyLabel"] {
+                if let Some(lv) = r.refd(v, f) {
+                    draw_label(c, r, lv, fc);
+                }
+            }
+            return;
+        }
+        "part" => {
+            // a box, solid for a composite part and dashed otherwise, no shadow (elements.js:6977-6984)
+            let composite = r.refd(v, "model").map(|m| r.str(m, "aggregation") == "composite").unwrap_or(false);
+            c.rect(b, Some(fill), None);
+            let pts = [P { x: b.x, y: b.y }, P { x: b.x + b.w, y: b.y }, P { x: b.x + b.w, y: b.y + b.h }, P { x: b.x, y: b.y + b.h }, P { x: b.x, y: b.y }];
+            if composite {
+                c.polyline(&pts, line, false);
+            } else {
+                dashes(c, &pts, line, 5.0, 5.0);
+            }
+            draw_name(c, r, v);
+            return;
+        }
         "nary" => {
             // a diamond touching the middle of each side, with its shadow (elements.js:6619-6652)
             let (cx, cy) = (b.x + b.w / 2.0, b.y + b.h / 2.0);
