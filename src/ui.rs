@@ -1224,7 +1224,17 @@ impl App {
                         }
                     }
                 });
+                ui.menu_button("Import", |ui| {
+                    if ui.button("Fragment...").clicked() {
+                        self.import_fragment_dialog();
+                        ui.close();
+                    }
+                });
                 ui.menu_button("Export", |ui| {
+                    if ui.button("Fragment...").clicked() {
+                        self.export_fragment_dialog();
+                        ui.close();
+                    }
                     if ui.button("HTML Docs...").clicked() {
                         self.export_html_dialog(&measure);
                         ui.close();

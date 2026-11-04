@@ -18,6 +18,8 @@ pub struct ElementPicker {
     pub search: String,
     pub open: HashSet<Eid>,
     pub fresh: bool,
+    /// File > Export > Fragment: OK saves the chosen element instead of setting a reference.
+    pub export_fragment: bool,
 }
 
 /// The element type a reference field accepts.
@@ -56,7 +58,7 @@ impl App {
         if let Some(c) = chosen {
             open.extend(self.repo.path(c));
         }
-        self.element_picker = Some(ElementPicker { obj, field: field.to_string(), ty: field_type(field), chosen, search: String::new(), open, fresh: true });
+        self.element_picker = Some(ElementPicker { obj, field: field.to_string(), ty: field_type(field), chosen, search: String::new(), open, fresh: true, export_fragment: false });
     }
 
     /// Apply a picked element (or none) to the reference, as one undo step.
@@ -163,7 +165,12 @@ impl App {
                 }
             });
         });
-        if ok {
+        if ok && p.export_fragment {
+            self.element_picker = None;
+            if let Some(c) = p.chosen.filter(|c| self.repo.alive(*c)) {
+                self.save_fragment(c);
+            }
+        } else if ok {
             self.element_picker = None;
             match p.chosen {
                 Some(c) if !self.repo.kind_of(c, p.ty) => {

@@ -2325,3 +2325,28 @@ fn new_from_template() {
     a.set_project(project(&TEMPLATES[0]), None);
     assert_eq!(a.repo.name(a.diagram.unwrap()), "Main");
 }
+
+#[test]
+fn model_fragments() {
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let loan = a.repo.all().find(|e| a.repo.name(*e) == "Loan" && a.repo.ty(*e) == "UMLClass").unwrap();
+    let text = a.fragment_text(loan);
+    assert!(text.starts_with("{\n\t\"_type\": \"UMLClass\""), "{}", &text[..40]);
+    let dir = std::env::temp_dir().join(format!("umlcraft-mfj-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let f = dir.join("Fragment.mfj");
+    std::fs::write(&f, &text).unwrap();
+    let undo = a.undo.len();
+    let e = a.import_fragment(&f).unwrap();
+    assert_eq!(a.undo.len(), undo + 1);
+    assert_eq!(a.repo.parent(e), Some(a.repo.root), "added to the project");
+    assert_eq!(a.repo.name(e), "Loan");
+    assert_ne!(a.repo.id(e), a.repo.id(loan), "new ids");
+    assert_eq!(a.repo.list(e, "attributes").len(), a.repo.list(loan, "attributes").len());
+    assert_eq!(a.focus, Some(e));
+    std::fs::write(&f, "[1, 2]").unwrap();
+    assert!(a.import_fragment(&f).is_err());
+    Repo::parse(&a.repo.serialize()).unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+}
