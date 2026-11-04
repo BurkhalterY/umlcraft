@@ -2884,3 +2884,47 @@ fn old_projects_send_subjects_to_the_back() {
     let d = c.diagram.unwrap();
     assert_eq!(c.repo.id(*c.repo.list(d, "ownedViews").last().unwrap()), sid);
 }
+
+#[test]
+fn splitters_resize_and_collapse_panels() {
+    use crate::splitter::{drag_result, Split};
+    assert_eq!(drag_result(200.0, -195.0, 0.0, 900.0, true), Split::Hide);
+    assert_eq!(drag_result(0.0, 150.0, 0.0, 900.0, true), Split::Resize(150.0));
+    assert_eq!(drag_result(400.0, -390.0, 60.0, 700.0, false), Split::Resize(60.0), "the Toolbox stops at 60 px");
+    assert_eq!(drag_result(400.0, 900.0, 60.0, 700.0, false), Split::Resize(700.0));
+
+    let mut a = App::new(None);
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 800.0));
+    let mut frame = |a: &mut App, events: Vec<egui::Event>| {
+        let mut out = ctx.run_ui(egui::RawInput { screen_rect: Some(screen), events, ..Default::default() }, |ui| a.window_ui(ui));
+        out.textures_delta.clear();
+    };
+    let button = |x: f32, y: f32, pressed: bool| egui::Event::PointerButton { pos: egui::pos2(x, y), button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+    let moved = |x: f32, y: f32| egui::Event::PointerMoved(egui::pos2(x, y));
+    let mut drag = |a: &mut App, from: (f32, f32), to: (f32, f32)| {
+        frame(a, vec![moved(from.0, from.1)]);
+        frame(a, vec![button(from.0, from.1, true)]);
+        for i in 1..=4 {
+            let t = i as f32 / 4.0;
+            frame(a, vec![moved(from.0 + (to.0 - from.0) * t, from.1 + (to.1 - from.1) * t)]);
+        }
+        frame(a, vec![button(to.0, to.1, false)]);
+        frame(a, vec![]);
+    };
+    frame(&mut a, vec![]);
+    // the sidebar's right edge
+    drag(&mut a, (200.0, 300.0), (260.0, 300.0));
+    assert_eq!(a.panel_size("sidebar"), 260.0);
+    assert!(a.show_sidebar);
+    // below 10 px it hides, and its handle at the window edge brings it back
+    drag(&mut a, (260.0, 300.0), (5.0, 300.0));
+    assert!(!a.show_sidebar);
+    drag(&mut a, (2.0, 300.0), (150.0, 300.0));
+    assert!(a.show_sidebar);
+    assert!((a.panel_size("sidebar") - 148.0).abs() < 4.0, "{}", a.panel_size("sidebar"));
+    // the sizes are stored with the preferences
+    a.store_prefs();
+    assert_eq!(a.prefs.get("_viewState.sidebar.size").and_then(|v| v.as_f64()), Some(a.panel_size("sidebar").round() as f64));
+}

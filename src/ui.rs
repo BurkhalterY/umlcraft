@@ -20,6 +20,8 @@ pub const TOOLBOX_HEIGHT: f32 = 400.0;
 pub const EDITORS_HEIGHT: f32 = 400.0;
 pub const HEADER_HEIGHT: f32 = 34.0;
 pub const SCREENSHOT_FRAMES: u32 = 120;
+/// The grab handle a hidden sidebar or navigator leaves at the window edge (resizer.js:238-258).
+const GRIP_HIDDEN: f32 = 4.0;
 
 static LIGHT_THEME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -2567,6 +2569,13 @@ fn section_header(ui: &mut egui::Ui, title: &str, open: bool) -> bool {
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.window_ui(ui);
+    }
+}
+
+impl App {
+    /// One frame of the whole window.
+    pub(crate) fn window_ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         // the theme follows the preference live (app-context.js:1518-1527)
         let light = self.pref("theme.default").as_str() == Some("light");
@@ -2611,44 +2620,101 @@ impl eframe::App for App {
         if self.show_statusbar {
             Panel::bottom("status").exact_size(STATUSBAR_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.status_ui(ui));
         }
+        use crate::splitter::{Edge, Split, KEEP_ABOVE, MIN_SPLIT};
+        let area = ui.available_rect_before_wrap();
+        let mut sidebar_rect = None;
+        let mut navigator_rect = None;
         if self.show_sidebar {
-            Panel::left("sidebar").exact_size(SIDEBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(LAYER0())).show(ui, |ui| {
+            let w = self.panel_size("sidebar");
+            let r = Panel::left("sidebar").exact_size(w).show_separator_line(false).frame(Frame::NONE.fill(LAYER0())).show(ui, |ui| {
+                let mut toolbox = None;
                 if self.show_toolbox {
-                    Panel::bottom("toolbox").exact_size(TOOLBOX_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.toolbox_ui(ui));
+                    // Working Diagrams keeps 40 px, also when the window gets smaller (sidebar-view.js:69-75, 150-156)
+                    let max = (ui.available_height() - KEEP_ABOVE).max(MIN_SPLIT);
+                    let h = self.panel_size("toolbox").min(max);
+                    toolbox = Some((Panel::bottom("toolbox").exact_size(h).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.toolbox_ui(ui)).response.rect, max));
                 }
                 self.working_ui(ui);
+                if let Some((rect, max)) = toolbox {
+                    self.splitter(ui, "toolbox", rect, Edge::Top, true, MIN_SPLIT, max, false);
+                }
             });
+            sidebar_rect = Some(r.response.rect);
         }
         if self.show_navigator {
-            Panel::right("navigator").exact_size(NAVIGATOR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(LAYER0())).show(ui, |ui| {
+            let w = self.panel_size("navigator");
+            let r = Panel::right("navigator").exact_size(w).show_separator_line(false).frame(Frame::NONE.fill(LAYER0())).show(ui, |ui| {
+                let mut editors = None;
                 if self.show_editors {
-                    Panel::bottom("editors").exact_size(EDITORS_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.editors_ui(ui));
+                    // Model Explorer keeps 40 px (navigator-view.js:65-71, 151-157)
+                    let max = (ui.available_height() - KEEP_ABOVE).max(MIN_SPLIT);
+                    let h = self.panel_size("editors").min(max);
+                    editors = Some((Panel::bottom("editors").exact_size(h).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.editors_ui(ui)).response.rect, max));
                 }
                 self.explorer_ui(ui);
+                if let Some((rect, max)) = editors {
+                    self.splitter(ui, "editors", rect, Edge::Top, true, MIN_SPLIT, max, false);
+                }
             });
+            navigator_rect = Some(r.response.rect);
         }
         if self.show_toolbar {
             Panel::right("toolbar").exact_size(TOOLBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(TOOLBAR())).show(ui, |ui| self.toolbar_ui(ui));
         }
-        if self.show_validation {
-            Panel::bottom("validation").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.validation_ui(ui));
-        }
-        if self.show_markdown {
-            Panel::bottom("markdown").exact_size(200.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.markdown_ui(ui));
-        }
-        if self.show_thumbnails {
-            Panel::bottom("thumbnails").exact_size(130.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.thumbnails_ui(ui));
-        }
-        if self.show_relationships {
-            Panel::bottom("relationships").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.relationships_ui(ui));
-        }
-        // the Find Results panel sits under the diagram, above the status bar
-        if self.find_results.is_some() {
-            Panel::bottom("find-results").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.find_results_ui(ui));
+        // the panels under the diagram, each with a splitter on top (panel-manager.js:56-82, 149-209)
+        let mut bottoms: Vec<(&'static str, Rect)> = vec![];
+        let above = ui.available_rect_before_wrap().top();
+        type Body = fn(&mut App, &mut egui::Ui);
+        let panels: [(&'static str, bool, Body); 5] = [
+            ("validation", self.show_validation, App::validation_ui),
+            ("markdown", self.show_markdown, App::markdown_ui),
+            ("thumbnails", self.show_thumbnails, App::thumbnails_ui),
+            ("relationships", self.show_relationships, App::relationships_ui),
+            // the Find Results panel sits under the diagram, above the status bar
+            ("findResults", self.find_results.is_some(), App::find_results_ui),
+        ];
+        for (id, on, body) in panels {
+            if on {
+                let max = (ui.available_rect_before_wrap().bottom() - above - 20.0).max(MIN_SPLIT);
+                let h = self.panel_size(id).min(max);
+                let r = Panel::bottom(id).exact_size(h).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| body(self, ui));
+                bottoms.push((id, r.response.rect));
+            }
         }
         egui::CentralPanel::no_frame().show(ui, |ui| {
             self.canvas_ui(ui);
         });
+        // splitters last, so that they win over the canvas under their edge
+        let others = |a: &App, me: &str| {
+            let side = |id: &str, shown: bool| if shown && id != me { a.panel_size(id) } else { 0.0 };
+            side("sidebar", a.show_sidebar) + side("navigator", a.show_navigator) + if a.show_toolbar { TOOLBAR_WIDTH } else { 0.0 }
+        };
+        let max = (area.width() - others(self, "sidebar")).max(0.0);
+        let rect = sidebar_rect.unwrap_or(Rect::from_x_y_ranges(area.left()..=area.left() + GRIP_HIDDEN, area.y_range()));
+        match self.splitter(ui, "sidebar", rect, Edge::Right, self.show_sidebar, 0.0, max, true) {
+            Some(Split::Hide) => self.show_sidebar = false,
+            Some(Split::Resize(_)) => self.show_sidebar = true,
+            None => {}
+        }
+        let max = (area.width() - others(self, "navigator")).max(0.0);
+        let rect = navigator_rect.unwrap_or(Rect::from_x_y_ranges(area.right() - GRIP_HIDDEN..=area.right(), area.y_range()));
+        match self.splitter(ui, "navigator", rect, Edge::Left, self.show_navigator, 0.0, max, true) {
+            Some(Split::Hide) => self.show_navigator = false,
+            Some(Split::Resize(_)) => self.show_navigator = true,
+            None => {}
+        }
+        for (id, rect) in bottoms {
+            let max = (rect.bottom() - above - 20.0).max(MIN_SPLIT);
+            if self.splitter(ui, id, rect, Edge::Top, true, 0.0, max, true) == Some(Split::Hide) {
+                match id {
+                    "validation" => self.show_validation = false,
+                    "markdown" => self.show_markdown = false,
+                    "thumbnails" => self.show_thumbnails = false,
+                    "relationships" => self.show_relationships = false,
+                    _ => self.find_results = None,
+                }
+            }
+        }
         if let Some(v) = self.pending_edit.take() {
             if self.repo.alive(v) {
                 self.edit_view(v, None);

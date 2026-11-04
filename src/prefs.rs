@@ -94,6 +94,11 @@ impl App {
         self.show_thumbnails = p.bool("view.diagramThumbnails.visibility", false);
         self.show_minimap = p.bool("view.minimap.visibility", true);
         self.show_markdown = p.bool("view.markdown.visibility", false);
+        for (id, _) in crate::splitter::PANELS {
+            if let Some(s) = p.get(&format!("_viewState.{id}.size")).and_then(|v| v.as_f64()) {
+                self.panel_sizes.insert(id.to_string(), s as f32);
+            }
+        }
     }
 
     /// Record the current settings; the file is written only when they changed.
@@ -119,6 +124,9 @@ impl App {
         ];
         for (k, v) in vals {
             self.prefs.set(k, v);
+        }
+        for (id, size) in &self.panel_sizes {
+            self.prefs.set(&format!("_viewState.{id}.size"), json!(size.round()));
         }
         if let Some(ws) = self.window_state.clone() {
             self.prefs.set("windowState.main", ws);

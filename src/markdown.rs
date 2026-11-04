@@ -219,7 +219,7 @@ impl App {
                 } else {
                     let r = ui.add_enabled(
                         subject.is_some(),
-                        egui::TextEdit::multiline(&mut self.md_buf).code_editor().desired_width(f32::INFINITY).desired_rows(8),
+                        egui::TextEdit::multiline(&mut self.md_buf).code_editor().desired_width(f32::INFINITY).min_size(egui::vec2(0.0, (ui.available_height() - 8.0).max(40.0))),
                     );
                     self.md_editing = r.has_focus();
                     if let (true, Some(e)) = (r.lost_focus(), subject) {

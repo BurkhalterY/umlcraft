@@ -187,6 +187,10 @@ pub struct App {
     pub problems: Vec<crate::validate::Problem>,
     pub validated: bool,
     pub show_validation: bool,
+    /// Panel sizes changed by dragging a splitter (see splitter.rs).
+    pub panel_sizes: std::collections::HashMap<String, f32>,
+    /// The splitter being dragged: its panel, the size it started at and how far it has moved.
+    pub split_drag: Option<(&'static str, f32, f32)>,
     /// View > Relationships: the panel under the diagram (view.relationships.visibility).
     pub show_relationships: bool,
     /// View > Diagram Thumbnails: the panel under the diagram (view.diagramThumbnails.visibility).
@@ -302,6 +306,8 @@ impl App {
             problems: vec![],
             validated: false,
             show_validation: false,
+            panel_sizes: Default::default(),
+            split_drag: None,
             show_relationships: false,
             show_thumbnails: false,
             show_minimap: true,
