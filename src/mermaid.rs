@@ -473,7 +473,12 @@ impl App {
                 }
             });
             egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
-                ui.add(egui::TextEdit::multiline(&mut code).code_editor().desired_width(520.0).desired_rows(18));
+                let mut layouter = |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap: f32| {
+                    let mut job = highlight(text.as_str());
+                    job.wrap.max_width = wrap;
+                    ui.fonts_mut(|f| f.layout_job(job))
+                };
+                ui.add(egui::TextEdit::multiline(&mut code).code_editor().layouter(&mut layouter).desired_width(520.0).desired_rows(18));
             });
             ui.horizontal(|ui| {
                 ok = ui.button("OK").clicked();
@@ -495,4 +500,65 @@ impl App {
             self.mermaid_code = Some(code);
         }
     }
+}
+
+/// Mermaid source with colours, for the dialog: `%%` comments, quoted strings, `<<stereotypes>>`,
+/// relationship arrows and the keywords (the original uses a CodeMirror mode; the colours are UMLCraft's).
+pub fn highlight(text: &str) -> egui::text::LayoutJob {
+    use egui::{text::TextFormat, Color32, FontId};
+    let mono = FontId::monospace(12.0);
+    let fmt = |c: Color32| TextFormat { font_id: mono.clone(), color: c, ..Default::default() };
+    let (plain, keyword, arrow, comment, string) =
+        (crate::ui::TEXT(), Color32::from_rgb(0x4f, 0x99, 0xff), Color32::from_rgb(0xd8, 0xa0, 0x3c), Color32::from_gray(0x80), Color32::from_rgb(0x8f, 0xbf, 0x6f));
+    const KEYWORDS: [&str; 12] = ["classDiagram", "classDiagram-v2", "class", "direction", "note", "for", "namespace", "TB", "BT", "LR", "RL", "TD"];
+    let mut job = egui::text::LayoutJob::default();
+    let mut rest = text;
+    while !rest.is_empty() {
+        // a comment runs to the end of the line
+        if rest.starts_with("%%") {
+            let end = rest.find('\n').unwrap_or(rest.len());
+            job.append(&rest[..end], 0.0, fmt(comment));
+            rest = &rest[end..];
+            continue;
+        }
+        for (open, close, color) in [("\"", "\"", string), ("<<", ">>", keyword)] {
+            if rest.starts_with(open) {
+                if let Some(k) = rest[open.len()..].find(close) {
+                    let end = open.len() + k + close.len();
+                    job.append(&rest[..end], 0.0, fmt(color));
+                    rest = &rest[end..];
+                }
+            }
+        }
+        if rest.is_empty() {
+            break;
+        }
+        let c = rest.chars().next().unwrap_or(' ');
+        // an arrow: a run of < > | * o . - characters, two or more, with a - or ..
+        if "<>|*.-".contains(c) {
+            let end = rest.find(|x: char| !"<>|*o.-".contains(x)).unwrap_or(rest.len());
+            let run = &rest[..end];
+            // a lone "-" is a visibility, not an arrow
+            let is_arrow = run.chars().count() >= 2 && (run.contains('-') || run.contains(".."));
+            job.append(run, 0.0, fmt(if is_arrow { arrow } else { plain }));
+            rest = &rest[end..];
+            continue;
+        }
+        if rest.starts_with("classDiagram-v2") {
+            job.append("classDiagram-v2", 0.0, fmt(keyword));
+            rest = &rest["classDiagram-v2".len()..];
+            continue;
+        }
+        if c.is_alphanumeric() || c == '_' {
+            let end = rest.find(|x: char| !(x.is_alphanumeric() || x == '_')).unwrap_or(rest.len());
+            let word = &rest[..end];
+            job.append(word, 0.0, fmt(if KEYWORDS.contains(&word) { keyword } else { plain }));
+            rest = &rest[end..];
+            continue;
+        }
+        let end = c.len_utf8();
+        job.append(&rest[..end], 0.0, fmt(plain));
+        rest = &rest[end..];
+    }
+    job
 }

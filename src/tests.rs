@@ -3676,3 +3676,15 @@ fn markdown_highlight_keeps_the_text() {
         assert_eq!(highlight(s).text, s);
     }
 }
+
+#[test]
+fn mermaid_highlight_keeps_the_text() {
+    use crate::mermaid::{highlight, SAMPLE};
+    for src in [SAMPLE, "classDiagram-v2\nA-->B\n%% note\nclass X~T~ {\n <<interface>>\n +\"s\"\n}\n", "<<", "\"", "%%", "é<|--ü", "o--", ""] {
+        assert_eq!(highlight(src).text, src);
+    }
+    let job = highlight("A <|-- B");
+    let at = job.text.find("<|--").unwrap();
+    let sec = job.sections.iter().find(|s| s.byte_range.start.0 <= at && at < s.byte_range.end.0).unwrap();
+    assert_ne!(sec.format.color, job.sections[0].format.color, "the arrow is coloured");
+}
