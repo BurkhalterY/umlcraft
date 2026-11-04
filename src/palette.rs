@@ -213,12 +213,7 @@ impl App {
             return;
         }
         match id {
-            "application:new" => {
-                if self.confirm_discard(&ms) {
-                    self.save_working_diagrams();
-                    self.set_project(crate::model::Repo::blank(), None);
-                }
-            }
+            "application:new" => self.cmd_new(&ms),
             "project:open" => {
                 if self.confirm_discard(&ms) {
                     if let Some(p) = rfd::FileDialog::new().set_title("Open Model").add_filter("Models", &["mdj"]).pick_file() {

@@ -2078,10 +2078,12 @@ impl App {
         }
     }
 
-    fn cmd_new(&mut self, ms: &EguiMeasure) {
+    /// File > New: a blank project, after the unsaved-changes prompt; the working file is forgotten.
+    pub(crate) fn cmd_new(&mut self, ms: &EguiMeasure) {
         if self.confirm_discard(ms) {
             self.save_working_diagrams();
             self.set_project(crate::model::Repo::blank(), None);
+            self.set_working_file(None);
         }
     }
 

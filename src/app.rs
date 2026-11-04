@@ -392,6 +392,7 @@ impl App {
             Ok(repo) => {
                 self.save_working_diagrams();
                 self.add_recent(&p);
+                self.set_working_file(Some(&p));
                 self.set_project(repo, Some(p));
                 self.restore_working_diagrams();
                 self.auto_validate();

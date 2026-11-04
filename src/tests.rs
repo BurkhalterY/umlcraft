@@ -1521,6 +1521,21 @@ fn recent_files() {
         a.add_recent(&dir.join(format!("f{i}.mdj")));
     }
     assert_eq!(a.recent_files().len(), 10);
+    // the working file is the last one opened, not saved, and reopens at launch when asked to
+    assert!(a.working_file().unwrap().ends_with("one.mdj"));
+    a.prefs.set("general.working-file", json!(true));
+    a.prefs.flush();
+    let mut b = App::new(None);
+    b.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
+    b.auto_load_working_file();
+    assert!(b.filename.as_ref().unwrap().ends_with("one.mdj"));
+    // New forgets it
+    b.cmd_new(&ms);
+    assert_eq!(b.working_file(), None);
+    let mut c = App::new(None);
+    c.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
+    c.auto_load_working_file();
+    assert_eq!(c.filename, None);
     let _ = std::fs::remove_dir_all(&dir);
 }
 

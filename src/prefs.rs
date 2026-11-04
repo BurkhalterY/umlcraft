@@ -505,12 +505,25 @@ impl App {
         true
     }
 
-    /// "Auto load working file": with no file given, the most recent file opens at launch.
+    /// The working file: the last project opened from a file, kept as `__working_filename`; New
+    /// forgets it (app-context.js:979-982, default-commands.js:114).
+    pub fn working_file(&self) -> Option<PathBuf> {
+        self.prefs.get("__working_filename").and_then(|v| v.as_str()).filter(|s| !s.is_empty()).map(PathBuf::from)
+    }
+
+    pub fn set_working_file(&mut self, p: Option<&std::path::Path>) {
+        let v = p.map(|p| json!(std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf()).display().to_string())).unwrap_or(Value::Null);
+        self.prefs.set("__working_filename", v);
+        self.prefs.flush();
+    }
+
+    /// "Auto load working file": with no file given, the working file opens at launch
+    /// (app-context.js:688-728).
     pub fn auto_load_working_file(&mut self) {
         if !self.pref("general.working-file").as_bool().unwrap_or(false) {
             return;
         }
-        if let Some(f) = self.recent_files().into_iter().find(|f| f.exists()) {
+        if let Some(f) = self.working_file().filter(|f| f.exists()) {
             self.open_path(f);
         }
     }
