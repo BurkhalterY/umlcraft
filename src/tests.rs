@@ -4712,3 +4712,19 @@ fn a_state_adds_a_choice_with_two_branches() {
     assert_eq!(a.repo.f(p, "top"), 190.0, "50 px below the state");
     assert_eq!(a.selection, vec![p]);
 }
+
+#[test]
+fn a_state_machine_dropped_on_a_statechart_is_a_submachine_state() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let other = a.change(|a| a.add_model(root, "UMLStateMachine"));
+    a.open_diagram(d);
+    assert!(a.can_drop_model(other));
+    let vs = a.drop_model(other, crate::views::P { x: 100.0, y: 100.0 }).unwrap();
+    let s = a.repo.refd(vs[0], "model").unwrap();
+    assert_eq!(a.repo.ty(s), "UMLState");
+    assert_eq!(a.repo.refd(s, "submachine"), Some(other));
+    let sm = a.repo.parent(d).unwrap();
+    assert_eq!(a.repo.parent(s), Some(a.repo.list(sm, "regions")[0]));
+}

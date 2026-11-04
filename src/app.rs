@@ -938,7 +938,7 @@ impl App {
                 "UMLEnumerationLiteral", "UMLCollaborationUse", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
             ],
             "UMLObjectDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier", "UMLInstance", "UMLSlot", "UMLDependency", "UMLLink"],
-            "UMLStatechartDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLVertex", "UMLTransition"],
+            "UMLStatechartDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLVertex", "UMLTransition", "UMLStateMachine"],
             "UMLUseCaseDiagram" => vec![
                 "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
@@ -955,7 +955,7 @@ impl App {
         }
         let ty = self.repo.ty(m);
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
-        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLStateMachine" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
@@ -988,6 +988,21 @@ impl App {
         // a constraint gets its view and links to its owner's boxes (factory.js:899-918)
         if ty == "UMLConstraint" {
             let v = self.change(|a| Some(a.place_constraint(d, m, p)));
+            return Ok(v.into_iter().collect());
+        }
+        // a state machine dropped on a statechart becomes a submachine state that refers to it
+        // (uml-factory.js:3407)
+        if ty == "UMLStateMachine" {
+            let v = self.change(|a| {
+                let (w, h) = views::default_size("UMLState");
+                let v = a.create_node("UMLState", views::R { x: p.x, y: p.y, w, h })?;
+                let s = a.repo.refd(v, "model")?;
+                a.repo.set_ref(s, "submachine", Some(m));
+                Some(v)
+            });
+            if let Some(s) = v.and_then(|v| self.repo.refd(v, "model")) {
+                self.reveal(s);
+            }
             return Ok(v.into_iter().collect());
         }
         if views::node_kind(&ty).is_none() {
