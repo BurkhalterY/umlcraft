@@ -1018,6 +1018,10 @@ impl App {
                 }
                 if let Some(v) = view {
                     self.select(vec![v]);
+                    // the new element shows in the explorer, its owners expanded (app-context.js:837-848)
+                    if let Some(m) = self.repo.refd(v, "model") {
+                        self.reveal(m);
+                    }
                     self.pending_edit = Some(v);
                 }
             }
@@ -1027,6 +1031,9 @@ impl App {
                     if self.can_connect(&tool, tail, head) {
                         if let Some(v) = self.change(|a| a.create_edge(&tool, tail, head)) {
                             self.select(vec![v]);
+                            if let Some(m) = self.repo.refd(v, "model") {
+                                self.reveal(m);
+                            }
                             // its name edit opens, once the line is laid out (toolbox-view.js:196-208)
                             if self.repo.has(v, "model") {
                                 self.pending_edit = Some(v);

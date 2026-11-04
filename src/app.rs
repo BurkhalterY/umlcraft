@@ -854,6 +854,8 @@ impl App {
         let name = self.new_name(target, ty);
         let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
         self.open_diagram(d);
+        // selected and scrolled to in the explorer (app-context.js:941-944)
+        self.reveal(d);
         d
     }
 

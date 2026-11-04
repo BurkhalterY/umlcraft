@@ -162,6 +162,9 @@ impl App {
             Some(n)
         })?;
         self.select(vec![new]);
+        if let Some(m) = self.repo.refd(new, "model") {
+            self.reveal(m);
+        }
         self.pending_edit = Some(new);
         Some(new)
     }
