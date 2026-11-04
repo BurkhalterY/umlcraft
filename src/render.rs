@@ -403,6 +403,12 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
                     let size = views::view_font(r, v).1;
                     let y = b.y + nh + if rows.is_empty() { 0.0 } else { rows.len() as f64 * size + 2.0 * views::PAD };
                     c.polyline(&[P { x: b.x, y }, P { x: b.x + b.w, y }], line, false);
+                    // further regions: dashed lines splitting the state's height evenly (estimated)
+                    let n = r.list(m, "regions").iter().filter(|x| r.alive(**x)).count();
+                    for i in 1..n {
+                        let ry = b.y + b.h * i as f64 / n as f64;
+                        c.polyline(&[P { x: b.x, y: ry }, P { x: b.x + b.w, y: ry }], line, true);
+                    }
                 }
                 if !rows.is_empty() {
                     let nh = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "height")).unwrap_or(views::NAME_MIN_H);

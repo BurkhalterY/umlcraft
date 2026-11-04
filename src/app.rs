@@ -772,7 +772,7 @@ impl App {
         }
         // a statechart's states go in the first region of its state machine (uml-factory.js:2005)
         let pseudo = views::pseudostate_kind(kind);
-        if pseudo.is_some() || matches!(kind, "UMLState" | "UMLFinalState" | "CompositeState" | "SubmachineState") {
+        if pseudo.is_some() || matches!(kind, "UMLState" | "UMLFinalState" | "CompositeState" | "SubmachineState" | "OrthogonalState") {
             let region = self.statechart_region(d)?;
             let ty = if pseudo.is_some() { "UMLPseudostate" } else if kind == "UMLFinalState" { kind } else { "UMLState" };
             let name = self.new_name(region, ty);
@@ -780,7 +780,13 @@ impl App {
             if let Some(k) = pseudo {
                 self.repo.set(m, "kind", json!(k));
             }
-            if kind == "CompositeState" {
+            // a composite state has one region, an orthogonal state two
+            let regions = match kind {
+                "CompositeState" => 1,
+                "OrthogonalState" => 2,
+                _ => 0,
+            };
+            for _ in 0..regions {
                 self.repo.create("UMLRegion", &[], Some((m, "regions")));
             }
             // a submachine state comes with a new state machine of its own, with one region, next to
@@ -907,11 +913,17 @@ impl App {
             // a state or pseudostate goes in the first region of the state it is put in, or of the
             // diagram's state machine when released (uml/main.js:24-41)
             if let Some(vm) = self.repo.refd(v, "model").filter(|m| self.repo.kind_of(*m, "UMLVertex")) {
-                let region = match to.and_then(|c| self.repo.refd(c, "model")).filter(|s| self.repo.kind_of(*s, "UMLState")) {
-                    Some(s) => Some(match self.repo.list(s, "regions").into_iter().find(|x| self.repo.alive(*x)) {
-                        Some(rg) => rg,
-                        None => self.repo.create("UMLRegion", &[], Some((s, "regions"))),
-                    }),
+                let region = match to.and_then(|c| self.repo.refd(c, "model").map(|s| (c, s))).filter(|(_, s)| self.repo.kind_of(*s, "UMLState")) {
+                    Some((c, s)) => {
+                        // regions split the state's height evenly, top to bottom (estimated)
+                        let rs: Vec<Eid> = self.repo.list(s, "regions").into_iter().filter(|x| self.repo.alive(*x)).collect();
+                        let (cb, vb) = (views::node_rect(&self.repo, c), views::node_rect(&self.repo, v));
+                        let i = if rs.len() > 1 { (((vb.y - cb.y) / cb.h.max(1.0) * rs.len() as f64).floor().max(0.0) as usize).min(rs.len() - 1) } else { 0 };
+                        Some(match rs.get(i) {
+                            Some(&rg) => rg,
+                            None => self.repo.create("UMLRegion", &[], Some((s, "regions"))),
+                        })
+                    }
                     None => self.statechart_region(d),
                 };
                 if let Some(rg) = region.filter(|rg| self.repo.parent(vm) != Some(*rg)) {

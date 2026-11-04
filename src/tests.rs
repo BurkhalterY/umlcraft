@@ -4769,3 +4769,18 @@ fn the_submachine_state_tool_makes_its_state_machine() {
     assert_eq!(a.repo.list(sub, "regions").len(), 1);
     assert_ne!(Some(sub), a.repo.parent(d));
 }
+
+#[test]
+fn an_orthogonal_state_files_states_by_region() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let o = a.change(|a| a.create_node("OrthogonalState", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let om = a.repo.refd(o, "model").unwrap();
+    let rs = a.repo.list(om, "regions");
+    assert_eq!(rs.len(), 2);
+    let up = a.change(|a| a.create_node("UMLState", rect(150.0, 130.0, 80.0, 30.0))).unwrap();
+    let down = a.change(|a| a.create_node("UMLState", rect(150.0, 230.0, 80.0, 30.0))).unwrap();
+    assert_eq!(a.repo.parent(a.repo.refd(up, "model").unwrap()), Some(rs[0]));
+    assert_eq!(a.repo.parent(a.repo.refd(down, "model").unwrap()), Some(rs[1]));
+}

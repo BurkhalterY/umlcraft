@@ -265,6 +265,7 @@ const STATECHART_GROUPS: &[Group] = &[
         items: &[
             node("Composite State", "CompositeState", "state"),
             node("Submachine State", "SubmachineState", "state"),
+            node("Orthogonal State", "OrthogonalState", "state"),
             node("Junction", "Junction", "initial"),
             node("Shallow History", "ShallowHistory", "history"),
             node("Deep History", "DeepHistory", "history"),
