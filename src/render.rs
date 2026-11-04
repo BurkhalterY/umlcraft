@@ -365,6 +365,8 @@ pub enum End {
     Cross,
     /// A circle with a plus at the container's end of a containment line (radius estimated).
     CirclePlus,
+    /// A filled arrow head, a free line's "Solid Arrow" end.
+    SolidArrow,
 }
 
 const CIRCLE_PLUS_R: f64 = 7.0;
@@ -383,6 +385,7 @@ fn end_shape(c: &mut dyn Canvas, p0: P, p1: P, end: Option<End>, line: Rgba) {
     let (t1, t2) = (at(TRIANGLE_LENGTH, th - half), at(TRIANGLE_LENGTH, th + half));
     match end {
         End::Arrow => c.polyline(&[a1, p0, a2], line, false),
+        End::SolidArrow => c.polygon(&[a1, p0, a2], Some(line), Some(line)),
         End::Triangle => c.polygon(&[t1, p0, t2], Some(WHITE), Some(line)),
         End::Diamond => c.polygon(&[a1, p0, a2, tip3], Some(WHITE), Some(line)),
         End::FilledDiamond => c.polygon(&[a1, p0, a2, tip3], Some(line), Some(line)),
@@ -424,10 +427,68 @@ fn assoc_end(r: &Repo, end: Option<Eid>) -> Option<End> {
     }
 }
 
+/// The length of a dash and of the gap after it, for a free line's "Dashed" mode (estimated).
+const LONG_DASH: (f64, f64) = (8.0, 4.0);
+
+/// Draw a polyline as dashes of `on` units with `off` gaps.
+fn dashes(c: &mut dyn Canvas, pts: &[P], color: Rgba, on: f64, off: f64) {
+    let (mut in_dash, mut left) = (true, on);
+    let mut cur = vec![pts[0]];
+    for w in pts.windows(2) {
+        let (mut a, b) = (w[0], w[1]);
+        let mut seg = ((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt();
+        while seg > 0.0 {
+            let step = left.min(seg);
+            let t = step / seg;
+            let q = P { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+            if in_dash {
+                cur.push(q);
+            }
+            seg -= step;
+            left -= step;
+            a = q;
+            if left <= 0.0 {
+                if in_dash && cur.len() > 1 {
+                    c.polyline(&cur, color, false);
+                }
+                in_dash = !in_dash;
+                left = if in_dash { on } else { off };
+                cur = vec![a];
+            }
+        }
+    }
+    if in_dash && cur.len() > 1 {
+        c.polyline(&cur, color, false);
+    }
+}
+
+/// A free line: its points with the chosen pattern and end shapes (style-editor-view.js:296-319).
+fn draw_freeline(c: &mut dyn Canvas, r: &Repo, e: Eid, pts: &[P]) {
+    let line = color(r, e, "lineColor", BLACK);
+    let style = r.val(e, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(1);
+    let drawn = views::drawn_points(pts, style);
+    match r.val(e, "lineMode").and_then(|v| v.as_i64()).unwrap_or(0) {
+        1 => c.polyline(&drawn, line, true),
+        2 => dashes(c, &drawn, line, LONG_DASH.0, LONG_DASH.1),
+        _ => c.polyline(&drawn, line, false),
+    }
+    let end = |f: &str| match r.val(e, f).and_then(|v| v.as_i64()).unwrap_or(0) {
+        1 => Some(End::Arrow),
+        2 => Some(End::SolidArrow),
+        _ => None,
+    };
+    let n = pts.len();
+    end_shape(c, pts[n - 1], pts[n - 2], end("headEndStyle"), line);
+    end_shape(c, pts[0], pts[1], end("tailEndStyle"), line);
+}
+
 fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     let pts = points_of(r, e);
     if pts.len() < 2 {
         return;
+    }
+    if views::is_freeline(r, e) {
+        return draw_freeline(c, r, e, &pts);
     }
     let line = color(r, e, "lineColor", BLACK);
     let ty = r.ty(e).to_string();

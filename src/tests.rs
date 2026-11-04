@@ -3087,3 +3087,35 @@ fn reception_signal_is_a_reference() {
     a.commit_text(rc, "signal", "type", name);
     assert_eq!(a.repo.refd(rc, "signal"), Some(sm));
 }
+
+#[test]
+fn free_lines() {
+    use crate::views::P;
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let e = a.change(|a| a.create_freeline(P { x: 40.0, y: 40.0 }, P { x: 200.0, y: 120.0 })).unwrap();
+    assert_eq!(a.repo.ty(e), "FreelineEdgeView");
+    assert!(crate::views::is_edge(&a.repo, e));
+    assert!(a.broken_views(d).is_empty(), "a free line has no ends and is not broken");
+    // layout keeps its points
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(crate::views::points_of(&a.repo, e), vec![P { x: 40.0, y: 40.0 }, P { x: 200.0, y: 120.0 }]);
+    // arrow keys move it
+    a.select(vec![e]);
+    a.nudge_selection(1.0, 0.0);
+    assert_eq!(crate::views::points_of(&a.repo, e)[0], P { x: 41.0, y: 40.0 });
+    // pattern and ends are stored and drawn
+    a.repo.set(e, "lineMode", json!(2));
+    a.repo.set(e, "headEndStyle", json!(2));
+    let png = crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap();
+    let svg = String::from_utf8(png).unwrap();
+    assert!(svg.matches("<polyline").count() > 5, "dashes are drawn as pieces");
+    assert!(svg.contains("<polygon"), "a solid arrow head");
+    // saved and read back
+    let text = a.repo.serialize();
+    let b = Repo::parse(&text).unwrap();
+    let fe = b.all_of("FreelineEdgeView");
+    assert_eq!(fe.len(), 1);
+    assert_eq!(b.raw(fe[0], "lineMode"), Some(&json!(2)));
+}

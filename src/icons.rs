@@ -166,6 +166,7 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             dashed(&[(8.0, 4.0), (8.0, 9.0)], B);
             rect_at(4.5, 9.5, 7.0, 5.0, B);
         }
+        "freeline" => line(&[(2.0, 13.0), (6.0, 5.0), (10.0, 11.0), (14.0, 3.0)], W),
         "containment" => {
             line(&[(8.0, 14.0), (8.0, 7.0)], B);
             p.circle_stroke(at(8.0, 4.5), 2.5 * s, st(B));

@@ -409,6 +409,11 @@ impl App {
     fn draw_drag(&self, c: &mut ScreenCanvas) {
         let sel = c32(render::SELECT_COLOR);
         match &self.drag {
+            Some(Drag::CreateNode { start, now }) if self.tool.map(|t| t.kind == "FreeLine").unwrap_or(false) => {
+                for s in Shape::dashed_line(&[c.pos(*start), c.pos(*now)], Stroke::new(1.0, sel), 3.0, 3.0) {
+                    c.painter.add(s);
+                }
+            }
             Some(Drag::Rubber { start, now, .. }) | Some(Drag::CreateNode { start, now }) => {
                 let r = rect_of(*start, *now);
                 let pts = [
@@ -661,9 +666,15 @@ impl App {
             false
         };
         let movers: Vec<Eid> = sel.iter().copied().filter(|v| !is_edge(&self.repo, *v) && !inside_selected(self, *v)).collect();
+        let lines: Vec<Eid> = sel.iter().copied().filter(|v| views::is_freeline(&self.repo, *v)).collect();
         self.change(|a| {
             for v in movers {
                 a.shift_view(v, dx, dy);
+            }
+            // free lines move by their points
+            for e in lines {
+                let pts: Vec<P> = points_of(&a.repo, e).into_iter().map(|q| P { x: (q.x + dx).max(0.0), y: (q.y + dy).max(0.0) }).collect();
+                a.repo.set(e, "points", json!(views::format_points(&pts)));
             }
         });
     }
@@ -682,7 +693,7 @@ impl App {
             return;
         }
         if let Some(tool) = self.tool {
-            if !tool.line {
+            if !tool.line || tool.kind == "FreeLine" {
                 self.drag = Some(Drag::CreateNode { start: p, now: p });
             } else if let Some(tail) = self.hit_view(p, tool.kind != "NoteLink" && tool.kind != "AssociationClass") {
                 self.drag = Some(Drag::CreateEdge { start: p, now: p, tail });
@@ -703,7 +714,12 @@ impl App {
             if n >= 2 {
                 for (tail, q) in [(true, pts[0]), (false, pts[n - 1])] {
                     if near(q) {
-                        self.drag = Some(Drag::Reconnect { edge: e, tail, now: p });
+                        // a free line's end only moves (diagram-editor.js:1795-1797)
+                        self.drag = Some(if views::is_freeline(&self.repo, e) {
+                            Drag::Point { edge: e, index: if tail { 0 } else { n - 1 }, insert: None, changed: false }
+                        } else {
+                            Drag::Reconnect { edge: e, tail, now: p }
+                        });
                         return;
                     }
                 }
@@ -845,6 +861,9 @@ impl App {
                 if nodes.contains(&t) && nodes.contains(&h) {
                     edges.push((e, points_of(&self.repo, e)));
                 }
+            } else if views::is_freeline(&self.repo, e) && self.selection.contains(&e) {
+                // a selected free line moves with the group
+                edges.push((e, points_of(&self.repo, e)));
             }
         }
         self.drag = Some(Drag::Move { start: p, orig, edges, lead: nodes.first().copied(), changed: false, collapse: None });
@@ -928,7 +947,7 @@ impl App {
                 let moved: Vec<Eid> = orig.iter().map(|(n, _)| *n).collect();
                 self.hover = self.container_at(p, &moved);
                 for (e, pts) in edges.iter() {
-                    if pts.len() > 2 {
+                    if pts.len() > 2 || views::is_freeline(&self.repo, *e) {
                         let moved: Vec<P> = pts.iter().map(|q| P { x: q.x + dx, y: q.y + dy }).collect();
                         self.repo.set(*e, "points", json!(views::format_points(&moved)));
                     }
@@ -1050,6 +1069,21 @@ impl App {
             Drag::Rubber { .. } => {
                 let s = self.selection.clone();
                 self.select(s);
+            }
+            Drag::CreateNode { start, .. } if self.tool.map(|t| t.kind == "FreeLine").unwrap_or(false) => {
+                // a free line goes from the press to the release; a click gives a 100 px line (estimated)
+                let a = P { x: self.snap_v(start.x).max(0.0), y: self.snap_v(start.y).max(0.0) };
+                let mut b = P { x: self.snap_v(p.x).max(0.0), y: self.snap_v(p.y).max(0.0) };
+                if ((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt() < 10.0 {
+                    b = P { x: a.x + 100.0, y: a.y };
+                }
+                let v = self.change(|app| app.create_freeline(a, b));
+                if !self.tool_sticky {
+                    self.tool = None;
+                }
+                if let Some(v) = v {
+                    self.select(vec![v]);
+                }
             }
             Drag::CreateNode { start, .. } => {
                 let Some(tool) = self.tool else { return };

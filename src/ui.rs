@@ -81,7 +81,13 @@ pub struct Group {
 const ANNOTATIONS: Group = Group {
     id: "annotations",
     label: "Annotations",
-    items: &[node("Text", "Text", "text"), node("Text Box", "TextBox", "textbox"), node("Note", "Note", "note"), line("Note Link", "NoteLink", "notelink", AssocInit::Plain)],
+    items: &[
+        node("Text", "Text", "text"),
+        node("Text Box", "TextBox", "textbox"),
+        line("Free Line", "FreeLine", "freeline", AssocInit::Plain),
+        node("Note", "Note", "note"),
+        line("Note Link", "NoteLink", "notelink", AssocInit::Plain),
+    ],
 };
 const CLASS_GROUPS: &[Group] = &[
     Group {
@@ -1678,6 +1684,34 @@ impl App {
                     }
                 }
             });
+        }
+        // a free line's pattern and end shapes, when only free lines are selected (style-editor-view.js:296-319)
+        let free: Vec<Eid> = self.selection.iter().copied().filter(|v| self.repo.alive(*v)).collect();
+        if !free.is_empty() && free.iter().all(|v| views::is_freeline(&self.repo, *v)) {
+            for (field, label, options) in [
+                ("lineMode", "Line", ["Solid", "Dotted", "Dashed"]),
+                ("tailEndStyle", "Tail", ["Flat", "Stick Arrow", "Solid Arrow"]),
+                ("headEndStyle", "Head", ["Flat", "Stick Arrow", "Solid Arrow"]),
+            ] {
+                let vals: Vec<i64> = free.iter().map(|v| self.repo.val(*v, field).and_then(|x| x.as_i64()).unwrap_or(0)).collect();
+                let cur = vals.iter().all(|x| *x == vals[0]).then_some(vals[0]);
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(label).size(12.0).color(DIM()));
+                    let shown = cur.and_then(|c| options.get(c as usize)).copied().unwrap_or("");
+                    egui::ComboBox::from_id_salt(("freeline", field)).selected_text(egui::RichText::new(shown).size(12.0)).width(110.0).show_ui(ui, |ui| {
+                        for (i, o) in options.iter().enumerate() {
+                            if ui.selectable_label(cur == Some(i as i64), *o).clicked() {
+                                let vs = free.clone();
+                                self.change(|a| {
+                                    for v in vs {
+                                        a.repo.set(v, field, json!(i));
+                                    }
+                                });
+                            }
+                        }
+                    });
+                });
+            }
         }
         if self.selection.iter().any(|v| self.repo.alive(*v) && views::is_edge(&self.repo, *v)) {
             ui.horizontal(|ui| {

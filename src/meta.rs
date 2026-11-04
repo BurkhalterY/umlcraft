@@ -42,6 +42,9 @@ fn build() -> HashMap<&'static str, Kind> {
     ]);
     def("NodeView", Some("View"), vec![("left", d(json!(0))), ("top", d(json!(0))), ("width", d(json!(0))), ("height", d(json!(0))), ("autoResize", d(json!(false)))]);
     def("EdgeView", Some("View"), vec![("head", n()), ("tail", n()), ("lineStyle", d(json!(0))), ("points", n())]);
+    // a free line: points only; line mode 0 solid, 1 dotted, 2 dashed and end styles 0 flat, 1 stick
+    // arrow, 2 solid arrow (style-editor-view.js:296-319; the values are estimated)
+    def("FreelineEdgeView", Some("EdgeView"), vec![("lineMode", d(json!(0))), ("tailEndStyle", d(json!(0))), ("headEndStyle", d(json!(0)))]);
     let label_attrs = || vec![("underline", d(json!(false))), ("text", d(json!(""))), ("horizontalAlignment", d(json!(2))), ("verticalAlignment", d(json!(5))), ("wordWrap", d(json!(false)))];
     def("LabelView", Some("NodeView"), label_attrs());
     def("ParasiticView", Some("NodeView"), vec![("alpha", n()), ("distance", n())]);

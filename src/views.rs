@@ -238,6 +238,10 @@ pub fn node_rect(r: &Repo, v: Eid) -> R {
 pub fn is_edge(r: &Repo, v: Eid) -> bool {
     r.has(v, "points") || (r.has(v, "head") && r.has(v, "tail"))
 }
+/// A free line: a line drawn on its own, joined to no box.
+pub fn is_freeline(r: &Repo, v: Eid) -> bool {
+    r.ty(v) == "FreelineEdgeView"
+}
 pub fn is_node(r: &Repo, v: Eid) -> bool {
     !is_edge(r, v) && (r.has(v, "left") || r.has(v, "width"))
 }

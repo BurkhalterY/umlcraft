@@ -566,6 +566,15 @@ impl App {
         d.and_then(|d| self.repo.parent(d)).unwrap_or(self.repo.root)
     }
 
+    /// A free line from `a` to `b` on the current diagram (common-factory.js:32-44).
+    pub fn create_freeline(&mut self, a: P, b: P) -> Option<Eid> {
+        let d = self.diagram?;
+        let props = [("font", json!(views::FONT)), ("lineStyle", json!(1)), ("points", json!(views::format_points(&[a, b])))];
+        let v = self.repo.create("FreelineEdgeView", &props, Some((d, "ownedViews")));
+        self.apply_view_defaults(v);
+        Some(v)
+    }
+
     pub fn create_node(&mut self, kind: &str, rect: R) -> Option<Eid> {
         let d = self.diagram?;
         if kind == "Note" || kind == "Text" || kind == "TextBox" {
@@ -1189,7 +1198,8 @@ impl App {
                 if dangling(v, "model") || (needs_model && !r.has(v, "model") && crate::meta::known(ty)) {
                     return true;
                 }
-                if views::is_edge(r, v) {
+                // a free line has no ends to lose
+                if views::is_edge(r, v) && !views::is_freeline(r, v) {
                     if r.refd(v, "tail").is_none() || r.refd(v, "head").is_none() || dangling(v, "tail") || dangling(v, "head") {
                         return true;
                     }
