@@ -42,6 +42,7 @@ returned nothing).
 | Points | text `x:y;x:y;…` | `src/core/graphics.js:840` |
 | Id | base64 of 14 bytes: 2 zero bytes, 8-byte ms timestamp, 2-byte counter, 2-byte random | `src/core/core.js:150` IdGenerator.generate; observed `AAAAAAGhohI4jHit75s=` |
 | New project | Project "Untitled" › UMLModel "Model" › UMLClassDiagram "Main" (defaultDiagram) | `resources/templates/Default.mdj` |
+| Older files | a project with `documentVersion` below 1 (or none) is migrated on load: use case subject views go to the back of their diagram | `src/engine/document-compatibility-resolver.js:25-41` |
 | Unknown element kinds | kept exactly as read and written back unchanged (UMLCraft rule) | — |
 
 ## Where things go

@@ -330,6 +330,7 @@ impl App {
     // ------------------------------------------------------------ project
     pub fn set_project(&mut self, repo: Repo, filename: Option<PathBuf>) {
         self.repo = repo;
+        self.migrate();
         self.filename = filename;
         self.modified = false;
         self.undo.clear();
@@ -360,6 +361,23 @@ impl App {
         for (_, c) in self.repo.children(root) {
             self.expanded.insert(c);
         }
+    }
+
+    /// Bring a project older than documentVersion 1 up to date: every use case subject goes to the
+    /// back of its diagram (document-compatibility-resolver.js:25-41).
+    fn migrate(&mut self) {
+        let root = self.repo.root;
+        if self.repo.ty(root) != "Project" || self.repo.f(root, "documentVersion") >= DOCUMENT_VERSION as f64 {
+            return;
+        }
+        for d in self.repo.all_of("Diagram") {
+            let views = self.repo.list(d, "ownedViews");
+            let (back, front): (Vec<Eid>, Vec<Eid>) = views.iter().partition(|v| self.repo.ty(**v) == "UMLUseCaseSubjectView");
+            if !back.is_empty() {
+                self.repo.set_list(d, "ownedViews", back.into_iter().chain(front).collect());
+            }
+        }
+        self.repo.set(root, "documentVersion", json!(DOCUMENT_VERSION));
     }
 
     /// The window title: "• " when modified, "<file name> — " when there is a file, then the app name

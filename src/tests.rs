@@ -2840,3 +2840,32 @@ fn undo_keeps_100_operations() {
     }
     assert_eq!(a.undo.len(), 100);
 }
+
+#[test]
+fn old_projects_send_subjects_to_the_back() {
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    a.change(|a| a.create_node("UMLUseCase", rect(40.0, 40.0, 100.0, 40.0)));
+    let s = a.change(|a| a.create_node("UMLUseCaseSubject", rect(10.0, 10.0, 300.0, 300.0))).unwrap();
+    // put the subject in front, as an old file could have it, and drop the version
+    let mut vs = a.repo.list(d, "ownedViews");
+    vs.retain(|v| *v != s);
+    vs.push(s);
+    a.repo.set_list(d, "ownedViews", vs);
+    let mut v: Value = serde_json::from_str(&a.repo.serialize()).unwrap();
+    v.as_object_mut().unwrap().remove("documentVersion");
+    let sid = a.repo.id(s).to_string();
+    let mut b = App::new(None);
+    b.set_project(Repo::parse(&v.to_string()).unwrap(), None);
+    let d = b.diagram.unwrap();
+    assert_eq!(b.repo.id(b.repo.list(d, "ownedViews")[0]), sid);
+    assert_eq!(b.repo.f(b.repo.root, "documentVersion"), 1.0);
+    assert!(!b.modified);
+    // a current project keeps its order
+    let mut v2: Value = serde_json::from_str(&a.repo.serialize()).unwrap();
+    v2["documentVersion"] = json!(1);
+    let mut c = App::new(None);
+    c.set_project(Repo::parse(&v2.to_string()).unwrap(), None);
+    let d = c.diagram.unwrap();
+    assert_eq!(c.repo.id(*c.repo.list(d, "ownedViews").last().unwrap()), sid);
+}
