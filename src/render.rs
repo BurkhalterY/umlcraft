@@ -228,6 +228,18 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             shadow_ellipse(c, r, v, ctr, b.w / 2.0, b.h / 2.0);
             c.ellipse(ctr, b.w / 2.0, b.h / 2.0, Some(fill), Some(line));
             draw_name(c, r, v);
+            // extension points: a chord under the name, then one row each
+            if let Some(i) = info {
+                let (rx, ry) = (b.w / 2.0, b.h / 2.0);
+                for comp in &i.compartments {
+                    let k = ((comp.y - ctr.y) / ry).clamp(-1.0, 1.0);
+                    let dx = rx * (1.0 - k * k).sqrt();
+                    c.polyline(&[P { x: ctr.x - dx, y: comp.y }, P { x: ctr.x + dx, y: comp.y }], line, false);
+                    for row in &comp.rows {
+                        draw_label(c, r, row.iv, fc);
+                    }
+                }
+            }
             return;
         }
         "package" => {

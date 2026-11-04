@@ -1059,6 +1059,7 @@ impl App {
             "UMLAttribute" => "attributes",
             "UMLOperation" => "operations",
             "UMLReception" => "receptions",
+            "UMLExtensionPoint" => "extensionPoints",
             "UMLEnumerationLiteral" => "literals",
             "UMLParameter" => "parameters",
             "UMLTemplateParameter" => "templateParameters",
@@ -1073,6 +1074,7 @@ impl App {
         match ty {
             "UMLEnumerationLiteral" => t == "UMLEnumeration",
             "UMLParameter" => t == "UMLOperation",
+            "UMLExtensionPoint" => t == "UMLUseCase",
             // template parameters on classes, interfaces and the other boxes with compartments
             "UMLTemplateParameter" => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase" && t != "UMLEnumeration",
             _ => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase",

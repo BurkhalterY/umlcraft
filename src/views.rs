@@ -533,6 +533,12 @@ pub fn template_parameter_text(r: &Repo, t: Eid) -> String {
     s
 }
 
+/// An extension point's line: its name, then ": location" when it has one (estimated).
+pub fn extension_point_text(r: &Repo, x: Eid) -> String {
+    let loc = r.str(x, "location");
+    if loc.is_empty() { r.name(x) } else { format!("{}: {loc}", r.name(x)) }
+}
+
 /// A reception's line: its stereotype (or «signal»), visibility and name (UML 2; the exact form is
 /// estimated for StarUML).
 pub fn reception_text(r: &Repo, x: Eid, show: Show) -> String {
@@ -864,17 +870,36 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     }
     if ty == "UMLUseCase" {
         hide_all(r);
-        let nw = name_min_width(r, ms, v, m, None, false);
+        // extension points, listed under the name inside the ellipse (layout estimated)
+        let items = r.list(m, "extensionPoints");
+        let ext = match r.refd(v, "extensionPointCompartment") {
+            Some(xc) if !items.is_empty() => {
+                r.remove(xc, "visible");
+                let texts: Vec<String> = items.iter().map(|x| extension_point_text(r, *x)).collect();
+                let (w, h, rows) = sync_list(r, ms, xc, &items, "UMLExtensionPointView", &texts, false);
+                Some((xc, w, h, rows))
+            }
+            _ => None,
+        };
+        let nw = name_min_width(r, ms, v, m, None, false).max(ext.as_ref().map(|e| e.1).unwrap_or(0.0));
+        let inner_h = NAME_MIN_H + ext.as_ref().map(|e| e.2).unwrap_or(0.0);
         let min_w = (std::f64::consts::SQRT_2 * nw).floor().max(UC_MIN_W);
-        let min_h = (std::f64::consts::SQRT_2 * NAME_MIN_H).floor().max(UC_MIN_H);
+        let min_h = (std::f64::consts::SQRT_2 * inner_h).floor().max(UC_MIN_H);
         grow(r, v, min_w, min_h);
         let (x, y, w, h) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"), r.f(v, "height"));
         let cw = (w / std::f64::consts::SQRT_2).floor();
-        layout_name(r, ms, v, m, x + (w - cw) / 2.0, y + (h - NAME_MIN_H) / 2.0, cw, None, false);
+        let ny = y + (h - inner_h) / 2.0;
+        layout_name(r, ms, v, m, x + (w - cw) / 2.0, ny, cw, None, false);
         if let Some(nc) = r.refd(v, "nameCompartment") {
             r.set(nc, "width", num(cw));
         }
-        return Info { shape: "usecase", ..Default::default() };
+        let mut compartments = vec![];
+        if let Some((xc, _, eh, rows)) = ext {
+            let cy = ny + NAME_MIN_H;
+            place_list(r, ms, xc, x + (w - cw) / 2.0, cy, cw, eh, &rows);
+            compartments.push(Comp { y: cy, rows });
+        }
+        return Info { shape: "usecase", compartments, ..Default::default() };
     }
 
     // box form: name, [literals], attributes, operations

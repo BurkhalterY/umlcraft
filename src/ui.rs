@@ -392,7 +392,7 @@ impl App {
         if self.repo.kind_of(e, "UMLModelElement") {
             adds.push(("Constraint", "UMLConstraint", false));
         }
-        for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter")] {
+        for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter")] {
             if self.can_add_feature(e, k) {
                 adds.push((l, k, true));
             }
@@ -714,6 +714,7 @@ impl App {
             "UMLParameter" => vec![("name", "text"), ("stereotype", "text"), ("type", "type"), ("multiplicity", "text"), ("defaultValue", "text"), ("direction", "enum")],
             "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
             // a reception names the signal it receives (uml-commands.js:1484)
+            "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
             "UMLReception" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("signal", "type")],
             "UMLAssociationEnd" => end(""),
             _ if r.kind_of(e, "UMLClassifier") => {

@@ -1330,6 +1330,7 @@ impl App {
         match ty {
             "UMLOperation" => Some("suppressOperations"),
             "UMLReception" => Some("suppressReceptions"),
+            "UMLExtensionPoint" => None,
             "UMLEnumerationLiteral" => Some("suppressLiterals"),
             "UMLTemplateParameter" => None,
             _ => Some("suppressAttributes"),
@@ -1365,7 +1366,12 @@ impl App {
         };
         match (key, item) {
             (ItemKey::Add, None) => {
-                let ty = if self.repo.ty(m) == "UMLEnumeration" { "UMLEnumerationLiteral" } else { "UMLAttribute" };
+                // a literal on an enumeration, an extension point on a use case (quickedits/uml.json)
+                let ty = match self.repo.ty(m) {
+                    "UMLEnumeration" => "UMLEnumerationLiteral",
+                    "UMLUseCase" => "UMLExtensionPoint",
+                    _ => "UMLAttribute",
+                };
                 self.add_item(host, m, ty);
             }
             (ItemKey::Add, Some(f)) => {
@@ -1446,6 +1452,11 @@ impl App {
                     self.change(|a| {
                         if ty == "UMLOperation" {
                             crate::parse::apply_operation(&mut a.repo, f, &e.text);
+                        } else if ty == "UMLExtensionPoint" {
+                            // "name: location"
+                            let (n, loc) = e.text.split_once(':').unwrap_or((&e.text, ""));
+                            a.repo.set(f, "name", json!(n.trim()));
+                            a.repo.set(f, "location", json!(loc.trim()));
                         } else if ty == "UMLReception" {
                             crate::parse::apply_name(&mut a.repo, f, &e.text);
                         } else if ty == "UMLTemplateParameter" {

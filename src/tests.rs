@@ -3159,3 +3159,31 @@ fn constraints() {
     assert_eq!(a.repo.ty(vs[0]), "UMLConstraintView");
     assert_eq!(a.repo.list(d2, "ownedViews").iter().filter(|x| a.repo.ty(**x) == "UMLConstraintLinkView").count(), 1);
 }
+
+#[test]
+fn use_case_extension_points() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.add_diagram(None, "UMLUseCaseDiagram");
+    let v = a.change(|a| a.create_node("UMLUseCase", rect(40.0, 40.0, 120.0, 40.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let h0 = a.repo.f(v, "height");
+    // Ctrl+Enter on the name adds an extension point and edits it
+    a.item_key(v, EditKind::Name(m), ItemKey::Add);
+    let xp = a.repo.list(m, "extensionPoints")[0];
+    assert_eq!(a.repo.ty(xp), "UMLExtensionPoint");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.repo.f(v, "height") > h0, "the ellipse grows");
+    assert_eq!(a.info.get(&v).unwrap().compartments.len(), 1);
+    // "name: location" sets both
+    a.edit_item(v, xp);
+    a.editing.as_mut().unwrap().text = "Help: after login".into();
+    a.close_inline(true);
+    assert_eq!((a.repo.name(xp).as_str(), a.repo.str(xp, "location").as_str()), ("Help", "after login"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let row = a.info.get(&v).unwrap().compartments[0].rows[0].iv;
+    assert_eq!(a.repo.str(row, "text"), "Help: after login");
+}
