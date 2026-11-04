@@ -169,18 +169,18 @@ Taken from the extracted source under `staruml/app/src`. Paths are relative to `
 
 ## Command Palette
 
-- **Open** — `view:command-palette` (Ctrl+Shift+P) shows a centred input with the placeholder "Search commands..." and focuses it. (ui/command-palette.js:101-131; engine/default-commands.js:1035-1037) — **UMLCraft:** ✅ present Ctrl+Shift+P and View › Command Palette show a box at the top centre with "Search commands..." and focus it (src/palette.rs:317-391; src/ui.rs:2000)
+- **Open** — `view:command-palette` (Ctrl+Shift+P) shows a centred input with the placeholder "Search commands..." and focuses it. (ui/command-palette.js:101-131; engine/default-commands.js:1035-1037) — **UMLCraft:** ✅ present Ctrl+Shift+P and View › Command Palette show a box at the top centre with "Search commands..." and focus it (src/palette.rs:317-405; src/ui.rs:2000)
 - **What is listed** — Only commands registered with a display name appear. Each row shows the name and its shortcut, formatted for the platform. (ui/command-palette.js:46-81,113) — **UMLCraft:** 🟡 partial UMLCraft's commands with a display name, each with its shortcut as text (not formatted per platform) (src/palette.rs:36-135)
 - **Matching** — The match is a case-insensitive substring of the command id or the display name. It is not fuzzy. (ui/command-palette.js:53-55) — **UMLCraft:** ✅ present a case-insensitive substring of the command id or the name (src/palette.rs:138-141)
-- **Run** — Picking an entry closes the palette and runs the command 200 ms later. (ui/command-palette.js:106-112) — **UMLCraft:** ✅ present picking a row (click or Enter, Up/Down to move) closes the palette and runs the command on the next frame (src/palette.rs:376-389; src/ui.rs:2730-2733)
-- **Dismiss** — Esc or losing focus closes the palette and clears the input. (ui/command-palette.js:117-137) — **UMLCraft:** ✅ present Esc or a click elsewhere closes it; the text is not kept (src/palette.rs:372-375)
+- **Run** — Picking an entry closes the palette and runs the command 200 ms later. (ui/command-palette.js:106-112) — **UMLCraft:** ✅ present picking a row (click or Enter, Up/Down to move) closes the palette and runs the command on the next frame (src/palette.rs:390-403; src/ui.rs:2730-2733)
+- **Dismiss** — Esc or losing focus closes the palette and clears the input. (ui/command-palette.js:117-137) — **UMLCraft:** ✅ present Esc or a click elsewhere closes it; the text is not kept (src/palette.rs:386-389)
 
 ## Quick Find
 
 - **Open** — `view:quick-find` (Ctrl+P) shows an input with the placeholder "Find models, views and diagrams...". (ui/quick-find.js:100-104,152-155) — **UMLCraft:** ✅ present Ctrl+P and View › Quick Find show "Find models, views and diagrams..." (src/palette.rs:317-326; src/ui.rs:2129)
-- **Results** — The match is a case-insensitive substring of element names, capped at 99 models. Each model is followed by one row per view of it on a diagram, and that row shows the diagram's icon and name. Model rows show " — namespace". (ui/quick-find.js:46-81,121-137) — **UMLCraft:** 🟡 partial names containing the text, at most 99 models, each followed by a row per view "in <diagram>"; model rows show " — namespace". No diagram icons (src/palette.rs:153-173, 329-342)
+- **Results** — The match is a case-insensitive substring of element names, capped at 99 models. Each model is followed by one row per view of it on a diagram, and that row shows the diagram's icon and name. Model rows show " — namespace". (ui/quick-find.js:46-81,121-137) — **UMLCraft:** ✅ present names containing the text, at most 99 models, each with its icon and " — namespace", followed by an indented row per view "in <diagram>" with the diagram's icon (src/palette.rs:153-173, 177-186, 367-381)
 - **Jump** — Picking a model selects it in Model Explorer, and also opens it when it is a diagram. Picking a view selects its model in the explorer and selects the view in its diagram. (ui/quick-find.js:105-120) — **UMLCraft:** ✅ present a model is revealed and selected in Model Explorer and opened when it is a diagram; a view opens its diagram and is selected there (src/palette.rs:175-191)
-- **Dismiss** — Esc or losing focus closes Quick Find and clears it. (ui/quick-find.js:141-160) — **UMLCraft:** ✅ present Esc or a click elsewhere closes it (src/palette.rs:372-375)
+- **Dismiss** — Esc or losing focus closes Quick Find and clears it. (ui/quick-find.js:141-160) — **UMLCraft:** ✅ present Esc or a click elsewhere closes it (src/palette.rs:386-389)
 
 ## Keyboard shortcut resolution (KeymapManager)
 

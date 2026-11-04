@@ -332,7 +332,7 @@ impl App {
                     }
                     Hit::View(v) => {
                         let d = self.repo.parent(v).map(|d| self.repo.name(d)).unwrap_or_default();
-                        (format!("      in {d}"), String::new(), Some(h), None)
+                        (format!("in {d}"), String::new(), Some(h), None)
                     }
                 })
                 .collect(),
@@ -362,8 +362,22 @@ impl App {
                     pal.selected = 0;
                 }
                 egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
-                    for (i, (name, key, _, _)) in rows.iter().enumerate() {
+                    for (i, (name, key, hit, _)) in rows.iter().enumerate() {
                         ui.horizontal(|ui| {
+                            // the element's icon on a model row; a view row is indented under it and
+                            // shows its diagram's icon (quick-find.js:121-137)
+                            let icon = match hit {
+                                Some(Hit::Model(m)) => Some(*m),
+                                Some(Hit::View(v)) => {
+                                    ui.add_space(20.0);
+                                    self.repo.parent(*v)
+                                }
+                                None => None,
+                            };
+                            if let Some(e) = icon {
+                                let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), egui::Sense::hover());
+                                crate::icons::draw(ui.painter(), ir, crate::icons::key_for(&self.repo, e));
+                            }
                             if ui.selectable_label(i == pal.selected, name).clicked() {
                                 picked = Some(i);
                             }
