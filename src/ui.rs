@@ -242,14 +242,17 @@ const INFO_FLOW_GROUPS: &[Group] = &[
     CLASS_GROUPS[0],
     ANNOTATIONS,
 ];
+// a composite structure diagram: the two class groups and Composite Structure (uml.json)
+const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE, ANNOTATIONS];
 // a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 8] = [
+const DIAGRAM_KINDS: [(&str, &str); 9] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
+    ("Composite Structure Diagram", "UMLCompositeStructureDiagram"),
     ("Component Diagram", "UMLComponentDiagram"),
     ("Deployment Diagram", "UMLDeploymentDiagram"),
     ("Use Case Diagram", "UMLUseCaseDiagram"),
@@ -1419,6 +1422,7 @@ impl App {
                 Some("UMLObjectDiagram") => self.open_groups.insert("instance"),
                 Some("UMLInformationFlowDiagram") => self.open_groups.insert("information-flow"),
                 Some("UMLProfileDiagram") => self.open_groups.insert("profile"),
+                Some("UMLCompositeStructureDiagram") => self.open_groups.insert("compositestructure"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1442,6 +1446,7 @@ impl App {
             Some("UMLObjectDiagram") => OBJECT_GROUPS,
             Some("UMLInformationFlowDiagram") => INFO_FLOW_GROUPS,
             Some("UMLProfileDiagram") => PROFILE_GROUPS,
+            Some("UMLCompositeStructureDiagram") => COMPOSITE_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

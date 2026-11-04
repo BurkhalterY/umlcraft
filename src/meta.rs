@@ -150,6 +150,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLUseCaseSubject", Some("UMLSubsystem"), vec![("represent", n())]);
     def("UMLDiagram", Some("Diagram"), vec![]);
     def("UMLClassDiagram", Some("UMLDiagram"), vec![]);
+    def("UMLCompositeStructureDiagram", Some("UMLDiagram"), vec![]);
     def("UMLUseCaseDiagram", Some("UMLDiagram"), vec![]);
     def("UMLPackageDiagram", Some("UMLDiagram"), vec![]);
     def("UMLComponentDiagram", Some("UMLDiagram"), vec![]);

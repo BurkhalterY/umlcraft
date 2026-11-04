@@ -4428,3 +4428,24 @@ fn a_port_provides_and_requires_interfaces() {
     assert!(a.repo.all().any(|e| a.repo.ty(e) == "UMLDependency" && a.repo.refd(e, "source") == Some(pm)));
     assert_eq!(a.repo.refd(pm, "type"), Some(ty), "the type is made once");
 }
+
+#[test]
+fn composite_structure_diagrams_are_editable() {
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let pkg = a.package_for(Some(d));
+    let cs = a.change(|a| a.add_diagram(Some(pkg), "UMLCompositeStructureDiagram"));
+    assert_eq!(a.repo.name(cs), "Composite Structures1");
+    let collab = a.repo.parent(cs).unwrap();
+    assert_eq!((a.repo.ty(collab), a.repo.parent(collab)), ("UMLCollaboration", Some(pkg)), "wrapped in a new collaboration");
+    // inside a classifier it goes in directly
+    let c = a.change(|a| a.add_model(pkg, "UMLClass"));
+    let cs2 = a.change(|a| a.add_diagram(Some(c), "UMLCompositeStructureDiagram"));
+    assert_eq!((a.repo.parent(cs2), a.repo.name(cs2)), (Some(c), "CompositeStructureDiagram1".to_string()));
+    // its toolbox holds the composite structure tools, and it takes collaboration uses
+    let u = a.change(|a| a.add_model(pkg, "UMLCollaborationUse"));
+    assert!(a.can_drop_model(u));
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 200.0, 120.0))).unwrap();
+    assert!(a.create_feature_box("UMLPart", crate::views::P { x: 60.0, y: 60.0 }, rect(50.0, 60.0, 80.0, 30.0)).is_ok());
+    let _ = v;
+}

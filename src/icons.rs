@@ -45,7 +45,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLCollaboration" | "UMLCollaborationUse" => "collaboration",
         "UMLDeployment" | "UMLTemplateBinding" => "dependency",
         "UMLCommunicationPath" => "association",
-        "UMLClassDiagram" | "UMLPackageDiagram" => "diagram-class",
+        "UMLClassDiagram" | "UMLPackageDiagram" | "UMLCompositeStructureDiagram" => "diagram-class",
         "UMLUseCaseDiagram" => "diagram-usecase",
         "UMLAssociation" => "association",
         "UMLAssociationEnd" => "end",

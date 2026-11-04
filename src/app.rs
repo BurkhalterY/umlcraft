@@ -884,6 +884,10 @@ impl App {
             // component and deployment diagrams: the class diagram's list without slots
             "UMLComponentDiagram" | "UMLDeploymentDiagram" => CLASS.iter().copied().filter(|k| *k != "UMLSlot").collect(),
             "UMLPackageDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLSubsystem", "UMLClassifier", "UMLInstance", "UMLDependency"],
+            "UMLCompositeStructureDiagram" => vec![
+                "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLPort", "UMLTemplateParameter", "UMLAttribute", "UMLOperation", "UMLReception",
+                "UMLEnumerationLiteral", "UMLCollaborationUse", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
+            ],
             "UMLObjectDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier", "UMLInstance", "UMLSlot", "UMLDependency", "UMLLink"],
             "UMLUseCaseDiagram" => vec![
                 "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
@@ -1422,7 +1426,16 @@ impl App {
         } else {
             target
         };
-        let name = self.new_name(target, ty);
+        // a composite structure diagram outside a classifier goes in a new collaboration, named
+        // "Composite Structures1"… (uml-factory.js:213-244)
+        let (target, name) = if ty == "UMLCompositeStructureDiagram" && !self.repo.kind_of(target, "UMLClassifier") {
+            let names: HashSet<String> = self.repo.children(target).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+            let name = (1..).map(|i| format!("Composite Structures{i}")).find(|n| !names.contains(n)).unwrap();
+            let cname = self.new_name(target, "UMLCollaboration");
+            (self.repo.create("UMLCollaboration", &[("name", json!(cname))], Some((target, "ownedElements"))), name)
+        } else {
+            (target, self.new_name(target, ty))
+        };
         let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
         self.open_diagram(d);
         // selected and scrolled to in the explorer (app-context.js:941-944)
