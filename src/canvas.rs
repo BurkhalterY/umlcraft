@@ -582,7 +582,10 @@ impl App {
         if resp.double_clicked() && self.tool.is_none() {
             if let Some(pos) = pointer.interact_pos() {
                 let p = self.to_diagram(origin, pos);
-                if let Some(v) = self.hit_view(p, false) {
+                // a line's label belongs to the line: its edit opens, not a new text
+                if let Some((_, e)) = self.hit_edge_label(p) {
+                    self.edit_view(e, Some(p));
+                } else if let Some(v) = self.hit_view(p, false) {
                     self.edit_view(v, Some(p));
                 } else {
                     self.create_text_at(p);
