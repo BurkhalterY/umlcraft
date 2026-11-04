@@ -3118,6 +3118,13 @@ fn reception_signal_is_a_reference() {
     let name = a.repo.name(sm);
     a.commit_text(rc, "signal", "type", name);
     assert_eq!(a.repo.refd(rc, "signal"), Some(sm));
+    // the reception's inline edit has Select Signal, which opens the Element Picker on UMLSignal
+    use crate::app::EditKind;
+    use crate::canvas::{item_buttons, ItemKey};
+    assert!(item_buttons(&a.repo, &EditKind::Feature(rc)).iter().any(|b| b.3 == ItemKey::SelectSignal));
+    a.item_key(v, EditKind::Feature(rc), ItemKey::SelectSignal);
+    let p = a.element_picker.as_ref().unwrap();
+    assert_eq!((p.obj, p.field.as_str(), p.ty, p.chosen), (rc, "signal", "UMLSignal", Some(sm)));
 }
 
 #[test]

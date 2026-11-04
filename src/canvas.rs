@@ -184,12 +184,19 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                 _ => vec![],
             }
         }
-        EditKind::Feature(_) => vec![
-            ("+", "Add", "Ctrl+Enter", ItemKey::Add),
-            ("✕", "Delete", "Ctrl+Delete", ItemKey::Delete),
-            ("▲", "Move Up", "Ctrl+Up", ItemKey::Move(true)),
-            ("▼", "Move Down", "Ctrl+Down", ItemKey::Move(false)),
-        ],
+        EditKind::Feature(f) => {
+            let mut v = vec![
+                ("+", "Add", "Ctrl+Enter", ItemKey::Add),
+                ("✕", "Delete", "Ctrl+Delete", ItemKey::Delete),
+                ("▲", "Move Up", "Ctrl+Up", ItemKey::Move(true)),
+                ("▼", "Move Down", "Ctrl+Down", ItemKey::Move(false)),
+            ];
+            // a reception's Select Signal opens the Element Picker on UMLSignal (uml-commands.js:1484)
+            if r.ty(*f) == "UMLReception" {
+                v.push(("Signal…", "Select Signal", "", ItemKey::SelectSignal));
+            }
+            v
+        }
         EditKind::Text(_) => vec![],
     }
 }
@@ -220,6 +227,8 @@ pub enum ItemKey {
     AddConnectedPart,
     /// A port's Add Provided Interface (true) and Add Required Interface (false)
     PortInterface(bool),
+    /// A reception's Select Signal
+    SelectSignal,
 }
 
 impl App {
@@ -1620,6 +1629,7 @@ impl App {
                 self.input_dialog = Some(crate::input::InputDialog { message: "Enter a type name to create".into(), text: String::new(), action: crate::input::InputAction::CreatePartType(m), fresh: true });
             }
             (ItemKey::AddConnectedPart, _) => self.add_connected_part(host),
+            (ItemKey::SelectSignal, Some(f)) => self.open_element_picker(f, "signal"),
             (ItemKey::PortInterface(provided), _) => {
                 self.add_port_interface(host, provided);
             }
