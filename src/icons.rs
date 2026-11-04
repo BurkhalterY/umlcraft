@@ -6,7 +6,6 @@ use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Vec2};
 const Y: Color32 = Color32::from_rgb(0xd9, 0xa5, 0x21); // models
 const G: Color32 = Color32::from_rgb(0x36, 0xb3, 0x7e); // diagrams
 const B: Color32 = Color32::from_rgb(0x3d, 0x9b, 0xe9); // relationships
-const W: Color32 = Color32::from_rgb(0xe3, 0xe3, 0xe3);
 const RED: Color32 = Color32::from_rgb(0xe5, 0x53, 0x3d);
 
 /// Icon key for a model element.
@@ -40,7 +39,10 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
     }
 }
 
+#[allow(non_snake_case)]
 pub fn draw(p: &Painter, rect: Rect, key: &str) {
+    // monochrome icons take the theme's text colour
+    let W: Color32 = crate::ui::TEXT();
     let o = rect.min;
     let s = rect.width() / 16.0;
     let at = |x: f32, y: f32| Pos2::new(o.x + x * s, o.y + y * s);

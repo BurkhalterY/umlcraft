@@ -76,6 +76,7 @@ impl App {
     /// Take the remembered settings (at start-up).
     pub fn apply_prefs(&mut self) {
         let p = &self.prefs;
+        crate::ui::set_light_theme(p.get("theme.default").and_then(|v| v.as_str()) == Some("light"));
         self.show_grid = p.bool("diagramEditor.showGrid", true);
         self.snap = p.bool("diagramEditor.snapToGrid", true);
         self.sort_by_name = p.get("explorer.sortBy").and_then(|v| v.as_str()) == Some("name");
@@ -188,6 +189,7 @@ pub enum Kind {
     Color,
     LineStyle,
     StereotypeDisplay,
+    Theme,
 }
 
 /// The preferences UMLCraft uses, by section, with StarUML's keys, labels and defaults
@@ -197,6 +199,7 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("General", "", "General", Kind::Header, Value::Null),
         ("General", "general.working-file", "Auto load working file", Kind::Check, json!(false)),
         ("General", "general.auto-backup", "Auto backup", Kind::Check, json!(true)),
+        ("General", "theme.default", "Default Theme", Kind::Theme, json!("dark")),
         ("General", "", "View", Kind::Header, Value::Null),
         ("General", "view.font", "Font Face", Kind::Text, json!("Arial")),
         ("General", "view.fontSize", "Font Size", Kind::Number, json!(13)),
@@ -421,6 +424,15 @@ fn pref_widget(ui: &mut egui::Ui, key: &str, kind: Kind, cur: &Value) -> Option<
                 for (v, l) in crate::style::STEREOTYPE_DISPLAYS {
                     ui.selectable_value(&mut s, v.to_string(), l);
                 }
+            });
+            (s != before).then(|| json!(s))
+        }
+        Kind::Theme => {
+            let mut s = cur.as_str().unwrap_or("dark").to_string();
+            let before = s.clone();
+            egui::ComboBox::from_id_salt(key).selected_text(if s == "light" { "Light" } else { "Dark" }).show_ui(ui, |ui| {
+                ui.selectable_value(&mut s, "dark".to_string(), "Dark");
+                ui.selectable_value(&mut s, "light".to_string(), "Light");
             });
             (s != before).then(|| json!(s))
         }

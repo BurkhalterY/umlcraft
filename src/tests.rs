@@ -2294,3 +2294,16 @@ fn drop_into_a_container() {
     assert_eq!(a.repo.refd(vs[0], "containerView"), None);
     let _ = d;
 }
+
+#[test]
+fn light_theme_preference() {
+    let mut a = App::new(None);
+    assert_eq!(a.pref("theme.default").as_str(), Some("dark"), "dark by default");
+    let dark_text = crate::ui::TEXT();
+    a.prefs.set("theme.default", json!("light"));
+    a.apply_prefs();
+    assert!(crate::ui::light_theme());
+    assert_ne!(crate::ui::TEXT(), dark_text);
+    crate::ui::set_light_theme(false);
+    assert_eq!(crate::ui::TEXT(), dark_text);
+}

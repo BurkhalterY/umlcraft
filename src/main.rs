@@ -106,22 +106,22 @@ fn window_icon() -> Option<egui::IconData> {
     Some(egui::IconData { rgba: img.into_raw(), width, height })
 }
 
-fn setup_style(ctx: &egui::Context) {
+/// The egui style of the current theme: dark (the original's default, staruml-dark.css) or light.
+pub(crate) fn setup_style(ctx: &egui::Context) {
     use ui::*;
-    // the original's default theme is "dark" (index.html loads staruml-dark.css)
-    ctx.set_visuals(egui::Visuals::dark());
+    ctx.set_visuals(if light_theme() { egui::Visuals::light() } else { egui::Visuals::dark() });
     ctx.global_style_mut(|s| {
         let v = &mut s.visuals;
-        v.panel_fill = LAYER0;
-        v.window_fill = LAYER1;
-        v.extreme_bg_color = INPUT;
-        v.override_text_color = Some(TEXT);
-        v.selection.bg_fill = ACCENT;
-        v.widgets.inactive.bg_fill = INPUT;
-        v.widgets.inactive.weak_bg_fill = INPUT;
-        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, INPUT_BORDER);
-        v.widgets.hovered.weak_bg_fill = HOVER_ROW;
-        v.widgets.active.weak_bg_fill = ACCENT;
+        v.panel_fill = LAYER0();
+        v.window_fill = LAYER1();
+        v.extreme_bg_color = INPUT();
+        v.override_text_color = Some(TEXT());
+        v.selection.bg_fill = ACCENT();
+        v.widgets.inactive.bg_fill = INPUT();
+        v.widgets.inactive.weak_bg_fill = INPUT();
+        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, INPUT_BORDER());
+        v.widgets.hovered.weak_bg_fill = HOVER_ROW();
+        v.widgets.active.weak_bg_fill = ACCENT();
         s.text_styles.insert(egui::TextStyle::Body, egui::FontId::proportional(13.0));
         s.text_styles.insert(egui::TextStyle::Button, egui::FontId::proportional(13.0));
         s.spacing.button_padding = egui::vec2(8.0, 3.0);

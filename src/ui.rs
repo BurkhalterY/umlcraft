@@ -21,18 +21,41 @@ pub const EDITORS_HEIGHT: f32 = 400.0;
 pub const HEADER_HEIGHT: f32 = 34.0;
 pub const SCREENSHOT_FRAMES: u32 = 120;
 
-pub const LAYER0: Color32 = Color32::from_rgb(0x3a, 0x3f, 0x41);
-pub const LAYER1: Color32 = Color32::from_rgb(0x4a, 0x4c, 0x4e);
-pub const TOOLBAR: Color32 = Color32::from_rgb(0x5d, 0x5f, 0x60);
-pub const TEXT: Color32 = Color32::from_rgb(0xe3, 0xe3, 0xe3);
-pub const DIM: Color32 = Color32::from_rgb(0xb4, 0xb6, 0xb7);
-pub const BORDER: Color32 = Color32::from_rgb(0x56, 0x59, 0x5b);
-pub const INPUT: Color32 = Color32::from_rgb(0x40, 0x42, 0x44);
-pub const INPUT_BORDER: Color32 = Color32::from_rgb(0x63, 0x66, 0x68);
-pub const ACCENT: Color32 = Color32::from_rgb(0x1f, 0x7a, 0xe8);
-pub const ACCENT_TEXT: Color32 = Color32::from_rgb(0x4f, 0xa6, 0xff);
-pub const CURRENT_ROW: Color32 = Color32::from_rgb(0x33, 0x35, 0x3c);
-pub const HOVER_ROW: Color32 = Color32::from_rgb(0x55, 0x58, 0x5a);
+static LIGHT_THEME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Switch the interface colours between the dark theme (the default) and the light one.
+pub fn set_light_theme(on: bool) {
+    LIGHT_THEME.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn light_theme() -> bool {
+    LIGHT_THEME.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// An interface colour: its dark-theme and light-theme values.
+macro_rules! themed {
+    ($name:ident, $dark:expr, $light:expr) => {
+        #[allow(non_snake_case)]
+        pub fn $name() -> Color32 {
+            if light_theme() { $light } else { $dark }
+        }
+    };
+}
+themed!(LAYER0, Color32::from_rgb(0x3a, 0x3f, 0x41), Color32::from_rgb(0xf2, 0xf2, 0xf2));
+themed!(LAYER1, Color32::from_rgb(0x4a, 0x4c, 0x4e), Color32::from_rgb(0xe6, 0xe6, 0xe6));
+themed!(TOOLBAR, Color32::from_rgb(0x5d, 0x5f, 0x60), Color32::from_rgb(0xd9, 0xd9, 0xd9));
+themed!(TEXT, Color32::from_rgb(0xe3, 0xe3, 0xe3), Color32::from_rgb(0x24, 0x24, 0x24));
+themed!(DIM, Color32::from_rgb(0xb4, 0xb6, 0xb7), Color32::from_rgb(0x68, 0x6a, 0x6c));
+themed!(BORDER, Color32::from_rgb(0x56, 0x59, 0x5b), Color32::from_rgb(0xcc, 0xcc, 0xcc));
+themed!(INPUT, Color32::from_rgb(0x40, 0x42, 0x44), Color32::from_rgb(0xff, 0xff, 0xff));
+themed!(INPUT_BORDER, Color32::from_rgb(0x63, 0x66, 0x68), Color32::from_rgb(0xb8, 0xb8, 0xb8));
+themed!(ACCENT, Color32::from_rgb(0x1f, 0x7a, 0xe8), Color32::from_rgb(0x1f, 0x7a, 0xe8));
+themed!(ACCENT_TEXT, Color32::from_rgb(0x4f, 0xa6, 0xff), Color32::from_rgb(0x0b, 0x5f, 0xc4));
+themed!(CURRENT_ROW, Color32::from_rgb(0x33, 0x35, 0x3c), Color32::from_rgb(0xd4, 0xe3, 0xf7));
+themed!(SELECTED_ROW, Color32::from_rgb(0x2d, 0x32, 0x38), Color32::from_rgb(0xd4, 0xe3, 0xf7));
+themed!(ROW_HOVER, Color32::from_rgb(0x33, 0x36, 0x3a), Color32::from_rgb(0xe2, 0xe2, 0xe2));
+themed!(TOOL_HOVER, Color32::from_rgb(0x6d, 0x70, 0x71), Color32::from_rgb(0xc4, 0xc4, 0xc4));
+themed!(HOVER_ROW, Color32::from_rgb(0x55, 0x58, 0x5a), Color32::from_rgb(0xdc, 0xdc, 0xdc));
 pub const OK_GREEN: Color32 = Color32::from_rgb(0x8d, 0xc6, 0x3f);
 
 const fn node(label: &'static str, kind: &'static str, icon: &'static str) -> Tool {
@@ -133,7 +156,7 @@ pub(crate) fn order_rank(t: &str) -> u32 {
 }
 
 fn text_galley_width(ui: &egui::Ui, t: &str, size: f32) -> f32 {
-    ui.ctx().fonts_mut(|f| f.layout_no_wrap(t.to_string(), FontId::proportional(size), TEXT).size().x)
+    ui.ctx().fonts_mut(|f| f.layout_no_wrap(t.to_string(), FontId::proportional(size), TEXT()).size().x)
 }
 
 impl App {
@@ -191,7 +214,7 @@ impl App {
             } else {
                 vec![c + Vec2::new(-1.5, -3.5), c + Vec2::new(3.0, 0.0), c + Vec2::new(-1.5, 3.5)]
             };
-            p.add(egui::Shape::convex_polygon(tri, TEXT, Stroke::NONE));
+            p.add(egui::Shape::convex_polygon(tri, TEXT(), Stroke::NONE));
         }
         let ir = Rect::from_min_size(Pos2::new(x0 + 16.0, rect.center().y - 8.0), Vec2::splat(16.0));
         icons::draw(p, ir, icons::key_for(&self.repo, e));
@@ -209,10 +232,10 @@ impl App {
         let tw = text_galley_width(ui, &label, 13.0);
         if self.focus == Some(e) {
             let lr = Rect::from_min_size(Pos2::new(tx - 3.0, rect.top() + 1.0), Vec2::new(tw + 6.0, 20.0));
-            p.rect_filled(lr, 0.0, Color32::from_rgb(0x2d, 0x32, 0x38));
+            p.rect_filled(lr, 0.0, SELECTED_ROW());
             p.rect_stroke(lr, 0.0, Stroke::new(1.0, Color32::from_rgb(0x4f, 0x99, 0xff)), egui::StrokeKind::Inside);
         }
-        p.text(Pos2::new(tx, rect.center().y), Align2::LEFT_CENTER, &label, FontId::proportional(13.0), TEXT);
+        p.text(Pos2::new(tx, rect.center().y), Align2::LEFT_CENTER, &label, FontId::proportional(13.0), TEXT());
 
         let ty = self.repo.ty(e).to_string();
         if ty != "Project" {
@@ -370,7 +393,7 @@ impl App {
         ui.horizontal(|ui| {
             ui.set_height(HEADER_HEIGHT);
             ui.add_space(13.0);
-            ui.label(egui::RichText::new("MODEL EXPLORER").color(TEXT).size(13.0));
+            ui.label(egui::RichText::new("MODEL EXPLORER").color(TEXT()).size(13.0));
             ui.add_space(8.0);
             let w = ui.available_width() - 30.0;
             let r = ui.add_sized(Vec2::new(w, 23.0), egui::TextEdit::singleline(&mut self.search).hint_text("🔍").margin(Margin::symmetric(10, 3)));
@@ -378,8 +401,8 @@ impl App {
             let (r, resp) = ui.allocate_exact_size(Vec2::new(14.0, 20.0), Sense::click());
             let c = r.center();
             let p = ui.painter();
-            p.add(egui::Shape::convex_polygon(vec![c + Vec2::new(-4.0, -1.5), c + Vec2::new(4.0, -1.5), c + Vec2::new(0.0, -6.5)], TEXT, Stroke::NONE));
-            p.add(egui::Shape::convex_polygon(vec![c + Vec2::new(-4.0, 1.5), c + Vec2::new(4.0, 1.5), c + Vec2::new(0.0, 6.5)], TEXT, Stroke::NONE));
+            p.add(egui::Shape::convex_polygon(vec![c + Vec2::new(-4.0, -1.5), c + Vec2::new(4.0, -1.5), c + Vec2::new(0.0, -6.5)], TEXT(), Stroke::NONE));
+            p.add(egui::Shape::convex_polygon(vec![c + Vec2::new(-4.0, 1.5), c + Vec2::new(4.0, 1.5), c + Vec2::new(0.0, 6.5)], TEXT(), Stroke::NONE));
             // the settings button opens the model-explorer-settings menu (model-explorer-view.js:632-641)
             let resp = resp.on_hover_text("Settings");
             egui::Popup::menu(&resp).show(|ui| self.explorer_settings_menu(ui));
@@ -661,11 +684,11 @@ impl App {
             match path.split_once('.') {
                 Some((pre, f)) => {
                     let fw = text_galley_width(ui, f, 12.0);
-                    p.text(Pos2::new(label_right, lr.center().y), Align2::RIGHT_CENTER, f, FontId::proportional(12.0), TEXT);
-                    p.text(Pos2::new(label_right - fw, lr.center().y), Align2::RIGHT_CENTER, format!("{pre}."), FontId::proportional(12.0), DIM);
+                    p.text(Pos2::new(label_right, lr.center().y), Align2::RIGHT_CENTER, f, FontId::proportional(12.0), TEXT());
+                    p.text(Pos2::new(label_right - fw, lr.center().y), Align2::RIGHT_CENTER, format!("{pre}."), FontId::proportional(12.0), DIM());
                 }
                 None => {
-                    p.text(Pos2::new(label_right, lr.center().y), Align2::RIGHT_CENTER, path, FontId::proportional(12.0), TEXT);
+                    p.text(Pos2::new(label_right, lr.center().y), Align2::RIGHT_CENTER, path, FontId::proportional(12.0), TEXT());
                 }
             }
             let w = ui.available_width() - 2.0;
@@ -751,10 +774,10 @@ impl App {
                         Some(t) => {
                             let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
                             icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
-                            ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT));
+                            ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT()));
                         }
                         None => {
-                            ui.label(egui::RichText::new("—").size(12.0).color(DIM));
+                            ui.label(egui::RichText::new("—").size(12.0).color(DIM()));
                         }
                     }
                 }
@@ -803,7 +826,7 @@ impl App {
         ui.horizontal(|ui| {
             ui.set_height(HEADER_HEIGHT);
             ui.add_space(13.0);
-            ui.label(egui::RichText::new("EDITORS").color(TEXT).size(13.0));
+            ui.label(egui::RichText::new("EDITORS").color(TEXT()).size(13.0));
         });
         let focus = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f));
         let es = self.prop_elements();
@@ -826,14 +849,14 @@ impl App {
                         self.style_ui(ui);
                         ui.add_space(6.0);
                     }
-                    ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER));
+                    ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
                 }
                 if section_header(ui, "Properties", !es.is_empty() && self.props_open) && !es.is_empty() {
                     self.props_open = !self.props_open;
                 }
                 if es.len() > 1 && self.props_open {
                     // several elements: the fields they share, merged
-                    ui.label(egui::RichText::new(format!("{} elements", es.len())).size(12.0).color(DIM));
+                    ui.label(egui::RichText::new(format!("{} elements", es.len())).size(12.0).color(DIM()));
                     for (path, kind) in self.common_fields(&es) {
                         self.prop_row(ui, &es, path, kind);
                     }
@@ -841,7 +864,7 @@ impl App {
                     for (path, kind) in self.fields_for(e) {
                         if path == "-" {
                             ui.add_space(8.0);
-                            ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER));
+                            ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
                             ui.add_space(8.0);
                         } else {
                             self.prop_row(ui, &[e], path, kind);
@@ -864,7 +887,7 @@ impl App {
                         ui.horizontal(|ui| {
                             ui.add_space(116.0);
                             for (label, ty) in buttons {
-                                if ui.add(egui::Button::new(egui::RichText::new(label).size(12.0)).fill(HOVER_ROW).stroke(Stroke::new(1.0, INPUT_BORDER))).clicked() {
+                                if ui.add(egui::Button::new(egui::RichText::new(label).size(12.0)).fill(HOVER_ROW()).stroke(Stroke::new(1.0, INPUT_BORDER()))).clicked() {
                                     if let Some(c) = self.change(|a| a.add_feature(e, ty)) {
                                         self.focus = Some(c);
                                         self.expanded.insert(e);
@@ -875,7 +898,7 @@ impl App {
                         ui.add_space(6.0);
                     }
                 }
-                ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER));
+                ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
                 let has_doc = focus.map(|f| self.repo.kind_of(f, "ExtensibleModel") || self.repo.has(f, "documentation") || !crate::meta::known(self.repo.ty(f))).unwrap_or(false);
                 if section_header(ui, "Documentation", has_doc && self.doc_open) && has_doc {
                     self.doc_open = !self.doc_open;
@@ -896,7 +919,7 @@ impl App {
         ui.horizontal(|ui| {
             ui.set_height(HEADER_HEIGHT);
             ui.add_space(13.0);
-            ui.label(egui::RichText::new("WORKING DIAGRAMS").color(TEXT).size(13.0));
+            ui.label(egui::RichText::new("WORKING DIAGRAMS").color(TEXT()).size(13.0));
         });
         ui.spacing_mut().item_spacing.y = 0.0;
         for d in self.open.clone() {
@@ -907,21 +930,21 @@ impl App {
             let current = self.diagram == Some(d);
             let p = ui.painter();
             if current {
-                p.rect_filled(rect, 0.0, CURRENT_ROW);
+                p.rect_filled(rect, 0.0, CURRENT_ROW());
             } else if resp.hovered() {
-                p.rect_filled(rect, 0.0, Color32::from_rgb(0x33, 0x36, 0x3a));
+                p.rect_filled(rect, 0.0, ROW_HOVER());
             }
             icons::draw(p, Rect::from_min_size(Pos2::new(rect.left() + 28.0, rect.top() + 7.0), Vec2::splat(16.0)), icons::key_for(&self.repo, d));
             let name = self.repo.name(d);
             let nx = rect.left() + 46.0;
-            p.text(Pos2::new(nx, rect.center().y), Align2::LEFT_CENTER, &name, FontId::proportional(13.0), if current { ACCENT_TEXT } else { TEXT });
+            p.text(Pos2::new(nx, rect.center().y), Align2::LEFT_CENTER, &name, FontId::proportional(13.0), if current { ACCENT_TEXT() } else { TEXT() });
             let nw = text_galley_width(ui, &name, 13.0);
             if let Some(owner) = self.repo.parent(d).map(|o| self.repo.name(o)).filter(|o| !o.is_empty()) {
-                p.text(Pos2::new(nx + nw + 4.0, rect.center().y + 1.0), Align2::LEFT_CENTER, format!("— {owner}"), FontId::proportional(11.0), DIM);
+                p.text(Pos2::new(nx + nw + 4.0, rect.center().y + 1.0), Align2::LEFT_CENTER, format!("— {owner}"), FontId::proportional(11.0), DIM());
             }
             let close = Rect::from_center_size(Pos2::new(rect.right() - 16.0, rect.center().y), Vec2::splat(16.0));
             if resp.hovered() {
-                p.text(close.center(), Align2::CENTER_CENTER, "×", FontId::proportional(14.0), DIM);
+                p.text(close.center(), Align2::CENTER_CENTER, "×", FontId::proportional(14.0), DIM());
             }
             // the menu acts on the current diagram; right-clicking a row does not make it current
             resp.context_menu(|ui| {
@@ -945,7 +968,7 @@ impl App {
 
     fn toolbox_ui(&mut self, ui: &mut egui::Ui) {
         let top = ui.cursor().top();
-        ui.painter().text(Pos2::new(ui.max_rect().left() + 13.0, top + 17.0), Align2::LEFT_CENTER, "TOOLBOX", FontId::proportional(13.0), TEXT);
+        ui.painter().text(Pos2::new(ui.max_rect().left() + 13.0, top + 17.0), Align2::LEFT_CENTER, "TOOLBOX", FontId::proportional(13.0), TEXT());
         ui.add_space(26.0);
         // without a diagram the toolbox is empty (toolbox-view.js:307-310)
         if self.diagram.is_none() {
@@ -966,7 +989,7 @@ impl App {
             ui.add_space((ui.available_width() - 26.0) / 2.0);
             let (r, resp) = ui.allocate_exact_size(Vec2::new(26.0, 24.0), Sense::click());
             if self.tool.is_none() {
-                ui.painter().rect_filled(r, CornerRadius::same(2), TOOLBAR);
+                ui.painter().rect_filled(r, CornerRadius::same(2), TOOLBAR());
             }
             icons::draw(ui.painter(), Rect::from_center_size(r.center(), Vec2::splat(16.0)), "select");
             if resp.clicked() {
@@ -987,15 +1010,15 @@ impl App {
                 let open = self.open_groups.contains(g.id);
                 let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 30.0), Sense::click());
                 let p = ui.painter();
-                p.text(Pos2::new(rect.left() + 13.0, rect.center().y), Align2::LEFT_CENTER, g.label, FontId::proportional(13.0), DIM);
-                p.hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, BORDER));
+                p.text(Pos2::new(rect.left() + 13.0, rect.center().y), Align2::LEFT_CENTER, g.label, FontId::proportional(13.0), DIM());
+                p.hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, BORDER()));
                 let c = Pos2::new(rect.right() - 16.0, rect.center().y);
                 let tri = if open {
                     vec![c + Vec2::new(-4.0, 3.0), c + Vec2::new(4.0, 3.0), c + Vec2::new(0.0, -3.0)]
                 } else {
                     vec![c + Vec2::new(-4.0, -3.0), c + Vec2::new(4.0, -3.0), c + Vec2::new(0.0, 3.0)]
                 };
-                p.add(egui::Shape::convex_polygon(tri, TEXT, Stroke::NONE));
+                p.add(egui::Shape::convex_polygon(tri, TEXT(), Stroke::NONE));
                 if resp.clicked() {
                     if open {
                         self.open_groups.remove(g.id);
@@ -1014,12 +1037,12 @@ impl App {
                     let p = ui.painter();
                     let selected = self.tool == Some(*it);
                     if selected {
-                        p.rect_filled(rect, 0.0, ACCENT);
+                        p.rect_filled(rect, 0.0, ACCENT());
                     } else if resp.hovered() {
-                        p.rect_filled(rect, 0.0, HOVER_ROW);
+                        p.rect_filled(rect, 0.0, HOVER_ROW());
                     }
                     icons::draw(p, Rect::from_min_size(Pos2::new(rect.left() + 14.0, rect.top() + 8.0), Vec2::splat(16.0)), it.icon);
-                    p.text(Pos2::new(rect.left() + 34.0, rect.center().y), Align2::LEFT_CENTER, it.label, FontId::proportional(13.0), if selected { Color32::WHITE } else { TEXT });
+                    p.text(Pos2::new(rect.left() + 34.0, rect.center().y), Align2::LEFT_CENTER, it.label, FontId::proportional(13.0), if selected && !light_theme() { Color32::WHITE } else { TEXT() });
                     if selected && self.tool_sticky {
                         draw_lock(p, Pos2::new(rect.right() - 18.0, rect.center().y));
                     }
@@ -1052,7 +1075,7 @@ impl App {
             for (key, tip) in [("zoomIn", "Zoom In"), ("zoomOut", "Zoom Out"), ("fit", "Fit To Window"), ("grid", "Show Grid"), ("image", "Export Diagram as PNG")] {
                 let (r, resp) = ui.allocate_exact_size(Vec2::splat(24.0), Sense::click());
                 if resp.hovered() {
-                    ui.painter().rect_filled(r, CornerRadius::same(2), Color32::from_rgb(0x6d, 0x70, 0x71));
+                    ui.painter().rect_filled(r, CornerRadius::same(2), TOOL_HOVER());
                 }
                 icons::draw(ui.painter(), r.shrink(3.0), key);
                 if resp.on_hover_text(tip).clicked() {
@@ -1071,25 +1094,25 @@ impl App {
     fn status_ui(&mut self, ui: &mut egui::Ui) {
         let rect = ui.max_rect();
         let p = ui.painter();
-        p.hline(rect.x_range(), rect.top() + 0.5, Stroke::new(1.0, BORDER));
+        p.hline(rect.x_range(), rect.top() + 0.5, Stroke::new(1.0, BORDER()));
         // right side: check mark and zoom
         let zr = Rect::from_min_max(Pos2::new(rect.right() - 57.0, rect.top()), rect.right_bottom());
-        p.vline(zr.left(), rect.y_range(), Stroke::new(1.0, BORDER));
-        p.text(zr.center(), Align2::CENTER_CENTER, format!("{}%", (self.zoom * 100.0).round()), FontId::proportional(13.0), TEXT);
+        p.vline(zr.left(), rect.y_range(), Stroke::new(1.0, BORDER()));
+        p.text(zr.center(), Align2::CENTER_CENTER, format!("{}%", (self.zoom * 100.0).round()), FontId::proportional(13.0), TEXT());
         let vr = Rect::from_min_max(Pos2::new(zr.left() - 33.0, rect.top()), Pos2::new(zr.left(), rect.bottom()));
-        p.vline(vr.left(), rect.y_range(), Stroke::new(1.0, BORDER));
+        p.vline(vr.left(), rect.y_range(), Stroke::new(1.0, BORDER()));
         // validation indicator: green OK, or red when the last validation found errors; a click toggles
         // the Validation Results panel (statusbar-view.js:62-70)
         let c = vr.center();
         let errors = self.problems.iter().any(|q| self.repo.alive(q.elem));
         if errors {
             p.circle_filled(c, 7.5, Color32::from_rgb(0xe5, 0x48, 0x4d));
-            let st = Stroke::new(2.0, LAYER0);
+            let st = Stroke::new(2.0, LAYER0());
             p.line_segment([c + Vec2::new(-3.0, -3.0), c + Vec2::new(3.0, 3.0)], st);
             p.line_segment([c + Vec2::new(-3.0, 3.0), c + Vec2::new(3.0, -3.0)], st);
         } else {
             p.circle_filled(c, 7.5, OK_GREEN);
-            p.add(egui::Shape::line(vec![c + Vec2::new(-3.5, 0.0), c + Vec2::new(-1.0, 2.5), c + Vec2::new(3.5, -2.5)], Stroke::new(2.0, LAYER0)));
+            p.add(egui::Shape::line(vec![c + Vec2::new(-3.5, 0.0), c + Vec2::new(-1.0, 2.5), c + Vec2::new(3.5, -2.5)], Stroke::new(2.0, LAYER0())));
         }
         let tip = if errors { "Validation errors" } else { "Validation OK" };
         if ui.interact(vr, egui::Id::new("validation-indicator"), Sense::click()).on_hover_text(tip).clicked() {
@@ -1107,11 +1130,11 @@ impl App {
             let tw = text_galley_width(ui, &label, 13.0);
             let p = ui.painter();
             icons::draw(p, Rect::from_min_size(Pos2::new(x + 8.0, rect.center().y - 8.0), Vec2::splat(16.0)), icons::key_for(&self.repo, e));
-            p.text(Pos2::new(x + 28.0, rect.center().y), Align2::LEFT_CENTER, &label, FontId::proportional(13.0), TEXT);
+            p.text(Pos2::new(x + 28.0, rect.center().y), Align2::LEFT_CENTER, &label, FontId::proportional(13.0), TEXT());
             x += 36.0 + tw;
-            p.vline(x, rect.y_range(), Stroke::new(1.0, BORDER));
+            p.vline(x, rect.y_range(), Stroke::new(1.0, BORDER()));
         }
-        ui.painter().text(Pos2::new(x + 8.0, rect.center().y), Align2::LEFT_CENTER, format!("[{}]", self.repo.ty(f)), FontId::proportional(11.0), DIM);
+        ui.painter().text(Pos2::new(x + 8.0, rect.center().y), Align2::LEFT_CENTER, format!("[{}]", self.repo.ty(f)), FontId::proportional(11.0), DIM());
     }
 
     // ------------------------------------------------------------ menus and shortcuts
@@ -1389,7 +1412,7 @@ impl App {
                     continue;
                 }
                 self.color_swatch(ui, field, label);
-                ui.label(egui::RichText::new(label.trim_end_matches(" Color")).size(12.0).color(DIM));
+                ui.label(egui::RichText::new(label.trim_end_matches(" Color")).size(12.0).color(DIM()));
                 ui.add_space(6.0);
             }
         });
@@ -1426,7 +1449,7 @@ impl App {
             }
         }
         ui.horizontal_wrapped(|ui| {
-            let small = |t: &str| egui::Button::new(egui::RichText::new(t).size(11.0)).fill(HOVER_ROW).stroke(Stroke::new(1.0, INPUT_BORDER));
+            let small = |t: &str| egui::Button::new(egui::RichText::new(t).size(11.0)).fill(HOVER_ROW()).stroke(Stroke::new(1.0, INPUT_BORDER()));
             if ui.add(small("Back")).on_hover_text("Send To Back").clicked() {
                 self.reorder(false);
             }
@@ -2068,8 +2091,8 @@ impl App {
         for (i, (text, _)) in self.toasts.iter().enumerate().rev() {
             let pos = Pos2::new(area.left() + 16.0, y);
             let r = egui::Area::new(egui::Id::new(("toast", i))).order(egui::Order::Foreground).pivot(Align2::LEFT_BOTTOM).fixed_pos(pos).show(ctx, |ui| {
-                Frame::NONE.fill(LAYER1).stroke(Stroke::new(1.0, BORDER)).corner_radius(CornerRadius::same(3)).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
-                    ui.label(egui::RichText::new(text).color(TEXT).size(13.0));
+                Frame::NONE.fill(LAYER1()).stroke(Stroke::new(1.0, BORDER())).corner_radius(CornerRadius::same(3)).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
+                    ui.label(egui::RichText::new(text).color(TEXT()).size(13.0));
                 });
             });
             y -= r.response.rect.height() + 6.0;
@@ -2196,14 +2219,21 @@ fn section_header(ui: &mut egui::Ui, title: &str, open: bool) -> bool {
     } else {
         vec![c + Vec2::new(0.0, -4.0), c + Vec2::new(5.0, 0.0), c + Vec2::new(0.0, 4.0)]
     };
-    p.add(egui::Shape::convex_polygon(tri, TEXT, Stroke::NONE));
-    p.text(Pos2::new(rect.left() + 15.0, rect.center().y), Align2::LEFT_CENTER, title, FontId::proportional(13.0), TEXT);
+    p.add(egui::Shape::convex_polygon(tri, TEXT(), Stroke::NONE));
+    p.text(Pos2::new(rect.left() + 15.0, rect.center().y), Align2::LEFT_CENTER, title, FontId::proportional(13.0), TEXT());
     resp.clicked()
 }
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // the theme follows the preference live (app-context.js:1518-1527)
+        let light = self.pref("theme.default").as_str() == Some("light");
+        if self.theme_applied != Some(light) {
+            set_light_theme(light);
+            crate::setup_style(&ctx);
+            self.theme_applied = Some(light);
+        }
         self.handle_close(&ctx);
         self.dropped_files(&ctx);
         // a command picked in the palette runs a frame later, once the palette is gone (command-palette.js:106-112)
@@ -2216,46 +2246,46 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
         }
 
-        Panel::top("menu").exact_size(22.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER0).inner_margin(Margin::symmetric(6, 0))).show(ui, |ui| {
+        Panel::top("menu").exact_size(22.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER0()).inner_margin(Margin::symmetric(6, 0))).show(ui, |ui| {
             self.menu_bar(ui);
         });
         if self.show_statusbar {
-            Panel::bottom("status").exact_size(STATUSBAR_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.status_ui(ui));
+            Panel::bottom("status").exact_size(STATUSBAR_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.status_ui(ui));
         }
         if self.show_sidebar {
-            Panel::left("sidebar").exact_size(SIDEBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(LAYER0)).show(ui, |ui| {
+            Panel::left("sidebar").exact_size(SIDEBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(LAYER0())).show(ui, |ui| {
                 if self.show_toolbox {
-                    Panel::bottom("toolbox").exact_size(TOOLBOX_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.toolbox_ui(ui));
+                    Panel::bottom("toolbox").exact_size(TOOLBOX_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.toolbox_ui(ui));
                 }
                 self.working_ui(ui);
             });
         }
         if self.show_navigator {
-            Panel::right("navigator").exact_size(NAVIGATOR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(LAYER0)).show(ui, |ui| {
+            Panel::right("navigator").exact_size(NAVIGATOR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(LAYER0())).show(ui, |ui| {
                 if self.show_editors {
-                    Panel::bottom("editors").exact_size(EDITORS_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.editors_ui(ui));
+                    Panel::bottom("editors").exact_size(EDITORS_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.editors_ui(ui));
                 }
                 self.explorer_ui(ui);
             });
         }
         if self.show_toolbar {
-            Panel::right("toolbar").exact_size(TOOLBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(TOOLBAR)).show(ui, |ui| self.toolbar_ui(ui));
+            Panel::right("toolbar").exact_size(TOOLBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(TOOLBAR())).show(ui, |ui| self.toolbar_ui(ui));
         }
         if self.show_validation {
-            Panel::bottom("validation").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.validation_ui(ui));
+            Panel::bottom("validation").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.validation_ui(ui));
         }
         if self.show_markdown {
-            Panel::bottom("markdown").exact_size(200.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.markdown_ui(ui));
+            Panel::bottom("markdown").exact_size(200.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.markdown_ui(ui));
         }
         if self.show_thumbnails {
-            Panel::bottom("thumbnails").exact_size(130.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.thumbnails_ui(ui));
+            Panel::bottom("thumbnails").exact_size(130.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.thumbnails_ui(ui));
         }
         if self.show_relationships {
-            Panel::bottom("relationships").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.relationships_ui(ui));
+            Panel::bottom("relationships").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.relationships_ui(ui));
         }
         // the Find Results panel sits under the diagram, above the status bar
         if self.find_results.is_some() {
-            Panel::bottom("find-results").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.find_results_ui(ui));
+            Panel::bottom("find-results").exact_size(160.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.find_results_ui(ui));
         }
         egui::CentralPanel::no_frame().show(ui, |ui| {
             self.canvas_ui(ui);
