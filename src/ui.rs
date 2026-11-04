@@ -388,6 +388,10 @@ impl App {
                 adds.push((l, k, false));
             }
         }
+        // Model › Add › Constraint on any model element (uml.json)
+        if self.repo.kind_of(e, "UMLModelElement") {
+            adds.push(("Constraint", "UMLConstraint", false));
+        }
         for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter")] {
             if self.can_add_feature(e, k) {
                 adds.push((l, k, true));

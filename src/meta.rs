@@ -148,6 +148,9 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLNoteView", Some("UMLCustomNoteView"), vec![]);
     def("UMLTextView", Some("UMLCustomTextView"), vec![]);
     def("UMLTextBoxView", Some("UMLCustomTextView"), vec![]);
+    // a constraint shows its specification in braces; its link is a dashed line (base types estimated)
+    def("UMLConstraintView", Some("UMLCustomTextView"), vec![]);
+    def("UMLConstraintLinkView", Some("EdgeView"), vec![]);
     def("UMLNoteLinkView", Some("EdgeView"), vec![]);
     def("UMLContainmentView", Some("EdgeView"), vec![]);
     def("UMLAssociationClassLinkView", Some("EdgeView"), vec![]);

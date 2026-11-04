@@ -33,6 +33,8 @@ const fn r(label: &'static str, kind: &'static str, rel: &'static str, init: Ass
 }
 
 const NOTE: Related = r("Add Note", "Note", "NoteLink", AssocInit::Plain, false, Place::Right);
+/// Add Constraint: run by `add_constraint_to`, not as a related box (uml-commands.js:727).
+const CONSTRAINT: Related = r("Add Constraint", "Constraint", "ConstraintLink", AssocInit::Plain, false, Place::Left);
 
 /// The buttons for a model type (uml.json quick edits).
 pub fn actions(model_ty: &str) -> Vec<Related> {
@@ -86,6 +88,7 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
         _ => vec![],
     };
     v.push(NOTE);
+    v.push(CONSTRAINT);
     v
 }
 
@@ -160,6 +163,9 @@ impl App {
     /// Run a button: create the new element and its box, join them, select the new box and edit its name.
     /// One undo step.
     pub fn add_related(&mut self, v: Eid, a: Related) -> Option<Eid> {
+        if a.kind == "Constraint" {
+            return self.add_constraint_to(v);
+        }
         // a note added this way is 100×50 (uml-commands.js:684)
         let size = if a.kind == "Note" { (100.0, 50.0) } else { views::default_size(a.kind) };
         let rect = self.related_rect(v, &a, size);

@@ -265,7 +265,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: (b.w - 10.0).max(10.0), h: (b.h - 10.0).max(10.0) }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 0.0);
         return;
     }
-    if ty == "UMLTextView" || ty == "UMLCustomTextView" {
+    if ty == "UMLTextView" || ty == "UMLCustomTextView" || ty == "UMLConstraintView" {
         draw_wrapped(c, &r.str(v, "text"), R { x: b.x, y: b.y, w: b.w.max(10.0), h: b.h.max(15.0) }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 100.0);
         return;
     }
@@ -494,7 +494,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     let ty = r.ty(e).to_string();
     let mut dashed = matches!(
         ty.as_str(),
-        "UMLDependencyView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLIncludeView" | "UMLExtendView" | "UMLNoteLinkView" | "UMLComponentRealizationView" | "UMLDeploymentView" | "UMLAssociationClassLinkView" | "UMLTemplateBindingView"
+        "UMLDependencyView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLIncludeView" | "UMLExtendView" | "UMLNoteLinkView" | "UMLComponentRealizationView" | "UMLDeploymentView" | "UMLAssociationClassLinkView" | "UMLTemplateBindingView" | "UMLConstraintLinkView"
     );
     let (mut head, mut tail) = (None, None);
     match ty.as_str() {

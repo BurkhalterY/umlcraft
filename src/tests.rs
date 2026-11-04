@@ -1751,7 +1751,8 @@ fn add_related_elements() {
     let end2 = a.repo.child(assoc, "end2").unwrap();
     assert_eq!(a.repo.refd(end2, "reference"), Some(cm));
     assert_eq!(a.repo.str(end2, "aggregation"), "shared", "the edited class is the whole");
-    let n = a.add_related(c, *acts.last().unwrap()).unwrap();
+    let note = acts.iter().find(|x| x.label == "Add Note").copied().unwrap();
+    let n = a.add_related(c, note).unwrap();
     assert_eq!(a.repo.ty(n), "UMLNoteView");
     let undo = a.undo.len();
     a.add_related(c, sub);
@@ -3118,4 +3119,43 @@ fn free_lines() {
     let fe = b.all_of("FreelineEdgeView");
     assert_eq!(fe.len(), 1);
     assert_eq!(b.raw(fe[0], "lineMode"), Some(&json!(2)));
+}
+
+#[test]
+fn constraints() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let v = a.change(|a| a.create_node("UMLClass", rect(200.0, 100.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    // Add Constraint: owned by the element, to the left of its box, with a link
+    let b = crate::related::actions("UMLClass").into_iter().find(|b| b.label == "Add Constraint").unwrap();
+    let undo = a.undo.len();
+    let cv = a.add_related(v, b).unwrap();
+    assert_eq!(a.undo.len(), undo + 1);
+    assert_eq!(a.repo.ty(cv), "UMLConstraintView");
+    let c = a.repo.refd(cv, "model").unwrap();
+    assert_eq!((a.repo.ty(c), a.repo.parent(c)), ("UMLConstraint", Some(m)));
+    let r = crate::views::node_rect(&a.repo, cv);
+    assert!(r.x + r.w <= 200.0 && r.y == 100.0, "{r:?}");
+    let links: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|x| a.repo.ty(*x) == "UMLConstraintLinkView").collect();
+    assert_eq!(links.len(), 1);
+    assert_eq!(a.edge_kind(links[0]), "ConstraintLink");
+    assert!(a.broken_views(d).is_empty());
+    assert_eq!(a.pending_edit, Some(cv));
+    // the edit sets the specification, drawn in braces
+    a.pending_edit = None;
+    a.edit_view(cv, None);
+    a.editing.as_mut().unwrap().text = "x > 0".into();
+    a.close_inline(true);
+    assert_eq!(a.repo.str(c, "specification"), "x > 0");
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(cv, "text"), "{x > 0}");
+    // dropping it from the explorer onto another diagram links it to the owner's box there
+    let d2 = a.add_diagram(None, "UMLClassDiagram");
+    a.drop_model(m, crate::views::P { x: 300.0, y: 100.0 }).unwrap();
+    assert!(a.can_drop_model(c));
+    let vs = a.drop_model(c, crate::views::P { x: 40.0, y: 40.0 }).unwrap();
+    assert_eq!(a.repo.ty(vs[0]), "UMLConstraintView");
+    assert_eq!(a.repo.list(d2, "ownedViews").iter().filter(|x| a.repo.ty(**x) == "UMLConstraintLinkView").count(), 1);
 }

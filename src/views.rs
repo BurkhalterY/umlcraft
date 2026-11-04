@@ -190,11 +190,11 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 14] = [
+const KNOWN_EDGE_VIEWS: [&str; 15] = [
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
-    "UMLTemplateBindingView",
+    "UMLTemplateBindingView", "UMLConstraintLinkView",
 ];
 
 /// Size used when the person clicks instead of dragging (estimated).
@@ -1001,6 +1001,16 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
             layout_name(r, ms, v, m, x, y + PKG_TAB_H, w, None, false);
         }
         return Info { shape: "package", ..Default::default() };
+    }
+    // a constraint: "{specification}", the box at least as wide as the text (estimated)
+    if t == "UMLConstraintView" {
+        if let Some(m) = m {
+            let text = format!("{{{}}}", r.str(m, "specification"));
+            let w = ms.width(&text, 0) + 10.0;
+            r.set(v, "text", json!(text));
+            grow(r, v, w.ceil(), 20.0);
+        }
+        return Info::default();
     }
     if t == "UMLUseCaseSubjectView" {
         if let Some(m) = m {

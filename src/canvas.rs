@@ -1208,6 +1208,13 @@ impl App {
 
     pub fn edit_view(&mut self, v: Eid, p: Option<P>) {
         let t = self.repo.ty(v).to_string();
+        // a constraint edits its specification (uml-commands.js:669)
+        if t == "UMLConstraintView" {
+            let Some(m) = self.repo.refd(v, "model") else { return };
+            let text = self.repo.str(m, "specification");
+            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None });
+            return;
+        }
         if t == "UMLNoteView" || t == "UMLTextView" || t == "UMLTextBoxView" || t == "UMLCustomTextView" {
             let text = self.repo.str(v, "text");
             self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None });
@@ -1418,6 +1425,11 @@ impl App {
             return;
         }
         match e.kind {
+            EditKind::Text(v) if self.repo.ty(v) == "UMLConstraintView" => {
+                if let Some(m) = self.repo.refd(v, "model").filter(|m| self.repo.alive(*m) && self.repo.str(*m, "specification") != e.text) {
+                    self.change(|a| a.repo.set(m, "specification", json!(e.text)));
+                }
+            }
             EditKind::Text(v) => {
                 if self.repo.alive(v) && self.repo.str(v, "text") != e.text {
                     self.change(|a| a.repo.set(v, "text", json!(e.text)));

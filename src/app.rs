@@ -12,6 +12,8 @@ pub const ZOOM_MAX: f64 = 3.0;
 pub const ZOOM_STEP: f64 = 0.1;
 pub const UNDO_LIMIT: usize = 100; // repository.js:37
 pub const DOCUMENT_VERSION: i64 = 1; // core.js:57
+/// The space between a box and a constraint added to its left (estimated).
+pub const CONSTRAINT_GAP: f64 = 30.0;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum AssocInit {
@@ -566,6 +568,51 @@ impl App {
         d.and_then(|d| self.repo.parent(d)).unwrap_or(self.repo.root)
     }
 
+    /// A view of a constraint at `p` (50×20, grown to its text), joined by a constraint link to each
+    /// view of the element that owns it on the diagram (factory.js:899-918).
+    pub fn place_constraint(&mut self, d: Eid, c: Eid, p: P) -> Eid {
+        let props = [
+            ("model", self.repo.ref_to(c)),
+            ("font", json!(views::FONT)),
+            ("parentStyle", json!(false)),
+            ("left", crate::model::num(p.x)),
+            ("top", crate::model::num(p.y)),
+            ("width", crate::model::num(50.0)),
+            ("height", crate::model::num(20.0)),
+        ];
+        let cv = self.repo.create("UMLConstraintView", &props, Some((d, "ownedViews")));
+        self.apply_view_defaults(cv);
+        if let Some(owner) = self.repo.parent(c) {
+            let targets: Vec<Eid> = self.repo.list(d, "ownedViews").into_iter().filter(|v| *v != cv && self.repo.refd(*v, "model") == Some(owner) && views::is_node(&self.repo, *v)).collect();
+            for t in targets {
+                self.link_constraint(d, cv, t);
+            }
+        }
+        cv
+    }
+
+    fn link_constraint(&mut self, d: Eid, cv: Eid, target: Eid) -> Eid {
+        let props = [("font", json!(views::FONT)), ("head", self.repo.ref_to(target)), ("tail", self.repo.ref_to(cv)), ("lineStyle", json!(views::DEFAULT_LINE_STYLE)), ("points", json!("0:0;0:0"))];
+        self.repo.create("UMLConstraintLinkView", &props, Some((d, "ownedViews")))
+    }
+
+    /// Add Constraint on a box: a constraint owned by its element, shown 50×20 to the left of the
+    /// box with a constraint link, as one undo step; its specification edit opens (uml-commands.js:727).
+    pub fn add_constraint_to(&mut self, v: Eid) -> Option<Eid> {
+        let d = self.diagram?;
+        let m = self.repo.refd(v, "model")?;
+        let b = views::node_rect(&self.repo, v);
+        let cv = self.change(|a| {
+            let name = a.new_name(m, "UMLConstraint");
+            let c = a.repo.create("UMLConstraint", &[("name", json!(name))], Some((m, "ownedElements")));
+            let p = P { x: (b.x - 50.0 - CONSTRAINT_GAP).max(0.0), y: b.y };
+            Some(a.place_constraint(d, c, p))
+        })?;
+        self.select(vec![cv]);
+        self.pending_edit = Some(cv);
+        Some(cv)
+    }
+
     /// A free line from `a` to `b` on the current diagram (common-factory.js:32-44).
     pub fn create_freeline(&mut self, a: P, b: P) -> Option<Eid> {
         let d = self.diagram?;
@@ -710,7 +757,7 @@ impl App {
     /// with a box, or a relationship whose two ends can be shown.
     pub fn can_drop_model(&self, m: Eid) -> bool {
         let ty = self.repo.ty(m);
-        self.diagram.is_some() && self.repo.alive(m) && (views::node_kind(ty).is_some() || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        self.diagram.is_some() && self.repo.alive(m) && (views::node_kind(ty).is_some() || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
@@ -718,6 +765,11 @@ impl App {
         let ty = self.repo.ty(m).to_string();
         if views::edge_view_of(&ty).is_some() && self.rel_ends(m).is_some() {
             return self.drop_relationship(d, m, p);
+        }
+        // a constraint gets its view and links to its owner's boxes (factory.js:899-918)
+        if ty == "UMLConstraint" {
+            let v = self.change(|a| Some(a.place_constraint(d, m, p)));
+            return Ok(v.into_iter().collect());
         }
         if views::node_kind(&ty).is_none() {
             return Ok(vec![]);
@@ -825,6 +877,7 @@ impl App {
             Some(m) => self.repo.ty(m).to_string(),
             None if self.repo.ty(e) == "UMLNoteLinkView" => "NoteLink".into(),
             None if self.repo.ty(e) == "UMLContainmentView" => "Containment".into(),
+            None if self.repo.ty(e) == "UMLConstraintLinkView" => "ConstraintLink".into(),
             None => String::new(),
         }
     }
@@ -834,6 +887,9 @@ impl App {
         let r = &self.repo;
         if kind == "NoteLink" {
             return r.ty(tail) == "UMLNoteView" || r.ty(head) == "UMLNoteView";
+        }
+        if kind == "ConstraintLink" {
+            return r.ty(tail) == "UMLConstraintView" && r.ty(head) != "UMLConstraintView";
         }
         if kind == "AssociationClass" {
             // between two classifiers, or from a class to an association line (uml-factory.js:631)
@@ -1194,7 +1250,7 @@ impl App {
             .into_iter()
             .filter(|&v| {
                 let ty = r.ty(v);
-                let needs_model = ty.starts_with("UML") && !matches!(ty, "UMLNoteView" | "UMLTextView" | "UMLTextBoxView" | "UMLNoteLinkView" | "UMLContainmentView" | "UMLCustomTextView" | "UMLCustomNoteView");
+                let needs_model = ty.starts_with("UML") && !matches!(ty, "UMLNoteView" | "UMLTextView" | "UMLTextBoxView" | "UMLNoteLinkView" | "UMLContainmentView" | "UMLCustomTextView" | "UMLCustomNoteView" | "UMLConstraintLinkView");
                 if dangling(v, "model") || (needs_model && !r.has(v, "model") && crate::meta::known(ty)) {
                     return true;
                 }
