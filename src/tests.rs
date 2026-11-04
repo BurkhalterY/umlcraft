@@ -389,6 +389,19 @@ fn working_diagrams_cycle_and_close() {
     assert_eq!(a.diagram, Some(d3), "previous wraps to the last");
     a.cycle_diagram(-1);
     assert_eq!(a.diagram, Some(d2));
+    // after dragging d3 to the front, Next still follows the open order until a save
+    a.open = vec![d3, d1, d2];
+    a.cycle_diagram(1);
+    assert_eq!(a.diagram, Some(d3), "d2 → d3 in open order");
+    let dir = std::env::temp_dir().join(format!("umlcraft-order-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&dir);
+    assert!(a.save_to(dir.join("o.mdj"), &measure()));
+    a.cycle_diagram(1);
+    assert_eq!(a.diagram, Some(d1), "after saving, the displayed order: d3 → d1");
+    let _ = std::fs::remove_dir_all(&dir);
+    a.open = vec![d1, d2, d3];
+    a.open_order = a.open.clone();
+    a.open_diagram(d2);
     // closing the current diagram activates the one that slid into its place
     a.close_diagram(None);
     assert_eq!((a.open.clone(), a.diagram), (vec![d1, d3], Some(d3)));

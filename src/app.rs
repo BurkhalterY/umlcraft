@@ -185,6 +185,9 @@ pub struct App {
     pub sys_clipboard: Option<arboard::Clipboard>,
     /// The colour field last changed and when, so a picker drag is one undo step.
     pub style_edit: Option<(String, std::time::Instant)>,
+    /// The working diagrams in the order they were opened, which Next/Previous Diagram follow; the
+    /// displayed (dragged) order replaces it when the project is saved (diagram-manager.js:152-160, 271-293).
+    pub open_order: Vec<Eid>,
     /// A "Select One" dialog waiting for an answer (dialog-manager.js:433-476).
     pub select_one: Option<SelectOne>,
     /// The Element List Editor: the element, the reference-list field and the selected row.
@@ -318,6 +321,7 @@ impl App {
             color_dialog: None,
             list_editor: None,
             select_one: None,
+            open_order: vec![],
             font_dialog: None,
             prefs: crate::prefs::Prefs::default(),
             prefs_open: None,
@@ -376,6 +380,7 @@ impl App {
         let diagrams = self.repo.all_of("Diagram");
         let defaults: Vec<Eid> = diagrams.iter().copied().filter(|d| self.repo.bool(*d, "defaultDiagram")).collect();
         self.open = if defaults.is_empty() { diagrams.first().copied().into_iter().collect() } else { defaults };
+        self.open_order = self.open.clone();
         self.diagram = self.open.first().copied();
         // the project is selected in the explorer (app-context.js:680-682)
         self.focus = Some(self.repo.root);
@@ -447,6 +452,8 @@ impl App {
     }
 
     pub fn save_to(&mut self, p: PathBuf, ms: &dyn Measure) -> bool {
+        // saving puts the working diagrams in their displayed order (diagram-manager.js:152-160)
+        self.open_order = self.open.clone();
         self.prepare_for_save(ms);
         match std::fs::write(&p, self.repo.serialize()) {
             Ok(_) => {
@@ -1330,6 +1337,9 @@ impl App {
         if !self.open.contains(&d) {
             self.open.push(d);
         }
+        if !self.open_order.contains(&d) {
+            self.open_order.push(d);
+        }
         if self.diagram != Some(d) {
             // switching diagrams closes the inline edit, keeping what was typed (app-context.js:1297-1324)
             self.close_inline(true);
@@ -1421,12 +1431,14 @@ impl App {
     /// View > Next Diagram (`step` 1) and Previous Diagram (`step` -1), wrapping around the working
     /// diagrams (diagram-manager.js:271-292).
     pub fn cycle_diagram(&mut self, step: isize) {
-        let n = self.open.len() as isize;
+        // the open order, then any working diagram it does not know yet
+        let order: Vec<Eid> = self.open_order.iter().filter(|d| self.open.contains(d)).chain(self.open.iter().filter(|d| !self.open_order.contains(d))).copied().collect();
+        let n = order.len() as isize;
         if n == 0 {
             return;
         }
-        let i = self.diagram.and_then(|d| self.open.iter().position(|x| *x == d)).map(|i| i as isize).unwrap_or(-step.max(0));
-        let next = self.open[(i + step).rem_euclid(n) as usize];
+        let i = self.diagram.and_then(|d| order.iter().position(|x| *x == d)).map(|i| i as isize).unwrap_or(-step.max(0));
+        let next = order[(i + step).rem_euclid(n) as usize];
         self.open_diagram(next);
     }
 

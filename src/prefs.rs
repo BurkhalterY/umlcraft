@@ -186,6 +186,7 @@ impl App {
         }
         let current = saved.get("current").and_then(|v| v.as_str()).and_then(|id| find(self, id)).or(open.first().copied());
         self.open = open;
+        self.open_order = self.open.clone();
         self.diagram = current;
     }
 }
