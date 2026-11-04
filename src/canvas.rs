@@ -565,7 +565,7 @@ impl App {
         resp.context_menu(|ui| self.canvas_menu(ui));
 
         // keyboard on the canvas
-        if resp.has_focus() && self.editing.is_none() && self.last_area != crate::app::Area::Explorer {
+        if resp.has_focus() && self.editing.is_none() && self.last_area != crate::app::Area::Explorer && !self.modal_open() {
             // keep Tab and the arrows on the canvas instead of moving the keyboard focus
             ui.memory_mut(|m| m.set_focus_lock_filter(resp.id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true }));
             let tab = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Tab));

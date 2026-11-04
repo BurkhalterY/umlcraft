@@ -2432,3 +2432,24 @@ fn user_keymap() {
     assert!(b.user_keymap.is_empty());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn dialogs_swallow_shortcuts() {
+    use egui::{Key, Modifiers};
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let mut press = |a: &mut App| {
+        let ev = egui::Event::Key { key: Key::G, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND };
+        let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+        out.textures_delta.clear();
+    };
+    let grid = a.show_grid;
+    a.rename_diagram();
+    assert!(a.modal_open());
+    press(&mut a);
+    assert_eq!(a.show_grid, grid, "Ctrl+G does not reach the canvas behind the dialog");
+    a.input_dialog = None;
+    press(&mut a);
+    assert_ne!(a.show_grid, grid);
+}

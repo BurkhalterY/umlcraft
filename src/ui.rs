@@ -1736,6 +1736,10 @@ impl App {
 
     pub(crate) fn shortcuts(&mut self, ctx: &egui::Context) {
         use egui::{Key, KeyboardShortcut, Modifiers};
+        // an open dialog takes the keys: no shortcut fires behind it (dialog-manager.js:308-309)
+        if self.modal_open() {
+            return;
+        }
         let typing = self.editing.is_some() || text_field_focused(ctx);
         let measure = EguiMeasure { ctx: ctx.clone() };
         let sc = |m: Modifiers, k: Key| KeyboardShortcut::new(m, k);
@@ -2021,6 +2025,22 @@ impl App {
         let info = views::layout_diagram(&mut self.repo, &ms, d);
         let png = render::to_png(&self.repo, d, &info, &ms, 1.0);
         self.copy_diagram_image(png);
+    }
+
+    /// Whether a dialog is open (the Command Palette, which handles its own keys, aside).
+    pub fn modal_open(&self) -> bool {
+        self.about_open
+            || self.message.is_some()
+            || self.diagram_picker.is_some()
+            || self.color_dialog.is_some()
+            || self.font_dialog.is_some()
+            || self.prefs_open.is_some()
+            || self.tag_editor.is_some()
+            || self.find_dialog.is_some()
+            || self.element_picker.is_some()
+            || self.input_dialog.is_some()
+            || self.mermaid_code.is_some()
+            || self.print_open
     }
 
     fn dialogs(&mut self, ctx: &egui::Context) {
