@@ -20,19 +20,47 @@ pub const TOOLBOX_HEIGHT: f32 = 400.0;
 pub const EDITORS_HEIGHT: f32 = 400.0;
 pub const HEADER_HEIGHT: f32 = 34.0;
 pub const SCREENSHOT_FRAMES: u32 = 120;
+/// Help › Documentation and Release Notes open these pages.
+pub const DOCS_URL: &str = "https://github.com/BurkhalterY/umlcraft#readme";
+pub const RELEASES_URL: &str = "https://github.com/BurkhalterY/umlcraft/releases";
+/// The grab handle a hidden sidebar or navigator leaves at the window edge (resizer.js:238-258).
+const GRIP_HIDDEN: f32 = 4.0;
 
-pub const LAYER0: Color32 = Color32::from_rgb(0x3a, 0x3f, 0x41);
-pub const LAYER1: Color32 = Color32::from_rgb(0x4a, 0x4c, 0x4e);
-pub const TOOLBAR: Color32 = Color32::from_rgb(0x5d, 0x5f, 0x60);
-pub const TEXT: Color32 = Color32::from_rgb(0xe3, 0xe3, 0xe3);
-pub const DIM: Color32 = Color32::from_rgb(0xb4, 0xb6, 0xb7);
-pub const BORDER: Color32 = Color32::from_rgb(0x56, 0x59, 0x5b);
-pub const INPUT: Color32 = Color32::from_rgb(0x40, 0x42, 0x44);
-pub const INPUT_BORDER: Color32 = Color32::from_rgb(0x63, 0x66, 0x68);
-pub const ACCENT: Color32 = Color32::from_rgb(0x1f, 0x7a, 0xe8);
-pub const ACCENT_TEXT: Color32 = Color32::from_rgb(0x4f, 0xa6, 0xff);
-pub const CURRENT_ROW: Color32 = Color32::from_rgb(0x33, 0x35, 0x3c);
-pub const HOVER_ROW: Color32 = Color32::from_rgb(0x55, 0x58, 0x5a);
+static LIGHT_THEME: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Switch the interface colours between the dark theme (the default) and the light one.
+pub fn set_light_theme(on: bool) {
+    LIGHT_THEME.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn light_theme() -> bool {
+    LIGHT_THEME.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// An interface colour: its dark-theme and light-theme values.
+macro_rules! themed {
+    ($name:ident, $dark:expr, $light:expr) => {
+        #[allow(non_snake_case)]
+        pub fn $name() -> Color32 {
+            if light_theme() { $light } else { $dark }
+        }
+    };
+}
+themed!(LAYER0, Color32::from_rgb(0x3a, 0x3f, 0x41), Color32::from_rgb(0xf2, 0xf2, 0xf2));
+themed!(LAYER1, Color32::from_rgb(0x4a, 0x4c, 0x4e), Color32::from_rgb(0xe6, 0xe6, 0xe6));
+themed!(TOOLBAR, Color32::from_rgb(0x5d, 0x5f, 0x60), Color32::from_rgb(0xd9, 0xd9, 0xd9));
+themed!(TEXT, Color32::from_rgb(0xe3, 0xe3, 0xe3), Color32::from_rgb(0x24, 0x24, 0x24));
+themed!(DIM, Color32::from_rgb(0xb4, 0xb6, 0xb7), Color32::from_rgb(0x68, 0x6a, 0x6c));
+themed!(BORDER, Color32::from_rgb(0x56, 0x59, 0x5b), Color32::from_rgb(0xcc, 0xcc, 0xcc));
+themed!(INPUT, Color32::from_rgb(0x40, 0x42, 0x44), Color32::from_rgb(0xff, 0xff, 0xff));
+themed!(INPUT_BORDER, Color32::from_rgb(0x63, 0x66, 0x68), Color32::from_rgb(0xb8, 0xb8, 0xb8));
+themed!(ACCENT, Color32::from_rgb(0x1f, 0x7a, 0xe8), Color32::from_rgb(0x1f, 0x7a, 0xe8));
+themed!(ACCENT_TEXT, Color32::from_rgb(0x4f, 0xa6, 0xff), Color32::from_rgb(0x0b, 0x5f, 0xc4));
+themed!(CURRENT_ROW, Color32::from_rgb(0x33, 0x35, 0x3c), Color32::from_rgb(0xd4, 0xe3, 0xf7));
+themed!(SELECTED_ROW, Color32::from_rgb(0x2d, 0x32, 0x38), Color32::from_rgb(0xd4, 0xe3, 0xf7));
+themed!(ROW_HOVER, Color32::from_rgb(0x33, 0x36, 0x3a), Color32::from_rgb(0xe2, 0xe2, 0xe2));
+themed!(TOOL_HOVER, Color32::from_rgb(0x6d, 0x70, 0x71), Color32::from_rgb(0xc4, 0xc4, 0xc4));
+themed!(HOVER_ROW, Color32::from_rgb(0x55, 0x58, 0x5a), Color32::from_rgb(0xdc, 0xdc, 0xdc));
 pub const OK_GREEN: Color32 = Color32::from_rgb(0x8d, 0xc6, 0x3f);
 
 const fn node(label: &'static str, kind: &'static str, icon: &'static str) -> Tool {
@@ -42,6 +70,7 @@ const fn line(label: &'static str, kind: &'static str, icon: &'static str, init:
     Tool { label, kind, icon, line: true, init }
 }
 
+#[derive(Clone, Copy)]
 pub struct Group {
     pub id: &'static str,
     pub label: &'static str,
@@ -52,7 +81,13 @@ pub struct Group {
 const ANNOTATIONS: Group = Group {
     id: "annotations",
     label: "Annotations",
-    items: &[node("Text", "Text", "text"), node("Note", "Note", "note"), line("Note Link", "NoteLink", "notelink", AssocInit::Plain)],
+    items: &[
+        node("Text", "Text", "text"),
+        node("Text Box", "TextBox", "textbox"),
+        line("Free Line", "FreeLine", "freeline", AssocInit::Plain),
+        node("Note", "Note", "note"),
+        line("Note Link", "NoteLink", "notelink", AssocInit::Plain),
+    ],
 };
 const CLASS_GROUPS: &[Group] = &[
     Group {
@@ -78,13 +113,19 @@ const CLASS_GROUPS: &[Group] = &[
             node("DataType", "UMLDataType", "datatype"),
             node("PrimitiveType", "UMLPrimitiveType", "datatype"),
             node("Enumeration", "UMLEnumeration", "enumeration"),
+            line("Association Class", "AssociationClass", "associationclass", AssocInit::Plain),
+            line("Template Binding", "UMLTemplateBinding", "dependency", AssocInit::Plain),
+            line("Realization", "UMLRealization", "realization", AssocInit::Plain),
         ],
     },
     Group {
         id: "package",
         label: "Packages",
-        items: &[node("Package", "UMLPackage", "package"), node("Model", "UMLModel", "model"), line("Dependency", "UMLDependency", "dependency", AssocInit::Plain)],
+        items: &[node("Package", "UMLPackage", "package"), node("Model", "UMLModel", "model"), node("Subsystem", "UMLSubsystem", "package"), line("Dependency", "UMLDependency", "dependency", AssocInit::Plain), line("Containment", "Containment", "containment", AssocInit::Plain)],
     },
+    INSTANCES,
+    // the robustness extension's group (robustness/toolbox/robustness.json)
+    Group { id: "robustness", label: "Robustness", items: &[node("Boundary", "Boundary", "boundary"), node("Entity", "Entity", "entity"), node("Control", "Control", "control")] },
     ANNOTATIONS,
 ];
 const USECASE_GROUPS: &[Group] = &[
@@ -107,10 +148,92 @@ const USECASE_GROUPS: &[Group] = &[
     ANNOTATIONS,
 ];
 const OTHER_GROUPS: &[Group] = &[ANNOTATIONS];
+// component and deployment diagrams share the Component and Deployment groups (uml.json "uml.component",
+// "uml.deployment")
+const COMPONENT_GROUPS: &[Group] = &[
+    Group {
+        id: "component",
+        label: "Component",
+        items: &[
+            node("Component", "UMLComponent", "component"),
+            node("Artifact", "UMLArtifact", "artifact"),
+            node("Interface", "UMLInterface", "interface"),
+            line("Dependency", "UMLDependency", "dependency", AssocInit::Plain),
+            line("Interface Realization", "UMLInterfaceRealization", "realization", AssocInit::Plain),
+            line("Component Realization", "UMLComponentRealization", "realization", AssocInit::Plain),
+        ],
+    },
+    Group {
+        id: "deployment",
+        label: "Deployment",
+        items: &[
+            node("Node", "UMLNode", "node"),
+            line("Deployment", "UMLDeployment", "dependency", AssocInit::Plain),
+            line("Communication Path", "UMLCommunicationPath", "association", AssocInit::Plain),
+        ],
+    },
+    INSTANCES,
+    ANNOTATIONS,
+];
+// objects and links (uml.json "uml.instance": UMLClassDiagram, UMLObjectDiagram, …)
+const INSTANCES: Group = Group {
+    id: "instance",
+    label: "Instances",
+    items: &[
+        node("Object", "UMLObject", "object"),
+        node("Artifact Instance", "UMLArtifactInstance", "artifact"),
+        node("Component Instance", "UMLComponentInstance", "component"),
+        node("Node Instance", "UMLNodeInstance", "node"),
+        line("Link", "UMLLink", "association", AssocInit::Plain),
+        line("Directed Link", "UMLLink", "directed", AssocInit::Directed),
+        line("Link Object", "LinkObject", "associationclass", AssocInit::Plain),
+    ],
+};
+const OBJECT_GROUPS: &[Group] = &[INSTANCES, ANNOTATIONS];
+// profile diagrams (uml.json "uml.profile")
+const PROFILE_GROUPS: &[Group] = &[
+    Group {
+        id: "profile",
+        label: "Profiles",
+        items: &[
+            node("MetaClass", "UMLMetaClass", "class"),
+            node("Stereotype", "UMLStereotype", "class"),
+            node("Enumeration", "UMLEnumeration", "enumeration"),
+            line("Extension", "UMLExtension", "generalization", AssocInit::Plain),
+            line("Generalization", "UMLGeneralization", "generalization", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
+// information flow diagrams: their own group, then the use case and basic class tools (uml.json)
+const INFO_FLOW_GROUPS: &[Group] = &[
+    Group {
+        id: "information-flow",
+        label: "Information Flows",
+        items: &[node("Information Item", "UMLInformationItem", "class"), line("Information Flow", "UMLInformationFlow", "dependency", AssocInit::Plain)],
+    },
+    USECASE_GROUPS[0],
+    CLASS_GROUPS[0],
+    ANNOTATIONS,
+];
+// a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
+const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
+
+/// Model › Add Diagram, for the diagram kinds UMLCraft edits.
+const DIAGRAM_KINDS: [(&str, &str); 8] = [
+    ("Class Diagram", "UMLClassDiagram"),
+    ("Package Diagram", "UMLPackageDiagram"),
+    ("Object Diagram", "UMLObjectDiagram"),
+    ("Component Diagram", "UMLComponentDiagram"),
+    ("Deployment Diagram", "UMLDeploymentDiagram"),
+    ("Use Case Diagram", "UMLUseCaseDiagram"),
+    ("Information Flow Diagram", "UMLInformationFlowDiagram"),
+    ("Profile Diagram", "UMLProfileDiagram"),
+];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
 /// priorities from the UML metamodel; kinds without one, such as diagrams, come first).
-fn order_rank(t: &str) -> u32 {
+pub(crate) fn order_rank(t: &str) -> u32 {
     match t {
         "UMLModel" => 1000, "UMLPackage" => 1001, "UMLSubsystem" => 1002, "UMLUseCaseSubject" => 1003,
         "UMLTemplateParameter" => 1101, "UMLParameter" => 1102, "UMLEnumerationLiteral" => 1103, "UMLPort" => 1104,
@@ -126,7 +249,7 @@ fn order_rank(t: &str) -> u32 {
 }
 
 fn text_galley_width(ui: &egui::Ui, t: &str, size: f32) -> f32 {
-    ui.ctx().fonts_mut(|f| f.layout_no_wrap(t.to_string(), FontId::proportional(size), TEXT).size().x)
+    ui.ctx().fonts_mut(|f| f.layout_no_wrap(t.to_string(), FontId::proportional(size), TEXT()).size().x)
 }
 
 impl App {
@@ -172,7 +295,7 @@ impl App {
         if name.is_empty() { format!("({})", t.trim_start_matches("UML")) } else { name }
     }
 
-    fn tree_row(&mut self, ui: &mut egui::Ui, e: Eid, depth: usize, has_kids: bool, open: bool) {
+    fn tree_row(&mut self, ui: &mut egui::Ui, e: Eid, depth: usize, has_kids: bool, open: bool, search_parent: Option<String>) {
         let w = ui.available_width();
         let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, 22.0), Sense::click_and_drag());
         let x0 = rect.left() + 4.0 + depth as f32 * 16.0;
@@ -184,23 +307,78 @@ impl App {
             } else {
                 vec![c + Vec2::new(-1.5, -3.5), c + Vec2::new(3.0, 0.0), c + Vec2::new(-1.5, 3.5)]
             };
-            p.add(egui::Shape::convex_polygon(tri, TEXT, Stroke::NONE));
+            p.add(egui::Shape::convex_polygon(tri, TEXT(), Stroke::NONE));
         }
         let ir = Rect::from_min_size(Pos2::new(x0 + 16.0, rect.center().y - 8.0), Vec2::splat(16.0));
         icons::draw(p, ir, icons::key_for(&self.repo, e));
-        let label = self.label_of(e);
+        let mut label = self.label_of(e);
+        if self.show_stereotype {
+            let st = views::stereotype_text(&self.repo, e);
+            if !st.is_empty() {
+                label = format!("{st} {label}");
+            }
+        }
+        if let Some(parent) = search_parent {
+            label = format!("{label} — {parent}");
+        }
         let tx = ir.right() + 6.0;
         let tw = text_galley_width(ui, &label, 13.0);
+        // renaming in place: Enter applies, Esc cancels (model-explorer-view.js)
+        if let Some((re, mut text, fresh)) = self.tree_rename.clone().filter(|r| r.0 == e) {
+            let er = Rect::from_min_max(Pos2::new(tx - 3.0, rect.top() + 1.0), Pos2::new(rect.right() - 4.0, rect.bottom() - 1.0));
+            let out = ui.put(er, egui::TextEdit::singleline(&mut text).font(FontId::proportional(13.0)).margin(Margin::symmetric(3, 1)));
+            if fresh {
+                out.request_focus();
+                if let Some(mut st) = egui::TextEdit::load_state(ui.ctx(), out.id) {
+                    let all = egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(text.chars().count()));
+                    st.cursor.set_char_range(Some(all));
+                    st.store(ui.ctx(), out.id);
+                }
+            }
+            let (enter, esc) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+            if esc {
+                self.tree_rename = None;
+            } else if (out.lost_focus() || enter) && !fresh {
+                // the Enter that applied the name does not start another rename
+                ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
+                self.tree_rename = None;
+                if self.repo.alive(re) && self.repo.name(re) != text {
+                    self.change(|a| a.repo.set(re, "name", json!(text)));
+                }
+            } else {
+                self.tree_rename = Some((re, text, false));
+            }
+            return;
+        }
         if self.focus == Some(e) {
             let lr = Rect::from_min_size(Pos2::new(tx - 3.0, rect.top() + 1.0), Vec2::new(tw + 6.0, 20.0));
-            p.rect_filled(lr, 0.0, Color32::from_rgb(0x2d, 0x32, 0x38));
+            p.rect_filled(lr, 0.0, SELECTED_ROW());
             p.rect_stroke(lr, 0.0, Stroke::new(1.0, Color32::from_rgb(0x4f, 0x99, 0xff)), egui::StrokeKind::Inside);
         }
-        p.text(Pos2::new(tx, rect.center().y), Align2::LEFT_CENTER, &label, FontId::proportional(13.0), TEXT);
+        p.text(Pos2::new(tx, rect.center().y), Align2::LEFT_CENTER, &label, FontId::proportional(13.0), TEXT());
 
         let ty = self.repo.ty(e).to_string();
-        if views::node_kind(&ty).is_some() {
+        if ty != "Project" {
             resp.dnd_set_drag_payload(e);
+        }
+        // dropping a row on another moves it there (model-explorer-view.js:182-241, app-context.js:1117-1144)
+        if let Some(src) = resp.dnd_hover_payload::<Eid>() {
+            let ok = self.can_relocate(*src, e);
+            if ok {
+                ui.painter().rect_stroke(rect, 0.0, Stroke::new(1.0, Color32::from_rgb(0x4f, 0x99, 0xff)), egui::StrokeKind::Inside);
+            } else if *src != e {
+                ui.ctx().set_cursor_icon(egui::CursorIcon::NotAllowed);
+            }
+        }
+        if let Some(src) = resp.dnd_release_payload::<Eid>() {
+            let src = *src;
+            if self.can_relocate(src, e) {
+                let field = self.repo.field_of(src).unwrap_or_default();
+                self.change(|a| a.repo.relocate(src, e, &field));
+                self.expanded.insert(e);
+                self.focus = Some(src);
+                self.reveal(src);
+            }
         }
         if resp.clicked() || resp.secondary_clicked() {
             self.last_area = Area::Explorer;
@@ -230,7 +408,7 @@ impl App {
     fn tree(&mut self, ui: &mut egui::Ui, e: Eid, depth: usize) {
         let kids = self.explorer_children(e);
         let open = self.expanded.contains(&e);
-        self.tree_row(ui, e, depth, !kids.is_empty(), open);
+        self.tree_row(ui, e, depth, !kids.is_empty(), open, None);
         if open {
             for k in kids {
                 if self.repo.alive(k) {
@@ -240,39 +418,87 @@ impl App {
         }
     }
 
-    fn model_menu(&mut self, ui: &mut egui::Ui, e: Eid) {
-        let t = self.repo.ty(e).to_string();
-        let is_pkg = self.repo.kind_of(e, "UMLPackage") || t == "Project";
-        let is_classifier = self.repo.kind_of(e, "UMLClassifier");
-        let mut adds: Vec<(&str, &str, bool)> = vec![];
-        if is_pkg {
+    /// What Model › Add offers under an element: (label, type, is a feature).
+    fn add_kinds(&self, e: Eid) -> Vec<(&'static str, &'static str, bool)> {
+        let t = self.repo.ty(e);
+        let mut adds = vec![];
+        if self.repo.kind_of(e, "UMLPackage") || t == "Project" {
             if t == "Project" {
                 adds.push(("Model", "UMLModel", false));
             }
-            for (l, k) in [("Package", "UMLPackage"), ("Class", "UMLClass"), ("Interface", "UMLInterface"), ("Enumeration", "UMLEnumeration"), ("DataType", "UMLDataType"), ("Actor", "UMLActor"), ("Use Case", "UMLUseCase")] {
+            for (l, k) in [
+                ("Package", "UMLPackage"), ("Profile", "UMLProfile"), ("Class", "UMLClass"), ("Interface", "UMLInterface"), ("Signal", "UMLSignal"),
+                ("DataType", "UMLDataType"), ("PrimitiveType", "UMLPrimitiveType"), ("Enumeration", "UMLEnumeration"), ("Stereotype", "UMLStereotype"),
+                ("Actor", "UMLActor"), ("Use Case", "UMLUseCase"), ("Subsystem", "UMLSubsystem"), ("Component", "UMLComponent"), ("Artifact", "UMLArtifact"), ("Node", "UMLNode"),
+                ("Object", "UMLObject"), ("Information Item", "UMLInformationItem"),
+            ] {
                 adds.push((l, k, false));
             }
         }
-        for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter")] {
+        // a metaclass goes in a profile
+        if t == "UMLProfile" {
+            adds.push(("MetaClass", "UMLMetaClass", false));
+        }
+        // Model › Add › Constraint on any model element (uml.json)
+        if self.repo.kind_of(e, "UMLModelElement") {
+            adds.push(("Constraint", "UMLConstraint", false));
+        }
+        for (l, k) in [("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Slot", "UMLSlot"), ("Literal", "UMLEnumerationLiteral"), ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter")] {
             if self.can_add_feature(e, k) {
                 adds.push((l, k, true));
             }
         }
-        if !adds.is_empty() {
-            ui.menu_button("Add", |ui| {
-                for (l, k, feature) in adds {
-                    if ui.button(l).clicked() {
-                        let created = self.change(|a| if feature { a.add_feature(e, k) } else { Some(a.add_model(e, k)) });
-                        self.expanded.insert(e);
-                        self.focus = created;
-                        ui.close();
-                    }
+        adds
+    }
+
+    /// The items of an Add submenu for an element.
+    fn add_items(&mut self, ui: &mut egui::Ui, e: Eid) {
+        // Model › Add › Tag on any element that can hold tags (common/menus)
+        if self.repo.kind_of(e, "ExtensibleModel") && ui.button("Tag").clicked() {
+            let name = self.new_name(e, "Tag");
+            let t = self.change(|a| a.repo.create("Tag", &[("name", json!(name)), ("kind", json!("string"))], Some((e, "tags"))));
+            self.expanded.insert(e);
+            self.focus = Some(t);
+            ui.close();
+            return;
+        }
+        for (l, k, feature) in self.add_kinds(e) {
+            // a constraint on an operation: which kind, in a Select One dialog (uml-commands.js:185)
+            if k == "UMLConstraint" && self.repo.ty(e) == "UMLOperation" {
+                if ui.button(l).clicked() {
+                    self.select_one = Some(crate::app::SelectOne {
+                        message: "Select the kind of constraint".into(),
+                        options: crate::app::OPERATION_CONSTRAINTS.iter().map(|x| x.0).collect(),
+                        selected: 0,
+                        purpose: crate::app::SelectPurpose::ConstraintKind(e),
+                    });
+                    ui.close();
                 }
-            });
+                continue;
+            }
+            if ui.button(l).clicked() {
+                let created = self.change(|a| if feature { a.add_feature(e, k) } else { Some(a.add_model(e, k)) });
+                self.expanded.insert(e);
+                self.focus = created;
+                if let Some(c) = created {
+                    self.reveal(c);
+                }
+                ui.close();
+            }
+        }
+    }
+
+    fn model_menu(&mut self, ui: &mut egui::Ui, e: Eid) {
+        let t = self.repo.ty(e).to_string();
+        let is_pkg = self.repo.kind_of(e, "UMLPackage") || t == "Project";
+        let is_classifier = self.repo.kind_of(e, "UMLClassifier");
+        let adds = self.add_kinds(e);
+        if !adds.is_empty() || self.repo.kind_of(e, "ExtensibleModel") {
+            ui.menu_button("Add", |ui| self.add_items(ui, e));
         }
         if is_pkg || is_classifier {
             ui.menu_button("Add Diagram", |ui| {
-                for (l, k) in [("Class Diagram", "UMLClassDiagram"), ("Use Case Diagram", "UMLUseCaseDiagram")] {
+                for (l, k) in DIAGRAM_KINDS {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
                         self.expanded.insert(e);
@@ -285,52 +511,104 @@ impl App {
             self.open_diagram(e);
             ui.close();
         }
+        if self.repo.kind_of(e, "ExtensibleModel") && ui.button("Tag Editor...").clicked() {
+            self.focus = Some(e);
+            self.open_tag_editor();
+            ui.close();
+        }
         if !self.is_diagram(e) && t != "Project" && ui.button("Select In Diagram").clicked() {
             self.focus = Some(e);
             self.select_in_diagram();
             ui.close();
         }
         ui.separator();
+        self.last_area = Area::Explorer;
+        self.clipboard_items(ui);
+        self.move_items(ui);
         if ui.add_enabled(t != "Project", egui::Button::new("Delete from Model")).clicked() {
             self.change(|a| a.delete_models(&[e]));
             ui.close();
         }
     }
 
-    fn explorer_ui(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn explorer_ui(&mut self, ui: &mut egui::Ui) {
+        let mut search_rect: Option<Rect> = None;
         ui.horizontal(|ui| {
             ui.set_height(HEADER_HEIGHT);
             ui.add_space(13.0);
-            ui.label(egui::RichText::new("MODEL EXPLORER").color(TEXT).size(13.0));
+            ui.label(egui::RichText::new("MODEL EXPLORER").color(TEXT()).size(13.0));
             ui.add_space(8.0);
             let w = ui.available_width() - 30.0;
             let r = ui.add_sized(Vec2::new(w, 23.0), egui::TextEdit::singleline(&mut self.search).hint_text("🔍").margin(Margin::symmetric(10, 3)));
-            let _ = r;
+            search_rect = Some(r.rect);
+            if r.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                self.search.clear();
+            }
             let (r, resp) = ui.allocate_exact_size(Vec2::new(14.0, 20.0), Sense::click());
             let c = r.center();
             let p = ui.painter();
-            p.add(egui::Shape::convex_polygon(vec![c + Vec2::new(-4.0, -1.5), c + Vec2::new(4.0, -1.5), c + Vec2::new(0.0, -6.5)], TEXT, Stroke::NONE));
-            p.add(egui::Shape::convex_polygon(vec![c + Vec2::new(-4.0, 1.5), c + Vec2::new(4.0, 1.5), c + Vec2::new(0.0, 6.5)], TEXT, Stroke::NONE));
-            if resp.on_hover_text("Sort by name").clicked() {
-                self.sort_by_name = !self.sort_by_name;
-            }
+            p.add(egui::Shape::convex_polygon(vec![c + Vec2::new(-4.0, -1.5), c + Vec2::new(4.0, -1.5), c + Vec2::new(0.0, -6.5)], TEXT(), Stroke::NONE));
+            p.add(egui::Shape::convex_polygon(vec![c + Vec2::new(-4.0, 1.5), c + Vec2::new(4.0, 1.5), c + Vec2::new(0.0, 6.5)], TEXT(), Stroke::NONE));
+            // the settings button opens the model-explorer-settings menu (model-explorer-view.js:632-641)
+            let resp = resp.on_hover_text("Settings");
+            egui::Popup::menu(&resp).show(|ui| self.explorer_settings_menu(ui));
         });
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        let out = egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
-            let q = self.search.trim().to_lowercase();
-            if q.is_empty() {
-                let root = self.repo.root;
-                self.tree(ui, root, 0);
-            } else {
-                let all: Vec<Eid> = self.repo.all().filter(|e| !self.is_view(*e)).collect();
-                for e in all {
-                    if self.label_of(e).to_lowercase().contains(&q) {
-                        self.tree_row(ui, e, 0, false, false);
-                    }
-                }
-            }
+            let root = self.repo.root;
+            self.tree(ui, root, 0);
             ui.add_space(8.0);
         });
+        // a shadow along the top while the tree is scrolled (model-explorer-view.js:704), hidden while
+        // a panel is being resized (navigator-view.js:92-105)
+        if out.state.offset.y > 0.5 && self.split_drag.is_none() {
+            scroll_shadow(ui.painter(), out.inner_rect);
+        }
+        // quick search: an autocomplete under the box, names containing the text, at most 99, each with
+        // its icon, label and " — parent"; picking one selects it in the tree (model-explorer-view.js:644-686)
+        let q = self.search.trim().to_lowercase();
+        if let (false, Some(sr)) = (q.is_empty(), search_rect) {
+            let hits: Vec<Eid> = self.repo.all().filter(|e| !self.is_view(*e) && self.repo.name(*e).to_lowercase().contains(&q)).take(99).collect();
+            let mut picked = None;
+            egui::Area::new(egui::Id::new("explorer-search")).order(egui::Order::Foreground).fixed_pos(sr.left_bottom() + Vec2::new(0.0, 2.0)).show(ui.ctx(), |ui| {
+                Frame::NONE.fill(LAYER1()).stroke(Stroke::new(1.0, INPUT_BORDER())).inner_margin(Margin::same(4)).show(ui, |ui| {
+                    ui.set_width(sr.width().max(220.0));
+                    egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                        if hits.is_empty() {
+                            ui.label(egui::RichText::new("No results").color(DIM()).size(12.0));
+                        }
+                        for e in hits {
+                            ui.horizontal(|ui| {
+                                let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                                icons::draw(ui.painter(), ir, icons::key_for(&self.repo, e));
+                                let parent = self.repo.parent(e).map(|p| self.repo.name(p)).filter(|n| !n.is_empty());
+                                let text = match parent {
+                                    Some(p) => format!("{} — {p}", self.label_of(e)),
+                                    None => self.label_of(e),
+                                };
+                                if ui.selectable_label(false, egui::RichText::new(text).size(12.0)).clicked() {
+                                    picked = Some(e);
+                                }
+                            });
+                        }
+                    });
+                });
+            });
+            if let Some(e) = picked {
+                self.search.clear();
+                self.reveal(e);
+                self.last_area = Area::Explorer;
+            }
+        }
+        // arrow keys walk the tree while it is the last area used
+        if self.last_area == Area::Explorer && self.editing.is_none() && !text_field_focused(ui.ctx()) && self.search.trim().is_empty() {
+            let keys = ui.input(|i| (i.key_pressed(egui::Key::ArrowUp), i.key_pressed(egui::Key::ArrowDown), i.key_pressed(egui::Key::ArrowLeft), i.key_pressed(egui::Key::ArrowRight)));
+            self.tree_keys(keys);
+            // Enter renames the selected element in place
+            if self.tree_rename.is_none() && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)) {
+                self.start_tree_rename();
+            }
+        }
         if ui.ui_contains_pointer() && ui.input(|i| i.key_pressed(egui::Key::Delete)) && self.last_area == Area::Explorer && !text_field_focused(ui.ctx()) {
             if let Some(f) = self.focus.filter(|f| self.repo.ty(*f) != "Project" && !self.is_view(*f)) {
                 self.change(|a| a.delete_models(&[f]));
@@ -338,14 +616,125 @@ impl App {
         }
     }
 
+    /// Set the text alignment of notes and texts (horzAlign 0/2/1, vertAlign 3/5/4), one undo step.
+    pub fn set_text_align(&mut self, views: &[Eid], field: &str, value: i64) {
+        let views = views.to_vec();
+        let field = field.to_string();
+        self.change(|a| {
+            for v in views {
+                a.repo.set(v, &field, json!(value));
+            }
+        });
+    }
+
+    /// Start renaming the selected element in the tree, its name selected.
+    pub fn start_tree_rename(&mut self) {
+        if let Some(f) = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f) && self.repo.ty(*f) != "Project" && crate::meta::order_of(self.repo.ty(*f), "name").is_some()) {
+            self.tree_rename = Some((f, self.repo.name(f), true));
+            self.reveal(f);
+        }
+    }
+
+    /// The model-explorer-settings menu: sort order, stereotype text, Expand All and Collapse All.
+    fn explorer_settings_menu(&mut self, ui: &mut egui::Ui) {
+        if ui.radio(!self.sort_by_name, "Sort By Added").clicked() {
+            self.sort_by_name = false;
+            ui.close();
+        }
+        if ui.radio(self.sort_by_name, "Sort By Name").clicked() {
+            self.sort_by_name = true;
+            ui.close();
+        }
+        ui.separator();
+        if ui.checkbox(&mut self.show_stereotype, "Show Stereotype Text").clicked() {
+            ui.close();
+        }
+        ui.separator();
+        if ui.button("Expand All").clicked() {
+            self.expand_all();
+            ui.close();
+        }
+        if ui.button("Collapse All").clicked() {
+            self.expanded.clear();
+            ui.close();
+        }
+    }
+
+    /// Expand All: open every element that has children in the tree (model-explorer-view.js:455-477).
+    pub fn expand_all(&mut self) {
+        let all: Vec<Eid> = self.repo.all().filter(|e| !self.is_view(*e)).collect();
+        for e in all {
+            if !self.explorer_children(e).is_empty() {
+                self.expanded.insert(e);
+            }
+        }
+    }
+
+    /// The rows the tree shows, top to bottom.
+    pub fn visible_rows(&self) -> Vec<Eid> {
+        fn walk(a: &App, e: Eid, out: &mut Vec<Eid>) {
+            out.push(e);
+            if a.expanded.contains(&e) {
+                for k in a.explorer_children(e) {
+                    if a.repo.alive(k) {
+                        walk(a, k, out);
+                    }
+                }
+            }
+        }
+        let mut out = vec![];
+        walk(self, self.repo.root, &mut out);
+        out
+    }
+
+    /// Up/Down move to the previous or next row; Right opens a row or goes to its first child; Left
+    /// closes it or goes to its parent (the tree widget's own keys).
+    pub fn tree_keys(&mut self, (up, down, left, right): (bool, bool, bool, bool)) {
+        if !(up || down || left || right) {
+            return;
+        }
+        let rows = self.visible_rows();
+        let Some(f) = self.focus.filter(|f| rows.contains(f)) else {
+            if let Some(&first) = rows.first() {
+                self.focus_element(first);
+            }
+            return;
+        };
+        let i = rows.iter().position(|x| *x == f).unwrap_or(0);
+        let kids = !self.explorer_children(f).is_empty();
+        let target = if up {
+            i.checked_sub(1).map(|j| rows[j])
+        } else if down {
+            rows.get(i + 1).copied()
+        } else if right {
+            if kids && !self.expanded.contains(&f) {
+                self.expanded.insert(f);
+                None
+            } else if kids {
+                self.explorer_children(f).first().copied()
+            } else {
+                None
+            }
+        } else if kids && self.expanded.contains(&f) {
+            self.expanded.remove(&f);
+            None
+        } else {
+            self.repo.parent(f)
+        };
+        if let Some(t) = target {
+            self.focus_element(t);
+            self.reveal(t);
+        }
+    }
+
     // ------------------------------------------------------------ editors
-    fn fields_for(&self, e: Eid) -> Vec<(&'static str, &'static str)> {
+    pub(crate) fn fields_for(&self, e: Eid) -> Vec<(&'static str, &'static str)> {
         let r = &self.repo;
         let t = r.ty(e);
         let end = |p: &str| -> Vec<(&'static str, &'static str)> {
-            let names: [(&'static str, &'static str); 13] = [
+            let names: [(&'static str, &'static str); 14] = [
                 ("name", "text"), ("reference", "ref"), ("stereotype", "text"), ("visibility", "enum"), ("navigable", "enum"), ("aggregation", "enum"), ("multiplicity", "text"),
-                ("defaultValue", "text"), ("isReadOnly", "bool"), ("isOrdered", "bool"), ("isUnique", "bool"), ("isDerived", "bool"), ("isID", "bool"),
+                ("defaultValue", "text"), ("isReadOnly", "bool"), ("isOrdered", "bool"), ("isUnique", "bool"), ("isDerived", "bool"), ("isID", "bool"), ("ownerAttribute", "owner"),
             ];
             names
                 .iter()
@@ -372,6 +761,15 @@ impl App {
             f.extend(end("end2"));
             return f;
         }
+        // a link: its two ends, without the association-only owner attribute
+        if t == "UMLLink" {
+            let link_end = |p: &str| end(p).into_iter().filter(|x| !x.0.ends_with("ownerAttribute")).collect::<Vec<_>>();
+            let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("-", "")];
+            f.extend(link_end("end1"));
+            f.push(("-", ""));
+            f.extend(link_end("end2"));
+            return f;
+        }
         if r.has(e, "source") && r.has(e, "target") {
             let mut f = vec![("name", "text"), ("source", "ref"), ("target", "ref"), ("stereotype", "text"), ("visibility", "enum")];
             if t == "UMLGeneralization" {
@@ -379,6 +777,10 @@ impl App {
             }
             if t == "UMLExtend" {
                 f.push(("condition", "text"));
+            }
+            // the items an information flow conveys, edited in the Element List Editor
+            if t == "UMLInformationFlow" {
+                f.push(("conveyed", "reflist"));
             }
             return f;
         }
@@ -389,11 +791,18 @@ impl App {
             ],
             "UMLOperation" => vec![
                 ("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("concurrency", "enum"), ("isQuery", "bool"),
-                ("isAbstract", "bool"), ("specification", "text"),
+                ("isAbstract", "bool"), ("specification", "multiline"),
             ],
             "UMLParameter" => vec![("name", "text"), ("stereotype", "text"), ("type", "type"), ("multiplicity", "text"), ("defaultValue", "text"), ("direction", "enum")],
             "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
+            "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
+            "UMLObject" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("classifier", "type")],
+            "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
+            "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
+            // a reception names the signal it receives (uml-commands.js:1484)
+            "UMLReception" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("signal", "type")],
             "UMLAssociationEnd" => end(""),
+            "UMLLinkEnd" => end("").into_iter().filter(|x| x.0 != "ownerAttribute").collect(),
             _ if r.kind_of(e, "UMLClassifier") => {
                 let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isAbstract", "bool"), ("isFinalSpecialization", "bool"), ("isLeaf", "bool")];
                 if t == "UMLClass" {
@@ -425,7 +834,7 @@ impl App {
         }
     }
 
-    fn commit_text(&mut self, obj: Eid, field: &str, kind: &str, text: String) {
+    pub(crate) fn commit_text(&mut self, obj: Eid, field: &str, kind: &str, text: String) {
         if self.display_value(obj, field, kind) == text {
             return;
         }
@@ -441,6 +850,9 @@ impl App {
                     a.repo.set_raw(obj, "type", json!(""));
                 } else if text.is_empty() {
                     a.repo.remove(obj, &field);
+                } else if let Some(x) = a.resolve_name(obj, &text, crate::picker::field_type(&field)) {
+                    // a name found from the owner outward, then anywhere, becomes a reference
+                    a.repo.set_ref(obj, &field, Some(x));
                 } else {
                     a.repo.set(obj, &field, json!(text));
                 }
@@ -461,8 +873,23 @@ impl App {
         }
     }
 
-    fn prop_row(&mut self, ui: &mut egui::Ui, e: Eid, path: &'static str, kind: &str) {
-        let Some((obj, field)) = self.target(e, path) else { return };
+    /// Apply a change to every target as one undo step.
+    fn change_all(&mut self, targets: &[(Eid, String)], f: impl Fn(&mut App, Eid, &str)) {
+        self.change(|a| {
+            for (obj, field) in targets {
+                f(a, *obj, field);
+            }
+        });
+    }
+
+    /// One property row for one element, or for several (merged: a value they share, or blank with
+    /// "—"; a change applies to all of them) (property-editor-view.js:140-147, 185-204, 780-794).
+    fn prop_row(&mut self, ui: &mut egui::Ui, es: &[Eid], path: &'static str, kind: &str) {
+        let targets: Vec<(Eid, String)> = es.iter().filter_map(|e| self.target(*e, path)).collect();
+        let Some((obj, field)) = targets.first().cloned() else { return };
+        let single = targets.len() == 1;
+        let values: Vec<String> = targets.iter().map(|(o, f)| self.display_value(*o, f, kind)).collect();
+        let merged: Option<String> = values.iter().all(|v| *v == values[0]).then(|| values[0].clone());
         ui.horizontal(|ui| {
             ui.set_min_height(29.0);
             let (lr, _) = ui.allocate_exact_size(Vec2::new(116.0, 22.0), Sense::hover());
@@ -471,49 +898,154 @@ impl App {
             match path.split_once('.') {
                 Some((pre, f)) => {
                     let fw = text_galley_width(ui, f, 12.0);
-                    p.text(Pos2::new(label_right, lr.center().y), Align2::RIGHT_CENTER, f, FontId::proportional(12.0), TEXT);
-                    p.text(Pos2::new(label_right - fw, lr.center().y), Align2::RIGHT_CENTER, format!("{pre}."), FontId::proportional(12.0), DIM);
+                    p.text(Pos2::new(label_right, lr.center().y), Align2::RIGHT_CENTER, f, FontId::proportional(12.0), TEXT());
+                    p.text(Pos2::new(label_right - fw, lr.center().y), Align2::RIGHT_CENTER, format!("{pre}."), FontId::proportional(12.0), DIM());
                 }
                 None => {
-                    p.text(Pos2::new(label_right, lr.center().y), Align2::RIGHT_CENTER, path, FontId::proportional(12.0), TEXT);
+                    p.text(Pos2::new(label_right, lr.center().y), Align2::RIGHT_CENTER, path, FontId::proportional(12.0), TEXT());
                 }
             }
             let w = ui.available_width() - 2.0;
             match kind {
                 "text" | "type" => {
-                    let cur = self.display_value(obj, &field, kind);
-                    let buf = self.prop_buf.entry(path.to_string()).or_insert(cur);
-                    let r = ui.add_sized(Vec2::new(w, 23.0), egui::TextEdit::singleline(buf).font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
+                    // type and stereotype: the linked element's icon, then a picker button
+                    let var = (kind == "type" || field == "stereotype") && single;
+                    let linked = if var { self.repo.raw(obj, &field).and_then(|v| self.repo.by_ref(v)).filter(|t| self.repo.alive(*t)) } else { None };
+                    let mut fw = w;
+                    if let Some(t) = linked {
+                        let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                        icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
+                        fw -= 16.0 + ui.spacing().item_spacing.x;
+                    }
+                    let combo = field == "multiplicity";
+                    if var || combo {
+                        fw -= 24.0 + ui.spacing().item_spacing.x;
+                    }
+                    let create = var && kind == "type" && field == "type";
+                    if create {
+                        fw -= 24.0 + ui.spacing().item_spacing.x;
+                    }
+                    let cur = merged.clone().unwrap_or_default();
+                    let buf = self.prop_buf.entry(path.to_string()).or_insert(cur.clone());
+                    let r = ui.add_sized(Vec2::new(fw, 23.0), egui::TextEdit::singleline(buf).hint_text("—").font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
                     if r.lost_focus() {
                         let text = buf.clone();
-                        self.commit_text(obj, &field, kind, text);
+                        if single {
+                            self.commit_text(obj, &field, kind, text);
+                        } else if text != cur {
+                            self.commit_all(&targets, kind, text);
+                        }
+                    }
+                    if var && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("…")).on_hover_text("Select Element").clicked() {
+                        self.open_element_picker(obj, &field);
+                    }
+                    // Create Type: a new class, named in a dialog, becomes the type (uml-commands.js:1606)
+                    if create && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("+")).on_hover_text("Create Type").clicked() {
+                        self.input_dialog = Some(crate::input::InputDialog { message: "Enter type name".into(), text: String::new(), action: crate::input::InputAction::CreateType(obj), fresh: true });
+                    }
+                    if combo {
+                        // an editable field plus the usual values (property-editor-view.js:445-479)
+                        let mut picked = None;
+                        ui.menu_button("▾", |ui| {
+                            for o in MULTIPLICITIES {
+                                if ui.button(o).clicked() {
+                                    picked = Some(o.to_string());
+                                    ui.close();
+                                }
+                            }
+                        });
+                        if let Some(o) = picked {
+                            self.prop_buf.insert(path.to_string(), o.clone());
+                            self.commit_all(&targets, kind, o);
+                        }
+                    }
+                }
+                "multiline" => {
+                    // a 70 px text area, committed on blur (property-editor-view.js:215-234)
+                    let cur = merged.clone().unwrap_or_default();
+                    let buf = self.prop_buf.entry(path.to_string()).or_insert(cur.clone());
+                    let r = ui.add_sized(Vec2::new(w, 70.0), egui::TextEdit::multiline(buf).hint_text("—").font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
+                    if r.lost_focus() && *buf != cur {
+                        let text = buf.clone();
+                        self.commit_all(&targets, "text", text);
                     }
                 }
                 "bool" => {
-                    let mut v = self.repo.bool(obj, &field);
+                    // mixed values show unchecked; a click sets them all
+                    let mut v = targets.iter().all(|(o, f)| self.repo.bool(*o, f));
                     if ui.checkbox(&mut v, "").changed() {
-                        let f = field.clone();
-                        self.change(|a| a.repo.set(obj, &f, json!(v)));
+                        self.change_all(&targets, |a, o, f| a.repo.set(o, f, json!(v)));
                     }
                 }
                 "enum" => {
-                    let cur = self.display_value(obj, &field, kind);
+                    let cur = merged.clone().unwrap_or_default();
                     let mut sel = cur.clone();
-                    egui::ComboBox::from_id_salt(path).selected_text(&sel).width(w).show_ui(ui, |ui| {
+                    let shown = if merged.is_some() { sel.clone() } else { "—".to_string() };
+                    egui::ComboBox::from_id_salt(path).selected_text(shown).width(w).show_ui(ui, |ui| {
                         for o in Self::enum_options(&field) {
                             ui.selectable_value(&mut sel, o.to_string(), *o);
                         }
                     });
                     if sel != cur {
+                        self.change_all(&targets, |a, o, f| a.repo.set(o, f, json!(sel)));
+                    }
+                }
+                // a reference list: its elements, for one element only, and "…" for the Element List
+                // Editor (property-editor-view.js:550-564)
+                "reflist" => {
+                    if single {
+                        let items = self.repo.ref_list(obj, &field);
+                        ui.vertical(|ui| {
+                            for x in &items {
+                                ui.horizontal(|ui| {
+                                    let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                                    icons::draw(ui.painter(), ir, icons::key_for(&self.repo, *x));
+                                    ui.label(egui::RichText::new(self.repo.name(*x)).size(12.0).color(TEXT()));
+                                });
+                            }
+                            if items.is_empty() {
+                                ui.label(egui::RichText::new("—").size(12.0).color(DIM()));
+                            }
+                        });
+                        if ui.small_button("…").on_hover_text("Edit the list").clicked() {
+                            self.list_editor = Some((obj, path, None));
+                        }
+                    }
+                }
+                "owner" => {
+                    // an attribute of the classifier at the other end (uml-commands.js:1465)
+                    let attrs = self.owner_attribute_options(obj);
+                    let cur = self.repo.refd(obj, &field);
+                    let shown = cur.map(|c| self.repo.name(c)).unwrap_or_else(|| "—".to_string());
+                    let mut pick: Option<Option<Eid>> = None;
+                    ui.add_enabled_ui(single, |ui| {
+                        egui::ComboBox::from_id_salt(path).selected_text(shown).width(w).show_ui(ui, |ui| {
+                            if ui.selectable_label(cur.is_none(), "(none)").clicked() {
+                                pick = Some(None);
+                            }
+                            for a in attrs {
+                                if ui.selectable_label(cur == Some(a), self.repo.name(a)).clicked() {
+                                    pick = Some(Some(a));
+                                }
+                            }
+                        });
+                    });
+                    if let Some(p) = pick.filter(|p| *p != cur) {
                         let f = field.clone();
-                        self.change(|a| a.repo.set(obj, &f, json!(sel)));
+                        self.change(|a| a.repo.set_ref(obj, &f, p));
                     }
                 }
                 "ref" => {
-                    if let Some(t) = self.repo.refd(obj, &field) {
-                        let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                        icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
-                        ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT));
+                    let shared = targets.iter().map(|(o, f)| self.repo.refd(*o, f)).collect::<Vec<_>>();
+                    match shared[0].filter(|_| shared.iter().all(|x| *x == shared[0])) {
+                        Some(t) => {
+                            let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                            icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
+                            ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT()));
+                        }
+                        None => {
+                            ui.label(egui::RichText::new("—").size(12.0).color(DIM()));
+                        }
                     }
                 }
                 _ => {}
@@ -521,73 +1053,158 @@ impl App {
         });
     }
 
+    /// The attributes an association end's ownerAttribute can be: those of the classifier at the
+    /// other end (uml-commands.js:1465).
+    pub(crate) fn owner_attribute_options(&self, end: Eid) -> Vec<Eid> {
+        let other = self.repo.parent(end).and_then(|a| {
+            let mine = self.repo.field_of(end);
+            let k = if mine.as_deref() == Some("end1") { "end2" } else { "end1" };
+            self.repo.child(a, k).and_then(|x| self.repo.refd(x, "reference"))
+        });
+        other.map(|c| self.repo.list(c, "attributes")).unwrap_or_default()
+    }
+
+    /// Commit a text to several elements as one undo step.
+    pub(crate) fn commit_all(&mut self, targets: &[(Eid, String)], kind: &str, text: String) {
+        let undo = self.undo.len();
+        for (obj, field) in targets {
+            self.commit_text(*obj, field, kind, text.clone());
+        }
+        // one step for the whole change
+        if self.undo.len() > undo + 1 {
+            self.undo.truncate(undo + 1);
+        }
+    }
+
+    /// The elements the Properties section edits: the models of the selected views when there are
+    /// several, otherwise the focused element.
+    pub(crate) fn prop_elements(&self) -> Vec<Eid> {
+        let mut models: Vec<Eid> = vec![];
+        for v in &self.selection {
+            if let Some(m) = self.repo.refd(*v, "model").filter(|m| self.repo.alive(*m)) {
+                if !models.contains(&m) {
+                    models.push(m);
+                }
+            }
+        }
+        if models.len() > 1 {
+            return models;
+        }
+        self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f)).into_iter().collect()
+    }
+
+    /// The fields several elements share: those of the first, kept when every other has the same one.
+    pub(crate) fn common_fields(&self, es: &[Eid]) -> Vec<(&'static str, &'static str)> {
+        let Some(first) = es.first() else { return vec![] };
+        let rest: Vec<Vec<(&'static str, &'static str)>> = es[1..].iter().map(|e| self.fields_for(*e)).collect();
+        self.fields_for(*first).into_iter().filter(|f| f.0 != "-" || es.len() == 1).filter(|f| rest.iter().all(|r| r.contains(f))).collect()
+    }
+
     fn editors_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.set_height(HEADER_HEIGHT);
             ui.add_space(13.0);
-            ui.label(egui::RichText::new("EDITORS").color(TEXT).size(13.0));
+            ui.label(egui::RichText::new("EDITORS").color(TEXT()).size(13.0));
         });
         let focus = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f));
-        if self.prop_for != focus {
+        let es = self.prop_elements();
+        if self.prop_for != focus || self.prop_set != es {
             self.prop_buf.clear();
             self.prop_for = focus;
+            self.prop_set = es.clone();
             self.doc_buf = focus.map(|f| self.repo.str(f, "documentation")).unwrap_or_default();
         }
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             Frame::NONE.inner_margin(Margin { left: 13, right: 13, top: 0, bottom: 10 }).show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
-                if section_header(ui, "Properties", focus.is_some() && self.props_open) && focus.is_some() {
+                // Styles comes first and only shows for a view selection (style-editor-view.js:666-668)
+                let views_selected = self.selection.iter().any(|v| self.repo.alive(*v));
+                if views_selected {
+                    if section_header(ui, "Styles", self.style_open) {
+                        self.style_open = !self.style_open;
+                    }
+                    let mut fold = egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), egui::Id::new("editor-styles"), self.style_open);
+                    fold.set_open(self.style_open);
+                    fold.show_body_unindented(ui, |ui| {
+                        self.style_ui(ui);
+                        ui.add_space(6.0);
+                    });
+                    ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
+                }
+                // Properties hides with nothing selected (property-editor-view.js:815-817)
+                if !es.is_empty() && section_header(ui, "Properties", self.props_open) {
                     self.props_open = !self.props_open;
                 }
-                if let (Some(e), true) = (focus, self.props_open) {
-                    for (path, kind) in self.fields_for(e) {
-                        if path == "-" {
-                            ui.add_space(8.0);
-                            ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER));
-                            ui.add_space(8.0);
-                        } else {
-                            self.prop_row(ui, e, path, kind);
+                // the body folds and unfolds with a slide (editors-holder-view.js:61-87)
+                if !es.is_empty() {
+                    let open = self.props_open;
+                    let mut fold = egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), egui::Id::new("editor-properties"), open);
+                    fold.set_open(open);
+                    fold.show_body_unindented(ui, |ui| {
+                    if es.len() > 1 {
+                        // several elements: the fields they share, merged
+                        ui.label(egui::RichText::new(format!("{} elements", es.len())).size(12.0).color(DIM()));
+                        for (path, kind) in self.common_fields(&es) {
+                            self.prop_row(ui, &es, path, kind);
                         }
-                    }
-                    let t = self.repo.ty(e).to_string();
-                    let mut buttons: Vec<(&str, &str)> = vec![];
-                    if t == "UMLEnumeration" {
-                        buttons.push(("+ Literal", "UMLEnumerationLiteral"));
-                    }
-                    if self.can_add_feature(e, "UMLAttribute") {
-                        buttons.push(("+ Attribute", "UMLAttribute"));
-                        buttons.push(("+ Operation", "UMLOperation"));
-                    }
-                    if t == "UMLOperation" {
-                        buttons.push(("+ Parameter", "UMLParameter"));
-                    }
-                    if !buttons.is_empty() {
-                        ui.add_space(6.0);
-                        ui.horizontal(|ui| {
-                            ui.add_space(116.0);
-                            for (label, ty) in buttons {
-                                if ui.add(egui::Button::new(egui::RichText::new(label).size(12.0)).fill(HOVER_ROW).stroke(Stroke::new(1.0, INPUT_BORDER))).clicked() {
-                                    if let Some(c) = self.change(|a| a.add_feature(e, ty)) {
-                                        self.focus = Some(c);
-                                        self.expanded.insert(e);
+                    } else if let Some(e) = focus {
+                        for (path, kind) in self.fields_for(e) {
+                            if path == "-" {
+                                ui.add_space(8.0);
+                                ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
+                                ui.add_space(8.0);
+                            } else {
+                                self.prop_row(ui, &[e], path, kind);
+                            }
+                        }
+                        let t = self.repo.ty(e).to_string();
+                        let mut buttons: Vec<(&str, &str)> = vec![];
+                        if t == "UMLEnumeration" {
+                            buttons.push(("+ Literal", "UMLEnumerationLiteral"));
+                        }
+                        if self.can_add_feature(e, "UMLAttribute") {
+                            buttons.push(("+ Attribute", "UMLAttribute"));
+                            buttons.push(("+ Operation", "UMLOperation"));
+                        }
+                        if t == "UMLOperation" {
+                            buttons.push(("+ Parameter", "UMLParameter"));
+                        }
+                        if !buttons.is_empty() {
+                            ui.add_space(6.0);
+                            ui.horizontal(|ui| {
+                                ui.add_space(116.0);
+                                for (label, ty) in buttons {
+                                    if ui.add(egui::Button::new(egui::RichText::new(label).size(12.0)).fill(HOVER_ROW()).stroke(Stroke::new(1.0, INPUT_BORDER()))).clicked() {
+                                        if let Some(c) = self.change(|a| a.add_feature(e, ty)) {
+                                            self.focus = Some(c);
+                                            self.expanded.insert(e);
+                                        }
                                     }
                                 }
-                            }
-                        });
-                        ui.add_space(6.0);
+                            });
+                            ui.add_space(6.0);
+                        }
                     }
+                    });
                 }
-                ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER));
-                let has_doc = focus.map(|f| self.repo.kind_of(f, "ExtensibleModel") || self.repo.has(f, "documentation") || !crate::meta::known(self.repo.ty(f))).unwrap_or(false);
-                if section_header(ui, "Documentation", has_doc && self.doc_open) && has_doc {
+                if !es.is_empty() {
+                    ui.painter().hline(ui.max_rect().x_range(), ui.cursor().top(), Stroke::new(1.0, BORDER()));
+                }
+                // Documentation shows only for one element that can hold it (documentation-editor-view.js:41-50)
+                let has_doc = es.len() <= 1 && focus.map(|f| self.repo.kind_of(f, "ExtensibleModel") || self.repo.has(f, "documentation") || !crate::meta::known(self.repo.ty(f))).unwrap_or(false);
+                if has_doc && section_header(ui, "Documentation", self.doc_open) {
                     self.doc_open = !self.doc_open;
                 }
-                if let (Some(e), true, true) = (focus, has_doc, self.doc_open) {
-                    let r = ui.add_sized(Vec2::new(ui.available_width(), 180.0), egui::TextEdit::multiline(&mut self.doc_buf).font(FontId::proportional(13.0)));
-                    if r.lost_focus() && self.repo.str(e, "documentation") != self.doc_buf {
-                        let text = self.doc_buf.clone();
-                        self.change(|a| a.repo.set(e, "documentation", json!(text)));
-                    }
+                if let (Some(e), true) = (focus, has_doc) {
+                    let mut fold = egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), egui::Id::new("editor-documentation"), self.doc_open);
+                    fold.set_open(self.doc_open);
+                    fold.show_body_unindented(ui, |ui| {
+                        let r = ui.add_sized(Vec2::new(ui.available_width(), 180.0), egui::TextEdit::multiline(&mut self.doc_buf).font(FontId::proportional(13.0)));
+                        if r.lost_focus() && self.repo.str(e, "documentation") != self.doc_buf {
+                            let text = self.doc_buf.clone();
+                            self.change(|a| a.repo.set(e, "documentation", json!(text)));
+                        }
+                    });
                 }
             });
         });
@@ -598,35 +1215,52 @@ impl App {
         ui.horizontal(|ui| {
             ui.set_height(HEADER_HEIGHT);
             ui.add_space(13.0);
-            ui.label(egui::RichText::new("WORKING DIAGRAMS").color(TEXT).size(13.0));
+            ui.label(egui::RichText::new("WORKING DIAGRAMS").color(TEXT()).size(13.0));
         });
         ui.spacing_mut().item_spacing.y = 0.0;
         for d in self.open.clone() {
             if !self.repo.alive(d) {
                 continue;
             }
-            let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 30.0), Sense::click());
+            let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 30.0), Sense::click_and_drag());
+            // rows can be dragged into a new order (working-diagrams-view.js:204-205)
+            resp.dnd_set_drag_payload(WorkingRow(d));
+            if let Some(src) = resp.dnd_hover_payload::<WorkingRow>() {
+                if src.0 != d {
+                    ui.painter().hline(rect.x_range(), rect.top(), Stroke::new(2.0, ACCENT()));
+                }
+            }
+            if let Some(src) = resp.dnd_release_payload::<WorkingRow>() {
+                self.move_working(src.0, d);
+            }
             let current = self.diagram == Some(d);
             let p = ui.painter();
             if current {
-                p.rect_filled(rect, 0.0, CURRENT_ROW);
+                p.rect_filled(rect, 0.0, CURRENT_ROW());
             } else if resp.hovered() {
-                p.rect_filled(rect, 0.0, Color32::from_rgb(0x33, 0x36, 0x3a));
+                p.rect_filled(rect, 0.0, ROW_HOVER());
             }
             icons::draw(p, Rect::from_min_size(Pos2::new(rect.left() + 28.0, rect.top() + 7.0), Vec2::splat(16.0)), icons::key_for(&self.repo, d));
             let name = self.repo.name(d);
             let nx = rect.left() + 46.0;
-            p.text(Pos2::new(nx, rect.center().y), Align2::LEFT_CENTER, &name, FontId::proportional(13.0), if current { ACCENT_TEXT } else { TEXT });
+            p.text(Pos2::new(nx, rect.center().y), Align2::LEFT_CENTER, &name, FontId::proportional(13.0), if current { ACCENT_TEXT() } else { TEXT() });
             let nw = text_galley_width(ui, &name, 13.0);
             if let Some(owner) = self.repo.parent(d).map(|o| self.repo.name(o)).filter(|o| !o.is_empty()) {
-                p.text(Pos2::new(nx + nw + 4.0, rect.center().y + 1.0), Align2::LEFT_CENTER, format!("— {owner}"), FontId::proportional(11.0), DIM);
+                p.text(Pos2::new(nx + nw + 4.0, rect.center().y + 1.0), Align2::LEFT_CENTER, format!("— {owner}"), FontId::proportional(11.0), DIM());
             }
             let close = Rect::from_center_size(Pos2::new(rect.right() - 16.0, rect.center().y), Vec2::splat(16.0));
             if resp.hovered() {
-                p.text(close.center(), Align2::CENTER_CENTER, "×", FontId::proportional(14.0), DIM);
+                p.text(close.center(), Align2::CENTER_CENTER, "×", FontId::proportional(14.0), DIM());
             }
             // the menu acts on the current diagram; right-clicking a row does not make it current
-            resp.context_menu(|ui| self.diagram_close_items(ui));
+            resp.context_menu(|ui| {
+                self.diagram_close_items(ui);
+                ui.separator();
+                if ui.add_enabled(self.diagram.is_some(), egui::Button::new("Rename")).clicked() {
+                    self.rename_diagram();
+                    ui.close();
+                }
+            });
             if resp.clicked() {
                 if resp.interact_pointer_pos().map(|q| close.contains(q)).unwrap_or(false) {
                     self.close_diagram(Some(d));
@@ -638,15 +1272,46 @@ impl App {
         }
     }
 
+    /// Move a working diagram to the place of another (dropped on its row), keeping the current one.
+    pub fn move_working(&mut self, d: Eid, before: Eid) {
+        if d == before {
+            return;
+        }
+        let Some(from) = self.open.iter().position(|x| *x == d) else { return };
+        let Some(to) = self.open.iter().position(|x| *x == before) else { return };
+        let item = self.open.remove(from);
+        self.open.insert(to, item);
+    }
+
     fn toolbox_ui(&mut self, ui: &mut egui::Ui) {
         let top = ui.cursor().top();
-        ui.painter().text(Pos2::new(ui.max_rect().left() + 13.0, top + 17.0), Align2::LEFT_CENTER, "TOOLBOX", FontId::proportional(13.0), TEXT);
+        ui.painter().text(Pos2::new(ui.max_rect().left() + 13.0, top + 17.0), Align2::LEFT_CENTER, "TOOLBOX", FontId::proportional(13.0), TEXT());
         ui.add_space(26.0);
+        // without a diagram the toolbox is empty (toolbox-view.js:307-310)
+        if self.diagram.is_none() {
+            return;
+        }
+        // a group opens by itself when a diagram of its type becomes current (toolbox-view.js:298-305)
+        let dty = self.diagram.map(|d| self.repo.ty(d).to_string());
+        if dty != self.toolbox_for {
+            match dty.as_deref() {
+                Some("UMLClassDiagram") => self.open_groups.insert("class"),
+                Some("UMLUseCaseDiagram") => self.open_groups.insert("usecase"),
+                Some("UMLPackageDiagram") => self.open_groups.insert("package"),
+                Some("UMLComponentDiagram") => self.open_groups.insert("component"),
+                Some("UMLDeploymentDiagram") => self.open_groups.insert("deployment"),
+                Some("UMLObjectDiagram") => self.open_groups.insert("instance"),
+                Some("UMLInformationFlowDiagram") => self.open_groups.insert("information-flow"),
+                Some("UMLProfileDiagram") => self.open_groups.insert("profile"),
+                _ => false,
+            };
+            self.toolbox_for = dty;
+        }
         ui.horizontal(|ui| {
             ui.add_space((ui.available_width() - 26.0) / 2.0);
             let (r, resp) = ui.allocate_exact_size(Vec2::new(26.0, 24.0), Sense::click());
             if self.tool.is_none() {
-                ui.painter().rect_filled(r, CornerRadius::same(2), TOOLBAR);
+                ui.painter().rect_filled(r, CornerRadius::same(2), TOOLBAR());
             }
             icons::draw(ui.painter(), Rect::from_center_size(r.center(), Vec2::splat(16.0)), "select");
             if resp.clicked() {
@@ -657,6 +1322,11 @@ impl App {
         let groups: &[Group] = match self.diagram.map(|d| self.repo.ty(d).to_string()).as_deref() {
             Some("UMLClassDiagram") => CLASS_GROUPS,
             Some("UMLUseCaseDiagram") => USECASE_GROUPS,
+            Some("UMLPackageDiagram") => PACKAGE_GROUPS,
+            Some("UMLObjectDiagram") => OBJECT_GROUPS,
+            Some("UMLInformationFlowDiagram") => INFO_FLOW_GROUPS,
+            Some("UMLProfileDiagram") => PROFILE_GROUPS,
+            Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],
         };
@@ -666,21 +1336,24 @@ impl App {
                 let open = self.open_groups.contains(g.id);
                 let (rect, resp) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 30.0), Sense::click());
                 let p = ui.painter();
-                p.text(Pos2::new(rect.left() + 13.0, rect.center().y), Align2::LEFT_CENTER, g.label, FontId::proportional(13.0), DIM);
-                p.hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, BORDER));
+                p.text(Pos2::new(rect.left() + 13.0, rect.center().y), Align2::LEFT_CENTER, g.label, FontId::proportional(13.0), DIM());
+                p.hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, BORDER()));
                 let c = Pos2::new(rect.right() - 16.0, rect.center().y);
                 let tri = if open {
                     vec![c + Vec2::new(-4.0, 3.0), c + Vec2::new(4.0, 3.0), c + Vec2::new(0.0, -3.0)]
                 } else {
                     vec![c + Vec2::new(-4.0, -3.0), c + Vec2::new(4.0, -3.0), c + Vec2::new(0.0, 3.0)]
                 };
-                p.add(egui::Shape::convex_polygon(tri, TEXT, Stroke::NONE));
+                p.add(egui::Shape::convex_polygon(tri, TEXT(), Stroke::NONE));
                 if resp.clicked() {
                     if open {
                         self.open_groups.remove(g.id);
                     } else {
                         self.open_groups.insert(g.id);
                     }
+                    // opening or closing a group goes back to Select (toolbox-view.js:446-449)
+                    self.tool = None;
+                    self.tool_sticky = false;
                 }
                 if !open {
                     continue;
@@ -690,22 +1363,35 @@ impl App {
                     let p = ui.painter();
                     let selected = self.tool == Some(*it);
                     if selected {
-                        p.rect_filled(rect, 0.0, ACCENT);
+                        p.rect_filled(rect, 0.0, ACCENT());
                     } else if resp.hovered() {
-                        p.rect_filled(rect, 0.0, HOVER_ROW);
+                        p.rect_filled(rect, 0.0, HOVER_ROW());
                     }
                     icons::draw(p, Rect::from_min_size(Pos2::new(rect.left() + 14.0, rect.top() + 8.0), Vec2::splat(16.0)), it.icon);
-                    p.text(Pos2::new(rect.left() + 34.0, rect.center().y), Align2::LEFT_CENTER, it.label, FontId::proportional(13.0), if selected { Color32::WHITE } else { TEXT });
-                    if resp.double_clicked() {
-                        self.tool = Some(*it);
-                        self.tool_sticky = true;
-                    } else if resp.clicked() {
-                        self.tool = if selected { None } else { Some(*it) };
-                        self.tool_sticky = false;
+                    p.text(Pos2::new(rect.left() + 34.0, rect.center().y), Align2::LEFT_CENTER, it.label, FontId::proportional(13.0), if selected && !light_theme() { Color32::WHITE } else { TEXT() });
+                    if selected && self.tool_sticky {
+                        draw_lock(p, Pos2::new(rect.right() - 18.0, rect.center().y));
+                    }
+                    if resp.clicked() {
+                        self.toolbox_click(*it);
                     }
                 }
             }
         });
+    }
+
+    /// A click on a toolbox item: select it; on the active item, lock it; on a locked item, unlock it and
+    /// go back to Select. A double-click therefore locks (toolbox-view.js:451-457).
+    pub(crate) fn toolbox_click(&mut self, it: crate::app::Tool) {
+        if self.tool != Some(it) {
+            self.tool = Some(it);
+            self.tool_sticky = false;
+        } else if !self.tool_sticky {
+            self.tool_sticky = true;
+        } else {
+            self.tool = None;
+            self.tool_sticky = false;
+        }
     }
 
     fn toolbar_ui(&mut self, ui: &mut egui::Ui) {
@@ -715,7 +1401,7 @@ impl App {
             for (key, tip) in [("zoomIn", "Zoom In"), ("zoomOut", "Zoom Out"), ("fit", "Fit To Window"), ("grid", "Show Grid"), ("image", "Export Diagram as PNG")] {
                 let (r, resp) = ui.allocate_exact_size(Vec2::splat(24.0), Sense::click());
                 if resp.hovered() {
-                    ui.painter().rect_filled(r, CornerRadius::same(2), Color32::from_rgb(0x6d, 0x70, 0x71));
+                    ui.painter().rect_filled(r, CornerRadius::same(2), TOOL_HOVER());
                 }
                 icons::draw(ui.painter(), r.shrink(3.0), key);
                 if resp.on_hover_text(tip).clicked() {
@@ -724,7 +1410,7 @@ impl App {
                         "zoomOut" => self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP),
                         "fit" => self.fit(),
                         "grid" => self.show_grid = !self.show_grid,
-                        _ => self.export_png(&ui.ctx().clone()),
+                        _ => self.export_current(&ui.ctx().clone(), crate::export::Format::Png),
                     }
                 }
             }
@@ -734,33 +1420,78 @@ impl App {
     fn status_ui(&mut self, ui: &mut egui::Ui) {
         let rect = ui.max_rect();
         let p = ui.painter();
-        p.hline(rect.x_range(), rect.top() + 0.5, Stroke::new(1.0, BORDER));
+        p.hline(rect.x_range(), rect.top() + 0.5, Stroke::new(1.0, BORDER()));
         // right side: check mark and zoom
         let zr = Rect::from_min_max(Pos2::new(rect.right() - 57.0, rect.top()), rect.right_bottom());
-        p.vline(zr.left(), rect.y_range(), Stroke::new(1.0, BORDER));
-        p.text(zr.center(), Align2::CENTER_CENTER, format!("{}%", (self.zoom * 100.0).round()), FontId::proportional(13.0), TEXT);
+        p.vline(zr.left(), rect.y_range(), Stroke::new(1.0, BORDER()));
+        p.text(zr.center(), Align2::CENTER_CENTER, format!("{}%", (self.zoom * 100.0).round()), FontId::proportional(13.0), TEXT());
         let vr = Rect::from_min_max(Pos2::new(zr.left() - 33.0, rect.top()), Pos2::new(zr.left(), rect.bottom()));
-        p.vline(vr.left(), rect.y_range(), Stroke::new(1.0, BORDER));
-        p.circle_filled(vr.center(), 7.5, OK_GREEN);
+        p.vline(vr.left(), rect.y_range(), Stroke::new(1.0, BORDER()));
+        // validation indicator: green OK, or red when the last validation found errors; a click toggles
+        // the Validation Results panel (statusbar-view.js:62-70)
         let c = vr.center();
-        p.add(egui::Shape::line(vec![c + Vec2::new(-3.5, 0.0), c + Vec2::new(-1.0, 2.5), c + Vec2::new(3.5, -2.5)], Stroke::new(2.0, LAYER0)));
-        // left side: where the focused element sits
+        let errors = self.problems.iter().any(|q| self.repo.alive(q.elem));
+        if errors {
+            p.circle_filled(c, 7.5, Color32::from_rgb(0xe5, 0x48, 0x4d));
+            let st = Stroke::new(2.0, LAYER0());
+            p.line_segment([c + Vec2::new(-3.0, -3.0), c + Vec2::new(3.0, 3.0)], st);
+            p.line_segment([c + Vec2::new(-3.0, 3.0), c + Vec2::new(3.0, -3.0)], st);
+        } else {
+            p.circle_filled(c, 7.5, OK_GREEN);
+            p.add(egui::Shape::line(vec![c + Vec2::new(-3.5, 0.0), c + Vec2::new(-1.0, 2.5), c + Vec2::new(3.5, -2.5)], Stroke::new(2.0, LAYER0())));
+        }
+        let tip = if errors { "Validation errors" } else { "Validation OK" };
+        if ui.interact(vr, egui::Id::new("validation-indicator"), Sense::click()).on_hover_text(tip).clicked() {
+            self.show_validation = !self.show_validation;
+        }
+        // theme button: a moon in the dark theme, a sun in the light one; a click switches theme.default
+        let tr = Rect::from_min_max(Pos2::new(vr.left() - 33.0, rect.top()), Pos2::new(vr.left(), rect.bottom()));
+        p.vline(tr.left(), rect.y_range(), Stroke::new(1.0, BORDER()));
+        let c = tr.center();
+        if light_theme() {
+            p.circle_filled(c, 4.0, TEXT());
+            for i in 0..8 {
+                let a = i as f32 * std::f32::consts::FRAC_PI_4;
+                let d = Vec2::new(a.cos(), a.sin());
+                p.line_segment([c + d * 6.0, c + d * 8.0], Stroke::new(1.5, TEXT()));
+            }
+        } else {
+            p.circle_filled(c, 7.0, TEXT());
+            p.circle_filled(c + Vec2::new(3.5, -3.0), 6.0, LAYER1());
+        }
+        let theme_tip = if light_theme() { "Dark Theme" } else { "Light Theme" };
+        if ui.interact(tr, egui::Id::new("theme-button"), Sense::click()).on_hover_text(theme_tip).clicked() {
+            let next = if light_theme() { "dark" } else { "light" };
+            self.prefs.set("theme.default", json!(next));
+            self.prefs.flush();
+        }
+        // left side: the focused element's ownership path, each owner with its icon and name (the project
+        // with its icon only), then [Type]; blank with several views selected (statusbar-view.js:78-120)
         let Some(f) = self.focus.filter(|f| self.repo.alive(*f)) else { return };
-        let mut chain = self.repo.path(f);
-        if chain.len() > 3 {
-            chain = chain.split_off(chain.len() - 3);
+        if self.selection.len() > 1 {
+            return;
+        }
+        let chain = self.repo.path(f);
+        let label = |e: Eid| if e == self.repo.root { String::new() } else { self.label_of(e) };
+        let widths: Vec<f32> = chain.iter().map(|e| { let l = label(*e); if l.is_empty() { 28.0 } else { 36.0 + text_galley_width(ui, &l, 13.0) } }).collect();
+        // the path drops its outer owners when it does not fit before the right-hand indicators
+        let room = (rect.width() - 200.0).max(0.0);
+        let mut first = 0;
+        while first + 1 < chain.len() && widths[first..].iter().sum::<f32>() > room {
+            first += 1;
         }
         let mut x = rect.left();
-        for e in chain {
-            let label = self.label_of(e);
-            let tw = text_galley_width(ui, &label, 13.0);
+        for (i, e) in chain.iter().enumerate().skip(first) {
+            let l = label(*e);
             let p = ui.painter();
-            icons::draw(p, Rect::from_min_size(Pos2::new(x + 8.0, rect.center().y - 8.0), Vec2::splat(16.0)), icons::key_for(&self.repo, e));
-            p.text(Pos2::new(x + 28.0, rect.center().y), Align2::LEFT_CENTER, &label, FontId::proportional(13.0), TEXT);
-            x += 36.0 + tw;
-            p.vline(x, rect.y_range(), Stroke::new(1.0, BORDER));
+            icons::draw(p, Rect::from_min_size(Pos2::new(x + 8.0, rect.center().y - 8.0), Vec2::splat(16.0)), icons::key_for(&self.repo, *e));
+            if !l.is_empty() {
+                p.text(Pos2::new(x + 28.0, rect.center().y), Align2::LEFT_CENTER, &l, FontId::proportional(13.0), TEXT());
+            }
+            x += widths[i];
+            p.vline(x, rect.y_range(), Stroke::new(1.0, BORDER()));
         }
-        ui.painter().text(Pos2::new(x + 8.0, rect.center().y), Align2::LEFT_CENTER, format!("[{}]", self.repo.ty(f)), FontId::proportional(11.0), DIM);
+        ui.painter().text(Pos2::new(x + 8.0, rect.center().y), Align2::LEFT_CENTER, format!("[{}]", self.repo.ty(f)), FontId::proportional(11.0), DIM());
     }
 
     // ------------------------------------------------------------ menus and shortcuts
@@ -768,20 +1499,42 @@ impl App {
         let measure = EguiMeasure { ctx: ui.ctx().clone() };
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
-                if ui.button("New                     Ctrl+N").clicked() {
+                if ui.button(&menu_label("New                     Ctrl+N")).clicked() {
                     self.cmd_new(&measure);
                     ui.close();
                 }
-                if ui.button("Open...                 Ctrl+O").clicked() {
+                ui.menu_button("New From Template", |ui| {
+                    for t in &crate::templates::TEMPLATES {
+                        if ui.button(t.label).clicked() {
+                            if self.confirm_discard(&measure) {
+                                self.save_working_diagrams();
+                                self.set_project(crate::templates::project(t), None);
+                            }
+                            ui.close();
+                        }
+                    }
+                });
+                if ui.button(&menu_label("Open...                 Ctrl+O")).clicked() {
                     self.cmd_open(&measure);
                     ui.close();
                 }
+                let recent = self.recent_files();
+                ui.add_enabled_ui(!recent.is_empty(), |ui| {
+                    ui.menu_button("Open Recent", |ui| {
+                        for p in recent {
+                            if ui.button(p.display().to_string()).clicked() {
+                                self.open_recent(&measure, p);
+                                ui.close();
+                            }
+                        }
+                    });
+                });
                 ui.separator();
-                if ui.button("Save                    Ctrl+S").clicked() {
+                if ui.button(&menu_label("Save                    Ctrl+S")).clicked() {
                     self.save(&measure);
                     ui.close();
                 }
-                if ui.button("Save As...      Ctrl+Shift+S").clicked() {
+                if ui.button(&menu_label("Save As...      Ctrl+Shift+S")).clicked() {
                     self.save_as(&measure);
                     ui.close();
                 }
@@ -791,78 +1544,152 @@ impl App {
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Export Diagram As PNG...").clicked() {
-                    self.export_png(&ui.ctx().clone());
-                    ui.close();
-                }
-                if ui.button("Export Diagram As SVG...").clicked() {
-                    self.export_svg(&measure);
+                ui.menu_button("Export Diagram As", |ui| {
+                    use crate::export::Format;
+                    for f in [Format::Png, Format::Jpeg, Format::Svg] {
+                        if ui.button(format!("{}...", f.label())).clicked() {
+                            self.export_current(&ui.ctx().clone(), f);
+                            ui.close();
+                        }
+                    }
+                    ui.separator();
+                    for f in [Format::Png, Format::Jpeg, Format::Svg] {
+                        if ui.button(format!("All to {}s...", f.label())).clicked() {
+                            self.export_all_cmd(&ui.ctx().clone(), f);
+                            ui.close();
+                        }
+                    }
+                });
+                ui.menu_button("Import", |ui| {
+                    if ui.button("Fragment...").clicked() {
+                        self.import_fragment_dialog();
+                        ui.close();
+                    }
+                    if ui.button("XMI Import (v2.1)...").clicked() {
+                        self.import_xmi_dialog();
+                        ui.close();
+                    }
+                });
+                ui.menu_button("Export", |ui| {
+                    if ui.button("Fragment...").clicked() {
+                        self.export_fragment_dialog();
+                        ui.close();
+                    }
+                    if ui.button("HTML Docs...").clicked() {
+                        self.export_html_dialog(&measure);
+                        ui.close();
+                    }
+                    if ui.button("XMI Export (v2.1)...").clicked() {
+                        self.export_xmi_dialog();
+                        ui.close();
+                    }
+                });
+                if ui.button("Print to PDF...").clicked() {
+                    self.print_open = true;
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Exit                    Ctrl+Q").clicked() {
+                if ui.button("Preferences...").clicked() {
+                    self.prefs_open = Some("General".into());
+                    ui.close();
+                }
+                ui.separator();
+                if ui.button(&menu_label("Exit                    Ctrl+Q")).clicked() {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     ui.close();
                 }
             });
             ui.menu_button("Edit", |ui| {
-                if ui.add_enabled(!self.undo.is_empty(), egui::Button::new("Undo                Ctrl+Z")).clicked() {
+                if ui.add_enabled(!self.undo.is_empty(), egui::Button::new(&menu_label("Undo                Ctrl+Z"))).clicked() {
                     self.do_undo();
                     ui.close();
                 }
-                if ui.add_enabled(!self.redo.is_empty(), egui::Button::new("Redo                Ctrl+Y")).clicked() {
+                if ui.add_enabled(!self.redo.is_empty(), egui::Button::new(&menu_label("Redo                Ctrl+Y"))).clicked() {
                     self.do_redo();
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Delete              Delete").clicked() {
+                self.clipboard_items(ui);
+                if ui.button(&menu_label("Delete              Delete")).clicked() {
                     self.delete_selection(false);
                     ui.close();
                 }
-                if ui.button("Delete From Model   Ctrl+Delete").clicked() {
+                if ui.button(&menu_label("Delete From Model   Ctrl+Delete")).clicked() {
                     self.delete_selection(true);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Select All          Ctrl+A").clicked() {
+                if ui.button(&menu_label("Select All          Ctrl+A")).clicked() {
                     self.select_all();
                     ui.close();
                 }
-                if ui.button("Select In Explorer  Ctrl+E").clicked() {
+                if ui.button(&menu_label("Select In Explorer  Ctrl+E")).clicked() {
                     if let Some(f) = self.focus {
                         self.reveal(f);
                     }
                     ui.close();
                 }
-                if ui.add_enabled(self.focus.is_some(), egui::Button::new("Select In Diagram   Ctrl+D")).clicked() {
+                if ui.add_enabled(self.focus.is_some(), egui::Button::new(&menu_label("Select In Diagram   Ctrl+D"))).clicked() {
                     self.select_in_diagram();
                     ui.close();
                 }
+                if ui.add_enabled(self.focus.is_some(), egui::Button::new(&menu_label("Open Sub-Diagram    Ctrl+Shift+D"))).clicked() {
+                    self.open_sub_diagram();
+                    ui.close();
+                }
+                ui.separator();
+                self.move_items(ui);
             });
             ui.menu_button("Format", |ui| {
-                ui.menu_button("Line Style", |ui| {
-                    if ui.button("Rectilinear   Ctrl+L").clicked() {
-                        self.set_line_style(0);
-                        ui.close();
-                    }
-                    if ui.button("Oblique       Ctrl+B").clicked() {
-                        self.set_line_style(1);
-                        ui.close();
-                    }
-                });
+                if ui.add_enabled(!self.selection.is_empty(), egui::Button::new(&menu_label("Font...                         Ctrl+Shift+F"))).clicked() {
+                    self.open_font_dialog();
+                    ui.close();
+                }
+                self.color_menus(ui);
+                self.line_style_menu(ui);
+                self.stereotype_display_menu(ui);
                 self.format_toggles(ui);
                 ui.separator();
                 self.alignment_menu(ui);
+                ui.add_enabled_ui(self.diagram.is_some(), |ui| {
+                    ui.menu_button("Layout", |ui| {
+                        for (dir, label) in crate::layout::Dir::MENU {
+                            if ui.button(label).clicked() {
+                                self.layout_diagram(dir);
+                                ui.close();
+                            }
+                        }
+                    });
+                });
             });
             ui.menu_button("Model", |ui| {
-                if ui.button("Add Class Diagram").clicked() {
-                    let f = self.focus;
-                    self.change(|a| a.add_diagram(f, "UMLClassDiagram"));
+                // Model › Add and Add Diagram act on the focused element (or the project)
+                let target = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f)).unwrap_or(self.repo.root);
+                ui.add_enabled_ui(!self.add_kinds(target).is_empty() || self.repo.kind_of(target, "ExtensibleModel"), |ui| {
+                    ui.menu_button("Add", |ui| self.add_items(ui, target));
+                });
+                ui.menu_button("Add Diagram", |ui| {
+                    for (l, k) in DIAGRAM_KINDS {
+                        if ui.button(l).clicked() {
+                            let f = self.focus;
+                            self.change(|a| a.add_diagram(f, k));
+                            ui.close();
+                        }
+                    }
+                });
+                if ui.button(&menu_label("Find...                   Ctrl+F")).clicked() {
+                    self.open_find();
                     ui.close();
                 }
-                if ui.button("Add Use Case Diagram").clicked() {
-                    let f = self.focus;
-                    self.change(|a| a.add_diagram(f, "UMLUseCaseDiagram"));
+                ui.menu_button("Apply Profile", |ui| {
+                    if ui.button("UML Standard Profile (v2)").clicked() {
+                        self.apply_standard_profile();
+                        ui.close();
+                    }
+                });
+                let taggable = self.focus.map(|f| self.repo.alive(f) && self.repo.kind_of(f, "ExtensibleModel")).unwrap_or(false);
+                if ui.add_enabled(taggable, egui::Button::new(&menu_label("Tag Editor...       Ctrl+T"))).clicked() {
+                    self.open_tag_editor();
                     ui.close();
                 }
                 ui.separator();
@@ -877,29 +1704,52 @@ impl App {
                     }
                 }
             });
+            ui.menu_button("Tools", |ui| {
+                if ui.button("Generate Diagram by Mermaid...").clicked() {
+                    self.mermaid_code = Some(crate::mermaid::SAMPLE.to_string());
+                    ui.close();
+                }
+                ui.menu_button("Diagram Generator", |ui| {
+                    for (g, label) in crate::generate::Generator::MENU {
+                        if ui.button(label).clicked() {
+                            self.generate_diagram(g, &measure);
+                            ui.close();
+                        }
+                    }
+                });
+            });
             ui.menu_button("View", |ui| {
+                if ui.button(&menu_label("Quick Find...        Ctrl+P")).clicked() {
+                    self.open_palette(crate::palette::Mode::Find);
+                    ui.close();
+                }
+                if ui.button("Command Palette... Ctrl+Shift+P").clicked() {
+                    self.open_palette(crate::palette::Mode::Commands);
+                    ui.close();
+                }
+                ui.separator();
                 self.diagram_close_items(ui);
                 ui.separator();
                 let many = self.open.len() > 1;
-                if ui.add_enabled(many, egui::Button::new("Next Diagram        Ctrl+Shift+]")).clicked() {
+                if ui.add_enabled(many, egui::Button::new(&menu_label("Next Diagram        Ctrl+Shift+]"))).clicked() {
                     self.cycle_diagram(1);
                     ui.close();
                 }
-                if ui.add_enabled(many, egui::Button::new("Previous Diagram    Ctrl+Shift+[")).clicked() {
+                if ui.add_enabled(many, egui::Button::new(&menu_label("Previous Diagram    Ctrl+Shift+["))).clicked() {
                     self.cycle_diagram(-1);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Zoom In             Ctrl+=").clicked() {
+                if ui.button(&menu_label("Zoom In             Ctrl+=")).clicked() {
                     self.zoom_keep_centre(self.zoom + crate::app::ZOOM_STEP);
                 }
-                if ui.button("Zoom Out            Ctrl+-").clicked() {
+                if ui.button(&menu_label("Zoom Out            Ctrl+-")).clicked() {
                     self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP);
                 }
-                if ui.button("Actual Size         Ctrl+0").clicked() {
+                if ui.button(&menu_label("Actual Size         Ctrl+0")).clicked() {
                     self.zoom_keep_centre(1.0);
                 }
-                if ui.button("Fit To Window       Ctrl+9").clicked() {
+                if ui.button(&menu_label("Fit To Window       Ctrl+9")).clicked() {
                     self.fit();
                     ui.close();
                 }
@@ -907,11 +1757,45 @@ impl App {
                 ui.checkbox(&mut self.show_grid, "Show Grid");
                 ui.checkbox(&mut self.snap, "Snap to Grid");
                 ui.separator();
-                ui.checkbox(&mut self.show_sidebar, "Sidebar");
-                ui.checkbox(&mut self.show_navigator, "Navigator");
-                ui.checkbox(&mut self.show_statusbar, "Statusbar");
+                ui.checkbox(&mut self.show_minimap, &menu_label("Minimap               Ctrl+Alt+M"));
+                ui.checkbox(&mut self.show_markdown, &menu_label("Markdown Documentation  Ctrl+Alt+D"));
+                ui.checkbox(&mut self.show_thumbnails, &menu_label("Diagram Thumbnails  Ctrl+Alt+T"));
+                ui.checkbox(&mut self.show_relationships, &menu_label("Relationships     Ctrl+Alt+R"));
+                ui.separator();
+                for (i, label) in PANELS.iter().enumerate() {
+                    let mut on = *self.panel_flag(i);
+                    if ui.checkbox(&mut on, format!("{label:<14}Ctrl+{}", i + 1)).clicked() {
+                        *self.panel_flag(i) = on;
+                    }
+                }
             });
+            ui.menu_button("Window", |ui| {
+                if ui.button("Minimize").clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                    ui.close();
+                }
+                if ui.button("Full Screen").clicked() {
+                    let full = ui.ctx().input(|i| i.viewport().fullscreen.unwrap_or(false));
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Fullscreen(!full));
+                    ui.close();
+                }
+                ui.separator();
+                if ui.button("Bring All to Front").clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Focus);
+                    ui.close();
+                }
+            });
+            // Help: Documentation, Release Notes and About (default-commands.js:1152-1178)
             ui.menu_button("Help", |ui| {
+                if ui.button("Documentation...").clicked() {
+                    ui.ctx().open_url(egui::OpenUrl::new_tab(DOCS_URL));
+                    ui.close();
+                }
+                if ui.button("Release Notes...").clicked() {
+                    ui.ctx().open_url(egui::OpenUrl::new_tab(RELEASES_URL));
+                    ui.close();
+                }
+                ui.separator();
                 if ui.button("About UMLCraft").clicked() {
                     self.about_open = true;
                     ui.close();
@@ -920,18 +1804,226 @@ impl App {
         });
     }
 
+    /// The Style editor: colour swatches, line style, the show and suppress toggles, z-order and alignment.
+    fn style_ui(&mut self, ui: &mut egui::Ui) {
+        ui.spacing_mut().item_spacing.y = 4.0;
+        // font face and size: merged, blank when the views differ (style-editor-view.js:180-227)
+        let (face, size) = self.font_state();
+        ui.horizontal(|ui| {
+            let mut f = face.clone().unwrap_or_default();
+            let r = ui.add(egui::TextEdit::singleline(&mut f).hint_text("—").desired_width(110.0).font(FontId::proportional(12.0)));
+            if r.lost_focus() && !f.trim().is_empty() && Some(f.trim().to_string()) != face {
+                self.set_font(Some(f.trim()), None);
+            }
+            let label = size.map(|s| format!("{s}")).unwrap_or_else(|| "—".into());
+            egui::ComboBox::from_id_salt("style-size").selected_text(label).width(60.0).show_ui(ui, |ui| {
+                for s in crate::style::SIZES {
+                    if ui.selectable_label(size == Some(s), format!("{s}")).clicked() {
+                        self.set_font(None, Some(s));
+                    }
+                }
+            });
+        });
+        ui.horizontal(|ui| {
+            for (field, label) in crate::style::COLORS {
+                if self.color_views(field).is_empty() {
+                    continue;
+                }
+                self.color_swatch(ui, field, label);
+                ui.label(egui::RichText::new(label.trim_end_matches(" Color")).size(12.0).color(DIM()));
+                ui.add_space(6.0);
+            }
+        });
+        if !self.flag_views("stereotypeDisplay").is_empty() {
+            // the stereotype display dropdown, empty when mixed (style-editor-view.js)
+            let cur = self.stereotype_display_state();
+            let shown = crate::style::STEREOTYPE_DISPLAYS.iter().find(|d| Some(d.0) == cur.as_deref()).map(|d| d.1).unwrap_or("");
+            egui::ComboBox::from_id_salt("style-stereotype").selected_text(egui::RichText::new(shown).size(12.0)).width(150.0).show_ui(ui, |ui| {
+                for (value, label) in crate::style::STEREOTYPE_DISPLAYS {
+                    if ui.selectable_label(cur.as_deref() == Some(value), label).clicked() {
+                        self.set_stereotype_display(value);
+                    }
+                }
+            });
+        }
+        // a free line's pattern and end shapes, when only free lines are selected (style-editor-view.js:296-319)
+        let free: Vec<Eid> = self.selection.iter().copied().filter(|v| self.repo.alive(*v)).collect();
+        if !free.is_empty() && free.iter().all(|v| views::is_freeline(&self.repo, *v)) {
+            for (field, label, options) in [
+                ("lineMode", "Line", ["Solid", "Dotted", "Dashed"]),
+                ("tailEndStyle", "Tail", ["Flat", "Stick Arrow", "Solid Arrow"]),
+                ("headEndStyle", "Head", ["Flat", "Stick Arrow", "Solid Arrow"]),
+            ] {
+                let vals: Vec<i64> = free.iter().map(|v| self.repo.val(*v, field).and_then(|x| x.as_i64()).unwrap_or(0)).collect();
+                let cur = vals.iter().all(|x| *x == vals[0]).then_some(vals[0]);
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(label).size(12.0).color(DIM()));
+                    let shown = cur.and_then(|c| options.get(c as usize)).copied().unwrap_or("");
+                    egui::ComboBox::from_id_salt(("freeline", field)).selected_text(egui::RichText::new(shown).size(12.0)).width(110.0).show_ui(ui, |ui| {
+                        for (i, o) in options.iter().enumerate() {
+                            if ui.selectable_label(cur == Some(i as i64), *o).clicked() {
+                                let vs = free.clone();
+                                self.change(|a| {
+                                    for v in vs {
+                                        a.repo.set(v, field, json!(i));
+                                    }
+                                });
+                            }
+                        }
+                    });
+                });
+            }
+        }
+        if self.selection.iter().any(|v| self.repo.alive(*v) && views::is_edge(&self.repo, *v)) {
+            ui.horizontal(|ui| {
+                let cur = self.line_style_state();
+                for (style, label) in [(0, "Rectilinear"), (1, "Oblique"), (2, "Rounded"), (3, "Curve")] {
+                    if ui.radio(cur == Some(style), egui::RichText::new(label).size(12.0)).clicked() {
+                        self.set_line_style(style);
+                    }
+                }
+            });
+        }
+        for (field, label) in FORMAT_TOGGLES {
+            if self.flag_views(field).is_empty() {
+                continue;
+            }
+            let mut on = self.flag_state(field) == Some(true);
+            let short = label.split("  ").next().unwrap_or(label).trim();
+            if ui.checkbox(&mut on, egui::RichText::new(short).size(12.0)).clicked() {
+                self.toggle_flag(field);
+            }
+        }
+        // text alignment, only when every selected view is a note or text (style-editor-view.js:477-483)
+        let texts: Vec<Eid> = self.selection.iter().copied().filter(|v| self.repo.alive(*v)).collect();
+        if !texts.is_empty() && texts.iter().all(|v| self.repo.kind_of(*v, "UMLCustomTextView")) {
+            for (field, opts) in [("horzAlign", [(0, "Left"), (2, "Center"), (1, "Right")]), ("vertAlign", [(3, "Top"), (5, "Middle"), (4, "Bottom")])] {
+                let vals: Vec<i64> = texts.iter().map(|v| self.repo.val(*v, field).and_then(|x| x.as_i64()).unwrap_or(-1)).collect();
+                let shared = vals.iter().all(|x| *x == vals[0]).then_some(vals[0]);
+                ui.horizontal(|ui| {
+                    for (value, label) in opts {
+                        if ui.selectable_label(shared == Some(value), egui::RichText::new(label).size(11.0)).clicked() {
+                            self.set_text_align(&texts, field, value);
+                        }
+                    }
+                });
+            }
+        }
+        ui.horizontal_wrapped(|ui| {
+            let small = |t: &str| egui::Button::new(egui::RichText::new(t).size(11.0)).fill(HOVER_ROW()).stroke(Stroke::new(1.0, INPUT_BORDER()));
+            if ui.add(small("Back")).on_hover_text("Send To Back").clicked() {
+                self.reorder(false);
+            }
+            if ui.add(small("Front")).on_hover_text("Bring To Front").clicked() {
+                self.reorder(true);
+            }
+            for (how, label, short) in [
+                (crate::align::Align::Left, "Align Left", "L"),
+                (crate::align::Align::Center, "Align Center", "C"),
+                (crate::align::Align::Right, "Align Right", "R"),
+                (crate::align::Align::Top, "Align Top", "T"),
+                (crate::align::Align::Middle, "Align Middle", "M"),
+                (crate::align::Align::Bottom, "Align Bottom", "B"),
+                (crate::align::Align::SpaceH, "Space Equally, Horizontally", "↔"),
+                (crate::align::Align::SpaceV, "Space Equally, Vertically", "↕"),
+                (crate::align::Align::Width, "Set Width Equally", "W"),
+                (crate::align::Align::Height, "Set Height Equally", "H"),
+                (crate::align::Align::Size, "Set Size Equally", "S"),
+            ] {
+                if ui.add(small(short)).on_hover_text(label).clicked() {
+                    self.align(how);
+                }
+            }
+        });
+    }
+
+    /// A colour swatch that opens the Color dialog; a mixed selection shows a transparent swatch
+    /// (style-editor-view.js:229-278, 549-592).
+    fn color_swatch(&mut self, ui: &mut egui::Ui, field: &'static str, label: &str) {
+        let c = self.color_state(field).map(|c| Color32::from_rgba_unmultiplied(c.0, c.1, c.2, c.3)).unwrap_or(Color32::TRANSPARENT);
+        if swatch(ui, c, Vec2::new(28.0, 16.0)).on_hover_text(label).clicked() {
+            self.open_color_dialog(field);
+        }
+    }
+
+    /// Format > Fill Color and Line Color: a colour picker on the selected views (default-commands.js:966-991).
+    pub(crate) fn color_menus(&mut self, ui: &mut egui::Ui) {
+        for (field, label) in crate::style::COLORS.into_iter().take(2) {
+            ui.add_enabled_ui(!self.color_views(field).is_empty(), |ui| {
+                ui.menu_button(label, |ui| {
+                    let cur = self.color_state(field).unwrap_or(crate::render::Rgba(255, 255, 255, 255));
+                    let mut c = Color32::from_rgb(cur.0, cur.1, cur.2);
+                    if egui::color_picker::color_picker_color32(ui, &mut c, egui::color_picker::Alpha::Opaque) {
+                        self.set_color(field, crate::render::Rgba(c.r(), c.g(), c.b(), 255));
+                    }
+                });
+            });
+        }
+    }
+
+    /// Format > Line Style, with a check on the style the selected lines share (default-commands.js:993-1011, 1337-1342).
+    pub(crate) fn line_style_menu(&mut self, ui: &mut egui::Ui) {
+        let has = self.selection.iter().any(|v| self.repo.alive(*v) && views::is_edge(&self.repo, *v));
+        ui.add_enabled_ui(has, |ui| {
+            ui.menu_button("Line Style", |ui| {
+                let cur = self.line_style_state();
+                for (style, label) in [(0, &menu_label("Rectilinear              Ctrl+L")), (1, &menu_label("Oblique                    Ctrl+B")), (2, &menu_label("Rounded Rectilinear  Ctrl+Alt+L")), (3, &menu_label("Curve                        Ctrl+Alt+B"))] {
+                    let mut on = cur == Some(style);
+                    if ui.checkbox(&mut on, label).clicked() {
+                        self.set_line_style(style);
+                        ui.close();
+                    }
+                }
+            });
+        });
+    }
+
+    /// Move Up and Move Down (Edit menu and explorer menu).
+    pub(crate) fn move_items(&mut self, ui: &mut egui::Ui) {
+        let e = self.focus.filter(|f| self.repo.alive(*f) && self.repo.ty(*f) != "Project" && !self.is_view(*f));
+        if ui.add_enabled(e.is_some(), egui::Button::new(&menu_label("Move Up             Ctrl+Shift+Up"))).clicked() {
+            self.move_element(e.unwrap(), true);
+            ui.close();
+        }
+        if ui.add_enabled(e.is_some(), egui::Button::new(&menu_label("Move Down           Ctrl+Shift+Down"))).clicked() {
+            self.move_element(e.unwrap(), false);
+            ui.close();
+        }
+    }
+
+    /// Cut, Copy and Paste (Edit menu, canvas menu and explorer menu).
+    pub(crate) fn clipboard_items(&mut self, ui: &mut egui::Ui) {
+        let can = self.can_copy();
+        if ui.add_enabled(can, egui::Button::new(&menu_label("Cut                 Ctrl+X"))).clicked() {
+            self.cmd_cut(Some(&ui.ctx().clone()));
+            ui.close();
+        }
+        if ui.add_enabled(can, egui::Button::new(&menu_label("Copy                Ctrl+C"))).clicked() {
+            self.cmd_copy(Some(&ui.ctx().clone()));
+            ui.close();
+        }
+        if ui.add_enabled(self.diagram.is_some(), egui::Button::new(&menu_label("Copy Diagram As Image  Ctrl+Shift+C"))).clicked() {
+            self.cmd_copy_diagram_image(&ui.ctx().clone());
+            ui.close();
+        }
+        if ui.button(&menu_label("Paste               Ctrl+V")).clicked() {
+            self.cmd_paste();
+            ui.close();
+        }
+    }
+
     /// Close Diagram, Close Other Diagrams and Close All Diagrams (View menu and Working Diagrams menu).
     fn diagram_close_items(&mut self, ui: &mut egui::Ui) {
         let has = self.diagram.is_some();
-        if ui.add_enabled(has, egui::Button::new("Close Diagram       F4")).clicked() {
+        if ui.add_enabled(has, egui::Button::new(&menu_label("Close Diagram       F4"))).clicked() {
             self.close_diagram(None);
             ui.close();
         }
-        if ui.add_enabled(has, egui::Button::new("Close Other Diagrams  Ctrl+F4")).clicked() {
+        if ui.add_enabled(has, egui::Button::new(&menu_label("Close Other Diagrams  Ctrl+F4"))).clicked() {
             self.close_other_diagrams();
             ui.close();
         }
-        if ui.add_enabled(!self.open.is_empty(), egui::Button::new("Close All Diagrams  Shift+F4")).clicked() {
+        if ui.add_enabled(!self.open.is_empty(), egui::Button::new(&menu_label("Close All Diagrams  Shift+F4"))).clicked() {
             self.close_all_diagrams();
             ui.close();
         }
@@ -939,14 +2031,31 @@ impl App {
 
     /// The Format menu's on/off items, checked when every selected view that has the flag is on,
     /// and enabled only when a selected view has it (uml.json order; default-commands.js:1319-1350).
+    /// Format > Stereotype Display, checked on the value the selected views share.
+    pub(crate) fn stereotype_display_menu(&mut self, ui: &mut egui::Ui) {
+        ui.add_enabled_ui(!self.flag_views("stereotypeDisplay").is_empty(), |ui| {
+            ui.menu_button("Stereotype Display", |ui| {
+                let cur = self.stereotype_display_state();
+                for (i, (value, label)) in crate::style::STEREOTYPE_DISPLAYS.into_iter().enumerate() {
+                    let mut on = cur.as_deref() == Some(value);
+                    if ui.checkbox(&mut on, format!("{label:<24}Ctrl+Shift+{i}")).clicked() {
+                        self.set_stereotype_display(value);
+                        ui.close();
+                    }
+                }
+            });
+        });
+    }
+
     pub(crate) fn format_toggles(&mut self, ui: &mut egui::Ui) {
         for (i, (field, label)) in FORMAT_TOGGLES.into_iter().enumerate() {
-            if i == 1 || i == 5 {
+            // UML display toggles after Auto Resize and Show Shadow, then the Suppress ones
+            if i == 2 || field == "suppressAttributes" {
                 ui.separator();
             }
             let has = !self.flag_views(field).is_empty();
             let mut on = self.flag_state(field) == Some(true);
-            if ui.add_enabled(has, egui::Checkbox::new(&mut on, label)).clicked() {
+            if ui.add_enabled(has, egui::Checkbox::new(&mut on, menu_label(label))).clicked() {
                 self.toggle_flag(field);
                 ui.close();
             }
@@ -980,14 +2089,39 @@ impl App {
 
     pub(crate) fn shortcuts(&mut self, ctx: &egui::Context) {
         use egui::{Key, KeyboardShortcut, Modifiers};
+        // an open dialog takes the keys: no shortcut fires behind it (dialog-manager.js:308-309)
+        if self.modal_open() {
+            return;
+        }
         let typing = self.editing.is_some() || text_field_focused(ctx);
         let measure = EguiMeasure { ctx: ctx.clone() };
         let sc = |m: Modifiers, k: Key| KeyboardShortcut::new(m, k);
         let cs = Modifiers::COMMAND | Modifiers::SHIFT;
         let hit = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
+        // the user's keymap.json wins over the built-in shortcuts
+        if !typing {
+            self.user_shortcuts(ctx);
+        }
         // Ctrl+Shift toggles first: a Ctrl shortcut also matches when Shift is held (Ctrl+N, Ctrl+A…)
         if !typing {
-            for (key, field) in [(Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::T, "suppressLiterals")] {
+            if hit(sc(cs, Key::F)) {
+                self.open_font_dialog();
+            }
+            if hit(sc(cs, Key::P)) {
+                self.open_palette(crate::palette::Mode::Commands);
+            }
+            // Ctrl+Shift+0…5 before Ctrl+0 (Actual Size), which also matches with Shift held
+            for (i, key) in [Key::Num0, Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5].into_iter().enumerate() {
+                if hit(sc(cs, key)) {
+                    self.set_stereotype_display(crate::style::STEREOTYPE_DISPLAYS[i].0);
+                }
+            }
+            for (key, field) in [(Key::I, "fillColor"), (Key::L, "lineColor")] {
+                if hit(sc(cs, key)) {
+                    self.open_color_dialog(field);
+                }
+            }
+            for (key, field) in [(Key::R, "autoResize"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals")] {
                 if hit(sc(cs, key)) {
                     self.toggle_flag(field);
                 }
@@ -1022,11 +2156,37 @@ impl App {
         if typing {
             return;
         }
+        // Esc anywhere goes back to the Select tool and clears the lock (toolbox-view.js:473-479)
+        if ctx.input(|i| i.key_pressed(Key::Escape)) && self.drag.is_none() {
+            self.tool = None;
+            self.tool_sticky = false;
+        }
         if hit(sc(Modifiers::COMMAND, Key::Y)) || hit(sc(cs, Key::Z)) {
             self.do_redo();
         }
         if hit(sc(Modifiers::COMMAND, Key::Z)) {
             self.do_undo();
+        }
+        // Ctrl+C, Ctrl+X and Ctrl+V reach egui as Copy, Cut and Paste events, not as keys
+        let clip = ctx.input_mut(|i| {
+            let mut out = None;
+            i.events.retain(|e| match e {
+                egui::Event::Copy | egui::Event::Cut | egui::Event::Paste(_) if out.is_none() => {
+                    out = Some(e.clone());
+                    false
+                }
+                _ => true,
+            });
+            out
+        });
+        let shift = ctx.input(|i| i.modifiers.shift);
+        match clip {
+            // Ctrl+Shift+C also arrives as a Copy event
+            Some(egui::Event::Copy) if shift => self.cmd_copy_diagram_image(ctx),
+            Some(egui::Event::Copy) => self.cmd_copy(Some(ctx)),
+            Some(egui::Event::Cut) => self.cmd_cut(Some(ctx)),
+            Some(egui::Event::Paste(t)) => self.paste_text(&t),
+            _ => {}
         }
         if hit(sc(Modifiers::COMMAND, Key::Delete)) {
             self.delete_selection(true);
@@ -1039,8 +2199,48 @@ impl App {
                 self.reveal(f);
             }
         }
+        // Ctrl+Alt+D and Ctrl+Shift+D first: Ctrl+D also matches when Alt or Shift is held
+        if hit(sc(Modifiers::COMMAND | Modifiers::ALT, Key::D)) {
+            self.show_markdown = !self.show_markdown;
+        }
+        if hit(sc(cs, Key::D)) {
+            self.open_sub_diagram();
+        }
         if hit(sc(Modifiers::COMMAND, Key::D)) {
             self.select_in_diagram();
+        }
+        for (key, up) in [(Key::ArrowUp, true), (Key::ArrowDown, false)] {
+            if hit(sc(cs, key)) {
+                if let Some(f) = self.focus.filter(|f| self.repo.alive(*f) && self.repo.ty(*f) != "Project") {
+                    self.move_element(f, up);
+                }
+            }
+        }
+        // Ctrl+Alt first: Ctrl+L and Ctrl+B also match when Alt is held
+        let ca = Modifiers::COMMAND | Modifiers::ALT;
+        if hit(sc(ca, Key::L)) {
+            self.set_line_style(2);
+        }
+        if hit(sc(ca, Key::B)) {
+            self.set_line_style(3);
+        }
+        if hit(sc(ca, Key::R)) {
+            self.show_relationships = !self.show_relationships;
+        }
+        if hit(sc(ca, Key::M)) {
+            self.show_minimap = !self.show_minimap;
+        }
+        if hit(sc(ca, Key::T)) {
+            self.show_thumbnails = !self.show_thumbnails;
+        }
+        if hit(sc(Modifiers::COMMAND, Key::T)) {
+            self.open_tag_editor();
+        }
+        if hit(sc(Modifiers::COMMAND, Key::P)) {
+            self.open_palette(crate::palette::Mode::Find);
+        }
+        if hit(sc(Modifiers::COMMAND, Key::F)) {
+            self.open_find();
         }
         if hit(sc(Modifiers::COMMAND, Key::L)) {
             self.set_line_style(0);
@@ -1056,6 +2256,13 @@ impl App {
         }
         if hit(sc(Modifiers::COMMAND, Key::Minus)) {
             self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP);
+        }
+        // View > Sidebar, Navigator, Toolbar, Statusbar, Toolbox, Editors (keymaps/linux.json)
+        for (i, key) in [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6].into_iter().enumerate() {
+            if hit(sc(Modifiers::COMMAND, key)) {
+                let f = self.panel_flag(i);
+                *f = !*f;
+            }
         }
         if hit(sc(Modifiers::COMMAND, Key::Num0)) {
             self.zoom_keep_centre(1.0);
@@ -1089,9 +2296,38 @@ impl App {
         }
     }
 
-    fn cmd_new(&mut self, ms: &EguiMeasure) {
+    /// File > New: a blank project, after the unsaved-changes prompt; the working file is forgotten.
+    pub(crate) fn cmd_new(&mut self, ms: &EguiMeasure) {
         if self.confirm_discard(ms) {
+            self.save_working_diagrams();
             self.set_project(crate::model::Repo::blank(), None);
+            self.set_working_file(None);
+        }
+    }
+
+    /// Open a recent file; a file that is gone is dropped from the list with the toast
+    /// "File not found: <path>" (open-recent/main.js:59).
+    fn open_recent(&mut self, ms: &EguiMeasure, p: std::path::PathBuf) {
+        if !p.exists() {
+            self.toast(&format!("File not found: {}", p.display()));
+            let mut list = self.recent_files();
+            list.retain(|x| *x != p);
+            self.set_recent(list);
+            return;
+        }
+        if self.confirm_discard(ms) {
+            self.open_path(p);
+        }
+    }
+
+    /// A .mdj file dropped on the window is opened (app-context.js:546-565); other files are ignored.
+    fn dropped_files(&mut self, ctx: &egui::Context) {
+        let files: Vec<std::path::PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect());
+        if let Some(p) = files.into_iter().find(|p| p.extension().map(|e| e.eq_ignore_ascii_case("mdj")).unwrap_or(false)) {
+            let ms = EguiMeasure { ctx: ctx.clone() };
+            if self.confirm_discard(&ms) {
+                self.open_path(p);
+            }
         }
     }
 
@@ -1104,48 +2340,111 @@ impl App {
         }
     }
 
-    fn export_png(&mut self, ctx: &egui::Context) {
-        let Some(d) = self.diagram else { return };
-        let ms = EguiMeasure { ctx: ctx.clone() };
-        let name = self.repo.name(d);
-        let Some(p) = rfd::FileDialog::new().set_title("Export Diagram as PNG").set_file_name(format!("{name}.png")).add_filter("PNG", &["png"]).save_file() else {
+    /// Export the current diagram as PNG, JPEG or SVG. The selection is cleared first; with no diagram
+    /// open the toast "No diagram to export." appears (default-commands.js:360-445).
+    pub(crate) fn export_current(&mut self, ctx: &egui::Context, f: crate::export::Format) {
+        let Some(d) = self.diagram else {
+            self.toast("No diagram to export.");
             return;
         };
-        let info = views::layout_diagram(&mut self.repo, &ms, d);
-        let result = render::to_png(&self.repo, d, &info, &ms, ctx.pixels_per_point()).and_then(|png| std::fs::write(&p, png).map_err(|e| e.to_string()));
+        self.select(vec![]);
+        let ms = EguiMeasure { ctx: ctx.clone() };
+        let title = format!("Export Diagram as {}", f.label());
+        let Some(p) = rfd::FileDialog::new().set_title(&title).set_file_name(self.export_name(d, f)).add_filter(f.label(), &[f.ext()]).save_file() else {
+            return;
+        };
+        let result = crate::export::render(self, d, &ms, f, ctx.pixels_per_point()).and_then(|bytes| std::fs::write(&p, bytes).map_err(|e| e.to_string()));
         if let Err(e) = result {
             self.message = Some(("Failed to export the diagram.".into(), e));
         }
     }
 
-    fn export_svg(&mut self, ms: &EguiMeasure) {
-        let Some(d) = self.diagram else { return };
-        let info = views::layout_diagram(&mut self.repo, ms, d);
-        let Some(svg) = render::to_svg(&self.repo, d, &info, ms) else { return };
-        let name = self.repo.name(d);
-        if let Some(p) = rfd::FileDialog::new().set_title("Export Diagram as SVG").set_file_name(format!("{name}.svg")).add_filter("SVG", &["svg"]).save_file() {
-            if let Err(e) = std::fs::write(&p, svg) {
-                self.message = Some(("Failed to export the diagram.".into(), e.to_string()));
-            }
+    /// Export every diagram into a folder the person picks (default-commands.js:452-535).
+    pub(crate) fn export_all_cmd(&mut self, ctx: &egui::Context, f: crate::export::Format) {
+        if self.repo.all_of("Diagram").is_empty() {
+            self.toast("No diagram to export.");
+            return;
+        }
+        let Some(folder) = rfd::FileDialog::new().set_title("Select a folder where all diagrams to be exported").pick_folder() else { return };
+        self.select(vec![]);
+        let ms = EguiMeasure { ctx: ctx.clone() };
+        match self.export_all(&folder, &ms, f, ctx.pixels_per_point()) {
+            Ok(n) => self.toast(&format!("{n} diagrams exported.")),
+            Err(e) => self.message = Some(("Failed to export the diagrams.".into(), e)),
         }
     }
 
-    fn dialogs(&mut self, ctx: &egui::Context) {
+    pub(crate) fn cmd_copy_diagram_image(&mut self, ctx: &egui::Context) {
+        let Some(d) = self.diagram else { return };
+        let ms = EguiMeasure { ctx: ctx.clone() };
+        let info = views::layout_diagram(&mut self.repo, &ms, d);
+        let png = render::to_png(&self.repo, d, &info, &ms, 1.0);
+        self.copy_diagram_image(png);
+    }
+
+    /// Whether a dialog is open (the Command Palette, which handles its own keys, aside).
+    pub fn modal_open(&self) -> bool {
+        self.about_open
+            || self.message.is_some()
+            || self.diagram_picker.is_some()
+            || self.color_dialog.is_some()
+            || self.list_editor.is_some()
+            || self.select_one.is_some()
+            || self.font_dialog.is_some()
+            || self.prefs_open.is_some()
+            || self.tag_editor.is_some()
+            || self.find_dialog.is_some()
+            || self.element_picker.is_some()
+            || self.input_dialog.is_some()
+            || self.mermaid_code.is_some()
+            || self.print_open
+    }
+
+    pub(crate) fn dialogs(&mut self, ctx: &egui::Context) {
         if self.about_open {
+            // the app icon, name and version, and a link to the third-party software (about-dialog.js:31-47)
+            let icon = app_icon(ctx);
             egui::Window::new("About UMLCraft").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
-                ui.label(concat!("UMLCraft ", env!("CARGO_PKG_VERSION")));
-                ui.label("A UML modeler for class and use case diagrams that opens and saves .mdj model files.");
-                ui.label("Written in Rust with egui. The source code is in the app folder of this project; its README lists every file.");
-                if ui.button("OK").clicked() {
+                ui.horizontal(|ui| {
+                    if let Some(t) = &icon {
+                        ui.add(egui::Image::new((t.id(), Vec2::splat(64.0))));
+                    }
+                    ui.vertical(|ui| {
+                        ui.label(egui::RichText::new("UMLCraft").size(20.0).strong());
+                        ui.label(concat!("Version ", env!("CARGO_PKG_VERSION")));
+                    });
+                });
+                ui.add_space(6.0);
+                ui.label("A UML modeler that opens and saves StarUML .mdj model files.");
+                ui.label("Written in Rust with egui, under the MIT licence.");
+                ui.horizontal(|ui| {
+                    ui.hyperlink_to("Website", "https://burkhaltery.github.io/umlcraft");
+                    ui.hyperlink_to("Third-party software", "https://github.com/BurkhalterY/umlcraft/network/dependencies");
+                });
+                ui.add_space(6.0);
+                // Enter presses OK and Esc cancels (dialog-manager.js:148-162)
+                if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
                     self.about_open = false;
                 }
             });
         }
         self.diagram_picker_ui(ctx);
+        self.color_dialog_ui(ctx);
+        self.list_editor_ui(ctx);
+        self.select_one_ui(ctx);
+        self.print_dialog_ui(ctx);
+        self.element_picker_ui(ctx);
+        self.input_dialog_ui(ctx);
+        self.mermaid_dialog_ui(ctx);
+        self.preferences_ui(ctx);
+        self.tag_editor_ui(ctx);
+        self.palette_ui(ctx);
+        self.find_dialog_ui(ctx);
+        self.font_dialog_ui(ctx);
         if let Some((title, detail)) = self.message.clone() {
             egui::Window::new(title).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
                 ui.label(detail);
-                if ui.button("OK").clicked() {
+                if ui.button("OK").clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
                     self.message = None;
                 }
             });
@@ -1205,16 +2504,199 @@ impl App {
         }
     }
 
+    pub(crate) fn open_font_dialog(&mut self) {
+        if self.selection.is_empty() {
+            return;
+        }
+        let (face, size) = self.font_state();
+        let size = size.map(|s| if s.fract() == 0.0 { format!("{}", s as i64) } else { s.to_string() });
+        self.font_dialog = Some((face.unwrap_or_default(), size.unwrap_or_default(), self.color_state("fontColor")));
+    }
+
+    /// Format > Font (Ctrl+Shift+F): face, size and colour, pre-filled with the merged values (blank where the
+    /// selected views differ). OK applies what was filled in; a size that is not a number is ignored
+    /// (default-commands.js:940-964).
+    fn font_dialog_ui(&mut self, ctx: &egui::Context) {
+        let Some((mut face, mut size, mut color)) = self.font_dialog.clone() else { return };
+        let (mut ok, mut cancel) = (false, false);
+        egui::Window::new("Font").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            egui::Grid::new("font-grid").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| {
+                ui.label("Face");
+                ui.add(egui::TextEdit::singleline(&mut face).hint_text("—").desired_width(160.0));
+                ui.end_row();
+                ui.label("Size");
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut size).hint_text("—").desired_width(60.0));
+                    egui::ComboBox::from_id_salt("font-sizes").selected_text("").width(20.0).show_ui(ui, |ui| {
+                        for s in crate::style::SIZES {
+                            if ui.selectable_label(false, format!("{s}")).clicked() {
+                                size = format!("{s}");
+                            }
+                        }
+                    });
+                });
+                ui.end_row();
+                ui.label("Color");
+                let mut c = color.map(|c| Color32::from_rgb(c.0, c.1, c.2)).unwrap_or(Color32::TRANSPARENT);
+                if egui::color_picker::color_edit_button_srgba(ui, &mut c, egui::color_picker::Alpha::Opaque).changed() {
+                    color = Some(crate::render::Rgba(c.r(), c.g(), c.b(), 255));
+                }
+                ui.end_row();
+                ui.label("");
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::splat(2.0);
+                    for row in crate::style::palette().chunks(16) {
+                        ui.horizontal(|ui| {
+                            for c in row {
+                                if swatch(ui, Color32::from_rgb(c.0, c.1, c.2), Vec2::splat(12.0)).on_hover_text(crate::style::hex(*c)).clicked() {
+                                    color = Some(*c);
+                                }
+                            }
+                        });
+                    }
+                });
+                ui.end_row();
+            });
+            // the live preview, on the diagram's white with the chosen size and colour
+            let px = size.trim().parse::<f32>().ok().filter(|s| *s > 0.0).unwrap_or(13.0).min(42.0);
+            let fg = color.map(|c| Color32::from_rgb(c.0, c.1, c.2)).unwrap_or(Color32::BLACK);
+            ui.add_space(4.0);
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 60.0), egui::Sense::hover());
+            ui.painter().rect(rect, 0.0, Color32::WHITE, Stroke::new(1.0, BORDER()), egui::StrokeKind::Inside);
+            ui.painter().text(rect.center(), Align2::CENTER_CENTER, "AaBb123", egui::FontId::proportional(px), fg);
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ok = ui.button("OK").clicked();
+                cancel = ui.button("Cancel").clicked();
+            });
+            if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                cancel = true;
+            }
+        });
+        if ok {
+            let f = face.trim();
+            let sz = size.trim().parse::<f64>().ok().filter(|s| *s > 0.0);
+            self.set_font(if f.is_empty() { None } else { Some(f) }, sz);
+            if let Some(c) = color {
+                if Some(c) != self.color_state("fontColor") {
+                    self.style_edit = None;
+                    self.set_color("fontColor", c);
+                }
+            }
+            self.font_dialog = None;
+        } else if cancel {
+            self.font_dialog = None;
+        } else {
+            self.font_dialog = Some((face, size, color));
+        }
+    }
+
+    /// The Color dialog (dialog-manager.js:484-527): a picker with opacity, a hex field, a 16-column
+    /// preset palette and a Transparent swatch. OK (or Enter) applies the colour to the selected
+    /// views as one undo step; Cancel (or Esc) leaves them.
+    fn color_dialog_ui(&mut self, ctx: &egui::Context) {
+        let Some(mut d) = self.color_dialog.clone() else { return };
+        let (mut ok, mut cancel) = (false, false);
+        egui::Window::new("Color").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    let mut c = Color32::from_rgba_unmultiplied(d.color.0, d.color.1, d.color.2, d.color.3);
+                    if egui::color_picker::color_picker_color32(ui, &mut c, egui::color_picker::Alpha::OnlyBlend) {
+                        let [r, g, b, a] = c.to_srgba_unmultiplied();
+                        d.color = crate::render::Rgba(r, g, b, a);
+                        d.text = crate::style::hex(d.color);
+                    }
+                    let r = ui.add(egui::TextEdit::singleline(&mut d.text).desired_width(120.0).font(egui::TextStyle::Monospace));
+                    if r.changed() {
+                        if let Some(c) = crate::style::parse_hex(&d.text) {
+                            d.color = c;
+                        }
+                    }
+                });
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::splat(2.0);
+                    for row in crate::style::palette().chunks(16) {
+                        ui.horizontal(|ui| {
+                            for c in row {
+                                if swatch(ui, Color32::from_rgb(c.0, c.1, c.2), Vec2::splat(14.0)).on_hover_text(crate::style::hex(*c)).clicked() {
+                                    d.color = *c;
+                                    d.text = crate::style::hex(*c);
+                                }
+                            }
+                        });
+                    }
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        if swatch(ui, Color32::TRANSPARENT, Vec2::splat(14.0)).on_hover_text("rgba(255, 255, 255, 0)").clicked() {
+                            d.color = crate::render::Rgba(255, 255, 255, 0);
+                            d.text = crate::style::hex(d.color);
+                        }
+                        ui.label("Transparent");
+                    });
+                });
+            });
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ok = ui.button("OK").clicked();
+                cancel = ui.button("Cancel").clicked();
+            });
+            ok |= ui.input(|i| i.key_pressed(egui::Key::Enter));
+            cancel |= ui.input(|i| i.key_pressed(egui::Key::Escape));
+        });
+        if ok {
+            self.style_edit = None;
+            if Some(d.color) != self.color_state(d.field) {
+                self.set_color(d.field, d.color);
+            }
+            self.style_edit = None;
+            self.color_dialog = None;
+        } else if cancel || self.color_views(d.field).is_empty() {
+            self.color_dialog = None;
+        } else {
+            self.color_dialog = Some(d);
+        }
+    }
+
+    /// The "Select One" dialog: the message, one radio button per option, OK (or Enter) and Cancel
+    /// (or Esc) (dialog-manager.js:433-476, select-radio-dialog.html).
+    fn select_one_ui(&mut self, ctx: &egui::Context) {
+        let Some(mut d) = self.select_one.clone() else { return };
+        let (mut ok, mut cancel) = (false, false);
+        egui::Window::new("Select One").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            ui.label(&d.message);
+            ui.add_space(4.0);
+            for (i, o) in d.options.iter().enumerate() {
+                ui.radio_value(&mut d.selected, i, *o);
+            }
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                ok = ui.button("OK").clicked();
+                cancel = ui.button("Cancel").clicked();
+            });
+            ok |= ui.input(|i| i.key_pressed(egui::Key::Enter));
+            cancel |= ui.input(|i| i.key_pressed(egui::Key::Escape));
+        });
+        if ok {
+            self.select_one = None;
+            self.select_one_ok(d);
+        } else if cancel {
+            self.select_one = None;
+        } else {
+            self.select_one = Some(d);
+        }
+    }
+
     /// Toasts stack upward inside the diagram area and hide after 5 s (toast-manager.js:36-72).
     fn toasts_ui(&mut self, ctx: &egui::Context) {
-        self.toasts.retain(|(_, t)| t.elapsed().as_secs_f32() < 5.0);
+        self.toasts.retain(|(_, t, _)| t.elapsed().as_secs_f32() < 5.0);
         let Some(area) = self.canvas_rect else { return };
         let mut y = area.bottom() - 16.0;
-        for (i, (text, _)) in self.toasts.iter().enumerate().rev() {
+        for (i, (text, _, error)) in self.toasts.iter().enumerate().rev() {
             let pos = Pos2::new(area.left() + 16.0, y);
+            let (fill, edge, fg) = if *error { (Color32::from_rgb(0xc6, 0x3b, 0x3f), Color32::from_rgb(0xe5, 0x48, 0x4d), Color32::WHITE) } else { (LAYER1(), BORDER(), TEXT()) };
             let r = egui::Area::new(egui::Id::new(("toast", i))).order(egui::Order::Foreground).pivot(Align2::LEFT_BOTTOM).fixed_pos(pos).show(ctx, |ui| {
-                Frame::NONE.fill(LAYER1).stroke(Stroke::new(1.0, BORDER)).corner_radius(CornerRadius::same(3)).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
-                    ui.label(egui::RichText::new(text).color(TEXT).size(13.0));
+                Frame::NONE.fill(fill).stroke(Stroke::new(1.0, edge)).corner_radius(CornerRadius::same(3)).inner_margin(Margin::symmetric(12, 8)).show(ui, |ui| {
+                    ui.label(egui::RichText::new(text).color(fg).size(13.0));
                 });
             });
             y -= r.response.rect.height() + 6.0;
@@ -1248,6 +2730,9 @@ impl App {
     }
 
     fn handle_close(&mut self, ctx: &egui::Context) {
+        if ctx.input(|i| i.viewport().close_requested()) {
+            self.save_working_diagrams();
+        }
         if ctx.input(|i| i.viewport().close_requested()) && self.modified && self.screenshot.is_none() && !self.quit_after_save {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             let ms = EguiMeasure { ctx: ctx.clone() };
@@ -1255,25 +2740,67 @@ impl App {
                 self.quit_after_save = true;
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
+        } else if ctx.input(|i| i.viewport().close_requested()) && self.screenshot.is_none() {
+            // a clean exit: no backup to recover at the next launch (app-context.js:809-811)
+            self.clear_backup();
         }
     }
 }
 
+/// View menu panels, in the order of their Ctrl+1…6 shortcuts.
+const PANELS: [&str; 6] = ["Sidebar", "Navigator", "Toolbar", "Statusbar", "Toolbox", "Editors"];
+
+impl App {
+    fn panel_flag(&mut self, i: usize) -> &mut bool {
+        match i {
+            0 => &mut self.show_sidebar,
+            1 => &mut self.show_navigator,
+            2 => &mut self.show_toolbar,
+            3 => &mut self.show_statusbar,
+            4 => &mut self.show_toolbox,
+            _ => &mut self.show_editors,
+        }
+    }
+}
+
+/// The drag payload of a Working Diagrams row.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WorkingRow(pub Eid);
+
+/// The multiplicity choices of the property editor and the inline editor (uml.json `uml.multiplicity`).
+pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];
+
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 8] = [
+const FORMAT_TOGGLES: [(&str, &str); 13] = [
+    ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
     ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
+    ("wordWrap", "Word Wrap                         Ctrl+Shift+W"),
     ("showVisibility", "Show Visibility                 Ctrl+Shift+V"),
     ("showNamespace", "Show Namespace                  Ctrl+Shift+N"),
+    ("showProperty", "Show Property                    Ctrl+Shift+B"),
+    ("showType", "Show Type                          Ctrl+Shift+Y"),
     ("showMultiplicity", "Show Multiplicity               Ctrl+Shift+M"),
     ("showOperationSignature", "Show Operation Signature    Ctrl+Shift+J"),
     ("suppressAttributes", "Suppress Attributes             Ctrl+Shift+A"),
     ("suppressOperations", "Suppress Operations            Ctrl+Shift+O"),
+    ("suppressReceptions", "Suppress Receptions            Ctrl+Shift+E"),
     ("suppressLiterals", "Suppress Literals                 Ctrl+Shift+T"),
 ];
 
+/// The small padlock shown on a locked toolbox item.
+fn draw_lock(p: &egui::Painter, c: Pos2) {
+    let body = Rect::from_center_size(c + Vec2::new(0.0, 2.0), Vec2::new(9.0, 7.0));
+    p.rect_filled(body, CornerRadius::same(1), Color32::WHITE);
+    let pts: Vec<Pos2> = (0..=8).map(|i| {
+        let a = std::f32::consts::PI * i as f32 / 8.0;
+        c + Vec2::new(-3.0 * a.cos(), -1.5 - 3.5 * a.sin())
+    }).collect();
+    p.add(egui::Shape::line(pts, Stroke::new(1.5, Color32::WHITE)));
+}
+
 /// True while a text field has the keyboard (the diagram canvas can hold focus too, and then the
 /// editing shortcuts such as Ctrl+Z must still work).
-fn text_field_focused(ctx: &egui::Context) -> bool {
+pub(crate) fn text_field_focused(ctx: &egui::Context) -> bool {
     ctx.memory(|m| m.focused()).map(|id| egui::TextEdit::load_state(ctx, id).is_some()).unwrap_or(false)
 }
 
@@ -1301,51 +2828,233 @@ fn section_header(ui: &mut egui::Ui, title: &str, open: bool) -> bool {
     } else {
         vec![c + Vec2::new(0.0, -4.0), c + Vec2::new(5.0, 0.0), c + Vec2::new(0.0, 4.0)]
     };
-    p.add(egui::Shape::convex_polygon(tri, TEXT, Stroke::NONE));
-    p.text(Pos2::new(rect.left() + 15.0, rect.center().y), Align2::LEFT_CENTER, title, FontId::proportional(13.0), TEXT);
+    p.add(egui::Shape::convex_polygon(tri, TEXT(), Stroke::NONE));
+    p.text(Pos2::new(rect.left() + 15.0, rect.center().y), Align2::LEFT_CENTER, title, FontId::proportional(13.0), TEXT());
     resp.clicked()
 }
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.window_ui(ui);
+    }
+}
+
+impl App {
+    /// One frame of the whole window.
+    pub(crate) fn window_ui(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
+        // the theme follows the preference live (app-context.js:1518-1527)
+        let light = self.pref("theme.default").as_str() == Some("light");
+        if self.theme_applied != Some(light) {
+            set_light_theme(light);
+            crate::setup_style(&ctx);
+            self.theme_applied = Some(light);
+        }
         self.handle_close(&ctx);
+        self.api_poll(&ctx);
+        // remember the window's bounds and maximized state (window.js:26-94); they are written with
+        // the other preferences when they change
+        if self.screenshot.is_none() {
+            let (inner, outer, maximized) = ctx.input(|i| (i.viewport().inner_rect, i.viewport().outer_rect, i.viewport().maximized.unwrap_or(false)));
+            if let (Some(inner), Some(outer)) = (inner, outer) {
+                let mut ws = self.window_state.clone().unwrap_or_else(|| json!({}));
+                ws["isMaximized"] = json!(maximized);
+                // a maximized window keeps the bounds it had before
+                if !maximized {
+                    ws["x"] = json!(outer.min.x.round());
+                    ws["y"] = json!(outer.min.y.round());
+                    ws["width"] = json!(inner.width().round());
+                    ws["height"] = json!(inner.height().round());
+                }
+                self.window_state = Some(ws);
+            }
+        }
+        self.dropped_files(&ctx);
+        // a command picked in the palette runs a frame later, once the palette is gone (command-palette.js:106-112)
+        if let Some(id) = self.palette_run.take() {
+            self.run_command(&ctx, id);
+        }
         self.shortcuts(&ctx);
         let title = self.title();
         if ctx.input(|i| i.viewport().title.as_deref() != Some(title.as_str())) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
         }
 
-        Panel::top("menu").exact_size(22.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER0).inner_margin(Margin::symmetric(6, 0))).show(ui, |ui| {
+        Panel::top("menu").exact_size(22.0).show_separator_line(false).frame(Frame::NONE.fill(LAYER0()).inner_margin(Margin::symmetric(6, 0))).show(ui, |ui| {
             self.menu_bar(ui);
         });
         if self.show_statusbar {
-            Panel::bottom("status").exact_size(STATUSBAR_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.status_ui(ui));
+            Panel::bottom("status").exact_size(STATUSBAR_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.status_ui(ui));
         }
+        use crate::splitter::{Edge, Split, KEEP_ABOVE, MIN_SPLIT};
+        let area = ui.available_rect_before_wrap();
+        let mut sidebar_rect = None;
+        let mut navigator_rect = None;
         if self.show_sidebar {
-            Panel::left("sidebar").exact_size(SIDEBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(LAYER0)).show(ui, |ui| {
-                Panel::bottom("toolbox").exact_size(TOOLBOX_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.toolbox_ui(ui));
+            let w = self.panel_size("sidebar");
+            let r = Panel::left("sidebar").exact_size(w).show_separator_line(false).frame(Frame::NONE.fill(LAYER0())).show(ui, |ui| {
+                let mut toolbox = None;
+                if self.show_toolbox {
+                    // Working Diagrams keeps 40 px, also when the window gets smaller (sidebar-view.js:69-75, 150-156)
+                    let max = (ui.available_height() - KEEP_ABOVE).max(MIN_SPLIT);
+                    let h = self.panel_size("toolbox").min(max);
+                    toolbox = Some((Panel::bottom("toolbox").exact_size(h).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.toolbox_ui(ui)).response.rect, max));
+                }
                 self.working_ui(ui);
+                if let Some((rect, max)) = toolbox {
+                    self.splitter(ui, "toolbox", rect, Edge::Top, true, MIN_SPLIT, max, false);
+                }
             });
+            sidebar_rect = Some(r.response.rect);
         }
         if self.show_navigator {
-            Panel::right("navigator").exact_size(NAVIGATOR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(LAYER0)).show(ui, |ui| {
-                Panel::bottom("editors").exact_size(EDITORS_HEIGHT).show_separator_line(false).frame(Frame::NONE.fill(LAYER1)).show(ui, |ui| self.editors_ui(ui));
+            let w = self.panel_size("navigator");
+            let r = Panel::right("navigator").exact_size(w).show_separator_line(false).frame(Frame::NONE.fill(LAYER0())).show(ui, |ui| {
+                let mut editors = None;
+                if self.show_editors {
+                    // Model Explorer keeps 40 px (navigator-view.js:65-71, 151-157)
+                    let max = (ui.available_height() - KEEP_ABOVE).max(MIN_SPLIT);
+                    let h = self.panel_size("editors").min(max);
+                    editors = Some((Panel::bottom("editors").exact_size(h).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| self.editors_ui(ui)).response.rect, max));
+                }
                 self.explorer_ui(ui);
+                if let Some((rect, max)) = editors {
+                    self.splitter(ui, "editors", rect, Edge::Top, true, MIN_SPLIT, max, false);
+                }
             });
+            navigator_rect = Some(r.response.rect);
         }
-        Panel::right("toolbar").exact_size(TOOLBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(TOOLBAR)).show(ui, |ui| self.toolbar_ui(ui));
+        if self.show_toolbar {
+            Panel::right("toolbar").exact_size(TOOLBAR_WIDTH).show_separator_line(false).frame(Frame::NONE.fill(TOOLBAR())).show(ui, |ui| self.toolbar_ui(ui));
+        }
+        // the panels under the diagram, each with a splitter on top (panel-manager.js:56-82, 149-209)
+        let mut bottoms: Vec<(&'static str, Rect)> = vec![];
+        let above = ui.available_rect_before_wrap().top();
+        type Body = fn(&mut App, &mut egui::Ui);
+        let panels: [(&'static str, bool, Body); 5] = [
+            ("validation", self.show_validation, App::validation_ui),
+            ("markdown", self.show_markdown, App::markdown_ui),
+            ("thumbnails", self.show_thumbnails, App::thumbnails_ui),
+            ("relationships", self.show_relationships, App::relationships_ui),
+            // the Find Results panel sits under the diagram, above the status bar
+            ("findResults", self.find_results.is_some(), App::find_results_ui),
+        ];
+        for (id, on, body) in panels {
+            if on {
+                let max = (ui.available_rect_before_wrap().bottom() - above - 20.0).max(MIN_SPLIT);
+                let h = self.panel_size(id).min(max);
+                let r = Panel::bottom(id).exact_size(h).show_separator_line(false).frame(Frame::NONE.fill(LAYER1())).show(ui, |ui| body(self, ui));
+                bottoms.push((id, r.response.rect));
+            }
+        }
         egui::CentralPanel::no_frame().show(ui, |ui| {
             self.canvas_ui(ui);
         });
+        // splitters last, so that they win over the canvas under their edge
+        let others = |a: &App, me: &str| {
+            let side = |id: &str, shown: bool| if shown && id != me { a.panel_size(id) } else { 0.0 };
+            side("sidebar", a.show_sidebar) + side("navigator", a.show_navigator) + if a.show_toolbar { TOOLBAR_WIDTH } else { 0.0 }
+        };
+        let max = (area.width() - others(self, "sidebar")).max(0.0);
+        let rect = sidebar_rect.unwrap_or(Rect::from_x_y_ranges(area.left()..=area.left() + GRIP_HIDDEN, area.y_range()));
+        match self.splitter(ui, "sidebar", rect, Edge::Right, self.show_sidebar, 0.0, max, true) {
+            Some(Split::Hide) => self.show_sidebar = false,
+            Some(Split::Resize(_)) => self.show_sidebar = true,
+            None => {}
+        }
+        let max = (area.width() - others(self, "navigator")).max(0.0);
+        let rect = navigator_rect.unwrap_or(Rect::from_x_y_ranges(area.right() - GRIP_HIDDEN..=area.right(), area.y_range()));
+        match self.splitter(ui, "navigator", rect, Edge::Left, self.show_navigator, 0.0, max, true) {
+            Some(Split::Hide) => self.show_navigator = false,
+            Some(Split::Resize(_)) => self.show_navigator = true,
+            None => {}
+        }
+        for (id, rect) in bottoms {
+            let max = (rect.bottom() - above - 20.0).max(MIN_SPLIT);
+            if self.splitter(ui, id, rect, Edge::Top, true, 0.0, max, true) == Some(Split::Hide) {
+                match id {
+                    "validation" => self.show_validation = false,
+                    "markdown" => self.show_markdown = false,
+                    "thumbnails" => self.show_thumbnails = false,
+                    "relationships" => self.show_relationships = false,
+                    _ => self.find_results = None,
+                }
+            }
+        }
         if let Some(v) = self.pending_edit.take() {
             if self.repo.alive(v) {
                 self.edit_view(v, None);
             }
         }
+        self.take_pending_item();
         self.dialogs(&ctx);
         self.toasts_ui(&ctx);
+        if self.screenshot.is_none() {
+            self.store_prefs();
+            self.auto_backup(std::time::Instant::now());
+            ctx.request_repaint_after(crate::prefs::BACKUP_EVERY);
+        }
         self.screenshots(&ctx);
         let _ = R::default();
+    }
+}
+
+/// The app icon as a texture, loaded once (packaging/icons).
+fn app_icon(ctx: &egui::Context) -> Option<egui::TextureHandle> {
+    let id = egui::Id::new("app-icon");
+    if let Some(t) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
+        return Some(t);
+    }
+    let img = image::load_from_memory(include_bytes!("../packaging/icons/umlcraft-128.png")).ok()?.to_rgba8();
+    let size = [img.width() as usize, img.height() as usize];
+    let t = ctx.load_texture("app-icon", egui::ColorImage::from_rgba_unmultiplied(size, &img.into_raw()), egui::TextureOptions::LINEAR);
+    ctx.data_mut(|d| d.insert_temp(id, t.clone()));
+    Some(t)
+}
+
+/// A clickable colour swatch; a transparent colour shows a checkerboard.
+fn swatch(ui: &mut egui::Ui, c: Color32, size: Vec2) -> egui::Response {
+    let (rect, r) = ui.allocate_exact_size(size, egui::Sense::click());
+    let p = ui.painter();
+    if c.a() < 255 {
+        let s = size.y / 2.0;
+        p.rect_filled(rect, 0.0, Color32::WHITE);
+        let mut x = rect.left();
+        let mut i = 0;
+        while x < rect.right() {
+            let w = s.min(rect.right() - x);
+            let top = if i % 2 == 0 { rect.top() } else { rect.top() + s };
+            p.rect_filled(egui::Rect::from_min_size(Pos2::new(x, top), Vec2::new(w, s)), 0.0, Color32::from_gray(200));
+            x += s;
+            i += 1;
+        }
+    }
+    p.rect_filled(rect, 0.0, c);
+    p.rect_stroke(rect, 0.0, Stroke::new(1.0, if r.hovered() { TEXT() } else { BORDER() }), egui::StrokeKind::Inside);
+    r
+}
+
+/// A menu label "Name      Ctrl+X": on macOS its shortcut is shown as symbols, "Name  ⌘X"
+/// (keymap-manager.js:75-152); elsewhere it is left as written.
+pub(crate) fn menu_label(label: &str) -> String {
+    menu_label_for(label, cfg!(target_os = "macos"))
+}
+
+pub(crate) fn menu_label_for(label: &str, mac: bool) -> String {
+    if !mac {
+        return label.to_string();
+    }
+    match label.trim_end().rsplit_once("  ") {
+        Some((name, key)) if !key.trim().is_empty() => format!("{}  {}", name.trim_end(), crate::palette::shortcut_label(key.trim(), true)),
+        _ => label.to_string(),
+    }
+}
+
+/// A soft shadow under the top edge of a scrolled list.
+fn scroll_shadow(p: &egui::Painter, r: Rect) {
+    for i in 0..6 {
+        let a = (60 - i * 10) as u8;
+        let y = r.top() + i as f32;
+        p.hline(r.x_range(), y, Stroke::new(1.0, Color32::from_black_alpha(a)));
     }
 }

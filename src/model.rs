@@ -301,6 +301,22 @@ impl Repo {
         }
     }
     /// Set a field exactly (also null or default), keeping order.
+    /// The elements a reference-list field points at (`[{"$ref": id}, …]`), live ones only.
+    pub fn ref_list(&self, eid: Eid, key: &str) -> Vec<Eid> {
+        match self.raw(eid, key) {
+            Some(Value::Array(a)) => a.iter().filter_map(|v| self.by_ref(v)).filter(|x| self.alive(*x)).collect(),
+            _ => vec![],
+        }
+    }
+    /// Write a reference-list field; an empty list removes it.
+    pub fn set_ref_list(&mut self, eid: Eid, key: &str, items: &[Eid]) {
+        if items.is_empty() {
+            self.remove(eid, key);
+        } else {
+            let v: Vec<Value> = items.iter().map(|x| self.ref_to(*x)).collect();
+            self.set_raw(eid, key, Value::Array(v));
+        }
+    }
     pub fn set_raw(&mut self, eid: Eid, key: &str, v: Value) {
         self.insert_ordered(eid, key, F::V(v));
     }
@@ -359,8 +375,14 @@ impl Repo {
         }
     }
 
-    /// Remove an element (and everything inside it) from its owner.
-    pub fn detach(&mut self, eid: Eid) {
+    /// Move an element (with everything inside it) to parent[field], keeping its id.
+    pub fn relocate(&mut self, eid: Eid, parent: Eid, field: &str) {
+        self.unlink(eid);
+        self.attach(eid, parent, field, None);
+    }
+
+    /// Take an element out of its owner's field without removing it.
+    fn unlink(&mut self, eid: Eid) {
         if let Some(p) = self.parent(eid) {
             if self.alive(p) {
                 let mut empty = None;
@@ -387,6 +409,11 @@ impl Repo {
                 }
             }
         }
+    }
+
+    /// Remove an element (and everything inside it) from its owner.
+    pub fn detach(&mut self, eid: Eid) {
+        self.unlink(eid);
         let mut all = vec![];
         self.descendants(eid, &mut all);
         for x in all {
@@ -434,6 +461,58 @@ impl Repo {
                 el.fields.shift_remove(&k);
             }
         }
+    }
+
+    /// Insert copies of exported elements under parent[field] with fresh ids. References between the
+    /// copied elements follow the copies; references to anything else are kept as they are.
+    pub fn insert_copies(&mut self, items: Vec<Value>, parent: Eid, field: &str) -> Vec<Eid> {
+        fn ids(v: &Value, out: &mut HashMap<String, String>) {
+            match v {
+                Value::Object(m) => {
+                    if let (Some(Value::String(id)), true) = (m.get("_id"), m.contains_key("_type")) {
+                        out.insert(id.clone(), new_id());
+                    }
+                    m.values().for_each(|x| ids(x, out));
+                }
+                Value::Array(a) => a.iter().for_each(|x| ids(x, out)),
+                _ => {}
+            }
+        }
+        fn remap(v: &mut Value, map: &HashMap<String, String>) {
+            match v {
+                Value::Object(m) => {
+                    for key in ["_id", "$ref"] {
+                        if let Some(Value::String(id)) = m.get_mut(key) {
+                            if let Some(n) = map.get(id.as_str()) {
+                                *id = n.clone();
+                            }
+                        }
+                    }
+                    m.values_mut().for_each(|x| remap(x, map));
+                }
+                Value::Array(a) => a.iter_mut().for_each(|x| remap(x, map)),
+                _ => {}
+            }
+        }
+        let mut map = HashMap::new();
+        items.iter().for_each(|v| ids(v, &mut map));
+        let mut out = vec![];
+        for mut v in items {
+            if !is_elem(&v) {
+                continue;
+            }
+            remap(&mut v, &map);
+            let e = self.import(v, Some(parent));
+            self.attach(e, parent, field, None);
+            out.push(e);
+        }
+        out
+    }
+
+    /// The field of its owner that holds this element (ownedElements, attributes, end1…).
+    pub fn field_of(&self, eid: Eid) -> Option<String> {
+        let p = self.parent(eid)?;
+        self.children(p).into_iter().find(|(_, c)| *c == eid).map(|(k, _)| k)
     }
 
     pub fn path(&self, eid: Eid) -> Vec<Eid> {

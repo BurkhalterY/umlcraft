@@ -18,13 +18,119 @@ pub const UC_MIN_W: f64 = 70.0; // use case min width, elements.js:96
 pub const UC_MIN_H: f64 = 32.0; // use case min height, elements.js:97
 pub const ACTOR_ICON_W: f64 = 26.0; // actor icon min width, elements.js:93
 pub const ACTOR_ICON_H: f64 = 55.0; // actor icon min height, elements.js:92
+/// The robustness icons (boundary, entity, control) of a class shown as an icon (estimated).
+pub const ROBUST_ICON_W: f64 = 50.0;
+pub const ROBUST_ICON_H: f64 = 36.0;
+/// An artifact shown as an icon (estimated).
+pub const ARTIFACT_ICON_W: f64 = 30.0;
+pub const ARTIFACT_ICON_H: f64 = 40.0;
+
+/// The robustness kind of a class shown as an icon: "boundary", "entity" or "control".
+pub fn robustness_kind(r: &Repo, v: Eid, m: Eid) -> Option<&'static str> {
+    let display = r.str(v, "stereotypeDisplay");
+    if r.ty(m) != "UMLClass" || !(display == "icon" || display == "icon-label") {
+        return None;
+    }
+    match type_name(r, m, "stereotype").to_lowercase().as_str() {
+        "boundary" => Some("boundary"),
+        "entity" => Some("entity"),
+        "control" => Some("control"),
+        _ => None,
+    }
+}
 pub const NOTE_FOLD: f64 = 10.0; // note fold, elements.js:14261
 pub const FONT: &str = "Arial;13;0"; // default font
 pub const DEFAULT_LINE_STYLE: i64 = 1; // oblique, default.json:83
 
 /// Text measuring, supplied by the window (font style: 0 normal, 1 bold, 2 italic, 3 bold italic).
 pub trait Measure {
+    /// Width of a text in the diagram font at 13 px (style: 1 bold, 2 italic).
     fn width(&self, text: &str, style: u8) -> f64;
+    /// The font size the layout is working with.
+    fn size(&self) -> f64 {
+        13.0
+    }
+    /// The font face the layout is working with.
+    fn face(&self) -> String {
+        "Arial".into()
+    }
+}
+
+/// A view's own font: widths scale with its size, and labels inside it take its face and size, as
+/// labels with parentStyle copy their parent's font (core.js:1659-1666).
+pub struct Scaled<'a> {
+    pub ms: &'a dyn Measure,
+    pub face: String,
+    pub size: f64,
+}
+impl Measure for Scaled<'_> {
+    fn width(&self, text: &str, style: u8) -> f64 {
+        self.ms.width(text, style) * self.size / 13.0
+    }
+    fn size(&self) -> f64 {
+        self.size
+    }
+    fn face(&self) -> String {
+        self.face.clone()
+    }
+}
+
+/// Face and size of a view's `font` ("Arial;13;0").
+pub fn view_font(r: &Repo, v: Eid) -> (String, f64) {
+    let f = r.str(v, "font");
+    let mut it = f.split(';');
+    let face = it.next().filter(|x| !x.is_empty()).unwrap_or("Arial").to_string();
+    let size = it.next().and_then(|x| x.parse::<f64>().ok()).filter(|x| *x > 0.0).unwrap_or(13.0);
+    (face, size)
+}
+
+/// A font string "face;size;style", the size without decimals when whole.
+pub fn font_str(face: &str, size: f64, style: i64) -> String {
+    if size.fract() == 0.0 { format!("{face};{};{style}", size as i64) } else { format!("{face};{size};{style}") }
+}
+
+fn font_style_of(r: &Repo, v: Eid) -> i64 {
+    r.str(v, "font").split(';').nth(2).and_then(|x| x.parse().ok()).unwrap_or(0)
+}
+
+/// Break a text into lines no wider than `width`, between words; a word wider than the line keeps a
+/// line of its own. Newlines always break.
+pub fn wrap_text(ms: &dyn Measure, text: &str, width: f64, style: u8) -> Vec<String> {
+    let mut out = vec![];
+    for para in text.split('\n') {
+        let mut line = String::new();
+        for word in para.split(' ') {
+            let test = if line.is_empty() { word.to_string() } else { format!("{line} {word}") };
+            if ms.width(&test, style) > width && !line.is_empty() {
+                out.push(std::mem::take(&mut line));
+                line = word.to_string();
+            } else {
+                line = test;
+            }
+        }
+        out.push(line);
+    }
+    out
+}
+
+/// The width of the widest word: the narrowest a word-wrapped label can be (core.js:3769-3790).
+pub fn widest_word(ms: &dyn Measure, text: &str, style: u8) -> f64 {
+    text.split([' ', '\n']).map(|w| ms.width(w, style)).fold(0.0, f64::max)
+}
+
+/// How many lines a label takes at this width: one, or as many as its words need with word wrap.
+fn label_lines(r: &Repo, ms: &dyn Measure, lv: Eid, width: f64) -> usize {
+    if r.bool(lv, "wordWrap") {
+        wrap_text(ms, &r.str(lv, "text"), width, font_style_of(r, lv) as u8).len().max(1)
+    } else {
+        1
+    }
+}
+
+/// Give a label the face and size of the layout, keeping its own style.
+fn set_label_font(r: &mut Repo, ms: &dyn Measure, lv: Eid, style: Option<i64>) {
+    let st = style.unwrap_or_else(|| font_style_of(r, lv));
+    r.set(lv, "font", json!(font_str(&ms.face(), ms.size(), st)));
 }
 
 pub fn vis_symbol(v: &str) -> &'static str {
@@ -57,6 +163,20 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         "UMLUseCase" => k("UMLUseCaseView", true, true, false),
         "UMLActor" => k("UMLActorView", true, true, false),
         "UMLUseCaseSubject" => k("UMLUseCaseSubjectView", false, false, false),
+        // a subsystem is drawn like a package (estimated)
+        "UMLSubsystem" => k("UMLSubsystemView", false, false, false),
+        // component and deployment diagrams (uml.json "uml.component", "uml.deployment")
+        "UMLComponent" => k("UMLComponentView", true, true, false),
+        "UMLArtifact" => k("UMLArtifactView", true, true, false),
+        "UMLNode" => k("UMLNodeView", true, true, false),
+        // an object: its name and classifier underlined, then its slots
+        "UMLObject" => k("UMLObjectView", false, false, false),
+        "UMLInformationItem" => k("UMLInformationItemView", true, true, false),
+        "UMLStereotype" => k("UMLStereotypeView", true, false, false),
+        "UMLMetaClass" => k("UMLMetaClassView", false, false, false),
+        "UMLArtifactInstance" => k("UMLArtifactInstanceView", false, false, false),
+        "UMLComponentInstance" => k("UMLComponentInstanceView", false, false, false),
+        "UMLNodeInstance" => k("UMLNodeInstanceView", false, false, false),
         _ => None,
     }
 }
@@ -70,13 +190,22 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "UMLInterfaceRealization" => "UMLInterfaceRealizationView",
         "UMLInclude" => "UMLIncludeView",
         "UMLExtend" => "UMLExtendView",
+        "UMLComponentRealization" => "UMLComponentRealizationView",
+        "UMLTemplateBinding" => "UMLTemplateBindingView",
+        "UMLDeployment" => "UMLDeploymentView",
+        "UMLCommunicationPath" => "UMLCommunicationPathView",
+        "UMLLink" => "UMLLinkView",
+        "UMLInformationFlow" => "UMLInformationFlowView",
+        "UMLExtension" => "UMLExtensionView",
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 8] = [
+const KNOWN_EDGE_VIEWS: [&str; 19] = [
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
-    "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView",
+    "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
+    "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
+    "UMLTemplateBindingView", "UMLConstraintLinkView", "UMLLinkView", "UMLInformationFlowView", "UMLExtensionView", "UMLLinkObjectLinkView",
 ];
 
 /// Size used when the person clicks instead of dragging (estimated).
@@ -84,13 +213,18 @@ pub fn default_size(kind: &str) -> (f64, f64) {
     match kind {
         "UMLClass" => (160.0, 100.0),
         "UMLInterface" => (140.0, 80.0),
-        "UMLEnumeration" | "UMLPackage" | "UMLModel" => (140.0, 100.0),
+        "UMLEnumeration" | "UMLPackage" | "UMLModel" | "UMLSubsystem" => (140.0, 100.0),
         "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" => (160.0, 80.0),
         "UMLUseCase" => (120.0, 40.0),
         "UMLActor" => (40.0, 80.0),
+        "UMLComponent" => (160.0, 60.0),
+        "UMLArtifact" => (80.0, 70.0),
+        "UMLNode" => (160.0, 80.0),
+        "Boundary" | "Entity" | "Control" => (ROBUST_ICON_W, ROBUST_ICON_H + NAME_MIN_H),
         "UMLUseCaseSubject" => (240.0, 250.0),
         "Note" => (140.0, 60.0),
         "Text" => (60.0, 15.0),
+        "TextBox" => (100.0, 40.0),
         _ => (100.0, 60.0),
     }
 }
@@ -114,6 +248,10 @@ pub fn node_rect(r: &Repo, v: Eid) -> R {
 
 pub fn is_edge(r: &Repo, v: Eid) -> bool {
     r.has(v, "points") || (r.has(v, "head") && r.has(v, "tail"))
+}
+/// A free line: a line drawn on its own, joined to no box.
+pub fn is_freeline(r: &Repo, v: Eid) -> bool {
+    r.ty(v) == "FreelineEdgeView"
 }
 pub fn is_node(r: &Repo, v: Eid) -> bool {
     !is_edge(r, v) && (r.has(v, "left") || r.has(v, "width"))
@@ -205,6 +343,10 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
     }
     let nc = name_compartment(r, v, model);
     r.set_ref(v, "nameCompartment", Some(nc));
+    if r.kind_of(model, "UMLInstance") {
+        let s = list_compartment(r, v, model, "UMLSlotCompartmentView", true);
+        r.set_ref(v, "slotCompartment", Some(s));
+    }
     if kind.classifier {
         let a = list_compartment(r, v, model, "UMLAttributeCompartmentView", !kind.suppress);
         r.set_ref(v, "attributeCompartment", Some(a));
@@ -281,7 +423,8 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
     r.set_ref(e, "nameLabel", Some(nl));
     r.set_ref(e, "stereotypeLabel", Some(sl));
     r.set_ref(e, "propertyLabel", Some(pl));
-    if r.ty(m) == "UMLAssociation" {
+    // associations and links have end labels; only associations have qualifiers
+    if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" {
         r.set_raw(e, "showEndOrder", json!("hide")); // as the original writes it (sample.mdj)
         let end1 = r.child(m, "end1");
         let end2 = r.child(m, "end2");
@@ -299,7 +442,8 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
             let l = edge_label(r, e, end, a, d, pos, false);
             r.set_ref(e, field, Some(l));
         }
-        for (field, end) in [("tailQualifiersCompartment", end1), ("headQualifiersCompartment", end2)] {
+        let quals = if r.kind_of(m, "UMLAssociation") { vec![("tailQualifiersCompartment", end1), ("headQualifiersCompartment", end2)] } else { vec![] };
+        for (field, end) in quals {
             let mut p: Vec<(&str, Value)> = vec![];
             if let Some(x) = end {
                 p.push(("model", r.ref_to(x)));
@@ -328,12 +472,39 @@ pub fn stereotype_text(r: &Repo, e: Eid) -> String {
     let n = type_name(r, e, "stereotype");
     if n.is_empty() { n } else { format!("«{n}»") }
 }
-pub fn attribute_text(r: &Repo, a: Eid, show_vis: bool) -> String {
+/// Which parts of a feature's text a view shows (its showVisibility, showMultiplicity,
+/// showOperationSignature, showType and showProperty flags).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Show {
+    pub vis: bool,
+    pub mult: bool,
+    pub sig: bool,
+    pub ty: bool,
+    pub prop: bool,
+}
+
+impl Show {
+    pub const ALL: Show = Show { vis: true, mult: true, sig: true, ty: true, prop: true };
+
+    /// The flags of a view; a flag the view does not have counts as on.
+    pub fn of(r: &Repo, v: Eid) -> Show {
+        let f = |k: &str| r.val(v, k).and_then(|x| x.as_bool()).unwrap_or(true);
+        Show { vis: f("showVisibility"), mult: f("showMultiplicity"), sig: f("showOperationSignature"), ty: f("showType"), prop: f("showProperty") }
+    }
+}
+
+/// The property string of an attribute or association end: `{id, readOnly, ordered, unique}`, or "".
+pub fn property_text(r: &Repo, a: Eid) -> String {
+    let props: Vec<&str> = [("isID", "id"), ("isReadOnly", "readOnly"), ("isOrdered", "ordered"), ("isUnique", "unique")].into_iter().filter(|(k, _)| r.bool(a, k)).map(|(_, l)| l).collect();
+    if props.is_empty() { String::new() } else { format!("{{{}}}", props.join(", ")) }
+}
+
+pub fn attribute_text(r: &Repo, a: Eid, show: Show) -> String {
     let mut s = stereotype_text(r, a);
     if !s.is_empty() {
         s.push(' ');
     }
-    if show_vis {
+    if show.vis {
         s += vis_symbol(&r.str(a, "visibility"));
     }
     if r.bool(a, "isDerived") {
@@ -341,38 +512,72 @@ pub fn attribute_text(r: &Repo, a: Eid, show_vis: bool) -> String {
     }
     s += &r.name(a);
     let t = type_name(r, a, "type");
-    if !t.is_empty() {
+    if show.ty && !t.is_empty() {
         s += &format!(": {t}");
     }
     let m = r.str(a, "multiplicity");
-    if !m.is_empty() {
+    if show.mult && !m.is_empty() {
         s += &format!("[{m}]");
     }
     let d = r.str(a, "defaultValue");
     if !d.is_empty() {
         s += &format!(" = {d}");
     }
-    let mut props = vec![];
-    for (k, label) in [("isID", "id"), ("isReadOnly", "readOnly"), ("isOrdered", "ordered"), ("isUnique", "unique")] {
-        if r.bool(a, k) {
-            props.push(label);
-        }
-    }
-    if !props.is_empty() {
-        s += &format!(" {{{}}}", props.join(", "));
+    let p = property_text(r, a);
+    if show.prop && !p.is_empty() {
+        s += &format!(" {p}");
     }
     s
 }
-pub fn operation_text(r: &Repo, o: Eid, show_vis: bool, show_sig: bool) -> String {
+/// How far the template parameter box reaches over the class's right and top edges (estimated).
+pub const TEMPLATE_OUT: f64 = 10.0;
+
+/// A template parameter's text: «stereotype» name: type = default.
+pub fn template_parameter_text(r: &Repo, t: Eid) -> String {
+    let mut s = stereotype_text(r, t);
+    if !s.is_empty() {
+        s.push(' ');
+    }
+    s += &r.name(t);
+    let ty = r.str(t, "parameterType");
+    if !ty.is_empty() {
+        s += &format!(": {ty}");
+    }
+    let d = r.str(t, "defaultValue");
+    if !d.is_empty() {
+        s += &format!(" = {d}");
+    }
+    s
+}
+
+/// An extension point's line: its name, then ": location" when it has one (estimated).
+pub fn extension_point_text(r: &Repo, x: Eid) -> String {
+    let loc = r.str(x, "location");
+    if loc.is_empty() { r.name(x) } else { format!("{}: {loc}", r.name(x)) }
+}
+
+/// A reception's line: its stereotype (or «signal»), visibility and name (UML 2; the exact form is
+/// estimated for StarUML).
+pub fn reception_text(r: &Repo, x: Eid, show: Show) -> String {
+    let st = stereotype_text(r, x);
+    let mut s = if st.is_empty() { "«signal»".to_string() } else { st };
+    s.push(' ');
+    if show.vis {
+        s += vis_symbol(&r.str(x, "visibility"));
+    }
+    s + &r.name(x)
+}
+
+pub fn operation_text(r: &Repo, o: Eid, show: Show) -> String {
     let mut s = stereotype_text(r, o);
     if !s.is_empty() {
         s.push(' ');
     }
-    if show_vis {
+    if show.vis {
         s += vis_symbol(&r.str(o, "visibility"));
     }
     s += &r.name(o);
-    if !show_sig {
+    if !show.sig {
         return s + "()";
     }
     let params = r.list(o, "parameters");
@@ -389,11 +594,11 @@ pub fn operation_text(r: &Repo, o: Eid, show_vis: bool, show_sig: bool) -> Strin
             }
             t += &r.name(p);
             let ty = type_name(r, p, "type");
-            if !ty.is_empty() {
+            if show.ty && !ty.is_empty() {
                 t += &format!(": {ty}");
             }
             let m = r.str(p, "multiplicity");
-            if !m.is_empty() {
+            if show.mult && !m.is_empty() {
                 t += &format!("[{m}]");
             }
             let d = r.str(p, "defaultValue");
@@ -404,13 +609,13 @@ pub fn operation_text(r: &Repo, o: Eid, show_vis: bool, show_sig: bool) -> Strin
         })
         .collect();
     s += &format!("({})", list.join(", "));
-    if let Some(rp) = ret {
+    if let Some(rp) = ret.filter(|_| show.ty) {
         let ty = type_name(r, rp, "type");
         if !ty.is_empty() {
             s += &format!(": {ty}");
         }
         let m = r.str(rp, "multiplicity");
-        if !m.is_empty() {
+        if show.mult && !m.is_empty() {
             s += &format!("[{m}]");
         }
     }
@@ -429,6 +634,8 @@ pub struct Comp {
 }
 #[derive(Clone, Debug, Default)]
 pub struct Info {
+    /// The template parameter box at the top-right corner, when there are template parameters.
+    pub templ: Option<Comp>,
     /// "interface", "actor", "usecase", "package", "subject" or ""
     pub shape: &'static str,
     pub compartments: Vec<Comp>,
@@ -474,6 +681,18 @@ fn name_parts(r: &Repo, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) ->
     })
 }
 
+/// The text of a box's name: an object (an instance) also shows its classifier, "name : Class".
+pub fn display_name(r: &Repo, m: Eid) -> String {
+    let name = r.name(m);
+    if !r.kind_of(m, "UMLInstance") {
+        return name;
+    }
+    match r.refd(m, "classifier") {
+        Some(c) => format!("{name} : {}", r.name(c)),
+        None => name,
+    }
+}
+
 fn name_style(r: &Repo, m: Eid) -> u8 {
     if r.bool(m, "isAbstract") { 3 } else { 1 }
 }
@@ -481,8 +700,11 @@ fn name_style(r: &Repo, m: Eid) -> u8 {
 fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w: f64, keyword: Option<&str>, hide_st: bool) -> f64 {
     let Some(p) = name_parts(r, v, m, keyword, hide_st) else { return NAME_MIN_H };
     let style = name_style(r, m);
+    let wrap = r.bool(v, "wordWrap");
     let mut items: Vec<Eid> = vec![];
+    let lh = ms.size();
     if let Some(st) = p.st {
+        set_label_font(r, ms, st, None);
         r.set(st, "text", json!(p.st_text));
         r.set_raw(st, "visible", json!(p.show_st));
         if p.show_st {
@@ -491,12 +713,17 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
         }
     }
     if let Some(nm) = p.nm {
-        let name = r.name(m);
+        let name = display_name(r, m);
         r.set(nm, "text", json!(name));
-        r.set(nm, "font", json!(format!("Arial;13;{style}")));
+        set_label_font(r, ms, nm, Some(style as i64));
+        // an object's name is underlined (UML instance notation)
+        if r.kind_of(m, "UMLInstance") {
+            r.set(nm, "underline", json!(true));
+        }
         items.push(nm);
     }
     if let Some(ns) = p.ns {
+        set_label_font(r, ms, ns, None);
         let show = r.bool(v, "showNamespace");
         r.set(ns, "text", json!(p.ns_text));
         if show {
@@ -506,31 +733,36 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
             r.set_raw(ns, "visible", json!(false));
         }
     }
+    for lv in &items {
+        r.set(*lv, "wordWrap", json!(wrap));
+    }
+    let heights: Vec<f64> = items.iter().map(|lv| label_lines(r, ms, *lv, w - 2.0 * PAD) as f64 * lh).collect();
     let n = items.len() as f64;
-    let content = n * LABEL_H + ITEM_GAP * (n - 1.0).max(0.0);
+    let content = heights.iter().sum::<f64>() + ITEM_GAP * (n - 1.0).max(0.0);
     let h = NAME_MIN_H.max(content + 2.0 * PAD);
     let mut cy = y + ((h - content) / 2.0).ceil();
-    for lv in items {
-        set_box(r, lv, x + PAD, cy, w - 2.0 * PAD, LABEL_H);
-        cy += LABEL_H + ITEM_GAP;
+    for (lv, lh) in items.into_iter().zip(heights) {
+        set_box(r, lv, x + PAD, cy, w - 2.0 * PAD, lh);
+        cy += lh + ITEM_GAP;
     }
     set_box(r, p.nc, x, y, w + 1.0, h);
-    let _ = ms;
     h
 }
 
 fn name_min_width(r: &Repo, ms: &dyn Measure, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) -> f64 {
-    let mut w = ms.width(&r.name(m), name_style(r, m));
+    let wrap = r.bool(v, "wordWrap");
+    let width = |t: &str, style: u8| if wrap { widest_word(ms, t, style) } else { ms.width(t, style) };
+    let mut w = width(&display_name(r, m), name_style(r, m));
     if let Some(p) = name_parts(r, v, m, keyword, hide_st) {
         if p.show_st {
-            w = w.max(ms.width(&p.st_text, 0));
+            w = w.max(width(&p.st_text, 0));
         }
     }
     w.ceil() + 2.0 * PAD
 }
 
 /// Keep a list compartment's item views in step with the model list; returns (min width, height, rows).
-fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid], item_ty: &str, texts: &[String]) -> (f64, f64, Vec<Row>) {
+fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid], item_ty: &str, texts: &[String], wrap: bool) -> (f64, f64, Vec<Row>) {
     let existing = r.list(comp, "subViews");
     let mut keep = vec![];
     for it in items {
@@ -560,19 +792,32 @@ fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid], item_ty: 
         let st = r.bool(items[i], "isStatic");
         r.set(*iv, "underline", json!(st));
         let italic = if r.bool(items[i], "isAbstract") { 2 } else { 0 };
-        min_w = min_w.max(ms.width(t, italic).ceil() + 2.0 * PAD);
+        set_label_font(r, ms, *iv, None);
+        r.set(*iv, "wordWrap", json!(wrap));
+        let tw = if wrap { widest_word(ms, t, italic) } else { ms.width(t, italic) };
+        min_w = min_w.max(tw.ceil() + 2.0 * PAD);
     }
-    let n = keep.len() as f64;
-    let h = if keep.is_empty() { EMPTY_H } else { 2.0 * PAD + n * LABEL_H + ITEM_GAP * (n - 1.0) };
-    (min_w, h, keep.into_iter().map(|iv| Row { iv }).collect())
+    let rows: Vec<Row> = keep.into_iter().map(|iv| Row { iv }).collect();
+    let h = list_height(r, ms, &rows, f64::INFINITY);
+    (min_w, h, rows)
 }
 
-fn place_list(r: &mut Repo, comp: Eid, x: f64, y: f64, w: f64, h: f64, rows: &[Row]) {
+/// The height of a list compartment `w` wide: its rows, with word-wrapped rows on several lines.
+fn list_height(r: &Repo, ms: &dyn Measure, rows: &[Row], w: f64) -> f64 {
+    if rows.is_empty() {
+        return EMPTY_H;
+    }
+    let lines: usize = rows.iter().map(|row| label_lines(r, ms, row.iv, w - 2.0 * PAD + 1.0)).sum();
+    2.0 * PAD + lines as f64 * ms.size() + ITEM_GAP * (rows.len() as f64 - 1.0)
+}
+
+fn place_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, x: f64, y: f64, w: f64, h: f64, rows: &[Row]) {
     set_box(r, comp, x, y, w + 1.0, h);
     let mut cy = y + PAD;
     for row in rows {
-        set_box(r, row.iv, x + PAD, cy, w - 2.0 * PAD + 1.0, LABEL_H);
-        cy += LABEL_H + ITEM_GAP;
+        let lh = label_lines(r, ms, row.iv, w - 2.0 * PAD + 1.0) as f64 * ms.size();
+        set_box(r, row.iv, x + PAD, cy, w - 2.0 * PAD + 1.0, lh);
+        cy += lh + ITEM_GAP;
     }
 }
 
@@ -595,20 +840,24 @@ fn keyword_of(ty: &str) -> Option<&'static str> {
         "UMLDataType" => Some("dataType"),
         "UMLPrimitiveType" => Some("primitive"),
         "UMLSignal" => Some("signal"),
+        "UMLInformationItem" => Some("information"),
+        "UMLStereotype" => Some("stereotype"),
+        "UMLMetaClass" => Some("metaclass"),
         _ => None,
     }
 }
 
+/// Grow a box to its content; with autoResize on it takes exactly its content size (core.js:2115-2125).
 fn grow(r: &mut Repo, v: Eid, min_w: f64, min_h: f64) {
-    let w = r.f(v, "width").max(min_w);
-    let h = r.f(v, "height").max(min_h);
+    let auto = r.bool(v, "autoResize");
+    let w = if auto { min_w } else { r.f(v, "width").max(min_w) };
+    let h = if auto { min_h } else { r.f(v, "height").max(min_h) };
     r.set(v, "width", num(w));
     r.set(v, "height", num(h));
 }
 
 fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     let ty = r.ty(m).to_string();
-    let show_vis = r.bool(v, "showVisibility");
     let display = r.str(v, "stereotypeDisplay");
     let keyword = keyword_of(&ty);
     let comps_all = ["attributeCompartment", "operationCompartment", "receptionCompartment", "templateParameterCompartment", "extensionPointCompartment"];
@@ -627,6 +876,26 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         layout_name(r, ms, v, m, x, y + h - NAME_MIN_H, w, keyword, true);
         return Info { shape: "interface", ..Default::default() };
     }
+    // an artifact in icon display: a page with a folded corner, the name under it (size estimated)
+    if ty == "UMLArtifact" && (display == "icon" || display == "icon-label") {
+        hide_all(r);
+        let hide_st = display == "icon";
+        let min_w = name_min_width(r, ms, v, m, None, hide_st).max(ARTIFACT_ICON_W);
+        grow(r, v, min_w, NAME_MIN_H + ARTIFACT_ICON_H);
+        let (x, y, w, h) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"), r.f(v, "height"));
+        layout_name(r, ms, v, m, x, y + h - NAME_MIN_H, w, None, hide_st);
+        return Info { shape: "artifact", ..Default::default() };
+    }
+    // a boundary, entity or control class as its robustness icon, the name under it
+    if let Some(kind) = robustness_kind(r, v, m) {
+        hide_all(r);
+        let hide_st = display == "icon";
+        let min_w = name_min_width(r, ms, v, m, None, hide_st).max(ROBUST_ICON_W);
+        grow(r, v, min_w, NAME_MIN_H + ROBUST_ICON_H);
+        let (x, y, w, h) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"), r.f(v, "height"));
+        layout_name(r, ms, v, m, x, y + h - NAME_MIN_H, w, None, hide_st);
+        return Info { shape: kind, ..Default::default() };
+    }
     if ty == "UMLActor" {
         hide_all(r);
         let min_w = name_min_width(r, ms, v, m, None, false).max(ACTOR_ICON_W);
@@ -637,22 +906,41 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     }
     if ty == "UMLUseCase" {
         hide_all(r);
-        let nw = name_min_width(r, ms, v, m, None, false);
+        // extension points, listed under the name inside the ellipse (layout estimated)
+        let items = r.list(m, "extensionPoints");
+        let ext = match r.refd(v, "extensionPointCompartment") {
+            Some(xc) if !items.is_empty() => {
+                r.remove(xc, "visible");
+                let texts: Vec<String> = items.iter().map(|x| extension_point_text(r, *x)).collect();
+                let (w, h, rows) = sync_list(r, ms, xc, &items, "UMLExtensionPointView", &texts, false);
+                Some((xc, w, h, rows))
+            }
+            _ => None,
+        };
+        let nw = name_min_width(r, ms, v, m, None, false).max(ext.as_ref().map(|e| e.1).unwrap_or(0.0));
+        let inner_h = NAME_MIN_H + ext.as_ref().map(|e| e.2).unwrap_or(0.0);
         let min_w = (std::f64::consts::SQRT_2 * nw).floor().max(UC_MIN_W);
-        let min_h = (std::f64::consts::SQRT_2 * NAME_MIN_H).floor().max(UC_MIN_H);
+        let min_h = (std::f64::consts::SQRT_2 * inner_h).floor().max(UC_MIN_H);
         grow(r, v, min_w, min_h);
         let (x, y, w, h) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"), r.f(v, "height"));
         let cw = (w / std::f64::consts::SQRT_2).floor();
-        layout_name(r, ms, v, m, x + (w - cw) / 2.0, y + (h - NAME_MIN_H) / 2.0, cw, None, false);
+        let ny = y + (h - inner_h) / 2.0;
+        layout_name(r, ms, v, m, x + (w - cw) / 2.0, ny, cw, None, false);
         if let Some(nc) = r.refd(v, "nameCompartment") {
             r.set(nc, "width", num(cw));
         }
-        return Info { shape: "usecase", ..Default::default() };
+        let mut compartments = vec![];
+        if let Some((xc, _, eh, rows)) = ext {
+            let cy = ny + NAME_MIN_H;
+            place_list(r, ms, xc, x + (w - cw) / 2.0, cy, cw, eh, &rows);
+            compartments.push(Comp { y: cy, rows });
+        }
+        return Info { shape: "usecase", compartments, ..Default::default() };
     }
 
     // box form: name, [literals], attributes, operations
-    let show_mult = r.bool(v, "showMultiplicity");
-    let show_sig = r.bool(v, "showOperationSignature");
+    let show = Show::of(r, v);
+    let wrap = r.bool(v, "wordWrap");
     let mut comps: Vec<(Eid, f64, f64, Vec<Row>)> = vec![];
     if let Some(lc) = r.refd(v, "enumerationLiteralCompartment") {
         if r.bool(v, "suppressLiterals") {
@@ -667,7 +955,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
                     if st.is_empty() { r.name(*l) } else { format!("{st} {}", r.name(*l)) }
                 })
                 .collect();
-            let (w, h, rows) = sync_list(r, ms, lc, &items, "UMLEnumerationLiteralView", &texts);
+            let (w, h, rows) = sync_list(r, ms, lc, &items, "UMLEnumerationLiteralView", &texts, wrap);
             comps.push((lc, w, h, rows));
         }
     }
@@ -679,17 +967,9 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
             let items = r.list(m, "attributes");
             let texts: Vec<String> = items
                 .iter()
-                .map(|a| {
-                    let t = attribute_text(r, *a, show_vis);
-                    if show_mult {
-                        t
-                    } else {
-                        let mm = r.str(*a, "multiplicity");
-                        t.replacen(&format!("[{mm}]"), "", 1)
-                    }
-                })
+                .map(|a| attribute_text(r, *a, show))
                 .collect();
-            let (w, h, rows) = sync_list(r, ms, ac, &items, "UMLAttributeView", &texts);
+            let (w, h, rows) = sync_list(r, ms, ac, &items, "UMLAttributeView", &texts, wrap);
             comps.push((ac, w, h, rows));
         }
     }
@@ -699,32 +979,125 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         } else {
             r.remove(oc, "visible");
             let items = r.list(m, "operations");
-            let texts: Vec<String> = items.iter().map(|o| operation_text(r, *o, show_vis, show_sig)).collect();
-            let (w, h, rows) = sync_list(r, ms, oc, &items, "UMLOperationView", &texts);
+            let texts: Vec<String> = items.iter().map(|o| operation_text(r, *o, show)).collect();
+            let (w, h, rows) = sync_list(r, ms, oc, &items, "UMLOperationView", &texts, wrap);
             comps.push((oc, w, h, rows));
         }
     }
-    let mut min_w = name_min_width(r, ms, v, m, keyword, false);
+    // receptions, under the operations; shown only when not suppressed, which is the default
+    if let Some(rc) = r.refd(v, "receptionCompartment") {
+        if r.bool(v, "suppressReceptions") {
+            hide_comp(r, Some(rc));
+        } else {
+            r.remove(rc, "visible");
+            let items = r.list(m, "receptions");
+            let texts: Vec<String> = items.iter().map(|x| reception_text(r, *x, show)).collect();
+            let (w, h, rows) = sync_list(r, ms, rc, &items, "UMLReceptionView", &texts, wrap);
+            comps.push((rc, w, h, rows));
+        }
+    }
+    // template parameters: a dashed box over the top-right corner (estimated placement)
+    let mut templ = None;
+    if let Some(tc) = r.refd(v, "templateParameterCompartment") {
+        let items = r.list(m, "templateParameters");
+        if items.is_empty() {
+            hide_comp(r, Some(tc));
+        } else {
+            r.remove(tc, "visible");
+            let texts: Vec<String> = items.iter().map(|t| template_parameter_text(r, *t)).collect();
+            templ = Some((tc, sync_list(r, ms, tc, &items, "UMLTemplateParameterView", &texts, false)));
+        }
+    }
+    let mut min_w = name_min_width(r, ms, v, m, keyword, false) + icon_room(r.ty(v));
     for c in &comps {
         min_w = min_w.max(c.1);
     }
     let (x, y) = (r.f(v, "left"), r.f(v, "top"));
-    let w0 = r.f(v, "width").max(min_w);
+    let w0 = if r.bool(v, "autoResize") { min_w } else { r.f(v, "width").max(min_w) };
     let name_h = layout_name(r, ms, v, m, x, y, w0, keyword, false);
+    if wrap {
+        for c in comps.iter_mut() {
+            c.2 = list_height(r, ms, &c.3, w0);
+        }
+    }
     let min_h = name_h + comps.iter().map(|c| c.2).sum::<f64>();
     grow(r, v, min_w, min_h);
     let w = r.f(v, "width");
     let mut cy = y + name_h;
     let mut out = vec![];
     for (c, _, h, rows) in comps {
-        place_list(r, c, x, cy, w, h, &rows);
+        place_list(r, ms, c, x, cy, w, h, &rows);
         out.push(Comp { y: cy, rows });
         cy += h;
     }
-    Info { shape: "", compartments: out, is_active: r.bool(m, "isActive") }
+    let templ = templ.map(|(tc, (tw, th, rows))| {
+        let (tx, ty) = (x + w - tw + TEMPLATE_OUT, y - th + TEMPLATE_OUT);
+        place_list(r, ms, tc, tx, ty, tw, th, &rows);
+        Comp { y: ty, rows }
+    });
+    Info { shape: "", compartments: out, is_active: r.bool(m, "isActive"), templ }
+}
+
+/// A slot's line: "name: type = value" (the defining feature's name when the slot has none; estimated).
+pub fn slot_text(r: &Repo, s: Eid) -> String {
+    let mut name = r.name(s);
+    if name.is_empty() {
+        name = r.refd(s, "definingFeature").map(|f| r.name(f)).unwrap_or_default();
+    }
+    let ty = type_name(r, s, "type");
+    if !ty.is_empty() {
+        name = format!("{name}: {ty}");
+    }
+    let value = r.str(s, "value");
+    if value.is_empty() { name } else { format!("{name} = {value}") }
+}
+
+/// The width kept free on each side of the name for the icon drawn at a box's top right (components
+/// and artifacts, and their instances), so a long name does not run under it (estimated).
+pub const ICON_ROOM: f64 = 26.0;
+
+fn icon_room(view_ty: &str) -> f64 {
+    match view_ty {
+        "UMLComponentView" | "UMLArtifactView" | "UMLComponentInstanceView" | "UMLArtifactInstanceView" => 2.0 * ICON_ROOM,
+        _ => 0.0,
+    }
+}
+
+/// An object: the name compartment, then the slots (box form, like a class).
+fn layout_object(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
+    let wrap = r.bool(v, "wordWrap");
+    let mut comps: Vec<(Eid, f64, f64, Vec<Row>)> = vec![];
+    if let Some(sc) = r.refd(v, "slotCompartment") {
+        r.remove(sc, "visible");
+        let items = r.list(m, "slots");
+        let texts: Vec<String> = items.iter().map(|s| slot_text(r, *s)).collect();
+        let (w, h, rows) = sync_list(r, ms, sc, &items, "UMLSlotView", &texts, wrap);
+        comps.push((sc, w, h, rows));
+    }
+    let mut min_w = name_min_width(r, ms, v, m, None, false) + icon_room(r.ty(v));
+    for c in &comps {
+        min_w = min_w.max(c.1);
+    }
+    let (x, y) = (r.f(v, "left"), r.f(v, "top"));
+    let w0 = if r.bool(v, "autoResize") { min_w } else { r.f(v, "width").max(min_w) };
+    let name_h = layout_name(r, ms, v, m, x, y, w0, None, false);
+    let min_h = name_h + comps.iter().map(|c| c.2).sum::<f64>();
+    grow(r, v, min_w, min_h);
+    let w = r.f(v, "width");
+    let mut cy = y + name_h;
+    let mut out = vec![];
+    for (c, _, h, rows) in comps {
+        place_list(r, ms, c, x, cy, w, h, &rows);
+        out.push(Comp { y: cy, rows });
+        cy += h;
+    }
+    Info { shape: "", compartments: out, ..Default::default() }
 }
 
 fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
+    let (face, size) = view_font(r, v);
+    let scaled = Scaled { ms, face, size };
+    let ms: &dyn Measure = &scaled;
     let t = r.ty(v).to_string();
     let m = r.refd(v, "model");
     if let Some(m) = m {
@@ -732,6 +1105,22 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
             if k.classifier && k.view == t {
                 return layout_classifier(r, ms, v, m);
             }
+        }
+    }
+    // a metaclass: a box with «metaclass» and its name (estimated)
+    if t == "UMLMetaClassView" {
+        if let Some(m) = m {
+            let min_w = name_min_width(r, ms, v, m, Some("metaclass"), false);
+            grow(r, v, min_w, NAME_MIN_H);
+            let (x, y, w) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"));
+            let nh = layout_name(r, ms, v, m, x, y, w, Some("metaclass"), false);
+            grow(r, v, min_w, nh);
+        }
+        return Info::default();
+    }
+    if t == "UMLObjectView" || t.ends_with("InstanceView") {
+        if let Some(m) = m {
+            return layout_object(r, ms, v, m);
         }
     }
     if t == "UMLPackageView" || t == "UMLSubsystemView" {
@@ -745,6 +1134,16 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
             layout_name(r, ms, v, m, x, y + PKG_TAB_H, w, None, false);
         }
         return Info { shape: "package", ..Default::default() };
+    }
+    // a constraint: "{specification}", the box at least as wide as the text (estimated)
+    if t == "UMLConstraintView" {
+        if let Some(m) = m {
+            let text = format!("{{{}}}", r.str(m, "specification"));
+            let w = ms.width(&text, 0) + 10.0;
+            r.set(v, "text", json!(text));
+            grow(r, v, w.ceil(), 20.0);
+        }
+        return Info::default();
     }
     if t == "UMLUseCaseSubjectView" {
         if let Some(m) = m {
@@ -775,20 +1174,113 @@ pub fn junction(r: &R, p: P) -> P {
     P { x: (c.x + dx * t).round(), y: (c.y + dy * t).round() }
 }
 
+/// The middle of a line: its middle point, or the middle of its central segment when it has an even
+/// number of points (as edge labels are anchored, diagram-editor.js:2071-2097).
+pub fn edge_middle(pts: &[P]) -> P {
+    match pts.len() {
+        0 => P::default(),
+        n if n % 2 == 1 => pts[n / 2],
+        n => P { x: (pts[n / 2 - 1].x + pts[n / 2].x) / 2.0, y: (pts[n / 2 - 1].y + pts[n / 2].y) / 2.0 },
+    }
+}
+
 fn end_rect(r: &Repo, v: Eid, info: &HashMap<Eid, Info>) -> R {
     if is_edge(r, v) {
-        let pts = points_of(r, v);
-        let mid = pts.get(pts.len() / 2).copied().unwrap_or_default();
+        let mid = edge_middle(&points_of(r, v));
         return R { x: mid.x, y: mid.y, w: 0.0, h: 0.0 };
     }
     let nr = node_rect(r, v);
-    if info.get(&v).map(|i| i.shape == "interface").unwrap_or(false) {
+    let shape = info.get(&v).map(|i| i.shape).unwrap_or("");
+    if shape == "interface" {
         let ih = nr.h - NAME_MIN_H;
         let d = nr.w.min(ih);
         return R { x: nr.x + (nr.w - d) / 2.0, y: nr.y + (ih - d) / 2.0, w: d, h: d };
     }
+    // lines meet the icon of an artifact or a robustness class, not its whole box
+    if shape == "artifact" || shape == "boundary" || shape == "entity" || shape == "control" {
+        let ih = nr.h - NAME_MIN_H;
+        let iw = if shape == "artifact" { (ih * ARTIFACT_ICON_W / ARTIFACT_ICON_H).min(nr.w) } else { nr.w.min(ROBUST_ICON_W) };
+        return R { x: nr.x + (nr.w - iw) / 2.0, y: nr.y, w: iw, h: ih };
+    }
     nr
 }
+
+/// Line styles: 0 rectilinear, 1 oblique, 2 rounded rectilinear, 3 curve (core.js LS_*).
+pub fn rectilinear(style: i64) -> bool {
+    style == 0 || style == 2
+}
+
+/// The polyline actually drawn for a line's points: rounded corners for style 2 and a smooth curve
+/// for style 3 (both estimated: the original's drawing code was not read).
+pub fn drawn_points(pts: &[P], style: i64) -> Vec<P> {
+    if pts.len() < 3 || !(style == 2 || style == 3) {
+        return pts.to_vec();
+    }
+    let quad = |out: &mut Vec<P>, a: P, c: P, b: P| {
+        for k in 1..=8 {
+            let t = k as f64 / 8.0;
+            let u = 1.0 - t;
+            out.push(P { x: u * u * a.x + 2.0 * u * t * c.x + t * t * b.x, y: u * u * a.y + 2.0 * u * t * c.y + t * t * b.y });
+        }
+    };
+    let mid = |a: P, b: P| P { x: (a.x + b.x) / 2.0, y: (a.y + b.y) / 2.0 };
+    let mut out = vec![pts[0]];
+    let n = pts.len();
+    if style == 3 {
+        // through the middle of every segment, bending towards each point
+        let mut from = pts[0];
+        for i in 1..n - 1 {
+            let to = if i == n - 2 { pts[n - 1] } else { mid(pts[i], pts[i + 1]) };
+            quad(&mut out, from, pts[i], to);
+            from = to;
+        }
+        return out;
+    }
+    for i in 1..n - 1 {
+        let (a, c, b) = (pts[i - 1], pts[i], pts[i + 1]);
+        let len = |p: P, q: P| ((p.x - q.x).powi(2) + (p.y - q.y).powi(2)).sqrt();
+        let rad = ROUND_RADIUS.min(len(a, c) / 2.0).min(len(c, b) / 2.0);
+        let towards = |p: P, q: P, d: f64| {
+            let l = len(p, q).max(1e-9);
+            P { x: p.x + (q.x - p.x) * d / l, y: p.y + (q.y - p.y) * d / l }
+        };
+        let (s, e) = (towards(c, a, rad), towards(c, b, rad));
+        out.push(s);
+        quad(&mut out, s, c, e);
+    }
+    out.push(pts[n - 1]);
+    out
+}
+
+/// Bend points left after a drag: points within 5 px of a neighbour (oblique and curve lines only) and
+/// points in a straight run are dropped; the ends always stay (graphics.js:737-773, 1000-1044).
+pub fn clean_points(pts: &[P], rectilinear: bool) -> Vec<P> {
+    let mut out: Vec<P> = pts.to_vec();
+    let dist = |a: P, b: P| ((a.x - b.x).powi(2) + (a.y - b.y).powi(2)).sqrt();
+    loop {
+        let n = out.len();
+        if n <= 2 {
+            return out;
+        }
+        let drop = (1..n - 1).find(|&i| {
+            let (a, c, b) = (out[i - 1], out[i], out[i + 1]);
+            let close = if rectilinear { dist(a, c) < 0.5 || dist(c, b) < 0.5 } else { dist(a, c) <= 5.0 || dist(c, b) <= 5.0 };
+            // collinear: c lies on the line through a and b
+            let cross = ((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)).abs() / dist(a, b).max(1e-9);
+            let between = (c.x - a.x) * (c.x - b.x) <= 0.5 && (c.y - a.y) * (c.y - b.y) <= 0.5;
+            close || (cross < 1.0 && between)
+        });
+        match drop {
+            Some(i) => {
+                out.remove(i);
+            }
+            None => return out,
+        }
+    }
+}
+
+/// Corner radius of rounded rectilinear lines (estimated).
+pub const ROUND_RADIUS: f64 = 10.0;
 
 fn layout_edge(r: &mut Repo, ms: &dyn Measure, e: Eid, info: &HashMap<Eid, Info>) {
     let (Some(tail), Some(head)) = (r.refd(e, "tail"), r.refd(e, "head")) else { return };
@@ -802,9 +1294,9 @@ fn layout_edge(r: &mut Repo, ms: &dyn Measure, e: Eid, info: &HashMap<Eid, Info>
             P { x: cx, y: tr.y - 1.0 }, P { x: cx, y: tr.y - 20.0 }, P { x: x2 + 30.0, y: tr.y - 20.0 },
             P { x: x2 + 30.0, y: cy }, P { x: x2 + 1.0, y: cy },
         ];
-    } else if pts.len() <= 2 || (style == 0 && pts.len() <= 3) {
+    } else if pts.len() <= 2 || (rectilinear(style) && pts.len() <= 3) {
         let (tc, hc) = (center(&tr), center(&hr));
-        if style == 0 {
+        if rectilinear(style) {
             // rectilinear: straight when the boxes overlap on one axis, else one elbow (estimated)
             let (ox1, ox2) = (tr.x.max(hr.x), (tr.x + tr.w).min(hr.x + hr.w));
             let (oy1, oy2) = (tr.y.max(hr.y), (tr.y + tr.h).min(hr.y + hr.h));
@@ -861,15 +1353,23 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     let vis = |x: Eid| if show_vis { vis_symbol(&r.str(x, "visibility")).to_string() } else { String::new() };
     let mut out = vec![];
     let name = r.name(m);
-    out.push(("nameLabel", if name.is_empty() { name } else { vis(m) + &name }));
+    // a derived association shows "/" before its name (StarUML 5.x)
+    let derived = if r.kind_of(m, "UMLAssociation") && r.bool(m, "isDerived") { "/" } else { "" };
+    out.push(("nameLabel", if name.is_empty() && derived.is_empty() { name } else { vis(m) + derived + &name }));
     let st = match r.ty(m) {
         "UMLInclude" => "«include»".to_string(),
+        // a deployment is a «deploy» dependency (UML 2; the keyword is estimated for StarUML)
+        "UMLDeployment" if stereotype_text(r, m).is_empty() => "«deploy»".to_string(),
         "UMLExtend" => "«extend»".to_string(),
+        // a template binding shows the «bind» keyword (UML 2; estimated for StarUML)
+        "UMLTemplateBinding" if stereotype_text(r, m).is_empty() => "«bind»".to_string(),
+        // an information flow shows «flow» (UML 2; estimated for StarUML)
+        "UMLInformationFlow" if stereotype_text(r, m).is_empty() => "«flow»".to_string(),
         _ => stereotype_text(r, m),
     };
     out.push(("stereotypeLabel", st));
     out.push(("propertyLabel", String::new()));
-    if r.ty(m) == "UMLAssociation" {
+    if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" {
         let role = |end: Option<Eid>| end.map(|x| { let n = r.name(x); if n.is_empty() { n } else { vis(x) + &n } }).unwrap_or_default();
         let (e1, e2) = (r.child(m, "end1"), r.child(m, "end2"));
         let show_mult = r.bool(e, "showMultiplicity");
@@ -878,18 +1378,64 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
         out.push(("headRoleNameLabel", role(e2)));
         out.push(("tailMultiplicityLabel", mult(e1)));
         out.push(("headMultiplicityLabel", mult(e2)));
-        out.push(("tailPropertyLabel", String::new()));
-        out.push(("headPropertyLabel", String::new()));
+        let show_prop = r.bool(e, "showProperty");
+        let prop = |end: Option<Eid>| if show_prop { end.map(|x| property_text(r, x)).unwrap_or_default() } else { String::new() };
+        out.push(("tailPropertyLabel", prop(e1)));
+        out.push(("headPropertyLabel", prop(e2)));
     }
     out
+}
+
+/// The segment an edge label hangs on: head, tail or middle by its edgePosition; with an even number of
+/// points the middle anchor is the middle of the central segment (diagram-editor.js:2071-2097).
+pub fn label_anchor(r: &Repo, lv: Eid, pts: &[P]) -> (P, P) {
+    let n = pts.len();
+    match r.val(lv, "edgePosition").and_then(|v| v.as_i64()).unwrap_or(0) {
+        0 => (pts[n - 1], pts[n - 2]),
+        2 => (pts[0], pts[1]),
+        _ => {
+            let mut mi = n / 2;
+            if n % 2 == 0 {
+                mi -= 1;
+            }
+            let mut p1 = pts[mi];
+            let p2 = pts[mi + 1];
+            if n % 2 == 0 {
+                p1.x = ((p1.x + p2.x) / 2.0).floor();
+                p1.y = ((p1.y + p2.y) / 2.0).floor();
+            }
+            (p1, p2)
+        }
+    }
+}
+
+/// The alpha and distance that put a label's centre at `c`: the inverse of point_away_line
+/// (engine.js:754-795).
+pub fn label_polar(p1: P, p2: P, c: P) -> (f64, f64) {
+    let (vx, vy) = (c.x - p1.x, c.y - p1.y);
+    let dist = (vx * vx + vy * vy).sqrt();
+    let a = p1.x - p2.x;
+    let b = p1.y - p2.y;
+    let mut th = (b.abs() / (a.abs() + 0.000001)).atan();
+    if a > 0.0 {
+        th = if b > 0.0 { std::f64::consts::PI - th } else { th + std::f64::consts::PI };
+    } else if b < 0.0 {
+        th = 2.0 * std::f64::consts::PI - th;
+    }
+    let phi = (-vy).atan2(vx);
+    (phi - th, dist)
 }
 
 fn layout_edge_labels(r: &mut Repo, ms: &dyn Measure, e: Eid, pts: &[P]) {
     if pts.len() < 2 {
         return;
     }
+    let (face, size) = view_font(r, e);
+    let scaled = Scaled { ms, face, size };
+    let ms: &dyn Measure = &scaled;
     for (field, t) in edge_label_texts(r, e) {
         let Some(lv) = r.refd(e, field) else { continue };
+        set_label_font(r, ms, lv, None);
         r.set(lv, "text", json!(t));
         if field == "stereotypeLabel" {
             if t.is_empty() {
@@ -903,30 +1449,13 @@ fn layout_edge_labels(r: &mut Repo, ms: &dyn Measure, e: Eid, pts: &[P]) {
             r.remove(lv, "visible");
         }
         let w = if t.is_empty() { 0.0 } else { ms.width(&t, 0) };
+        let lh = ms.size();
         r.set(lv, "width", num(w));
-        r.set(lv, "height", json!(LABEL_H));
-        let pos = r.val(lv, "edgePosition").and_then(|v| v.as_i64()).unwrap_or(0);
-        let n = pts.len();
-        let (p1, p2) = match pos {
-            0 => (pts[n - 1], pts[n - 2]),
-            2 => (pts[0], pts[1]),
-            _ => {
-                let mut mi = n / 2;
-                if n % 2 == 0 {
-                    mi -= 1;
-                }
-                let mut p1 = pts[mi];
-                let p2 = pts[mi + 1];
-                if n % 2 == 0 {
-                    p1.x = ((p1.x + p2.x) / 2.0).floor();
-                    p1.y = ((p1.y + p2.y) / 2.0).floor();
-                }
-                (p1, p2)
-            }
-        };
+        r.set(lv, "height", num(lh));
+        let (p1, p2) = label_anchor(r, lv, pts);
         let d = point_away_line(p1, p2, r.f(lv, "alpha"), r.f(lv, "distance"));
         r.set(lv, "left", num(d.x + p1.x - (w / 2.0).floor()));
-        r.set(lv, "top", num(d.y + p1.y - (LABEL_H / 2.0).floor()));
+        r.set(lv, "top", num(d.y + p1.y - (lh / 2.0).floor()));
     }
 }
 

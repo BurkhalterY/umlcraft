@@ -6,7 +6,6 @@ use egui::{Color32, Painter, Pos2, Rect, Shape, Stroke, Vec2};
 const Y: Color32 = Color32::from_rgb(0xd9, 0xa5, 0x21); // models
 const G: Color32 = Color32::from_rgb(0x36, 0xb3, 0x7e); // diagrams
 const B: Color32 = Color32::from_rgb(0x3d, 0x9b, 0xe9); // relationships
-const W: Color32 = Color32::from_rgb(0xe3, 0xe3, 0xe3);
 const RED: Color32 = Color32::from_rgb(0xe5, 0x53, 0x3d);
 
 /// Icon key for a model element.
@@ -26,21 +25,41 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLUseCase" => "usecase",
         "UMLActor" => "actor",
         "UMLUseCaseSubject" => "subject",
-        "UMLClassDiagram" => "diagram-class",
+        "UMLComponent" => "component",
+        "UMLArtifact" => "artifact",
+        "UMLNode" => "node",
+        "UMLObject" => "object",
+        "UMLArtifactInstance" => "artifact",
+        "UMLComponentInstance" => "component",
+        "UMLNodeInstance" => "node",
+        "UMLSlot" => "attribute",
+        "UMLLink" => "association",
+        "UMLObjectDiagram" | "UMLInformationFlowDiagram" => "diagram-class",
+        "UMLInformationItem" | "UMLStereotype" | "UMLMetaClass" => "class",
+        "UMLExtension" => "generalization",
+        "UMLProfileDiagram" => "diagram-class",
+        "UMLInformationFlow" => "dependency",
+        "UMLComponentRealization" => "realization",
+        "UMLDeployment" | "UMLTemplateBinding" => "dependency",
+        "UMLCommunicationPath" => "association",
+        "UMLClassDiagram" | "UMLPackageDiagram" => "diagram-class",
         "UMLUseCaseDiagram" => "diagram-usecase",
         "UMLAssociation" => "association",
         "UMLAssociationEnd" => "end",
         "UMLGeneralization" => "generalization",
         "UMLDependency" | "UMLInclude" | "UMLExtend" => "dependency",
         "UMLInterfaceRealization" | "UMLRealization" => "realization",
-        "Tag" => "attribute",
+        "Tag" => "tag",
         _ if r.kind_of(e, "Diagram") || t.ends_with("Diagram") => "diagram",
         _ if t.ends_with("Relationship") || t.ends_with("Flow") || t.ends_with("Link") || t.ends_with("Connector") || t.ends_with("Transition") || t.ends_with("Message") => "association",
         _ => "generic",
     }
 }
 
+#[allow(non_snake_case)]
 pub fn draw(p: &Painter, rect: Rect, key: &str) {
+    // monochrome icons take the theme's text colour
+    let W: Color32 = crate::ui::TEXT();
     let o = rect.min;
     let s = rect.width() / 16.0;
     let at = |x: f32, y: f32| Pos2::new(o.x + x * s, o.y + y * s);
@@ -75,6 +94,10 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             rect_at(2.0, 2.5, 12.0, 11.0, Y);
             line(&[(2.0, 6.0), (14.0, 6.0)], Y);
             line(&[(2.0, 9.5), (14.0, 9.5)], Y);
+        }
+        "object" => {
+            rect_at(2.0, 3.5, 12.0, 9.0, Y);
+            line(&[(4.5, 7.0), (11.5, 7.0)], Y);
         }
         "interface" => {
             p.circle_stroke(at(11.0, 8.0), 3.3 * s, st(Y));
@@ -153,6 +176,22 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             dashed(&[(8.0, 14.0), (8.0, 3.0)], B);
             arrow_up(B);
         }
+        "associationclass" => {
+            line(&[(2.0, 4.0), (14.0, 4.0)], B);
+            dashed(&[(8.0, 4.0), (8.0, 9.0)], B);
+            rect_at(4.5, 9.5, 7.0, 5.0, B);
+        }
+        "tag" => {
+            line(&[(2.0, 7.5), (7.5, 2.0), (14.0, 2.0), (14.0, 8.5), (8.5, 14.0), (2.0, 7.5)], W);
+            p.circle_stroke(at(11.0, 5.0), 1.2 * s, st(W));
+        }
+        "freeline" => line(&[(2.0, 13.0), (6.0, 5.0), (10.0, 11.0), (14.0, 3.0)], W),
+        "containment" => {
+            line(&[(8.0, 14.0), (8.0, 7.0)], B);
+            p.circle_stroke(at(8.0, 4.5), 2.5 * s, st(B));
+            line(&[(6.5, 4.5), (9.5, 4.5)], B);
+            line(&[(8.0, 3.0), (8.0, 6.0)], B);
+        }
         "realization" => {
             dashed(&[(8.0, 14.0), (8.0, 6.5)], B);
             triangle_up(B);
@@ -166,9 +205,41 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(10.5, 2.5), (10.5, 5.5), (13.5, 5.5)], W);
         }
         "notelink" => dashed(&[(3.0, 13.0), (13.0, 3.0)], W),
+        "textbox" => {
+            rect_at(2.0, 3.0, 12.0, 10.0, W);
+            line(&[(5.0, 5.5), (11.0, 5.5)], W);
+            line(&[(8.0, 5.5), (8.0, 11.0)], W);
+        }
         "text" => {
             line(&[(3.0, 3.5), (13.0, 3.5)], W);
             line(&[(8.0, 3.5), (8.0, 13.5)], W);
+        }
+        "component" => {
+            rect_at(4.0, 2.5, 10.0, 11.0, Y);
+            rect_at(2.0, 4.5, 4.0, 2.5, Y);
+            rect_at(2.0, 9.0, 4.0, 2.5, Y);
+        }
+        "artifact" => {
+            line(&[(3.5, 2.0), (10.0, 2.0), (13.0, 5.0), (13.0, 14.0), (3.5, 14.0), (3.5, 2.0)], Y);
+            line(&[(10.0, 2.0), (10.0, 5.0), (13.0, 5.0)], Y);
+        }
+        "node" => {
+            rect_at(2.0, 5.0, 10.0, 9.0, Y);
+            line(&[(2.0, 5.0), (5.0, 2.0), (15.0, 2.0), (15.0, 11.0), (12.0, 14.0)], Y);
+            line(&[(12.0, 5.0), (15.0, 2.0)], Y);
+        }
+        "boundary" => {
+            p.circle_stroke(at(9.5, 8.0), 4.5 * s, st(W));
+            line(&[(2.5, 4.0), (2.5, 12.0)], W);
+            line(&[(2.5, 8.0), (5.0, 8.0)], W);
+        }
+        "entity" => {
+            p.circle_stroke(at(8.0, 7.5), 4.5 * s, st(W));
+            line(&[(3.5, 12.5), (12.5, 12.5)], W);
+        }
+        "control" => {
+            p.circle_stroke(at(8.0, 9.0), 4.5 * s, st(W));
+            line(&[(9.5, 3.0), (7.5, 4.5), (9.5, 6.0)], W);
         }
         "select" => line(&[(4.0, 2.0), (12.0, 9.0), (8.5, 9.0), (10.5, 13.5), (9.0, 14.2), (7.0, 9.7), (4.0, 12.0), (4.0, 2.0)], W),
         "zoomIn" | "zoomOut" => {

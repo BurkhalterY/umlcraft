@@ -1,5 +1,6 @@
-//! Reading what the person types on a diagram line: "-id: int[1] = 0" for an attribute and
-//! "+placeOrder(item: Order, qty: int): boolean" for an operation (text formats of elements.js:870, 957).
+//! Reading what the person types on a diagram line: "<<entity>> +Order" for a name, "-id: int[1] = 0"
+//! for an attribute and "+placeOrder(item: Order, qty: int): boolean" for an operation (text formats of
+//! elements.js:870, 957; grammars uml-name.pegjs, uml-attribute.pegjs, uml-operation.pegjs).
 
 use crate::model::{Eid, Repo};
 use serde_json::{json, Value};
@@ -12,6 +13,58 @@ fn visibility_of(c: char) -> Option<&'static str> {
         '~' => Some("package"),
         _ => None,
     }
+}
+
+/// A leading `<<stereotype>>` (or `«stereotype»`, as it is drawn) and the rest of the text.
+pub fn split_stereotype(s: &str) -> (Option<String>, &str) {
+    let s = s.trim_start();
+    for (open, close) in [("<<", ">>"), ("«", "»")] {
+        if let Some(rest) = s.strip_prefix(open) {
+            if let Some(end) = rest.find(close) {
+                return (Some(rest[..end].trim().to_string()), rest[end + close.len()..].trim_start());
+            }
+        }
+    }
+    (None, s)
+}
+
+/// Set or clear the stereotype: an existing UMLStereotype of that name is linked, otherwise the text
+/// is kept as a string (uml-commands.js:288-325).
+fn set_stereotype(r: &mut Repo, e: Eid, st: Option<String>) {
+    match st.filter(|s| !s.is_empty()) {
+        None => r.remove(e, "stereotype"),
+        Some(name) => match r.all_of("UMLStereotype").into_iter().find(|x| r.name(*x) == name) {
+            Some(x) => r.set_ref(e, "stereotype", Some(x)),
+            None => r.set(e, "stereotype", json!(name)),
+        },
+    }
+}
+
+/// Take a leading visibility symbol, setting it when there is one.
+fn take_visibility<'a>(r: &mut Repo, e: Eid, s: &'a str) -> &'a str {
+    match s.chars().next().and_then(visibility_of) {
+        Some(v) => {
+            r.set(e, "visibility", json!(v));
+            s[1..].trim_start()
+        }
+        None => s,
+    }
+}
+
+/// The text a name edit starts with: `<<stereotype>> name`.
+pub fn name_text(r: &Repo, e: Eid) -> String {
+    let st = crate::views::type_name(r, e, "stereotype");
+    // an object's edit also holds its classifier: "name : Class" (uml-object.pegjs)
+    let name = crate::views::display_name(r, e);
+    if st.is_empty() { name } else { format!("<<{st}>> {name}") }
+}
+
+/// Name expression `<<stereotype>> [+|#|-|~]name`: no stereotype clears it (uml-name.pegjs).
+pub fn apply_name(r: &mut Repo, e: Eid, text: &str) {
+    let (st, rest) = split_stereotype(text.trim());
+    set_stereotype(r, e, st);
+    let rest = take_visibility(r, e, rest);
+    r.set(e, "name", json!(rest.trim()));
 }
 
 /// Split "name: Type[mult] = default" into its parts.
@@ -31,7 +84,8 @@ fn split_typed(s: &str) -> (String, String, String, String) {
     (name, ty, mult, default)
 }
 
-/// Keep a link to a classifier that is already linked and still has this name, else store the text.
+/// Keep a link to a classifier that is already linked and still has this name; else link an existing
+/// classifier of that name; else store the text (uml-commands.js:331-392).
 fn set_type(r: &mut Repo, e: Eid, ty: &str) {
     let linked = r.raw(e, "type").and_then(|v| r.by_ref(v)).map(|t| r.name(t));
     if linked.as_deref() == Some(ty) && !ty.is_empty() {
@@ -39,17 +93,17 @@ fn set_type(r: &mut Repo, e: Eid, ty: &str) {
     }
     if ty.is_empty() {
         r.remove(e, "type");
+    } else if let Some(c) = r.all_of("UMLClassifier").into_iter().find(|c| r.name(*c) == ty) {
+        r.set_ref(e, "type", Some(c));
     } else {
         r.set(e, "type", json!(ty));
     }
 }
 
 pub fn apply_attribute(r: &mut Repo, a: Eid, text: &str) {
-    let mut s = text.trim();
-    if let Some(v) = s.chars().next().and_then(visibility_of) {
-        r.set(a, "visibility", json!(v));
-        s = s[1..].trim_start();
-    }
+    let (st, s) = split_stereotype(text.trim());
+    set_stereotype(r, a, st);
+    let mut s = take_visibility(r, a, s);
     if r.ty(a) == "UMLEnumerationLiteral" {
         r.set(a, "name", json!(s.trim()));
         return;
@@ -69,14 +123,16 @@ pub fn apply_attribute(r: &mut Repo, a: Eid, text: &str) {
 }
 
 pub fn apply_operation(r: &mut Repo, o: Eid, text: &str) {
-    let mut s = text.trim();
-    if let Some(v) = s.chars().next().and_then(visibility_of) {
-        r.set(o, "visibility", json!(v));
-        s = s[1..].trim_start();
-    }
+    let (st, s) = split_stereotype(text.trim());
+    set_stereotype(r, o, st);
+    let s = take_visibility(r, o, s);
     let Some(open) = s.find('(') else {
+        // no parentheses: no parameters (uml-commands.js:398)
         let name = s.split(':').next().unwrap_or("").trim();
         r.set(o, "name", json!(name));
+        for p in r.list(o, "parameters") {
+            r.detach(p);
+        }
         return;
     };
     let close = s.rfind(')').filter(|c| *c > open).unwrap_or(s.len());
@@ -86,6 +142,9 @@ pub fn apply_operation(r: &mut Repo, o: Eid, text: &str) {
     let ret_ty = after.trim().strip_prefix(':').map(|x| x.trim().to_string()).unwrap_or_default();
 
     let old = r.list(o, "parameters");
+    // existing parameters are updated in place by position
+    let plain: Vec<Eid> = old.iter().copied().filter(|p| r.str(*p, "direction") != "return").collect();
+    let mut by_pos = plain.into_iter();
     let mut keep: Vec<Eid> = vec![];
     for spec in inner.split(',').map(|x| x.trim()).filter(|x| !x.is_empty()) {
         let (dir, rest) = match spec.split_once(char::is_whitespace) {
@@ -93,11 +152,11 @@ pub fn apply_operation(r: &mut Repo, o: Eid, text: &str) {
             _ => ("in", spec),
         };
         let (name, ty, mult, default) = split_typed(rest);
-        let found = old.iter().copied().find(|p| r.name(*p) == name && r.str(*p, "direction") != "return" && !keep.contains(p));
-        let p = match found {
+        let p = match by_pos.next() {
             Some(p) => p,
-            None => r.create("UMLParameter", &[("name", json!(name))], Some((o, "parameters"))),
+            None => r.create("UMLParameter", &[], Some((o, "parameters"))),
         };
+        r.set(p, "name", json!(name));
         r.set(p, "direction", json!(dir));
         set_type(r, p, &ty);
         r.set(p, "multiplicity", json!(mult));
@@ -122,4 +181,15 @@ pub fn apply_operation(r: &mut Repo, o: Eid, text: &str) {
     if !keep.is_empty() {
         r.set_list(o, "parameters", keep);
     }
+}
+
+/// Template parameter expression `<<stereotype>> name : type = default`: the type is kept as text in
+/// parameterType (uml-templateparameter.pegjs; uml-commands.js:622-662).
+pub fn apply_template_parameter(r: &mut Repo, t: Eid, text: &str) {
+    let (st, rest) = split_stereotype(text.trim());
+    set_stereotype(r, t, st);
+    let (name, ty, _, default) = split_typed(rest);
+    r.set(t, "name", json!(name));
+    r.set(t, "parameterType", json!(ty));
+    r.set(t, "defaultValue", json!(default));
 }

@@ -100,13 +100,17 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
 
 | Area | What you get |
 |---|---|
-| **Editing** | Rubber-band and Shift/Ctrl selection, moving with snap to grid, eight resize handles, bend points on lines, rectilinear and oblique lines, shadows on or off, arrow-key nudging |
-| **Model Explorer** | The whole model as a tree in the original's order, search, sort by name, right-click to add elements, diagrams, attributes, operations, literals and parameters, drag onto a diagram to show an element again |
-| **Editors** | Every property of classes, attributes, operations, parameters, literals, relationships and both association ends, plus documentation |
-| **Views** | Working Diagrams, zoom from 10% to 300%, fit to window, a live mini-map, show or hide the grid and the panels |
-| **History** | Undo and redo for every change (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) |
-| **Export** | PNG and SVG of the whole diagram, drawn off-screen with a transparent background and the original's 10-pixel margin |
-| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj` |
+| **Editing** | Rubber-band (by overlap) and Shift selection, Tab to walk the views, moving with snap to grid, dropping boxes into packages and subjects, eight resize handles, auto resize, bend points, rectilinear segments, reconnecting a line by its end, draggable line labels, four line styles, arrow-key nudging, Ctrl+drag to pan; Robustness boundary, entity and control icons; free lines, containment lines, association classes, template bindings, constraints, and object diagrams with objects, instances, slots and links |
+| **Clipboard** | Cut, copy and paste of views (as new views of the same models) and of model elements (as deep copies), through the system clipboard; copy a diagram as a picture |
+| **Typing on the diagram** | `<<stereotype>> +Name`, attributes and operations parsed as you type; Ctrl+Enter adds an attribute (a literal, extension point or slot where that fits), Ctrl+Shift+Enter an operation, Ctrl+Delete removes one, Up/Down walk them; association role names with aggregation, navigability and multiplicity menus; word wrap; buttons that add a sub-class, super-class, interface, associated class, note… with its relationship |
+| **Format** | Fonts and sizes, fill, line and text colours (a Color dialog with opacity and a palette), shadow, show/suppress compartments and visibility, stereotype display, align, distribute, size equally, bring to front and send to back, automatic layout in four directions, generated overview, type hierarchy and package structure diagrams, class diagrams from Mermaid code, all from the Format menu, a Styles panel and the original's shortcuts |
+| **Model Explorer** | The whole model as a tree in the original's order, quick search, sort by name, stereotype text, expand and collapse all, arrow keys, drag to move elements, right-click to add elements, diagrams, tags, attributes, operations, literals and parameters, drag onto a diagram (relationships come along), Enter to rename in place, a Relationships panel |
+| **Editors** | Styles (with text alignment for notes), every property of classes, attributes, operations, parameters, literals, relationships and both association ends, several elements at once, an Element Picker for types and stereotypes, documentation with a Markdown panel and preview, and a Tag Editor (Ctrl+T) |
+| **Find and check** | Quick Find (Ctrl+P), Model › Find (Ctrl+F), a Command Palette (Ctrl+Shift+P), Select In Diagram (Ctrl+D), and StarUML's UML and core validation rules with a results panel |
+| **Views** | Working Diagrams remembered per file, Next/Previous Diagram, zoom from 10% to 300% around the screen centre, fit to window, a live mini-map, diagram thumbnails, every panel on Ctrl+1 to Ctrl+6 and resizable by dragging its edge, dark and light themes, your own shortcuts in `keymap.json`, Preferences for the grid and the style of new views |
+| **History** | Undo and redo for every change, the last 100 kept (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) |
+| **Export** | PNG, JPEG and SVG of one diagram or of every diagram into a folder, drawn off-screen with the original's 10-pixel margin; Print to PDF, one diagram per page, in any of 50 page sizes; HTML docs of the whole model; XMI 2.1 and model fragments (`.mfj`) in and out; new projects from the UML templates, with the UML Standard Profile |
+| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj`, `umlcraft image model.mdj -f png\|jpeg\|svg -s <selector> -o <file>` , `umlcraft pdf model.mdj -z A4 -l landscape -o out.pdf` and `umlcraft html model.mdj -o docs` to export without a window |
 
 ## .mdj without compromise
 
@@ -129,9 +133,25 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | File | What it does |
 |---|---|
 | `src/model.rs`, `src/meta.rs` | The project and the `.mdj` element kinds, fields and defaults |
-| `src/views.rs`, `src/render.rs` | Laying out and drawing boxes, labels and lines, on screen and into SVG |
-| `src/canvas.rs`, `src/parse.rs`, `src/align.rs` | The diagram canvas, the typed attribute and operation lines, and Format › Alignment |
-| `src/app.rs`, `src/ui.rs`, `src/icons.rs` | Project state, undo, open and save, and the panels, menus and icons |
+| `src/views.rs`, `src/render.rs`, `src/export.rs` | Laying out and drawing boxes, labels and lines, on screen and into PNG, JPEG and SVG |
+| `src/layout.rs`, `src/generate.rs` | Format › Layout (the layered automatic layout) and Tools › Diagram Generator |
+| `src/mermaid.rs` | Tools › Generate Diagram by Mermaid: class diagrams from Mermaid code |
+| `src/html.rs` | File › Export › HTML Docs: one page per element, an SVG and image map per diagram |
+| `src/xmi.rs` | File › Export › XMI Export and File › Import › XMI Import (v2.1): the model elements as OMG XMI 2.1, without diagrams, and a small XML reader |
+| `src/markdown.rs` | View › Markdown Documentation: the editor and a small Markdown preview |
+| `src/thumbs.rs` | View › Diagram Thumbnails |
+| `src/relview.rs` | View › Relationships: the relationships of the selected element |
+| `src/input.rs` | The input dialog (Working Diagrams › Rename) |
+| `src/api.rs` | The local HTTP API on port 58321 (diagram list, images, Mermaid generation) |
+| `src/keymap.rs` | The user's `keymap.json`: keystrokes bound to command ids |
+| `src/fragment.rs` | File › Import / Export › Fragment: `.mfj` files |
+| `src/templates.rs` | File › New From Template: the UML templates |
+| `src/picker.rs` | The Element Picker ("Select Element") and the name lookup of type and stereotype fields |
+| `src/pdf.rs` | Print to PDF: the dialog, its remembered options and a small PDF writer |
+| `src/canvas.rs`, `src/parse.rs`, `src/align.rs`, `src/clipboard.rs`, `src/style.rs`, `src/related.rs` | The diagram canvas, the typed attribute and operation lines, Format › Alignment, cut, copy and paste, view colours, and the inline edit's "add related element" buttons |
+| `src/splitter.rs` | Panel splitters: drag a panel's edge to resize it, or below 10 px to hide it |
+| `src/main.rs`, `src/cli.rs`, `src/selector.rs` | Start-up, the window, and the command line (`umlcraft image`, `pdf`, `html`, `--help`) with the element selector language |
+| `src/app.rs`, `src/ui.rs`, `src/icons.rs`, `src/prefs.rs`, `src/tags.rs`, `src/palette.rs`, `src/find.rs`, `src/validate.rs` | Project state, undo, open and save, and the panels, menus and icons |
 | `src/tests.rs` | Round-trips of StarUML files, editing, saving and keyboard shortcuts |
 | `packaging/`, `.github/workflows/release.yml` | Installers for every system and the workflow that builds them |
 
@@ -149,7 +169,7 @@ cargo test --release
 On Linux, install the GTK 3, xkbcommon and OpenGL development packages first (on Debian and Ubuntu: `libgtk-3-dev libxkbcommon-dev libgl1-mesa-dev`).
 
 > [!IMPORTANT]
-> **Status:** UMLCraft is in early alpha. Class and use case diagrams are fully editable; other diagram kinds open, show and save but cannot be edited yet. There is no copy and paste, no font or colour dialog and no PDF export. On macOS, double-clicking a `.mdj` file starts UMLCraft but does not open the file yet; use File › Open. Please file issues with your system and a screenshot.
+> **Status:** UMLCraft is in early alpha. Class, package, object, use case, information flow, profile, component and deployment diagrams are editable; other diagram kinds open, show and save but cannot be edited yet. On macOS, double-clicking a `.mdj` file starts UMLCraft but does not open the file yet; use File › Open. Please file issues with your system and a screenshot.
 
 ## Downloads
 

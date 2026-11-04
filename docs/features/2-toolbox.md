@@ -4,13 +4,13 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, Packages, Annotations) and Use Case diagrams (Use Cases, Annotations); every other diagram kind gets Annotations only (src/ui.rs:51-109).
+UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, Packages, Annotations) and Use Case diagrams (Use Cases, Annotations); every other diagram kind gets Annotations only (src/ui.rs:80-150).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
-| Robustness `uml.robustness` | UMLClassDiagram | Boundary | ❌ | extensions/default/robustness/toolbox/robustness.json |
-| Robustness `uml.robustness` | UMLClassDiagram | Entity | ❌ | extensions/default/robustness/toolbox/robustness.json |
-| Robustness `uml.robustness` | UMLClassDiagram | Control | ❌ | extensions/default/robustness/toolbox/robustness.json |
+| Robustness `uml.robustness` | UMLClassDiagram | Boundary | ✅ | extensions/default/robustness/toolbox/robustness.json |
+| Robustness `uml.robustness` | UMLClassDiagram | Entity | ✅ | extensions/default/robustness/toolbox/robustness.json |
+| Robustness `uml.robustness` | UMLClassDiagram | Control | ✅ | extensions/default/robustness/toolbox/robustness.json |
 | AWS `aws.elements` | AWSDiagram | AWS Group | ❌ | extensions/essential/aws/toolbox/aws.json |
 | AWS `aws.elements` | AWSDiagram | AWS Generic Group | ❌ | extensions/essential/aws/toolbox/aws.json |
 | AWS `aws.elements` | AWSDiagram | AWS Availability Zone | ❌ | extensions/essential/aws/toolbox/aws.json |
@@ -83,8 +83,8 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | C4 Model `c4` | C4Diagram | Element | ❌ | extensions/essential/c4/toolbox/c4.json |
 | C4 Model `c4` | C4Diagram | Relationship | ❌ | extensions/essential/c4/toolbox/c4.json |
 | Annotations `annotation` | all | Text | ✅ | extensions/essential/common/toolbox/common.json |
-| Annotations `annotation` | all | Text Box | ❌ | extensions/essential/common/toolbox/common.json |
-| Annotations `annotation` | all | Free Line | ❌ | extensions/essential/common/toolbox/common.json |
+| Annotations `annotation` | all | Text Box | ✅ | extensions/essential/common/toolbox/common.json |
+| Annotations `annotation` | all | Free Line | ✅ | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Note | ✅ | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Note Link | ✅ | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Hyperlink | ❌ | extensions/essential/common/toolbox/common.json |
@@ -175,8 +175,8 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Viewpoint | ❌ | extensions/essential/sysml/toolbox/sysml.json |
 | Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Conform | ❌ | extensions/essential/sysml/toolbox/sysml.json |
 | Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Expose | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Information Flows `uml.information-flow` | UMLInformationFlowDiagram | Information Item | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Information Flows `uml.information-flow` | UMLInformationFlowDiagram | Information Flow | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Information Flows `uml.information-flow` | UMLInformationFlowDiagram | Information Item | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Information Flows `uml.information-flow` | UMLInformationFlowDiagram | Information Flow | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Package | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Use Case Subject | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Use Case | ✅ | extensions/essential/uml/toolbox/uml.json |
@@ -203,24 +203,24 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Enumeration | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Frame | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | N-ary Association Node | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Association Class | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Template Binding | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Realization | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Association Class | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Template Binding | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Classes (Advanced) `uml.class-adv` | UMLClassDiagram, UMLCompositeStructureDiagram | Realization | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Packages `uml.package` | UMLClassDiagram, UMLPackageDiagram | Package | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Packages `uml.package` | UMLClassDiagram, UMLPackageDiagram | Model | ✅ | extensions/essential/uml/toolbox/uml.json |
-| Packages `uml.package` | UMLClassDiagram, UMLPackageDiagram | Subsystem | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Packages `uml.package` | UMLClassDiagram, UMLPackageDiagram | Containment | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Packages `uml.package` | UMLClassDiagram, UMLPackageDiagram | Subsystem | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Packages `uml.package` | UMLClassDiagram, UMLPackageDiagram | Containment | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Packages `uml.package` | UMLClassDiagram, UMLPackageDiagram | Dependency | ✅ | extensions/essential/uml/toolbox/uml.json |
-| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Component | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Artifact | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Interface | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Component | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Artifact | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Interface | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Frame | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Dependency | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Interface Realization | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Component Realization | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Deployment `uml.deployment` | UMLComponentDiagram, UMLDeploymentDiagram | Node | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Deployment `uml.deployment` | UMLComponentDiagram, UMLDeploymentDiagram | Deployment | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Deployment `uml.deployment` | UMLComponentDiagram, UMLDeploymentDiagram | Communication Path | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Dependency | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Interface Realization | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Component `uml.component` | UMLComponentDiagram, UMLDeploymentDiagram | Component Realization | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Deployment `uml.deployment` | UMLComponentDiagram, UMLDeploymentDiagram | Node | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Deployment `uml.deployment` | UMLComponentDiagram, UMLDeploymentDiagram | Deployment | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Deployment `uml.deployment` | UMLComponentDiagram, UMLDeploymentDiagram | Communication Path | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Collaboration | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Port | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Part | ❌ | extensions/essential/uml/toolbox/uml.json |
@@ -228,13 +228,13 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Collaboration Use | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Role Binding | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Composite Structure `uml.compositestructure` | UMLClassDiagram, UMLCompositeStructureDiagram, UMLComponentDiagram | Realization | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Object | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Artifact Instance | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Component Instance | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Node Instance | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Link | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Directed Link | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Link Object | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Object | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Artifact Instance | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Component Instance | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Node Instance | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Link | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Directed Link | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Link Object | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Lifeline | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Message | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Self Message | ❌ | extensions/essential/uml/toolbox/uml.json |
@@ -325,11 +325,11 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Exception Handler | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Activity Interrupt | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Activity Edge Connector | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Profiles `uml.profile` | UMLProfileDiagram | MetaClass | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Profiles `uml.profile` | UMLProfileDiagram | Stereotype | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Profiles `uml.profile` | UMLProfileDiagram | Enumeration | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Profiles `uml.profile` | UMLProfileDiagram | Extension | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Profiles `uml.profile` | UMLProfileDiagram | Generalization | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Profiles `uml.profile` | UMLProfileDiagram | MetaClass | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Profiles `uml.profile` | UMLProfileDiagram | Stereotype | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Profiles `uml.profile` | UMLProfileDiagram | Enumeration | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Profiles `uml.profile` | UMLProfileDiagram | Extension | ✅ | extensions/essential/uml/toolbox/uml.json |
+| Profiles `uml.profile` | UMLProfileDiagram | Generalization | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
 | Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame (Mobile) | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
 | Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame (Web) | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |

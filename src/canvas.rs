@@ -119,14 +119,58 @@ fn dist_to_seg(p: P, a: P, b: P) -> f64 {
 fn in_rect(p: P, r: &R) -> bool {
     p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h
 }
+fn overlaps(a: &R, b: &R) -> bool {
+    a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h
+}
 fn contains(outer: &R, inner: &R) -> bool {
     inner.x >= outer.x && inner.y >= outer.y && inner.x + inner.w <= outer.x + outer.w && inner.y + inner.h <= outer.y + outer.h
+}
+
+/// A short button text for an "add related element" action: "Add Sub-Class" → "+ Sub-Class".
+fn short_label(l: &str) -> String {
+    format!("+ {}", l.trim_start_matches("Add "))
+}
+
+/// Keys of the inline edit on a class name or a compartment item.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum ItemKey {
+    /// Ctrl+Enter: a new attribute (literal on an enumeration), or a sibling of the edited item
+    Add,
+    /// Ctrl+Shift+Enter: a new operation
+    AddOperation,
+    /// Ctrl+Delete: delete the edited item
+    Delete,
+    /// Ctrl+Up / Ctrl+Down: move the edited item
+    Move(bool),
+    /// Up / Down: edit the previous or next item
+    Nav(bool),
+    /// The class name edit's Add Template Parameter button
+    AddTemplateParameter,
 }
 
 impl App {
     fn hit_edge(&self, e: Eid, p: P) -> bool {
         let pts = points_of(&self.repo, e);
         pts.windows(2).any(|w| dist_to_seg(p, w[0], w[1]) <= 5.0 / self.zoom)
+    }
+
+    /// The visible label of a line under `p`, topmost first: (label, line).
+    fn hit_edge_label(&self, p: P) -> Option<(Eid, Eid)> {
+        let d = self.diagram?;
+        for e in self.repo.list(d, "ownedViews").into_iter().rev() {
+            if !is_edge(&self.repo, e) || matches!(self.repo.raw(e, "visible"), Some(serde_json::Value::Bool(false))) {
+                continue;
+            }
+            for l in self.repo.list(e, "subViews") {
+                if matches!(self.repo.raw(l, "visible"), Some(serde_json::Value::Bool(false)) | Some(serde_json::Value::Null)) || self.repo.str(l, "text").is_empty() {
+                    continue;
+                }
+                if in_rect(p, &node_rect(&self.repo, l)) {
+                    return Some((l, e));
+                }
+            }
+        }
+        None
     }
 
     pub fn hit_view(&self, p: P, nodes_only: bool) -> Option<Eid> {
@@ -140,11 +184,43 @@ impl App {
                 if !nodes_only && self.hit_edge(v, p) {
                     return Some(v);
                 }
-            } else if is_node(&self.repo, v) && in_rect(p, &node_rect(&self.repo, v)) {
+            } else if is_node(&self.repo, v) && (in_rect(p, &node_rect(&self.repo, v)) || self.in_template_box(v, p)) {
                 return Some(v);
             }
         }
         None
+    }
+
+    /// Cursor over the single selected line: a hand on its ends, move on a bend point, and on a segment
+    /// ns/ew-resize for rectilinear lines or a crosshair for the others (diagram-editor.js:344-411).
+    fn edge_cursor(&self, p: P) -> Option<egui::CursorIcon> {
+        if self.selection.len() != 1 || !is_edge(&self.repo, self.selection[0]) {
+            return None;
+        }
+        let e = self.selection[0];
+        let pts = points_of(&self.repo, e);
+        let n = pts.len();
+        let near = |q: P| ((q.x - p.x).powi(2) + (q.y - p.y).powi(2)).sqrt() <= 6.0 / self.zoom;
+        if n >= 2 && (near(pts[0]) || near(pts[n - 1])) {
+            return Some(egui::CursorIcon::PointingHand);
+        }
+        if (1..n.saturating_sub(1)).any(|i| near(pts[i])) {
+            return Some(egui::CursorIcon::Move);
+        }
+        let style = self.repo.val(e, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+        let seg = (0..n.saturating_sub(1)).find(|&i| dist_to_seg(p, pts[i], pts[i + 1]) <= 4.0 / self.zoom)?;
+        Some(if !views::rectilinear(style) {
+            egui::CursorIcon::Crosshair
+        } else if (pts[seg].y - pts[seg + 1].y).abs() < 0.5 {
+            egui::CursorIcon::ResizeVertical
+        } else {
+            egui::CursorIcon::ResizeHorizontal
+        })
+    }
+
+    /// Whether `p` is on the template parameter box of a view.
+    fn in_template_box(&self, v: Eid, p: P) -> bool {
+        self.repo.refd(v, "templateParameterCompartment").filter(|_| self.info.get(&v).map(|i| i.templ.is_some()).unwrap_or(false)).map(|tc| in_rect(p, &node_rect(&self.repo, tc))).unwrap_or(false)
     }
 
     fn hit_handle(&self, p: P) -> Option<usize> {
@@ -152,15 +228,31 @@ impl App {
             return None;
         }
         let v = self.selection[0];
-        if is_edge(&self.repo, v) {
+        // an auto-resized box has no resize handles (diagram-editor.js:195, 1365-1369)
+        if is_edge(&self.repo, v) || self.repo.bool(v, "autoResize") {
             return None;
         }
         let hs = 6.0 / self.zoom;
-        render::handle_points(&node_rect(&self.repo, v)).iter().position(|h| (p.x - h.x).abs() <= hs && (p.y - h.y).abs() <= hs)
+        let o = 4.0 / self.zoom;
+        let b = node_rect(&self.repo, v);
+        render::handle_points(&R { x: b.x - o, y: b.y - o, w: b.w + 2.0 * o, h: b.h + 2.0 * o }).iter().position(|h| (p.x - h.x).abs() <= hs && (p.y - h.y).abs() <= hs)
     }
 
     fn snap_v(&self, n: f64) -> f64 {
-        if self.snap { (n / render::GRID_SIZE).round() * render::GRID_SIZE } else { n.round() }
+        let g = self.grid_size();
+        if self.snap { (n / g).round() * g } else { n.round() }
+    }
+
+    /// Snap a dragged coordinate that started at `orig`: while it stays in the grid cell it started in,
+    /// it keeps its original value, so an off-grid box does not jump on a tiny drag; once it crosses
+    /// into another cell it snaps to the grid (diagram-editor.js:1201-1323, 1892-1915).
+    pub(crate) fn snap_from(&self, orig: f64, n: f64) -> f64 {
+        let g = self.grid_size();
+        if self.snap && (n / g).floor() == (orig / g).floor() {
+            orig
+        } else {
+            self.snap_v(n)
+        }
     }
 
     fn to_diagram(&self, origin: Pos2, pos: Pos2) -> P {
@@ -215,17 +307,50 @@ impl App {
                 self.centre_on(P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 });
             }
         }
+        // a changed selection gives the canvas the keyboard, unless a text field is being typed in
+        // (diagram-manager.js:657-660)
+        if self.selection != self.last_selection {
+            self.last_selection = self.selection.clone();
+            // the explorer keeps the keyboard when its own clicks select views
+            if !self.selection.is_empty() && self.editing.is_none() && self.last_area != crate::app::Area::Explorer && !crate::ui::text_field_focused(ui.ctx()) {
+                self.refocus_canvas = true;
+            }
+        }
+        if std::mem::take(&mut self.refocus_canvas) {
+            resp.request_focus();
+        }
         self.handle_input(ui, &resp, rect, d);
         if !self.repo.alive(d) || self.diagram != Some(d) {
             return;
         }
 
         self.info = views::layout_diagram(&mut self.repo, &measure, d);
-        painter.rect_filled(rect, 0.0, Color32::WHITE);
+        // a left or top resize below the content's minimum keeps the opposite edge where it was
+        // (diagram-editor.js:1455-1493): the layout grew the box to the right or bottom, so shift it back
+        if let Some(Drag::Resize { handle, orig, view, changed: true, .. }) = self.drag.as_ref() {
+            let (h, o, v) = (*handle, *orig, *view);
+            let b = node_rect(&self.repo, v);
+            let mut moved = false;
+            if [0, 6, 7].contains(&h) && b.x + b.w > o.x + o.w + 0.5 {
+                self.repo.set(v, "left", crate::model::num((o.x + o.w - b.w).max(0.0)));
+                moved = true;
+            }
+            if [0, 1, 2].contains(&h) && b.y + b.h > o.y + o.h + 0.5 {
+                self.repo.set(v, "top", crate::model::num((o.y + o.h - b.h).max(0.0)));
+                moved = true;
+            }
+            if moved {
+                self.info = views::layout_diagram(&mut self.repo, &measure, d);
+            }
+        }
+        // diagramEditor.backgroundColor and gridColor (default.json:135-141)
+        let pref_color = |a: &App, key: &str, def: render::Rgba| a.pref(key).as_str().map(|s| render::parse_color(s, def)).unwrap_or(def);
+        painter.rect_filled(rect, 0.0, c32(pref_color(self, "diagramEditor.backgroundColor", render::Rgba(255, 255, 255, 255))));
         let mut c = ScreenCanvas { painter: &painter, origin: rect.min, scroll: self.scroll, zoom: self.zoom, measure: EguiMeasure { ctx: ctx.clone() } };
         if self.show_grid {
-            let grid = Stroke::new(1.0, c32(render::parse_color(render::GRID_COLOR_HEX, render::GRID_COLOR)));
-            let step = render::GRID_STEP;
+            let grid = Stroke::new(1.0, c32(pref_color(self, "diagramEditor.gridColor", render::GRID_COLOR)));
+            // lines every two grid cells
+            let step = 2.0 * self.grid_size();
             let (vw, vh) = (rect.width() as f64 / self.zoom, rect.height() as f64 / self.zoom);
             let mut x = (self.scroll.x / step).floor() * step;
             while x <= self.scroll.x + vw {
@@ -272,7 +397,9 @@ impl App {
                 let b = node_rect(&self.repo, v);
                 let r = Rect::from_two_pos(c.pos(P { x: b.x, y: b.y }), c.pos(P { x: b.x + b.w, y: b.y + b.h }));
                 c.painter.rect_stroke(r, 0.0, Stroke::new(1.0, sel), egui::StrokeKind::Middle);
-                for p in render::handle_points(&b) {
+                // centred 4 screen px outside the corners and edge midpoints (graphics.js:2726-2727)
+                let o = 4.0 / c.zoom;
+                for p in render::handle_points(&R { x: b.x - o, y: b.y - o, w: b.w + 2.0 * o, h: b.h + 2.0 * o }) {
                     handle(c, p);
                 }
             }
@@ -282,6 +409,11 @@ impl App {
     fn draw_drag(&self, c: &mut ScreenCanvas) {
         let sel = c32(render::SELECT_COLOR);
         match &self.drag {
+            Some(Drag::CreateNode { start, now }) if self.tool.map(|t| t.kind == "FreeLine").unwrap_or(false) => {
+                for s in Shape::dashed_line(&[c.pos(*start), c.pos(*now)], Stroke::new(1.0, sel), 3.0, 3.0) {
+                    c.painter.add(s);
+                }
+            }
             Some(Drag::Rubber { start, now, .. }) | Some(Drag::CreateNode { start, now }) => {
                 let r = rect_of(*start, *now);
                 let pts = [
@@ -306,13 +438,44 @@ impl App {
                     }
                 }
             }
+            Some(Drag::Move { changed: true, .. }) => {
+                // the prospective container, else the current one (diagram-editor.js:429-474)
+                let current = self.container_group().and_then(|g| g.1);
+                if let Some(cv) = self.hover.or(current) {
+                    let b = node_rect(&self.repo, cv);
+                    let r = Rect::from_two_pos(c.pos(P { x: b.x, y: b.y }), c.pos(P { x: b.x + b.w, y: b.y + b.h }));
+                    c.painter.rect_stroke(r, 0.0, Stroke::new(2.0, sel), egui::StrokeKind::Middle);
+                }
+            }
+            Some(Drag::Reconnect { edge, tail, now }) => {
+                // rubber line from the end that stays, and the drop target outlined
+                let pts = points_of(&self.repo, *edge);
+                if pts.len() >= 2 {
+                    let fixed = if *tail { pts[1] } else { pts[pts.len() - 2] };
+                    for s in Shape::dashed_line(&[c.pos(fixed), c.pos(*now)], Stroke::new(1.0, sel), 3.0, 3.0) {
+                        c.painter.add(s);
+                    }
+                }
+                let current = self.repo.refd(*edge, if *tail { "tail" } else { "head" });
+                if let Some(h) = self.hover.filter(|h| Some(*h) != current) {
+                    let (t, hd) = (self.repo.refd(*edge, "tail"), self.repo.refd(*edge, "head"));
+                    let ok = match (t, hd) {
+                        (Some(t), Some(hd)) => self.can_link(&self.edge_kind(*edge), if *tail { h } else { t }, if *tail { hd } else { h }),
+                        _ => false,
+                    };
+                    let b = node_rect(&self.repo, h);
+                    let r = Rect::from_two_pos(c.pos(P { x: b.x, y: b.y }), c.pos(P { x: b.x + b.w, y: b.y + b.h }));
+                    let col = if ok { sel } else { Color32::from_rgb(0xff, 0x5a, 0x4f) };
+                    c.painter.rect_stroke(r, 0.0, Stroke::new(2.0, col), egui::StrokeKind::Middle);
+                }
+            }
             _ => {}
         }
     }
 
     fn draw_minimap(&self, painter: &Painter, rect: Rect, d: Eid, ctx: &egui::Context) {
         let m = Self::mini_rect(rect);
-        if m.left() < rect.left() + 10.0 || m.top() < rect.top() + 10.0 {
+        if !self.show_minimap || m.left() < rect.left() + 10.0 || m.top() < rect.top() + 10.0 {
             return;
         }
         painter.rect_filled(m.translate(Vec2::new(0.0, 2.0)).expand(2.0), 2.0, Color32::from_black_alpha(40));
@@ -344,16 +507,19 @@ impl App {
         let origin = rect.min;
         let latest = pointer.latest_pos();
 
-        // drop from the explorer
+        // drop from the explorer: the cursor says whether the diagram takes it (model-explorer-view.js:161-224)
+        if let Some(eid) = resp.dnd_hover_payload::<Eid>() {
+            ui.ctx().set_cursor_icon(if self.can_drop_model(*eid) { egui::CursorIcon::Copy } else { egui::CursorIcon::NotAllowed });
+        }
         if let Some(eid) = resp.dnd_release_payload::<Eid>() {
             if let Some(pos) = latest {
                 let p = self.to_diagram(origin, pos);
                 let m = *eid;
-                if self.repo.alive(m) && views::node_kind(self.repo.ty(m)).is_some() {
-                    let (w, h) = views::default_size(self.repo.ty(m));
-                    let r = R { x: self.snap_v(p.x), y: self.snap_v(p.y), w, h };
-                    if let Some(v) = self.change(|a| a.create_view_of(m, r)) {
-                        self.select(vec![v]);
+                if self.repo.alive(m) {
+                    match self.drop_model(m, P { x: self.snap_v(p.x), y: self.snap_v(p.y) }) {
+                        Ok(vs) if !vs.is_empty() => self.select(vs),
+                        Ok(_) => {}
+                        Err(msg) => self.message = Some(("UMLCraft".into(), msg)),
                     }
                 }
             }
@@ -406,7 +572,7 @@ impl App {
                         Some(2) | Some(6) => egui::CursorIcon::ResizeNeSw,
                         Some(1) | Some(5) => egui::CursorIcon::ResizeVertical,
                         Some(3) | Some(7) => egui::CursorIcon::ResizeHorizontal,
-                        _ => egui::CursorIcon::Default,
+                        _ => self.edge_cursor(p).unwrap_or(egui::CursorIcon::Default),
                     }
                 };
                 ui.ctx().set_cursor_icon(icon);
@@ -416,8 +582,13 @@ impl App {
         if resp.double_clicked() && self.tool.is_none() {
             if let Some(pos) = pointer.interact_pos() {
                 let p = self.to_diagram(origin, pos);
-                if let Some(v) = self.hit_view(p, false) {
+                // a line's label belongs to the line: its edit opens, not a new text
+                if let Some((_, e)) = self.hit_edge_label(p) {
+                    self.edit_view(e, Some(p));
+                } else if let Some(v) = self.hit_view(p, false) {
                     self.edit_view(v, Some(p));
+                } else {
+                    self.create_text_at(p);
                 }
             }
         }
@@ -438,7 +609,7 @@ impl App {
         resp.context_menu(|ui| self.canvas_menu(ui));
 
         // keyboard on the canvas
-        if resp.has_focus() && self.editing.is_none() {
+        if resp.has_focus() && self.editing.is_none() && self.last_area != crate::app::Area::Explorer && !self.modal_open() {
             // keep Tab and the arrows on the canvas instead of moving the keyboard focus
             ui.memory_mut(|m| m.set_focus_lock_filter(resp.id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true }));
             let tab = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Tab));
@@ -466,34 +637,54 @@ impl App {
                 self.tool = None;
                 self.select(vec![]);
             }
-            if enter && self.selection.len() == 1 {
-                let v = self.selection[0];
+            // a keyboard double-click on the first selected view (diagram-manager.js:712-725)
+            if let Some(v) = self.selection.first().copied().filter(|v| enter && self.repo.alive(*v)) {
                 self.edit_view(v, None);
             }
             let (l, r, u, dn, shift) = arrows;
             if (l || r || u || dn) && !self.selection.is_empty() {
                 // Shift moves by the grid factor: the grid size, or 1 with snap off (diagram-manager.js:761-765)
-                let step = if shift && self.snap { render::GRID_SIZE } else { 1.0 };
+                let step = if shift && self.snap { self.grid_size() } else { 1.0 };
                 let dx = if l { -step } else if r { step } else { 0.0 };
                 let dy = if u { -step } else if dn { step } else { 0.0 };
-                let sel = self.selection.clone();
-                self.change(|a| {
-                    for v in sel {
-                        if !is_edge(&a.repo, v) {
-                            let (x, y) = (a.repo.f(v, "left"), a.repo.f(v, "top"));
-                            a.repo.set(v, "left", crate::model::num(x + dx));
-                            a.repo.set(v, "top", crate::model::num(y + dy));
-                        }
-                    }
-                });
+                self.nudge_selection(dx, dy);
             }
         }
         let _ = d;
     }
 
+    /// Move the selected boxes by (dx, dy) as one undo step; contained views follow their box, and a
+    /// box inside a selected one moves only once (diagram-manager.js:755-814).
+    pub fn nudge_selection(&mut self, dx: f64, dy: f64) {
+        let sel = self.selection.clone();
+        // contained views follow their box; a box inside a selected one moves only once
+        let inside_selected = |a: &App, v: Eid| {
+            let mut c = a.repo.refd(v, "containerView");
+            while let Some(x) = c {
+                if sel.contains(&x) {
+                    return true;
+                }
+                c = a.repo.refd(x, "containerView");
+            }
+            false
+        };
+        let movers: Vec<Eid> = sel.iter().copied().filter(|v| !is_edge(&self.repo, *v) && !inside_selected(self, *v)).collect();
+        let lines: Vec<Eid> = sel.iter().copied().filter(|v| views::is_freeline(&self.repo, *v)).collect();
+        self.change(|a| {
+            for v in movers {
+                a.shift_view(v, dx, dy);
+            }
+            // free lines move by their points
+            for e in lines {
+                let pts: Vec<P> = points_of(&a.repo, e).into_iter().map(|q| P { x: (q.x + dx).max(0.0), y: (q.y + dy).max(0.0) }).collect();
+                a.repo.set(e, "points", json!(views::format_points(&pts)));
+            }
+        });
+    }
+
     pub(crate) fn on_press(&mut self, rect: Rect, pos: Pos2, mods: egui::Modifiers) {
         let p = self.to_diagram(rect.min, pos);
-        if Self::mini_rect(rect).contains(pos) && rect.width() > MINI_W + 40.0 {
+        if self.show_minimap && Self::mini_rect(rect).contains(pos) && rect.width() > MINI_W + 40.0 {
             self.drag = Some(Drag::Mini);
             self.mini_scroll(rect, pos);
             return;
@@ -505,9 +696,9 @@ impl App {
             return;
         }
         if let Some(tool) = self.tool {
-            if !tool.line {
+            if !tool.line || tool.kind == "FreeLine" {
                 self.drag = Some(Drag::CreateNode { start: p, now: p });
-            } else if let Some(tail) = self.hit_view(p, tool.kind != "NoteLink") {
+            } else if let Some(tail) = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject")) {
                 self.drag = Some(Drag::CreateEdge { start: p, now: p, tail });
             }
             return;
@@ -517,21 +708,56 @@ impl App {
             self.drag = Some(Drag::Resize { handle: h, start: p, orig: node_rect(&self.repo, v), view: v, changed: false });
             return;
         }
-        // bend points of a selected line
+        // ends and bend points of a selected line
         if self.selection.len() == 1 && is_edge(&self.repo, self.selection[0]) {
             let e = self.selection[0];
             let pts = points_of(&self.repo, e);
-            for i in 1..pts.len().saturating_sub(1) {
-                if ((pts[i].x - p.x).powi(2) + (pts[i].y - p.y).powi(2)).sqrt() <= 6.0 / self.zoom {
+            let near = |q: P| ((q.x - p.x).powi(2) + (q.y - p.y).powi(2)).sqrt() <= 6.0 / self.zoom;
+            let n = pts.len();
+            if n >= 2 {
+                for (tail, q) in [(true, pts[0]), (false, pts[n - 1])] {
+                    if near(q) {
+                        // a free line's end only moves (diagram-editor.js:1795-1797)
+                        self.drag = Some(if views::is_freeline(&self.repo, e) {
+                            Drag::Point { edge: e, index: if tail { 0 } else { n - 1 }, insert: None, changed: false }
+                        } else {
+                            Drag::Reconnect { edge: e, tail, now: p }
+                        });
+                        return;
+                    }
+                }
+            }
+            for i in 1..n.saturating_sub(1) {
+                if near(pts[i]) {
                     self.drag = Some(Drag::Point { edge: e, index: i, insert: None, changed: false });
                     return;
                 }
             }
-            for i in 0..pts.len().saturating_sub(1) {
+            let style = self.repo.val(e, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+            for i in 0..n.saturating_sub(1) {
                 if dist_to_seg(p, pts[i], pts[i + 1]) <= 5.0 / self.zoom {
-                    self.drag = Some(Drag::Point { edge: e, index: i + 1, insert: Some(p), changed: false });
+                    let (a, b) = (pts[i], pts[i + 1]);
+                    let straight = (a.y - b.y).abs() < 0.5 || (a.x - b.x).abs() < 0.5;
+                    if views::rectilinear(style) && straight {
+                        // move the segment across, keeping the path orthogonal (diagram-editor.js:1923-1979)
+                        self.drag = Some(Drag::Segment { edge: e, index: i, start: p, orig: pts.clone(), horizontal: (a.y - b.y).abs() < 0.5, changed: false });
+                    } else {
+                        self.drag = Some(Drag::Point { edge: e, index: i + 1, insert: Some(p), changed: false });
+                    }
                     return;
                 }
+            }
+        }
+        // a line's label can be dragged away from its line (diagram-editor.js:2051-2106)
+        if !mods.shift {
+            if let Some((label, edge)) = self.hit_edge_label(p) {
+                if !self.selection.contains(&edge) {
+                    self.select(vec![edge]);
+                }
+                let b = node_rect(&self.repo, label);
+                let orig = P { x: b.x + (b.w / 2.0).floor(), y: b.y + (views::LABEL_H / 2.0).floor() };
+                self.drag = Some(Drag::Label { label, edge, start: p, orig, changed: false });
+                return;
             }
         }
         let add = mods.shift;
@@ -568,6 +794,28 @@ impl App {
         }
     }
 
+    /// The selected boxes that may change container, if they all can and share one (the current one).
+    fn container_group(&self) -> Option<(Vec<Eid>, Option<Eid>)> {
+        let vs: Vec<Eid> = self.selection.iter().copied().filter(|v| self.repo.alive(*v) && is_node(&self.repo, *v)).collect();
+        if vs.is_empty() || !vs.iter().all(|v| self.repo.bool(*v, "containerChangeable")) {
+            return None;
+        }
+        let current = self.repo.refd(vs[0], "containerView");
+        vs.iter().all(|v| self.repo.refd(*v, "containerView") == current).then_some((vs, current))
+    }
+
+    /// The topmost package or subject under `p` that can hold the selected boxes, other than the moved ones.
+    fn container_at(&self, p: P, moved: &[Eid]) -> Option<Eid> {
+        let (vs, _) = self.container_group()?;
+        let d = self.diagram?;
+        self.repo.list(d, "ownedViews").into_iter().rev().find(|c| {
+            !moved.contains(c)
+                && !matches!(self.repo.raw(*c, "visible"), Some(serde_json::Value::Bool(false)))
+                && in_rect(p, &node_rect(&self.repo, *c))
+                && vs.iter().all(|v| self.can_contain_view(*c, *v))
+        })
+    }
+
     fn start_move(&mut self, p: P) {
         let Some(d) = self.diagram else { return };
         let mut nodes: Vec<Eid> = vec![];
@@ -581,13 +829,18 @@ impl App {
                 continue;
             }
             push(&mut nodes, v);
-            if let Some(serde_json::Value::Array(cs)) = self.repo.raw(v, "containedViews") {
-                for c in cs.clone() {
+        }
+        // contained views follow their container, recursively (engine.js:633-654)
+        let mut i = 0;
+        while i < nodes.len() {
+            if let Some(serde_json::Value::Array(cs)) = self.repo.raw(nodes[i], "containedViews").cloned() {
+                for c in cs {
                     if let Some(cv) = self.repo.by_ref(&c) {
                         push(&mut nodes, cv);
                     }
                 }
             }
+            i += 1;
         }
         // things drawn inside a package or subject move with it
         for v in nodes.clone() {
@@ -611,6 +864,9 @@ impl App {
                 if nodes.contains(&t) && nodes.contains(&h) {
                     edges.push((e, points_of(&self.repo, e)));
                 }
+            } else if views::is_freeline(&self.repo, e) && self.selection.contains(&e) {
+                // a selected free line moves with the group
+                edges.push((e, points_of(&self.repo, e)));
             }
         }
         self.drag = Some(Drag::Move { start: p, orig, edges, lead: nodes.first().copied(), changed: false, collapse: None });
@@ -626,18 +882,22 @@ impl App {
             }
             Drag::Mini => self.mini_scroll(rect, pos),
             Drag::Rubber { start, now, add, base } => {
+                // the band stops at the left and top edge (diagram-editor.js:747-765)
+                let p = P { x: p.x.max(0.0), y: p.y.max(0.0) };
                 *now = p;
                 let r = rect_of(*start, p);
                 let mut inside = vec![];
                 if let Some(d) = self.diagram {
+                    // views whose box overlaps the band; a selected one counts 5 px larger (core.js:4162-4176)
                     for v in self.repo.list(d, "ownedViews") {
-                        let hit = if is_edge(&self.repo, v) {
-                            let pts = points_of(&self.repo, v);
-                            !pts.is_empty() && pts.iter().all(|q| in_rect(*q, &r))
-                        } else {
-                            is_node(&self.repo, v) && contains(&r, &node_rect(&self.repo, v))
-                        };
-                        if hit {
+                        if matches!(self.repo.raw(v, "visible"), Some(serde_json::Value::Bool(false))) || !(is_edge(&self.repo, v) || is_node(&self.repo, v)) {
+                            continue;
+                        }
+                        let mut b = self.view_bounds(v);
+                        if base.contains(&v) {
+                            b = R { x: b.x - 5.0, y: b.y - 5.0, w: b.w + 10.0, h: b.h + 10.0 };
+                        }
+                        if overlaps(&r, &b) {
                             inside.push(v);
                         }
                     }
@@ -657,7 +917,7 @@ impl App {
             Drag::CreateNode { now, .. } => *now = p,
             Drag::CreateEdge { now, .. } => {
                 *now = p;
-                let nodes_only = self.tool.map(|t| t.kind != "NoteLink").unwrap_or(true);
+                let nodes_only = self.tool.map(|t| !matches!(t.kind, "NoteLink" | "AssociationClass" | "LinkObject")).unwrap_or(true);
                 self.hover = self.hit_view(p, nodes_only);
             }
             Drag::Move { start, orig, edges, lead, changed, .. } => {
@@ -672,16 +932,25 @@ impl App {
                 }
                 if let Some(l) = lead {
                     if let Some((_, o)) = orig.iter().find(|(n, _)| n == l) {
-                        dx = self.snap_v(o.x + dx) - o.x;
-                        dy = self.snap_v(o.y + dy) - o.y;
+                        dx = self.snap_from(o.x, o.x + dx) - o.x;
+                        dy = self.snap_from(o.y, o.y + dy) - o.y;
                     }
+                }
+                // the group stops at the canvas origin (diagram-editor.js:1287-1323)
+                let min_x = orig.iter().map(|(_, o)| o.x).fold(f64::INFINITY, f64::min);
+                let min_y = orig.iter().map(|(_, o)| o.y).fold(f64::INFINITY, f64::min);
+                if min_x.is_finite() {
+                    dx = dx.max(-min_x.max(0.0));
+                    dy = dy.max(-min_y.max(0.0));
                 }
                 for (n, o) in orig.iter() {
                     self.repo.set(*n, "left", crate::model::num(o.x + dx));
                     self.repo.set(*n, "top", crate::model::num(o.y + dy));
                 }
+                let moved: Vec<Eid> = orig.iter().map(|(n, _)| *n).collect();
+                self.hover = self.container_at(p, &moved);
                 for (e, pts) in edges.iter() {
-                    if pts.len() > 2 {
+                    if pts.len() > 2 || views::is_freeline(&self.repo, *e) {
                         let moved: Vec<P> = pts.iter().map(|q| P { x: q.x + dx, y: q.y + dy }).collect();
                         self.repo.set(*e, "points", json!(views::format_points(&moved)));
                     }
@@ -693,17 +962,20 @@ impl App {
                 let (mut x1, mut y1, mut x2, mut y2) = (o.x, o.y, o.x + o.w, o.y + o.h);
                 let h = *handle;
                 if [0, 6, 7].contains(&h) {
-                    x1 = self.snap_v(o.x + dx);
+                    x1 = self.snap_from(o.x, o.x + dx);
                 }
                 if [2, 3, 4].contains(&h) {
-                    x2 = self.snap_v(o.x + o.w + dx);
+                    x2 = self.snap_from(o.x + o.w, o.x + o.w + dx);
                 }
                 if [0, 1, 2].contains(&h) {
-                    y1 = self.snap_v(o.y + dy);
+                    y1 = self.snap_from(o.y, o.y + dy);
                 }
                 if [4, 5, 6].contains(&h) {
-                    y2 = self.snap_v(o.y + o.h + dy);
+                    y2 = self.snap_from(o.y + o.h, o.y + o.h + dy);
                 }
+                // edges stop at the canvas origin (diagram-editor.js:1201-1285)
+                x1 = x1.max(0.0);
+                y1 = y1.max(0.0);
                 if x2 - x1 < 20.0 {
                     if x1 != o.x { x1 = x2 - 20.0 } else { x2 = x1 + 20.0 }
                 }
@@ -733,9 +1005,60 @@ impl App {
                 }
                 let mut pts = points_of(&self.repo, *edge);
                 if *index < pts.len() {
-                    pts[*index] = P { x: self.snap_v(p.x), y: self.snap_v(p.y) };
+                    pts[*index] = P { x: self.snap_v(p.x).max(0.0), y: self.snap_v(p.y).max(0.0) };
                     self.repo.set(*edge, "points", json!(views::format_points(&pts)));
                 }
+            }
+            Drag::Label { label, edge, start, orig, changed } => {
+                let (dx, dy) = (p.x - start.x, p.y - start.y);
+                if !*changed && (dx * dx + dy * dy).sqrt() * self.zoom < 3.0 {
+                    self.drag = Some(drag);
+                    return;
+                }
+                if !*changed {
+                    self.checkpoint();
+                    *changed = true;
+                }
+                let pts = points_of(&self.repo, *edge);
+                if pts.len() >= 2 {
+                    let (p1, p2) = views::label_anchor(&self.repo, *label, &pts);
+                    let (alpha, distance) = views::label_polar(p1, p2, P { x: orig.x + dx, y: orig.y + dy });
+                    self.repo.set(*label, "alpha", json!(alpha));
+                    self.repo.set(*label, "distance", json!(distance));
+                }
+            }
+            Drag::Reconnect { now, .. } => {
+                *now = p;
+                self.hover = self.hit_view(p, true);
+            }
+            Drag::Segment { edge, index, start, orig, horizontal, changed } => {
+                let d = if *horizontal { p.y - start.y } else { p.x - start.x };
+                if !*changed && d.abs() * self.zoom < 3.0 {
+                    self.drag = Some(drag);
+                    return;
+                }
+                if !*changed {
+                    self.checkpoint();
+                    *changed = true;
+                    // an end segment gets an extra point so the end stays on its box
+                    let n = orig.len();
+                    if *index + 1 == n - 1 {
+                        orig.insert(n - 1, orig[n - 1]);
+                    }
+                    if *index == 0 {
+                        orig.insert(0, orig[0]);
+                        *index = 1;
+                    }
+                }
+                let mut pts = orig.clone();
+                for k in [*index, *index + 1] {
+                    if *horizontal {
+                        pts[k].y = self.snap_v(orig[k].y + d).max(0.0);
+                    } else {
+                        pts[k].x = self.snap_v(orig[k].x + d).max(0.0);
+                    }
+                }
+                self.repo.set(*edge, "points", json!(views::format_points(&pts)));
             }
         }
         self.drag = Some(drag);
@@ -750,19 +1073,45 @@ impl App {
                 let s = self.selection.clone();
                 self.select(s);
             }
+            Drag::CreateNode { start, .. } if self.tool.map(|t| t.kind == "FreeLine").unwrap_or(false) => {
+                // a free line goes from the press to the release; a click gives a 100 px line (estimated)
+                let a = P { x: self.snap_v(start.x).max(0.0), y: self.snap_v(start.y).max(0.0) };
+                let mut b = P { x: self.snap_v(p.x).max(0.0), y: self.snap_v(p.y).max(0.0) };
+                if ((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt() < 10.0 {
+                    b = P { x: a.x + 100.0, y: a.y };
+                }
+                let v = self.change(|app| app.create_freeline(a, b));
+                if !self.tool_sticky {
+                    self.tool = None;
+                }
+                if let Some(v) = v {
+                    self.select(vec![v]);
+                }
+            }
             Drag::CreateNode { start, .. } => {
                 let Some(tool) = self.tool else { return };
-                let mut r = rect_of(start, p);
-                if r.w < 10.0 || r.h < 10.0 {
-                    let (w, h) = views::default_size(tool.kind);
-                    r = R { x: start.x, y: start.y, w, h };
+                // a robustness tool needs its stereotype from the UML Standard Profile (robustness/main.js:41)
+                if !self.robustness_profile_ready(tool.kind) {
+                    if !self.tool_sticky {
+                        self.tool = None;
+                    }
+                    return;
                 }
-                let r = R { x: self.snap_v(r.x), y: self.snap_v(r.y), w: r.w.round(), h: r.h.round() };
+                let raw = rect_of(start, p);
+                let r = if raw.w < 10.0 || raw.h < 10.0 {
+                    let (w, h) = views::default_size(tool.kind);
+                    R { x: self.snap_v(start.x), y: self.snap_v(start.y), w, h }
+                } else {
+                    // both corners snap to the grid (diagram-editor.js:979-1038)
+                    let (x1, y1) = (self.snap_v(raw.x), self.snap_v(raw.y));
+                    let (x2, y2) = (self.snap_v(raw.x + raw.w), self.snap_v(raw.y + raw.h));
+                    R { x: x1, y: y1, w: (x2 - x1).max(1.0), h: (y2 - y1).max(1.0) }
+                };
                 let view = self.change(|a| {
                     let v = a.create_node(tool.kind, r);
                     if let (Some(v), Some(d)) = (v, a.diagram) {
                         let t = a.repo.ty(v);
-                        if t == "UMLUseCaseSubjectView" || t == "UMLPackageView" {
+                        if t == "UMLUseCaseSubjectView" || t == "UMLPackageView" || t == "UMLSubsystemView" {
                             // containers sit behind what they contain
                             let mut list = a.repo.list(d, "ownedViews");
                             list.retain(|x| *x != v);
@@ -777,15 +1126,27 @@ impl App {
                 }
                 if let Some(v) = view {
                     self.select(vec![v]);
+                    // the new element shows in the explorer, its owners expanded (app-context.js:837-848)
+                    if let Some(m) = self.repo.refd(v, "model") {
+                        self.reveal(m);
+                    }
                     self.pending_edit = Some(v);
                 }
             }
             Drag::CreateEdge { tail, .. } => {
                 let Some(tool) = self.tool else { return };
-                if let Some(head) = self.hit_view(p, tool.kind != "NoteLink") {
-                    if self.can_connect(&tool, tail, head) {
-                        if let Some(v) = self.change(|a| a.create_edge(&tool, tail, head)) {
-                            self.select(vec![v]);
+                if let Some(head) = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject")) {
+                    if !self.can_connect(&tool, tail, head) {
+                        // a refused link is reported (uml-factory.js:19-146, toolbox-view.js:209-216)
+                        self.toast_error(&format!("Invalid connection ({})", tool.kind.trim_start_matches("UML")));
+                    } else if let Some(v) = self.change(|a| a.create_edge(&tool, tail, head)) {
+                        self.select(vec![v]);
+                        if let Some(m) = self.repo.refd(v, "model") {
+                            self.reveal(m);
+                        }
+                        // its name edit opens, once the line is laid out (toolbox-view.js:196-208)
+                        if self.repo.has(v, "model") {
+                            self.pending_edit = Some(v);
                         }
                     }
                 }
@@ -793,13 +1154,41 @@ impl App {
                     self.tool = None;
                 }
             }
+            Drag::Move { changed: true, orig, .. } => {
+                // drop into a container, or out of one (diagram-editor.js:1640-1657, 476-493)
+                let moved: Vec<Eid> = orig.iter().map(|(n, _)| *n).collect();
+                if let Some((vs, current)) = self.container_group() {
+                    let target = self.container_at(p, &moved);
+                    if target != current && vs.iter().all(|v| target.map(|t| self.can_contain_view(t, *v)).unwrap_or(true)) {
+                        self.set_container(&vs, target);
+                    }
+                }
+                self.done();
+            }
             Drag::Move { changed: false, collapse: Some(v), .. } => {
                 // a click on a member of a group, without moving, keeps only that view (diagram-editor.js:901-912)
                 if self.repo.alive(v) {
                     self.select(vec![v]);
                 }
             }
-            Drag::Move { changed, .. } | Drag::Resize { changed, .. } | Drag::Point { changed, .. } => {
+            Drag::Reconnect { edge, tail, .. } => {
+                if let Some(to) = self.hit_view(p, true) {
+                    if let Err(msg) = self.reconnect(edge, tail, to) {
+                        self.toast(&msg);
+                    }
+                }
+            }
+            Drag::Point { edge, changed: true, .. } | Drag::Segment { edge, changed: true, .. } => {
+                // tidy the bend points (diagram-editor.js:1774-1781)
+                let pts = points_of(&self.repo, edge);
+                let style = self.repo.val(edge, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+                let clean = views::clean_points(&pts, views::rectilinear(style));
+                if clean != pts {
+                    self.repo.set(edge, "points", json!(views::format_points(&clean)));
+                }
+                self.done();
+            }
+            Drag::Move { changed, .. } | Drag::Resize { changed, .. } | Drag::Point { changed, .. } | Drag::Segment { changed, .. } | Drag::Label { changed, .. } => {
                 if changed {
                     self.done();
                 }
@@ -811,6 +1200,15 @@ impl App {
     // ------------------------------------------------------------------ inline editing
     fn row_at(&self, v: Eid, p: P) -> Option<Eid> {
         let i = self.info.get(&v)?;
+        // a template parameter row is found by both coordinates, as its box sits over the corner
+        if let Some(t) = &i.templ {
+            for row in &t.rows {
+                let b = node_rect(&self.repo, row.iv);
+                if in_rect(p, &R { x: b.x - 1.0, y: b.y - 1.0, w: b.w + 2.0, h: b.h + 2.0 }) {
+                    return Some(row.iv);
+                }
+            }
+        }
         for c in &i.compartments {
             for row in &c.rows {
                 let b = node_rect(&self.repo, row.iv);
@@ -824,34 +1222,53 @@ impl App {
 
     pub fn edit_view(&mut self, v: Eid, p: Option<P>) {
         let t = self.repo.ty(v).to_string();
-        if t == "UMLNoteView" || t == "UMLTextView" || t == "UMLCustomTextView" {
+        // a constraint edits its specification (uml-commands.js:669)
+        if t == "UMLConstraintView" {
+            let Some(m) = self.repo.refd(v, "model") else { return };
+            let text = self.repo.str(m, "specification");
+            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None });
+            return;
+        }
+        if t == "UMLNoteView" || t == "UMLTextView" || t == "UMLTextBoxView" || t == "UMLCustomTextView" {
             let text = self.repo.str(v, "text");
-            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true });
+            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None });
             return;
         }
         let Some(m) = self.repo.refd(v, "model") else { return };
         if is_edge(&self.repo, v) {
             let pts = points_of(&self.repo, v);
             let mid = pts.get(pts.len() / 2).copied().unwrap_or_default();
+            // on an association, a click nearer an end than the middle edits that end's role name
+            // (quickedit-manager.js:151-156, 589-624)
+            if let (Some(p), true, n) = (p, self.repo.has(m, "end1"), pts.len()) {
+                if n >= 2 {
+                    let mi = if n % 2 == 0 { n / 2 - 1 } else { n / 2 };
+                    let centre = if n % 2 == 0 { P { x: (pts[mi].x + pts[mi + 1].x) / 2.0, y: (pts[mi].y + pts[mi + 1].y) / 2.0 } } else { pts[mi] };
+                    let dist = |q: P| (q.x - p.x).powi(2) + (q.y - p.y).powi(2);
+                    let (dt, dh, dm) = (dist(pts[0]), dist(pts[n - 1]), dist(centre));
+                    let end = if dt < dh && dt < dm { Some(("end1", "tailRoleNameLabel", pts[0])) } else if dh < dt && dh < dm { Some(("end2", "headRoleNameLabel", pts[n - 1])) } else { None };
+                    if let Some((field, label, at)) = end {
+                        if let Some(e) = self.repo.child(m, field) {
+                            let rect = match self.repo.refd(v, label) {
+                                Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: 19.0 },
+                                _ => R { x: at.x - 50.0, y: at.y - 25.0, w: 100.0, h: 19.0 },
+                            };
+                            self.editing = Some(Editing { kind: EditKind::Name(e), text: crate::parse::name_text(&self.repo, e), rect, multiline: false, center: true, fresh: true, host: None });
+                            return;
+                        }
+                    }
+                }
+            }
             let lv = self.repo.refd(v, "nameLabel");
             let rect = match lv {
                 Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: 19.0 },
                 _ => R { x: mid.x - 50.0, y: mid.y - 10.0, w: 100.0, h: 19.0 },
             };
-            self.editing = Some(Editing { kind: EditKind::Name(m), text: self.repo.name(m), rect, multiline: false, center: true, fresh: true });
+            self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: None });
             return;
         }
         if let Some(iv) = p.and_then(|p| self.row_at(v, p)) {
-            if let Some(item) = self.repo.refd(iv, "model") {
-                let b = node_rect(&self.repo, iv);
-                self.editing = Some(Editing {
-                    kind: EditKind::Feature(item),
-                    text: self.repo.str(iv, "text"),
-                    rect: R { x: b.x - 2.0, y: b.y - 3.0, w: b.w.max(120.0) + 4.0, h: 19.0 },
-                    multiline: false,
-                    center: false,
-                    fresh: true,
-                });
+            if self.edit_row(v, iv) {
                 return;
             }
         }
@@ -860,23 +1277,204 @@ impl App {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
         };
-        self.editing = Some(Editing { kind: EditKind::Name(m), text: self.repo.name(m), rect, multiline: false, center: true, fresh: true });
+        self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: Some(v) });
+    }
+
+    /// Open the inline edit on one compartment row (an attribute, operation or literal label).
+    fn edit_row(&mut self, v: Eid, iv: Eid) -> bool {
+        let Some(item) = self.repo.refd(iv, "model") else { return false };
+        let b = node_rect(&self.repo, iv);
+        self.editing = Some(Editing {
+            kind: EditKind::Feature(item),
+            // a reception is edited as a name expression, without its «signal» keyword
+            text: if self.repo.ty(item) == "UMLReception" { crate::parse::name_text(&self.repo, item) } else { self.repo.str(iv, "text") },
+            rect: R { x: b.x - 2.0, y: b.y - 3.0, w: b.w.max(120.0) + 4.0, h: 19.0 },
+            multiline: false,
+            center: false,
+            fresh: true,
+            host: Some(v),
+        });
+        true
+    }
+
+    /// The visible compartment rows of a box, top to bottom: (row view, item).
+    fn item_rows(&self, v: Eid) -> Vec<(Eid, Eid)> {
+        let Some(i) = self.info.get(&v) else { return vec![] };
+        i.compartments.iter().flat_map(|c| c.rows.iter()).filter_map(|r| self.repo.refd(r.iv, "model").map(|m| (r.iv, m))).collect()
+    }
+
+    /// The compartment rows and the template parameter rows of a box.
+    fn all_item_rows(&self, v: Eid) -> Vec<(Eid, Eid)> {
+        let mut rows = self.item_rows(v);
+        if let Some(t) = self.info.get(&v).and_then(|i| i.templ.as_ref()) {
+            rows.extend(t.rows.iter().filter_map(|r| self.repo.refd(r.iv, "model").map(|m| (r.iv, m))));
+        }
+        rows
+    }
+
+    /// Open the queued item edit once its row is laid out, waiting a few frames at most.
+    pub fn take_pending_item(&mut self) {
+        let Some((v, item, left)) = self.pending_item.take() else { return };
+        if !self.repo.alive(v) || !self.repo.alive(item) {
+            return;
+        }
+        if self.item_shown(v, item) {
+            self.edit_item(v, item);
+        } else if left > 0 {
+            self.pending_item = Some((v, item, left - 1));
+        }
+    }
+
+    pub fn item_shown(&self, v: Eid, item: Eid) -> bool {
+        self.all_item_rows(v).iter().any(|(_, m)| *m == item)
+    }
+
+    /// Edit this item inline: now if its row is laid out, else after the next layout.
+    pub fn edit_item(&mut self, v: Eid, item: Eid) {
+        match self.all_item_rows(v).into_iter().find(|(_, m)| *m == item) {
+            Some((iv, _)) if self.repo.alive(iv) => {
+                self.edit_row(v, iv);
+            }
+            _ => self.pending_item = Some((v, item, 3)),
+        }
+    }
+
+    /// The suppress flag that hides a kind of item.
+    fn suppress_flag(ty: &str) -> Option<&'static str> {
+        match ty {
+            "UMLOperation" => Some("suppressOperations"),
+            "UMLReception" => Some("suppressReceptions"),
+            "UMLExtensionPoint" | "UMLSlot" => None,
+            "UMLEnumerationLiteral" => Some("suppressLiterals"),
+            "UMLTemplateParameter" => None,
+            _ => Some("suppressAttributes"),
+        }
+    }
+
+    /// Add an item of this kind to the box's model, show its compartment and edit it
+    /// (uml-commands.js:784-823).
+    fn add_item(&mut self, v: Eid, owner: Eid, ty: &str) {
+        if !self.can_add_feature(owner, ty) {
+            return;
+        }
+        let flag = Self::suppress_flag(ty);
+        let new = self.change(|a| {
+            if let Some(flag) = flag.filter(|f| a.repo.bool(v, f)) {
+                a.repo.set(v, flag, json!(false));
+            }
+            a.add_feature(owner, ty)
+        });
+        if let Some(n) = new {
+            self.focus = Some(n);
+            self.edit_item(v, n);
+        }
+    }
+
+    /// Keys of the inline edit on a class box or one of its items, applied after the text is committed
+    /// (quickedits/uml.json; uml-commands.js:784-1024).
+    pub(crate) fn item_key(&mut self, host: Eid, kind: EditKind, key: ItemKey) {
+        let Some(m) = self.repo.refd(host, "model").filter(|m| self.repo.alive(*m)) else { return };
+        let item = match kind {
+            EditKind::Feature(f) if self.repo.alive(f) => Some(f),
+            _ => None,
+        };
+        match (key, item) {
+            (ItemKey::Add, None) => {
+                // a literal on an enumeration, an extension point on a use case (quickedits/uml.json)
+                let ty = match self.repo.ty(m) {
+                    "UMLEnumeration" => "UMLEnumerationLiteral",
+                    "UMLUseCase" => "UMLExtensionPoint",
+                    _ if self.repo.kind_of(m, "UMLInstance") => "UMLSlot",
+                    _ => "UMLAttribute",
+                };
+                self.add_item(host, m, ty);
+            }
+            (ItemKey::Add, Some(f)) => {
+                let (Some(owner), ty) = (self.repo.parent(f), self.repo.ty(f).to_string()) else { return };
+                self.add_item(host, owner, &ty);
+            }
+            (ItemKey::AddOperation, _) => self.add_item(host, m, "UMLOperation"),
+            (ItemKey::AddTemplateParameter, _) => self.add_item(host, m, "UMLTemplateParameter"),
+            (ItemKey::Delete, Some(f)) => {
+                let (Some(owner), Some(field)) = (self.repo.parent(f), self.repo.field_of(f)) else { return };
+                let i = self.repo.list(owner, &field).iter().position(|x| *x == f).unwrap_or(0);
+                self.change(|a| a.delete_models(&[f]));
+                let rest = self.repo.list(owner, &field);
+                match rest.get(i).or(rest.last()) {
+                    Some(&n) => self.edit_item(host, n),
+                    None => self.focus = Some(m),
+                }
+            }
+            (ItemKey::Move(up), Some(f)) => {
+                let (Some(owner), Some(field)) = (self.repo.parent(f), self.repo.field_of(f)) else { return };
+                let mut list = self.repo.list(owner, &field);
+                let i = list.iter().position(|x| *x == f).unwrap_or(0);
+                let j = if up { i.checked_sub(1) } else { Some(i + 1).filter(|j| *j < list.len()) };
+                if let Some(j) = j {
+                    list.swap(i, j);
+                    self.change(|a| a.repo.set_list(owner, &field, list));
+                }
+                self.edit_item(host, f);
+            }
+            (ItemKey::Nav(up), _) => {
+                // template parameters, then the name, then the compartment items (uml-commands.js:896, 962)
+                let templ: Vec<(Eid, Eid)> = self.info.get(&host).and_then(|i| i.templ.as_ref()).map(|t| t.rows.iter().filter_map(|r| self.repo.refd(r.iv, "model").map(|m| (r.iv, m))).collect()).unwrap_or_default();
+                let seq: Vec<Option<(Eid, Eid)>> = templ.into_iter().map(Some).chain(std::iter::once(None)).chain(self.item_rows(host).into_iter().map(Some)).collect();
+                let at = seq.iter().position(|x| x.map(|r| r.1) == item).unwrap_or(0);
+                let next = if up { at.checked_sub(1) } else { Some(at + 1).filter(|i| *i < seq.len()) };
+                match next.map(|i| seq[i]) {
+                    Some(Some((iv, _))) => {
+                        self.edit_row(host, iv);
+                    }
+                    Some(None) => self.edit_view(host, None),
+                    // nothing further: stay on the same item or name
+                    None => match item {
+                        Some(f) => self.edit_item(host, f),
+                        None => self.edit_view(host, None),
+                    },
+                }
+            }
+            _ => {}
+        }
     }
 
     pub fn close_inline(&mut self, commit: bool) {
         let Some(e) = self.editing.take() else { return };
+        // the canvas takes the keyboard back, so Enter can open the edit again (quickedit-manager.js:680-682)
+        self.refocus_canvas = true;
         if !commit {
             return;
         }
         match e.kind {
+            EditKind::Text(v) if self.repo.ty(v) == "UMLConstraintView" => {
+                if let Some(m) = self.repo.refd(v, "model").filter(|m| self.repo.alive(*m) && self.repo.str(*m, "specification") != e.text) {
+                    self.change(|a| a.repo.set(m, "specification", json!(e.text)));
+                }
+            }
             EditKind::Text(v) => {
                 if self.repo.alive(v) && self.repo.str(v, "text") != e.text {
                     self.change(|a| a.repo.set(v, "text", json!(e.text)));
                 }
             }
+            EditKind::Name(m) if self.repo.kind_of(m, "UMLInstance") => {
+                // "<<st>> vis name : Class": the class is looked up by name (uml-object.pegjs)
+                if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
+                    let (n, c) = e.text.split_once(':').unwrap_or((&e.text, ""));
+                    let c = c.trim();
+                    let cls = if c.is_empty() { None } else { self.resolve_name(m, c, "UMLClassifier") };
+                    self.change(|a| {
+                        crate::parse::apply_name(&mut a.repo, m, n);
+                        if c.is_empty() {
+                            a.repo.remove(m, "classifier");
+                        } else if let Some(x) = cls {
+                            a.repo.set_ref(m, "classifier", Some(x));
+                        }
+                    });
+                }
+            }
             EditKind::Name(m) => {
-                if self.repo.alive(m) && self.repo.name(m) != e.text {
-                    self.change(|a| a.repo.set(m, "name", json!(e.text)));
+                if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
+                    self.change(|a| crate::parse::apply_name(&mut a.repo, m, &e.text));
                 }
             }
             EditKind::Feature(f) => {
@@ -885,6 +1483,26 @@ impl App {
                     self.change(|a| {
                         if ty == "UMLOperation" {
                             crate::parse::apply_operation(&mut a.repo, f, &e.text);
+                        } else if ty == "UMLSlot" {
+                            // "<<st>> vis name : type = value" (uml-slot.pegjs)
+                            let (head, val) = e.text.split_once('=').unwrap_or((&e.text, ""));
+                            let (n, t) = head.split_once(':').unwrap_or((head, ""));
+                            crate::parse::apply_name(&mut a.repo, f, n);
+                            if t.trim().is_empty() {
+                                a.repo.remove(f, "type");
+                            } else {
+                                a.repo.set(f, "type", json!(t.trim()));
+                            }
+                            a.repo.set(f, "value", json!(val.trim()));
+                        } else if ty == "UMLExtensionPoint" {
+                            // "name: location"
+                            let (n, loc) = e.text.split_once(':').unwrap_or((&e.text, ""));
+                            a.repo.set(f, "name", json!(n.trim()));
+                            a.repo.set(f, "location", json!(loc.trim()));
+                        } else if ty == "UMLReception" {
+                            crate::parse::apply_name(&mut a.repo, f, &e.text);
+                        } else if ty == "UMLTemplateParameter" {
+                            crate::parse::apply_template_parameter(&mut a.repo, f, &e.text);
                         } else {
                             crate::parse::apply_attribute(&mut a.repo, f, &e.text);
                         }
@@ -901,18 +1519,161 @@ impl App {
         let w = ((ed.rect.w * self.zoom) as f32).max(60.0);
         let h = ((ed.rect.h * self.zoom) as f32).max(if ed.multiline { 40.0 } else { 20.0 });
         let mut commit = None;
+        let mut key: Option<ItemKey> = None;
+        let mut related: Option<crate::related::Related> = None;
+        let mut edge_note: Option<Eid> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
             egui::Frame::NONE.fill(Color32::WHITE).stroke(Stroke::new(1.0, c32(render::SELECT_COLOR))).show(ui, |ui| {
                 ui.visuals_mut().override_text_color = Some(Color32::BLACK);
                 ui.visuals_mut().extreme_bg_color = Color32::WHITE;
-                let font = FontId::new((13.0 * self.zoom) as f32, diagram_family(0));
+                // the editor uses the edited view's font size (quickedit-manager.js:365-381)
+                let size = match (&ed.kind, ed.host) {
+                    (EditKind::Text(v), _) => views::view_font(&self.repo, *v).1,
+                    (_, Some(h)) => views::view_font(&self.repo, h).1,
+                    _ => 13.0,
+                };
+                let font = FontId::new((size * self.zoom) as f32, diagram_family(0));
                 let te = if ed.multiline {
                     egui::TextEdit::multiline(&mut ed.text).desired_width(w).desired_rows(((h / 16.0) as usize).max(2))
                 } else {
                     egui::TextEdit::singleline(&mut ed.text).desired_width(w)
                 };
                 let te = te.font(font).frame(egui::Frame::NONE).horizontal_align(if ed.center { egui::Align::Center } else { egui::Align::Min });
-                let r = ui.add(te);
+                // Enter commits a note too; Shift+Enter is the new line (quickedit-manager.js:326-332)
+                let mut plain_enter = false;
+                if ed.multiline {
+                    ui.input_mut(|i| {
+                        i.events.retain(|e| match e {
+                            egui::Event::Key { key: egui::Key::Enter, pressed: true, modifiers, .. } if !modifiers.shift => {
+                                plain_enter = true;
+                                false
+                            }
+                            _ => true,
+                        })
+                    });
+                }
+                // item keys on a class name or a compartment item, taken before the text field sees them
+                if let (Some(_), false) = (ed.host, ed.multiline) {
+                    let item = matches!(ed.kind, EditKind::Feature(_));
+                    let k = ui.input_mut(|i| {
+                        use egui::{Key, Modifiers};
+                        let cs = Modifiers::COMMAND | Modifiers::SHIFT;
+                        if i.consume_key(cs, Key::Enter) {
+                            Some(ItemKey::AddOperation)
+                        } else if i.consume_key(Modifiers::COMMAND, Key::Enter) {
+                            Some(ItemKey::Add)
+                        } else if item && i.consume_key(Modifiers::COMMAND, Key::Delete) {
+                            Some(ItemKey::Delete)
+                        } else if item && i.consume_key(Modifiers::COMMAND, Key::ArrowUp) {
+                            Some(ItemKey::Move(true))
+                        } else if item && i.consume_key(Modifiers::COMMAND, Key::ArrowDown) {
+                            Some(ItemKey::Move(false))
+                        } else if i.consume_key(Modifiers::NONE, Key::ArrowUp) {
+                            Some(ItemKey::Nav(true))
+                        } else if i.consume_key(Modifiers::NONE, Key::ArrowDown) {
+                            Some(ItemKey::Nav(false))
+                        } else {
+                            None
+                        }
+                    });
+                    if k.is_some() {
+                        key = k;
+                    }
+                }
+                // a visibility dropdown left of the field (quickedits/uml.json "uml.visibility")
+                let vis_target = match &ed.kind {
+                    EditKind::Name(m) | EditKind::Feature(m) if crate::meta::order_of(self.repo.ty(*m), "visibility").is_some() => Some(*m),
+                    _ => None,
+                };
+                let mut picked_vis: Option<&'static str> = None;
+                let r = ui
+                    .horizontal(|ui| {
+                        if let Some(m) = vis_target {
+                            let cur = views::vis_symbol(&self.repo.str(m, "visibility"));
+                            ui.menu_button(egui::RichText::new(if cur.is_empty() { "+" } else { cur }).monospace().color(Color32::WHITE), |ui| {
+                                for (sym, v) in [("+", "public"), ("#", "protected"), ("-", "private"), ("~", "package")] {
+                                    if ui.button(format!("{sym}  {v}")).clicked() {
+                                        picked_vis = Some(v);
+                                        ui.close();
+                                    }
+                                }
+                            });
+                        }
+                        ui.add(te)
+                    })
+                    .inner;
+                if let (Some(v), Some(m)) = (picked_vis, vis_target) {
+                    self.change(|a| a.repo.set(m, "visibility", serde_json::json!(v)));
+                    // keep the typed text in step: a leading symbol is replaced by the new one
+                    if let EditKind::Feature(_) = ed.kind {
+                        let (st, rest) = crate::parse::split_stereotype(&ed.text);
+                        let rest = rest.trim_start_matches(['+', '-', '#', '~']).trim_start();
+                        let sym = views::vis_symbol(v);
+                        ed.text = match st {
+                            Some(st) => format!("<<{st}>> {sym}{rest}"),
+                            None => format!("{sym}{rest}"),
+                        };
+                    }
+                    ed.fresh = true;
+                }
+                // an association end: aggregation, navigability and multiplicity dropdowns
+                // (quickedits/uml.json "uml.association-end1/2")
+                let mut picked_end: Option<(&'static str, String)> = None;
+                let mut picked_owner: Option<Option<Eid>> = None;
+                if let EditKind::Name(end) = ed.kind {
+                    if self.repo.ty(end) == "UMLAssociationEnd" || self.repo.ty(end) == "UMLLinkEnd" {
+                        ui.horizontal(|ui| {
+                            let fields: [(&'static str, &str, &[&str]); 3] = [
+                                ("aggregation", "Aggregation Kind", &["none", "shared", "composite"]),
+                                ("navigable", "Navigability", &["unspecified", "navigable", "notNavigable"]),
+                                ("multiplicity", "Multiplicity", &crate::ui::MULTIPLICITIES),
+                            ];
+                            for (field, hint, options) in fields {
+                                let cur = self.repo.str(end, field);
+                                let shown = if cur.is_empty() { "—".to_string() } else { cur.clone() };
+                                ui.menu_button(egui::RichText::new(format!("{shown} ▾")).size(11.0).color(Color32::WHITE), |ui| {
+                                    for o in options {
+                                        if ui.selectable_label(cur == *o, *o).clicked() {
+                                            picked_end = Some((field, o.to_string()));
+                                            ui.close();
+                                        }
+                                    }
+                                })
+                                .response
+                                .on_hover_text(hint);
+                            }
+                            // Select Owner Attribute: an attribute of the classifier at the other end
+                            if self.repo.ty(end) == "UMLAssociationEnd" {
+                                let cur = self.repo.refd(end, "ownerAttribute");
+                                let shown = cur.map(|c| self.repo.name(c)).unwrap_or_else(|| "—".to_string());
+                                ui.menu_button(egui::RichText::new(format!("{shown} ▾")).size(11.0).color(Color32::WHITE), |ui| {
+                                    if ui.selectable_label(cur.is_none(), "(none)").clicked() {
+                                        picked_owner = Some(None);
+                                        ui.close();
+                                    }
+                                    for a in self.owner_attribute_options(end) {
+                                        if ui.selectable_label(cur == Some(a), self.repo.name(a)).clicked() {
+                                            picked_owner = Some(Some(a));
+                                            ui.close();
+                                        }
+                                    }
+                                })
+                                .response
+                                .on_hover_text("Owner Attribute");
+                            }
+                        });
+                    }
+                }
+                if let (Some(owner), EditKind::Name(end)) = (picked_owner, &ed.kind) {
+                    let end = *end;
+                    self.change(|a| a.repo.set_ref(end, "ownerAttribute", owner));
+                    ed.fresh = true;
+                }
+                if let (Some((field, value)), EditKind::Name(end)) = (picked_end.clone(), &ed.kind) {
+                    let end = *end;
+                    self.change(|a| a.repo.set(end, field, serde_json::json!(value)));
+                    ed.fresh = true;
+                }
                 if ed.fresh {
                     r.request_focus();
                     if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), r.id) {
@@ -922,19 +1683,64 @@ impl App {
                     }
                     ed.fresh = false;
                 }
+                // the "add related element" buttons of a box's name edit (quickedits/uml.json)
+                if let (Some(h), EditKind::Name(m)) = (ed.host, &ed.kind) {
+                    let acts = crate::related::actions(self.repo.ty(*m));
+                    if self.repo.refd(h, "model") == Some(*m) && !acts.is_empty() {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.set_max_width(w.max(220.0));
+                            // a class also gets Add Template Parameter (quickedits/uml.json "uml.class")
+                            if self.repo.ty(*m) == "UMLClass" {
+                                let b = ui.add(egui::Button::new(egui::RichText::new("T").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Template Parameter");
+                                if b.is_pointer_button_down_on() {
+                                    key = Some(ItemKey::AddTemplateParameter);
+                                }
+                            }
+                            for a in acts {
+                                let b = ui.add(egui::Button::new(egui::RichText::new(short_label(a.label)).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(a.label);
+                                // taken on press: the text field loses focus (and the edit closes) before a release
+                                if b.is_pointer_button_down_on() {
+                                    related = Some(a);
+                                }
+                            }
+                        });
+                    }
+                }
+                // a line's name edit has Add Note too (quickedits/uml.json, uml-commands.js:684)
+                if let (None, EditKind::Name(m)) = (ed.host, &ed.kind) {
+                    let edge = self.diagram.and_then(|d| self.repo.list(d, "ownedViews").into_iter().find(|v| is_edge(&self.repo, *v) && self.repo.refd(*v, "model") == Some(*m)));
+                    if let Some(e) = edge {
+                        let b = ui.add(egui::Button::new(egui::RichText::new("+ Note").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Note");
+                        if b.is_pointer_button_down_on() {
+                            edge_note = Some(e);
+                        }
+                    }
+                }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if esc {
-                    commit = Some(false);
-                } else if (!ed.multiline && enter) || (ed.multiline && ctrl_enter) {
+                if key.is_some() || related.is_some() || edge_note.is_some() {
                     commit = Some(true);
-                } else if r.lost_focus() {
+                } else if esc {
+                    commit = Some(false);
+                } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
+                    commit = Some(true);
+                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() {
                     commit = Some(true);
                 }
             });
         });
+        let (host, kind) = (ed.host, ed.kind.clone());
         self.editing = Some(ed);
         if let Some(c) = commit {
             self.close_inline(c);
+        }
+        if let (Some(k), Some(h)) = (key, host) {
+            self.item_key(h, kind, k);
+        }
+        if let (Some(a), Some(h)) = (related, host) {
+            self.add_related(h, a);
+        }
+        if let Some(e) = edge_note.filter(|e| self.repo.alive(*e)) {
+            self.add_note_to_edge(e);
         }
     }
 
@@ -968,7 +1774,12 @@ impl App {
     }
 
     fn canvas_menu(&mut self, ui: &mut egui::Ui) {
+        self.last_area = crate::app::Area::Canvas;
         let Some(v) = self.ctx_target.filter(|v| self.repo.alive(*v)) else {
+            if ui.button("Paste").clicked() {
+                self.cmd_paste();
+                ui.close();
+            }
             if ui.button("Select All").clicked() {
                 self.select_all();
                 ui.close();
@@ -980,6 +1791,8 @@ impl App {
             return;
         };
         let m = self.repo.refd(v, "model");
+        self.clipboard_items(ui);
+        ui.separator();
         if ui.button("Edit").clicked() {
             let p = self.ctx_pos;
             self.edit_view(v, Some(p));
@@ -996,18 +1809,16 @@ impl App {
             }
         }
         if is_edge(&self.repo, v) {
-            ui.menu_button("Line Style", |ui| {
-                if ui.button("Rectilinear").clicked() {
-                    self.set_line_style(0);
-                    ui.close();
-                }
-                if ui.button("Oblique").clicked() {
-                    self.set_line_style(1);
-                    ui.close();
-                }
-            });
+            self.line_style_menu(ui);
         }
         ui.menu_button("Format", |ui| {
+            if ui.button("Font...").clicked() {
+                self.open_font_dialog();
+                ui.close();
+            }
+            self.color_menus(ui);
+            self.stereotype_display_menu(ui);
+            ui.separator();
             self.format_toggles(ui);
             ui.separator();
             self.alignment_menu(ui);
@@ -1023,6 +1834,16 @@ impl App {
                 self.select_in_diagram();
                 ui.close();
             }
+            if ui.button("Open Sub-Diagram").clicked() {
+                self.focus = Some(m);
+                self.open_sub_diagram();
+                ui.close();
+            }
+            if ui.button("Tag Editor...").clicked() {
+                self.focus = Some(m);
+                self.open_tag_editor();
+                ui.close();
+            }
         }
         if ui.button("Delete").clicked() {
             self.delete_selection(false);
@@ -1031,6 +1852,21 @@ impl App {
         if m.is_some() && ui.button("Delete from Model").clicked() {
             self.delete_selection(true);
             ui.close();
+        }
+    }
+
+    /// A double-click on empty canvas adds a text "Text", 100 wide, there and edits it (app-context.js:1397-1402).
+    pub fn create_text_at(&mut self, p: P) {
+        let (_, h) = views::default_size("Text");
+        let r = R { x: self.snap_v(p.x).max(0.0), y: self.snap_v(p.y).max(0.0), w: 100.0, h };
+        let t = self.change(|a| {
+            let t = a.create_node("Text", r)?;
+            a.repo.set(t, "text", json!("Text"));
+            Some(t)
+        });
+        if let Some(t) = t {
+            self.select(vec![t]);
+            self.edit_view(t, None);
         }
     }
 
@@ -1049,9 +1885,10 @@ impl App {
         self.select(vec![next]);
     }
 
+    /// Select All: every visible, enabled top-level view (core.js:4180-4196).
     pub fn select_all(&mut self) {
         if let Some(d) = self.diagram {
-            let all = self.repo.list(d, "ownedViews");
+            let all = self.repo.list(d, "ownedViews").into_iter().filter(|v| !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))) && !matches!(self.repo.raw(*v, "enabled"), Some(serde_json::Value::Bool(false)))).collect();
             self.select(all);
         }
     }

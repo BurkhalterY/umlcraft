@@ -42,6 +42,7 @@ returned nothing).
 | Points | text `x:y;x:y;…` | `src/core/graphics.js:840` |
 | Id | base64 of 14 bytes: 2 zero bytes, 8-byte ms timestamp, 2-byte counter, 2-byte random | `src/core/core.js:150` IdGenerator.generate; observed `AAAAAAGhohI4jHit75s=` |
 | New project | Project "Untitled" › UMLModel "Model" › UMLClassDiagram "Main" (defaultDiagram) | `resources/templates/Default.mdj` |
+| Older files | a project with `documentVersion` below 1 (or none) is migrated on load: use case subject views go to the back of their diagram | `src/engine/document-compatibility-resolver.js:25-41` |
 | Unknown element kinds | kept exactly as read and written back unchanged (UMLCraft rule) | — |
 
 ## Where things go
@@ -89,7 +90,19 @@ returned nothing).
 | Zoom | 1.0, from 0.1 to 3, step 0.1 | `src/ui/diagram-editor.js:2396` |
 | Selection colour / handle size | #4f99ff / 8 | `src/core/graphics.js:2723` |
 
+* Word wrap: a view with `wordWrap` on breaks its labels between words to the label width, and its minimum width is the widest single word plus padding (`src/core/core.js:3705-3727, 3769-3790`). UMLCraft applies this to the name and the attribute, operation and literal rows of class-like boxes; notes and text wrap only while their `wordWrap` is on (default on).
+
+* Robustness: a class stereotyped «boundary», «entity» or «control» with Stereotype Display Icon (or Icon with Label) is drawn as the UML robustness icon with its name below; the Robustness tools create such a class with attributes and operations suppressed (`extensions/default/robustness/main.js:17`). UMLCraft draws its own icons in a 50×36 area (estimated).
+
+* Ball and socket: a dependency on an interface shown as a ball (icon display) is drawn as a solid line ending in a half circle around the ball, 5 px outside it, open towards the ball (UMLCraft's estimate of the documented socket notation, docs.staruml.io class-diagram).
+
+* Component and deployment diagrams (UMLCraft's estimates of the standard UML shapes): a component is a box with the component icon (14×16 with two 8×4 tabs) at its top right; an artifact is a box with a page icon, or in icon display (the default, `uml.artifact.stereotypeDisplay`) a 30×40 page with the name under it; a node is a box with a 10 px depth above and to the right; a deployment is a dashed arrow labelled «deploy»; a communication path is drawn and edited like an association. Components and nodes start with attributes and operations suppressed (`extensions/essential/uml/preferences/uml.json`).
+
+* Ownership dot: an association end with an `ownerAttribute` gets a filled dot of radius 3, 6 px from its tip along the line (UML 2.5 notation; size and place estimated).
+
 ## Exporting pictures
+
+* JPEG is the PNG flattened on white; Export All writes `<folder>/<png|jpg|svg>/<filenamify(path)>_<index>.<ext>`, the path joining owner names with "::" and filenamify turning `<>:"/\|?*` and control characters into "!" (`src/engine/default-commands.js:452-535`, `src/engine/diagram-export.js:130-134, 275-298`).
 
 | Rule | Value | Source |
 |---|---|---|
@@ -99,6 +112,47 @@ returned nothing).
 | SVG size and background | grown bounds, no extra, no background | `diagram-export.js:178-189` getSVGImageData |
 | Native side | `toPNG` 0xec2c6e/0x101d688 and `image/png` are Electron API table entries only; no function to follow | native_strings_find ev_b82b90eb… |
 | UMLCraft | draws the SVG off-screen with resvg for PNG export, so scrolled-out parts and the grid do not matter; trial watermarks of the original are not copied | `src/render.rs` to_png, to_svg_sized |
+
+## Element Picker and type names
+
+* A name typed into a `type` or `stereotype` property is looked up among elements of the field's type (UMLClassifier or UMLStereotype): first the owner's namespace, then each enclosing namespace, then the whole project; a match is stored as a reference, otherwise the text (`views/property-editor-view.js:604-622`, `core/repository.js:2353-2361`).
+* The Element Picker ("Select Element") opens with the current value selected and its owners expanded, or "Do not specify" checked; a choice of the wrong type gives "Selected element (X) is not an instance of T" (`dialogs/element-picker-dialog.js:289-346`).
+
+## Layout
+
+| Rule | Value | Source |
+|---|---|---|
+| Menu | Format › Layout › Auto, Top to Bottom, Bottom to Top, Left to Right, Right to Left; Auto is top to bottom (estimated) | `extensions/default/diagram-layout/main.js:30-40` |
+| Undo | the whole layout is one "layout diagram" step | `src/engine/engine.js:1513-1549` |
+| UMLCraft | own layered layout instead of dagre: a line's head goes one rank before its tail; node, edge and rank separations 50, 10 and 50 (estimated); rectilinear lines are left to route themselves; boxes lying inside a package or subject move with it | `src/layout.rs` |
+
+## Diagram Generator
+
+* Tools › Diagram Generator works on the package selected in the Explorer ("To generate … diagram, select a Package." otherwise), adds the diagram in one undo step, lays it out and opens it. Overview: owned elements with compartments suppressed and interfaces as icons; Type Hierarchy: classes, interfaces, enumerations, signals and data types at any depth with only generalizations and realizations, left to right, separations node 10, edge 10, rank 100; Package Structure: nested packages joined by containment lines (`extensions/default/diagram-generator/main.js:58-303`). UMLCraft draws the containment's circle-plus at the parent package, radius 7 (estimated).
+
+## Mermaid import
+
+* Only `classDiagram` code is generated (the original also reads sequence, state, flowchart, ER, requirement and mindmap code, which UMLCraft cannot edit). The container is a new "Package by Mermaid" unless a package is the base; the diagram is "Class Diagram by Mermaid". Members are `Type name`; visibility `+ # - ~`, none is package. `<|--` generalization, `..|>` realization, `()--` lollipop realization, `o` shared, `*` composite, `<`/`>` navigable, other dashed links dependencies. Layout uses `direction` (default TB) with separations 50 (`extensions/default/mermaid/factory/class-factory.js:40-540`, `utils.js:1-21`).
+
+## XMI export
+
+File › Export › XMI Export (v2.1) writes OMG XMI 2.1 (`xmlns:uml="http://schema.omg.org/spec/UML/2.1"`), model elements only. The layout is UMLCraft's own, as StarUML's XMI extension was not read: packages hold `packagedElement`s; a classifier holds `ownedAttribute`, `ownedOperation` (with `ownedParameter`), `ownedLiteral`, `generalization` (`general`) and `interfaceRealization` (`client`, `supplier`, `contract`); associations, dependencies and other relationships go in the nearest package, an association with its two `ownedEnd`s; use cases hold `include` (`addition`) and `extend` (`extendedCase`); multiplicities become `lowerValue`/`upperValue`; documentation becomes an `ownedComment`. Types given as text are left out.
+
+File › Import › XMI Import (v2.1) puts what it reads into a new UMLModel `XMIImported` under the project (https://docs.staruml.io/user-guide/managing-project/). Members without `xmi:type` are known by their tag; a property with an `association` is an association end, not an attribute; a type given by `href` (a primitive library) becomes a text type named after the part after `#`.
+
+## HTML Docs
+
+* File › Export › HTML Docs writes `<folder>/html-docs`: `index.html` (frameset 25%/75%), `contents/navigation.html`, `contents/diagrams.html`, `contents/element_index.html`, `contents/<md5(_id)>.html` per element and `diagrams/<md5(_id)>.svg` per diagram; the diagram page's image map is offset by the SVG's 10 px margin; the navigation tree goes 8 levels deep (`extensions/default/html-export/main.js:159-224`, `templates/navigation.ejs`, `templates/content.ejs:42`). UMLCraft writes its own HTML and style sheet.
+
+## Print to PDF
+
+| Rule | Value | Source |
+|---|---|---|
+| Options and defaults | range all, layout landscape, size A4, show name on; saved to `print.options` on each change | `src/dialogs/print-dialog.js:33-76` |
+| Page layout | one diagram per page, 30 pt margin, scale `min(pageW / bounds.x2, pageH / bounds.y2)` capped at 1 | `src/engine/diagram-export.js:318-362` |
+| Caption | the diagram's path name, Helvetica 10, above the diagram | `diagram-export.js:318-362` |
+| Page sizes | PDFKit's: 4A0, 2A0, A0–A10, B0–B10, C0–C10, RA0–RA4, SRA0–SRA4, Executive, Folio, Legal, Letter, Tabloid | `static/html-contents/print-dialog.html` |
+| UMLCraft | writes the PDF itself, with each diagram as a JPEG at twice the printed size instead of vector shapes | `src/pdf.rs` |
 
 ## Window (dark theme, the default)
 
@@ -114,6 +168,18 @@ returned nothing).
 | UI font | 13px Source Sans Pro (UMLCraft uses an installed Source Sans Pro, else Noto Sans; diagrams use Liberation Sans, metric-compatible with Arial) | live computed style |
 | Shortcuts | Ctrl+N/O/S, Ctrl+Shift+S, Ctrl+Z/Y, Delete, Ctrl+Delete, Ctrl+A; Format toggles Ctrl+Shift+H/V/N/M/J/A/O/T | `resources/default/keymaps/linux.json` |
 
+## HTTP API
+
+* A local server (127.0.0.1, port 58321) starts with the window, not for command-line commands; `settings.json` keys `apiServer` and `apiServerPort` turn it off or move it. `GET /` greets; `POST /generate_diagram {code}`, `/get_all_diagrams_info`, `/get_current_diagram_info` (records `{id, type, name, description}`) and `/get_diagram_image_by_id {diagramId}` (unknown id: 500 "Diagram not found or invalid ID") (`src/main-process/api-server.js:12-154`, `main.js:33-38`). UMLCraft's image answer is `{success, data, mimeType}` (estimated) and its greeting names UMLCraft.
+
+## Keymap
+
+* `keymap.json` in the settings folder maps keystroke descriptors (`cmdctrl-alt-g`: modifiers then the key, case-insensitive, `cmdctrl` = Cmd on macOS and Ctrl elsewhere) to command ids; the user's bindings override the defaults for the same keystroke, and a bad file is logged and ignored (`ui/keymap-manager.js:49-54, 154-292`, `app-context.js:760-764`). UMLCraft's settings folder is `UMLCraft` instead of `StarUML`, and its command ids are the ones the Command Palette lists.
+
+## Snapping
+
+* While a moved or resized coordinate stays in the grid cell it started in, it keeps its original value; once it crosses into another cell it snaps to the nearest grid multiple (`src/ui/diagram-editor.js:1201-1323`). UMLCraft applies this to box moves and resizes, not to bend points.
+
 ## Editing commands
 
 Read from the StarUML source through the feature inventory (`docs/features/`), which quotes these lines.
@@ -123,9 +189,43 @@ Read from the StarUML source through the feature inventory (`docs/features/`), w
 | Ctrl/Cmd + left-drag pans (move cursor) and blocks every tool, so Ctrl+click never selects; middle-drag pans the same way | `src/ui/diagram-editor.js:2178-2193, 2236-2251` |
 | Shift+click toggles a view and never starts a drag; a click without moving on a member of a group keeps only that view | `src/ui/diagram-editor.js:645-660, 901-912` |
 | Right-click on empty canvas deselects everything | `src/ui/diagram-editor.js:701-704` |
+| Rubber band: clamped at x, y ≥ 0; selects visible views whose bounding box overlaps it, a selected view counting 5 px larger; Select All takes the visible, enabled top-level views | `src/ui/diagram-editor.js:747-765`, `src/core/core.js:4162-4196`, `src/core/graphics.js:1011-1018` |
+| Toolbox: a click on the active item locks it (padlock), a click on the locked one unlocks and returns to Select; Esc anywhere and opening or closing a group return to Select; the diagram type's group opens by itself; nothing shows without a diagram | `src/views/toolbox-view.js:245-310, 444-479` |
+| Double-click on empty canvas: a Text "Text", 100 wide, at the click point, with its inline edit open | `src/app-context.js:1397-1402` |
+| Dragging a line's label stores the new centre as alpha/distance from its anchor segment (the inverse of Coord.getPointAwayLine), so it follows the line | `src/ui/diagram-editor.js:2051-2106`, `src/engine/engine.js:754-795` |
 | Tab selects the next top-level view in `ownedViews`, wrapping; none selected → the first; no reverse | `src/ui/diagram-manager.js:726-754` |
 | Shift+arrow nudges by the grid size, or 1 with snap off | `src/ui/diagram-manager.js:761-810` |
 | Format toggles (Show Shadow, Show Visibility/Namespace/Multiplicity/Operation Signature, Suppress Attributes/Operations/Literals): invert the merged value on the selected views that have the flag; a mixed selection gets `true` | `src/engine/default-commands.js:1013-1029`, `extensions/essential/uml/uml-commands.js:271-279, 4596-4651` |
+| Clipboard: JSON text on the system clipboard (UMLCraft's own layout). Views paste as new views of the same models, only if every model still exists, centred on the screen centre and selected; a model pastes as a deep copy with new ids into the selected element, in the field it was copied from | `src/engine/clipboard-manager.js:68-237`, `src/engine/default-commands.js:614-774` |
+| Inline edit keys: Ctrl+Enter adds an attribute (literal on an enumeration) or a sibling item, Ctrl+Shift+Enter an operation, Ctrl+Delete deletes the item, Ctrl+Up/Down reorders, Up/Down move between items; a new item un-suppresses its compartment and is edited at once. In notes Enter commits and Shift+Enter is a new line | `extensions/essential/uml/quickedits/uml.json`, `extensions/essential/uml/uml-commands.js:784-1024`, `src/ui/quickedit-manager.js:326-348` |
+| Name, attribute and operation expressions take a leading `<<stereotype>>` (linked to a UMLStereotype of that name, else a string; none clears it) and a visibility sign; types naming a classifier are linked; operation parameters are updated by position and no parentheses removes them | `extensions/essential/uml/grammars/uml-*.pegjs`, `extensions/essential/uml/uml-commands.js:288-616` |
+| Line editing: dragging an end reconnects it (same rules as creation; refused with the toast "X cannot be connected to Y"), updating source/target or end1/end2.reference; rectilinear segments move across; on release points within 5 px of a neighbour (oblique, curve) and points in a straight run are dropped; bend points clamp at 0 | `src/ui/diagram-editor.js:1742-2044`, `src/engine/engine.js:940-1024`, `extensions/essential/uml/main.js:44-82`, `src/core/graphics.js:737-773` |
+| Hover cursors on the selected line: hand on its ends, move on bend points, ns/ew-resize on rectilinear segments, crosshair on other segments | `src/ui/diagram-editor.js:344-411` |
+| Explorer drop: a hidden view of the model is shown again; otherwise a view at the drop point, with showNamespace when the model is owned elsewhere than the diagram, and lines for its relationships to every view of the other ends. A dropped relationship links the existing end views, creating missing ends at the drop point (second at y + 100), or alerts "Relationship View is already existed in this Diagram." | `src/app-context.js:1145-1186`, `src/engine/factory.js:871-1180` |
+| Containment: while moving boxes with containerChangeable that share a container, the package or subject under the cursor that can hold them is outlined; on release they get it as containerView (listed in its containedViews), come to the front, and their models move into the package's model (or to the diagram's owner when dropped on empty canvas). Never into the box itself or something it contains. Contained views follow their container, recursively | `src/ui/diagram-editor.js:429-493, 1640-1657`, `src/core/core.js:1961-1986`, `src/engine/engine.js:633-654, 1036-1185`, `extensions/essential/uml/main.js:24-41` |
+| Colours: Fill Color, Line Color and the Styles swatches start from the colour all selected views share (transparent swatch when mixed) and set it on every selected view that has the field, written `#rrggbb`, or `#rrggbbaa` when the Color dialog's opacity is below 100%. The Color dialog has a picker with opacity, a hex field, a 16-column preset palette (UMLCraft's colours are an estimate) and a "Transparent" swatch, rgba(255,255,255,0); OK applies, Cancel leaves the views. Colours are read as `#rgb`, `#rrggbb`, `#rrggbbaa`, `rgb()` or `rgba()`. The Styles section comes before Properties and shows only with a view selection | `src/engine/default-commands.js:966-991`, `src/dialogs/dialog-manager.js:484-527`, `src/views/style-editor-view.js:229-278, 549-592, 666-668` |
+| Font: Format > Font and the Styles face and size fields start from the merged values (blank when mixed) and set face and size on the selected views, keeping each view's style digit. Labels inside a view take its face and size (as parentStyle labels do), rows and labels are as tall as the size, and widths scale with it. Faces are stored but drawn with the Arial-compatible font | `src/engine/default-commands.js:940-964`, `src/core/core.js:1659-1666`, `src/views/style-editor-view.js:180-227` |
+| Model Explorer: the header settings button opens Sort By Added / Sort By Name, Show Stereotype Text (on by default) and Expand All / Collapse All; quick search lists up to 99 names containing the text with " — parent", and picking one reveals it in the tree | `src/views/model-explorer-view.js:455-693` |
+| Preferences are a JSON file in the per-user configuration folder (`~/.config/UMLCraft`, `~/Library/Application Support/UMLCraft`, `%APPDATA%\UMLCraft`), with the original's key names (`diagramEditor.showGrid`, `explorer.sortBy`, `_viewState.<panel>`, `_workingDiagrams.<full path>`); screenshots ignore it | `src/core/preference-manager.js`, `src/ui/diagram-manager.js:152-196` |
+| New views take the view.* preferences (font face and size, fill, line and font colour, line style, shadow), then the uml.<kind>.* ones (fill colour, stereotype display, suppressed compartments); a value equal to the file default is not written | `resources/default/preferences/default.json`, `extensions/essential/uml/preferences/uml.json` |
+| Opening a file opens every default diagram (the first one current), then the diagrams remembered for that file | `src/app-context.js:983-999` |
+| Tag Editor: the stereotype's attributes (inherited ones too) come first, sorted by name, as slots; then the other tags by name. A tag stores only its kind's fields: checked (boolean), number, reference, value + options (enum), value (string). A slot's kind and default come from the attribute's type | `src/dialogs/tag-editor-dialog.js:56-153`, `src/dialogs/tag-value-editor-dialog.js:186-227` |
+| Command Palette lists named commands matched by a case-insensitive substring of id or name and runs the pick after the palette closes; Quick Find lists up to 99 models by name, each followed by its views per diagram, and jumps to the pick | `src/ui/command-palette.js:46-137`, `src/ui/quick-find.js:46-160` |
+| Validation runs after open and save while validation.validateModel is on; UMLCraft checks UML001-UML004 and UML006-UML057 (rules.js), the state machine and activity rules on elements read from StarUML files (their field names are estimated); results go to the Validation Results panel and turn the status-bar mark red | `extensions/essential/uml/rules.js:27-775`, `src/ui/validation-panel.js:43-142` |
+| Add related element: the new box goes 70 px below (sub), 100 px above (super) or 70 px to the right (associated; actors to the left), or 10 px beyond the last box already joined that way on that side; coordinates ≥ 0; one undo step, then the new box's name edit opens | `src/ui/quickedit-manager.js:894-1036`, `extensions/essential/uml/uml-commands.js:1040-2104` |
+| Panel splitters: dragging a panel below 10 px hides it (sidebar, navigator, panels under the diagram); the Toolbox and Editors stop at 60 px and leave 40 px to the view above them; a hidden sidebar or navigator keeps a grab handle at the window edge; sizes are kept as `_viewState.<panel>.size` | `src/utils/resizer.js:238-258, 303-353, 373-386`, `src/views/sidebar-view.js:18, 69-75`, `src/static/html-contents/main-view.html:12-60` |
+| Containment: a view-only line (UMLContainmentView, no model) from the contained element (tail) to its package (head, drawn with ⊕); creating it moves the element into the package's ownedElements, and reconnecting moves it again. Only a package, model or subsystem can be the head, and never something inside the tail | `https://docs.staruml.io/working-with-uml-diagrams/package-diagram/`, `extensions/essential/uml/uml-commands.js:1503-1587` |
+| Association Class tool: between two classifiers, an Association plus a Class named "AssociationClass" placed 30 px below the middle, linked by a dashed UMLAssociationClassLink (`classSide`, `associationSide`; owned by the class and these field names estimated) whose view goes from the class box to the middle of the association line; from a class to an association, only the link. Link Object is the same for objects: a Link, an Object "LinkObject" and a UMLLinkObjectLink (`objectSide`, `linkSide`; estimated) | `extensions/essential/uml/uml-factory.js:631, 873` |
+| Template Binding: a dashed arrow from the bound classifier to its template, labelled «bind» (UMLTemplateBinding, a directed relationship with `arguments`; the keyword and field name are estimated) | `extensions/essential/uml/toolbox/uml.json` |
+| Receptions: a classifier view's Receptions compartment comes after Operations and is suppressed by default (`suppressReceptions` true); each row reads «signal» (or the reception's stereotype), visibility and name (row text estimated) | `src/core/core.js` UMLClassifierView defaults, `extensions/essential/uml/keymaps/uml.json` (Ctrl+Shift+E) |
+| Free Line: a FreelineEdgeView with points only (no head or tail), created from press to release (a click gives a 100 px line, estimated), oblique by default; its ends only move; `lineMode` 0 solid / 1 dotted (the [3] dash) / 2 dashed (8 on, 4 off, estimated) and `tailEndStyle` / `headEndStyle` 0 flat / 1 stick arrow / 2 solid arrow (numeric values estimated) | `src/ui/diagram-editor.js:1795-1797`, `src/views/style-editor-view.js:296-319` |
+| Constraints: Add Constraint creates a UMLConstraint owned by the element and a 50×20 UMLConstraintView to the left of the box (30 px gap, estimated) joined by a UMLConstraintLinkView (no model) from the constraint; the view shows `{specification}` and grows to fit it; dropping a constraint from the Explorer links it to every box of its owner on the diagram. The view types' base classes are estimated | `uml-commands.js:669, 727`, `src/engine/factory.js:899-918` |
+| Extension points: listed inside the use case ellipse under the name, after a chord, one row each as "name: location" (or the name alone); the ellipse grows to √2 × the text block; Ctrl+Enter on a use case's name adds one. Layout and row text estimated | `extensions/essential/uml/quickedits/uml.json` |
+| Objects: a UMLObject (an instance: `classifier`, `slots`) is drawn as a box whose name reads "name : Class", underlined, over a slot compartment; a UMLSlot reads "name: type = value"; a UMLLink joins two objects with UMLLinkEnd ends like an association (Directed Link makes end2 navigable). Field names and row texts estimated | `uml/grammars/uml-object.pegjs`, `uml-slot.pegjs`, `extensions/essential/uml/toolbox/uml.json` |
+| A component or artifact box (and their instances) is at least its name's width plus 26 px on each side, so the name stays clear of the icon at the top right (estimated) | — |
+| Information flows: a UMLInformationItem is a classifier box with the keyword «information»; a UMLInformationFlow (a directed relationship with `conveyed`) is a dashed arrow labelled «flow». Keywords and field names estimated | `extensions/essential/uml/toolbox/uml.json` |
+| Profiles: a profile diagram made outside a UMLProfile gets a new profile "Profile" to hold it; a UMLMetaClass is a box with «metaclass» and its name; a UMLExtension (stereotype → metaclass, a directed relationship) is a solid line with a filled triangle at the metaclass. Type and field names estimated | `uml-factory.js:184`, `uml-commands.js:4069-4127` |
+| Undo and redo keep at most 100 operations, the oldest being dropped; a new change clears redo; opening a project or New clears both | `src/core/repository.js:37, 54-80` |
 | Alignment and sizing act on selected node views only; lines and labels are skipped; each command is one undo step | `extensions/default/alignment/main.js:26-34, 370-376` |
 | Align Right/Bottom: right = left + width − 1, new left = max right − width + 1, so right edges meet (UMLCraft: right = left + width, same edge) | `extensions/default/alignment/main.js:96-115` |
 | Align Center/Middle: centre on the midpoint of the selection's overall extent | `extensions/default/alignment/main.js:117-142` |
@@ -147,3 +247,5 @@ Read from the StarUML source through the feature inventory (`docs/features/`), w
 * The menu bar is drawn inside the window (22 px) instead of by the system, as egui apps do.
 * Only Class and Use Case diagrams have a toolbox; other diagram kinds are drawn as plain boxes and lines (estimated look).
 * Rectilinear routing is a simple elbow (estimated); the original's router was not read.
+* Template parameters are drawn in a dashed box whose right and top edges reach 10 px past the class's top-right corner (estimated; `views.rs` TEMPLATE_OUT); their text is `«stereotype» name: type = default`.
+* Line styles 2 (rounded rectilinear) and 3 (curve) are drawn from the points: rounded corners of radius 10, and quadratic curves through the segment midpoints that bend towards each point (estimated, `views.rs` drawn_points).

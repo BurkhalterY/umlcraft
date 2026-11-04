@@ -7,10 +7,9 @@ use std::collections::HashMap;
 pub const SHADOW_OFFSET: f64 = 7.0; // elements.js:57
 pub const SHADOW_ALPHA: f64 = 0.2; // elements.js:58
 pub const SHADOW_COLOR: Rgba = Rgba(0xC0, 0xC0, 0xC0, 255);
-pub const GRID_SIZE: f64 = 8.0; // diagramEditor.gridSize, default.json:117
-pub const GRID_STEP: f64 = 16.0; // grid lines every 2 x grid size (screenshot)
-pub const GRID_COLOR_HEX: &str = "#e0e0e0"; // default.json:141
-pub const GRID_COLOR: Rgba = Rgba(0xe0, 0xe0, 0xe0, 255); // = GRID_COLOR_HEX
+// grid size 8 and colour #e0e0e0 are the defaults of diagramEditor.gridSize / gridColor (default.json:117-141),
+// read through the preferences (prefs.rs); lines are drawn every 2 x grid size (screenshot)
+pub const GRID_COLOR: Rgba = Rgba(0xe0, 0xe0, 0xe0, 255);
 pub const SELECT_COLOR_HEX: &str = "#4f99ff"; // graphics.js:2723
 pub const SELECT_COLOR: Rgba = Rgba(0x4f, 0x99, 0xff, 255); // = SELECT_COLOR_HEX
 pub const HANDLE_SIZE: f64 = 8.0;
@@ -24,11 +23,26 @@ pub struct Rgba(pub u8, pub u8, pub u8, pub u8);
 pub const BLACK: Rgba = Rgba(0, 0, 0, 255);
 pub const WHITE: Rgba = Rgba(255, 255, 255, 255);
 
+/// A colour as StarUML writes it: `#rrggbb`, `#rrggbbaa` (the Color dialog's opacity), `#rgb`, or
+/// CSS `rgb(r, g, b)` / `rgba(r, g, b, a)` with `a` from 0 to 1.
 pub fn parse_color(s: &str, def: Rgba) -> Rgba {
-    let h = s.trim_start_matches('#');
-    if h.len() == 6 {
-        if let Ok(n) = u32::from_str_radix(h, 16) {
-            return Rgba((n >> 16) as u8, (n >> 8) as u8, n as u8, 255);
+    let t = s.trim();
+    if let Some(h) = t.strip_prefix('#') {
+        let n = |i: usize, w: usize| h.get(i..i + w).and_then(|x| u8::from_str_radix(x, 16).ok());
+        return match h.len() {
+            6 => (|| Some(Rgba(n(0, 2)?, n(2, 2)?, n(4, 2)?, 255)))(),
+            8 => (|| Some(Rgba(n(0, 2)?, n(2, 2)?, n(4, 2)?, n(6, 2)?)))(),
+            3 => (|| Some(Rgba(n(0, 1)? * 17, n(1, 1)? * 17, n(2, 1)? * 17, 255)))(),
+            _ => None,
+        }
+        .unwrap_or(def);
+    }
+    let low = t.to_ascii_lowercase();
+    if let Some(args) = low.strip_prefix("rgba(").or_else(|| low.strip_prefix("rgb(")).and_then(|x| x.strip_suffix(')')) {
+        let v: Vec<f64> = args.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+        if v.len() == 3 || v.len() == 4 {
+            let c = |x: f64| x.round().clamp(0.0, 255.0) as u8;
+            return Rgba(c(v[0]), c(v[1]), c(v[2]), v.get(3).map(|a| c(a * 255.0)).unwrap_or(255));
         }
     }
     def
@@ -73,7 +87,17 @@ fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
     let font = r.str(lv, "font");
     let b = R { x: r.f(lv, "left"), y: r.f(lv, "top"), w: r.f(lv, "width"), h: r.f(lv, "height").max(13.0) };
     let align = r.val(lv, "horizontalAlignment").and_then(|v| v.as_i64()).unwrap_or(2);
-    c.text(&t, b, align, font_style(&font), font_size(&font), fc, r.bool(lv, "underline"));
+    let (style, size) = (font_style(&font), font_size(&font));
+    if r.bool(lv, "wordWrap") {
+        // one line per row of the label, broken where the layout broke it
+        let face = font.split(';').next().filter(|f| !f.is_empty()).unwrap_or("Arial").to_string();
+        let lines = views::wrap_text(&views::Scaled { ms: &*c, face, size }, &t, b.w, style);
+        for (i, l) in lines.iter().enumerate() {
+            c.text(l, R { y: b.y + i as f64 * size, h: size, ..b }, align, style, size, fc, r.bool(lv, "underline"));
+        }
+        return;
+    }
+    c.text(&t, b, align, style, size, fc, r.bool(lv, "underline"));
 }
 
 fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid) {
@@ -100,34 +124,34 @@ fn shadow_ellipse(c: &mut dyn Canvas, r: &Repo, v: Eid, ctr: P, rx: f64, ry: f64
 }
 
 pub fn wrap_lines(c: &dyn Measure, text: &str, width: f64) -> Vec<String> {
-    let mut out = vec![];
-    for para in text.split('\n') {
-        let mut line = String::new();
-        for word in para.split(' ') {
-            let test = if line.is_empty() { word.to_string() } else { format!("{line} {word}") };
-            if c.width(&test, 0) > width && !line.is_empty() {
-                out.push(std::mem::take(&mut line));
-                line = word.to_string();
-            } else {
-                line = test;
-            }
-        }
-        out.push(line);
-    }
-    out
+    views::wrap_text(c, text, width, 0)
 }
 
-fn draw_wrapped(c: &mut dyn Canvas, text: &str, b: R, fc: Rgba) {
-    let lh = (13.0f64 * 1.15).round();
-    let lines = wrap_lines(c, text, b.w);
-    let mut y = b.y;
+/// A note or text in the view's font size, word-wrapped unless its wordWrap is off.
+fn draw_wrapped(c: &mut dyn Canvas, text: &str, b: R, fc: Rgba, size: f64, wrap: bool, align: (i64, i64), overflow: f64) {
+    let lh = (size * 1.15).round();
+    let scaled = views::Scaled { ms: &*c, face: "Arial".into(), size };
+    let lines = wrap_lines(&scaled, text, if wrap { b.w } else { f64::INFINITY });
+    // horzAlign 0 left, 2 centre, 1 right; vertAlign 3 top, 5 middle, 4 bottom (style-editor-view.js:477-483)
+    let total = lines.len() as f64 * lh;
+    let mut y = match align.1 {
+        5 => b.y + ((b.h - total) / 2.0).max(0.0),
+        4 => b.y + (b.h - total).max(0.0),
+        _ => b.y,
+    };
     for l in lines {
-        if y + lh > b.y + b.h + 1.0 {
+        if y + lh > b.y + b.h + overflow + 1.0 {
             break;
         }
-        c.text(&l, R { x: b.x, y, w: b.w, h: lh }, 0, 0, 13.0, fc, false);
+        c.text(&l, R { x: b.x, y, w: b.w, h: lh }, align.0, 0, size, fc, false);
         y += lh;
     }
+}
+
+/// A text view's horizontal and vertical alignment.
+fn text_align(r: &Repo, v: Eid) -> (i64, i64) {
+    let g = |k: &str, d: i64| r.val(v, k).and_then(|x| x.as_i64()).unwrap_or(d);
+    (g("horzAlign", 0), g("vertAlign", 3))
 }
 
 fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
@@ -160,11 +184,62 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             draw_name(c, r, v);
             return;
         }
+        "artifact" => {
+            // a page with a folded corner above the name
+            let ih = b.h - views::NAME_MIN_H;
+            let pw = (ih * views::ARTIFACT_ICON_W / views::ARTIFACT_ICON_H).min(b.w);
+            let (px, py, f) = (b.x + (b.w - pw) / 2.0, b.y, pw * 0.3);
+            let page = [P { x: px, y: py }, P { x: px + pw - f, y: py }, P { x: px + pw, y: py + f }, P { x: px + pw, y: py + ih }, P { x: px, y: py + ih }];
+            if r.bool(v, "showShadow") {
+                let s = Rgba(SHADOW_COLOR.0, SHADOW_COLOR.1, SHADOW_COLOR.2, (255.0 * SHADOW_ALPHA) as u8);
+                let sp: Vec<P> = page.iter().map(|p| P { x: p.x + SHADOW_OFFSET, y: p.y + SHADOW_OFFSET }).collect();
+                c.polygon(&sp, Some(s), None);
+            }
+            c.polygon(&page, Some(fill), Some(line));
+            c.polyline(&[P { x: px + pw - f, y: py }, P { x: px + pw - f, y: py + f }, P { x: px + pw, y: py + f }], line, false);
+            draw_name(c, r, v);
+            return;
+        }
+        "boundary" | "entity" | "control" => {
+            // the UML robustness icons above the name (estimated proportions)
+            let ih = b.h - views::NAME_MIN_H;
+            let rr = (ih / 2.0 - 1.0).min(b.w / 2.0 - 1.0).max(4.0);
+            let ctr = P { x: b.x + b.w / 2.0 + if info.map(|i| i.shape) == Some("boundary") { rr * 0.35 } else { 0.0 }, y: b.y + ih / 2.0 };
+            shadow_ellipse(c, r, v, ctr, rr, rr);
+            c.ellipse(ctr, rr, rr, Some(fill), Some(line));
+            match info.map(|i| i.shape).unwrap_or("") {
+                "boundary" => {
+                    let x0 = ctr.x - rr * 1.7;
+                    c.polyline(&[P { x: x0, y: ctr.y - rr }, P { x: x0, y: ctr.y + rr }], line, false);
+                    c.polyline(&[P { x: x0, y: ctr.y }, P { x: ctr.x - rr, y: ctr.y }], line, false);
+                }
+                "entity" => c.polyline(&[P { x: ctr.x - rr, y: ctr.y + rr }, P { x: ctr.x + rr, y: ctr.y + rr }], line, false),
+                _ => {
+                    let (tx, ty) = (ctr.x, ctr.y - rr);
+                    let a = rr * 0.35;
+                    c.polyline(&[P { x: tx + a, y: ty - a }, P { x: tx, y: ty }, P { x: tx + a, y: ty + a }], line, false);
+                }
+            }
+            draw_name(c, r, v);
+            return;
+        }
         "usecase" => {
             let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
             shadow_ellipse(c, r, v, ctr, b.w / 2.0, b.h / 2.0);
             c.ellipse(ctr, b.w / 2.0, b.h / 2.0, Some(fill), Some(line));
             draw_name(c, r, v);
+            // extension points: a chord under the name, then one row each
+            if let Some(i) = info {
+                let (rx, ry) = (b.w / 2.0, b.h / 2.0);
+                for comp in &i.compartments {
+                    let k = ((comp.y - ctr.y) / ry).clamp(-1.0, 1.0);
+                    let dx = rx * (1.0 - k * k).sqrt();
+                    c.polyline(&[P { x: ctr.x - dx, y: comp.y }, P { x: ctr.x + dx, y: comp.y }], line, false);
+                    for row in &comp.rows {
+                        draw_label(c, r, row.iv, fc);
+                    }
+                }
+            }
             return;
         }
         "package" => {
@@ -192,16 +267,73 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         }
         c.polygon(&pts, Some(fill), Some(line));
         c.polyline(&[P { x: b.x + b.w - f, y: b.y }, P { x: b.x + b.w - f, y: b.y + f }, P { x: b.x + b.w, y: b.y + f }], line, false);
-        draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc);
+        draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 0.0);
         return;
     }
-    if ty == "UMLTextView" || ty == "UMLCustomTextView" || ty == "UMLTextBoxView" {
-        draw_wrapped(c, &r.str(v, "text"), R { x: b.x, y: b.y, w: b.w.max(10.0), h: b.h.max(15.0) + 100.0 }, fc);
+    if ty == "UMLTextBoxView" {
+        // a text with a border and a fill
+        shadow_rect(c, r, v, b);
+        c.rect(b, Some(fill), Some(line));
+        draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: (b.w - 10.0).max(10.0), h: (b.h - 10.0).max(10.0) }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 0.0);
+        return;
+    }
+    if ty == "UMLTextView" || ty == "UMLCustomTextView" || ty == "UMLConstraintView" {
+        draw_wrapped(c, &r.str(v, "text"), R { x: b.x, y: b.y, w: b.w.max(10.0), h: b.h.max(15.0) }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 100.0);
         return;
     }
     // a box: classifier, subject, or any kind UMLCraft does not draw itself
     shadow_rect(c, r, v, b);
+    if ty == "UMLNodeView" || ty == "UMLNodeInstanceView" {
+        // a node is a box with depth: top and right faces behind the front one (estimated depth)
+        let d = NODE_DEPTH;
+        let top = [P { x: b.x, y: b.y }, P { x: b.x + d, y: b.y - d }, P { x: b.x + b.w + d, y: b.y - d }, P { x: b.x + b.w, y: b.y }];
+        let right = [P { x: b.x + b.w, y: b.y }, P { x: b.x + b.w + d, y: b.y - d }, P { x: b.x + b.w + d, y: b.y + b.h - d }, P { x: b.x + b.w, y: b.y + b.h }];
+        c.polygon(&top, Some(fill), Some(line));
+        c.polygon(&right, Some(fill), Some(line));
+    }
     c.rect(b, Some(fill), Some(line));
+    if ty == "UMLComponentView" || ty == "UMLComponentInstanceView" {
+        // the component icon at the top right: a box with two tabs on its left side
+        let (ix, iy) = (b.x + b.w - 22.0, b.y + 6.0);
+        c.rect(R { x: ix, y: iy, w: 14.0, h: 16.0 }, Some(fill), Some(line));
+        c.rect(R { x: ix - 4.0, y: iy + 3.0, w: 8.0, h: 4.0 }, Some(fill), Some(line));
+        c.rect(R { x: ix - 4.0, y: iy + 9.0, w: 8.0, h: 4.0 }, Some(fill), Some(line));
+    }
+    // stereotype display Decoration (with or without the label): a small icon at the top right, for
+    // the stereotypes UMLCraft has icons for (interfaces and the robustness stereotypes)
+    let display = r.str(v, "stereotypeDisplay");
+    if display == "decoration" || display == "decoration-label" {
+        if let Some(m) = r.refd(v, "model") {
+            let st = views::type_name(r, m, "stereotype").to_lowercase();
+            let c0 = P { x: b.x + b.w - 14.0, y: b.y + 12.0 };
+            let rr = 5.0;
+            let kind = if r.ty(m) == "UMLInterface" { "interface" } else { st.as_str() };
+            match kind {
+                "interface" => c.ellipse(c0, rr, rr, Some(fill), Some(line)),
+                "boundary" => {
+                    c.ellipse(P { x: c0.x + 2.0, y: c0.y }, rr, rr, Some(fill), Some(line));
+                    c.polyline(&[P { x: c0.x - 6.0, y: c0.y - rr }, P { x: c0.x - 6.0, y: c0.y + rr }], line, false);
+                    c.polyline(&[P { x: c0.x - 6.0, y: c0.y }, P { x: c0.x - 3.0, y: c0.y }], line, false);
+                }
+                "entity" => {
+                    c.ellipse(c0, rr, rr, Some(fill), Some(line));
+                    c.polyline(&[P { x: c0.x - rr, y: c0.y + rr }, P { x: c0.x + rr, y: c0.y + rr }], line, false);
+                }
+                "control" => {
+                    c.ellipse(c0, rr, rr, Some(fill), Some(line));
+                    c.polyline(&[P { x: c0.x + 2.0, y: c0.y - rr - 2.0 }, P { x: c0.x, y: c0.y - rr }, P { x: c0.x + 2.0, y: c0.y - rr + 2.0 }], line, false);
+                }
+                _ => {}
+            }
+        }
+    }
+    if ty == "UMLArtifactView" || ty == "UMLArtifactInstanceView" {
+        // the artifact icon at the top right: a page with a folded corner
+        let (ix, iy, f) = (b.x + b.w - 20.0, b.y + 6.0, 4.0);
+        let page = [P { x: ix, y: iy }, P { x: ix + 12.0 - f, y: iy }, P { x: ix + 12.0, y: iy + f }, P { x: ix + 12.0, y: iy + 15.0 }, P { x: ix, y: iy + 15.0 }];
+        c.polygon(&page, Some(fill), Some(line));
+        c.polyline(&[P { x: ix + 12.0 - f, y: iy }, P { x: ix + 12.0 - f, y: iy + f }, P { x: ix + 12.0, y: iy + f }], line, false);
+    }
     if let Some(i) = info {
         for comp in &i.compartments {
             c.polyline(&[P { x: b.x, y: comp.y }, P { x: b.x + b.w, y: comp.y }], line, false);
@@ -214,6 +346,16 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         if i.is_active {
             c.polyline(&[P { x: b.x + 3.0, y: b.y }, P { x: b.x + 3.0, y: b.y + b.h }], line, false);
             c.polyline(&[P { x: b.x + b.w - 3.0, y: b.y }, P { x: b.x + b.w - 3.0, y: b.y + b.h }], line, false);
+        }
+    }
+    // template parameters: a dashed box over the top-right corner
+    if let (Some(i), Some(tc)) = (info.filter(|i| i.templ.is_some()), r.refd(v, "templateParameterCompartment")) {
+        let t = node_rect(r, tc);
+        let pts = [P { x: t.x, y: t.y }, P { x: t.x + t.w, y: t.y }, P { x: t.x + t.w, y: t.y + t.h }, P { x: t.x, y: t.y + t.h }, P { x: t.x, y: t.y }];
+        c.polygon(&pts[..4], Some(fill), None);
+        c.polyline(&pts, line, true);
+        for row in &i.templ.as_ref().unwrap().rows {
+            draw_label(c, r, row.iv, fc);
         }
     }
     if r.has(v, "nameCompartment") {
@@ -233,7 +375,19 @@ pub enum End {
     ArrowDiamond,
     ArrowFilledDiamond,
     Cross,
+    /// A circle with a plus at the container's end of a containment line (radius estimated).
+    CirclePlus,
+    /// A filled arrow head, a free line's "Solid Arrow" end.
+    SolidArrow,
+    /// A filled triangle, at the metaclass end of an extension.
+    FilledTriangle,
 }
+
+const CIRCLE_PLUS_R: f64 = 7.0;
+/// The depth of a node's box (estimated).
+const NODE_DEPTH: f64 = 10.0;
+/// The space between an interface ball and the socket around it (estimated).
+const SOCKET_GAP: f64 = 5.0;
 
 fn end_shape(c: &mut dyn Canvas, p0: P, p1: P, end: Option<End>, line: Rgba) {
     let Some(end) = end else { return };
@@ -245,7 +399,9 @@ fn end_shape(c: &mut dyn Canvas, p0: P, p1: P, end: Option<End>, line: Rgba) {
     let (t1, t2) = (at(TRIANGLE_LENGTH, th - half), at(TRIANGLE_LENGTH, th + half));
     match end {
         End::Arrow => c.polyline(&[a1, p0, a2], line, false),
+        End::SolidArrow => c.polygon(&[a1, p0, a2], Some(line), Some(line)),
         End::Triangle => c.polygon(&[t1, p0, t2], Some(WHITE), Some(line)),
+        End::FilledTriangle => c.polygon(&[t1, p0, t2], Some(line), Some(line)),
         End::Diamond => c.polygon(&[a1, p0, a2, tip3], Some(WHITE), Some(line)),
         End::FilledDiamond => c.polygon(&[a1, p0, a2, tip3], Some(line), Some(line)),
         End::ArrowDiamond | End::ArrowFilledDiamond => {
@@ -254,6 +410,12 @@ fn end_shape(c: &mut dyn Canvas, p0: P, p1: P, end: Option<End>, line: Rgba) {
             let b1 = P { x: tip3.x + ARROW_LENGTH * (th - half).cos(), y: tip3.y + ARROW_LENGTH * (th - half).sin() };
             let b2 = P { x: tip3.x + ARROW_LENGTH * (th + half).cos(), y: tip3.y + ARROW_LENGTH * (th + half).sin() };
             c.polyline(&[b1, tip3, b2], line, false);
+        }
+        End::CirclePlus => {
+            let m = at(CIRCLE_PLUS_R, th);
+            c.ellipse(m, CIRCLE_PLUS_R, CIRCLE_PLUS_R, Some(WHITE), Some(line));
+            c.polyline(&[P { x: m.x - CIRCLE_PLUS_R, y: m.y }, P { x: m.x + CIRCLE_PLUS_R, y: m.y }], line, false);
+            c.polyline(&[P { x: m.x, y: m.y - CIRCLE_PLUS_R }, P { x: m.x, y: m.y + CIRCLE_PLUS_R }], line, false);
         }
         End::Cross => {
             let m = at(7.0, th);
@@ -280,22 +442,83 @@ fn assoc_end(r: &Repo, end: Option<Eid>) -> Option<End> {
     }
 }
 
+/// The length of a dash and of the gap after it, for a free line's "Dashed" mode (estimated).
+const LONG_DASH: (f64, f64) = (8.0, 4.0);
+
+/// Draw a polyline as dashes of `on` units with `off` gaps.
+fn dashes(c: &mut dyn Canvas, pts: &[P], color: Rgba, on: f64, off: f64) {
+    let (mut in_dash, mut left) = (true, on);
+    let mut cur = vec![pts[0]];
+    for w in pts.windows(2) {
+        let (mut a, b) = (w[0], w[1]);
+        let mut seg = ((b.x - a.x).powi(2) + (b.y - a.y).powi(2)).sqrt();
+        while seg > 0.0 {
+            let step = left.min(seg);
+            let t = step / seg;
+            let q = P { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+            if in_dash {
+                cur.push(q);
+            }
+            seg -= step;
+            left -= step;
+            a = q;
+            if left <= 0.0 {
+                if in_dash && cur.len() > 1 {
+                    c.polyline(&cur, color, false);
+                }
+                in_dash = !in_dash;
+                left = if in_dash { on } else { off };
+                cur = vec![a];
+            }
+        }
+    }
+    if in_dash && cur.len() > 1 {
+        c.polyline(&cur, color, false);
+    }
+}
+
+/// A free line: its points with the chosen pattern and end shapes (style-editor-view.js:296-319).
+fn draw_freeline(c: &mut dyn Canvas, r: &Repo, e: Eid, pts: &[P]) {
+    let line = color(r, e, "lineColor", BLACK);
+    let style = r.val(e, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(1);
+    let drawn = views::drawn_points(pts, style);
+    match r.val(e, "lineMode").and_then(|v| v.as_i64()).unwrap_or(0) {
+        1 => c.polyline(&drawn, line, true),
+        2 => dashes(c, &drawn, line, LONG_DASH.0, LONG_DASH.1),
+        _ => c.polyline(&drawn, line, false),
+    }
+    let end = |f: &str| match r.val(e, f).and_then(|v| v.as_i64()).unwrap_or(0) {
+        1 => Some(End::Arrow),
+        2 => Some(End::SolidArrow),
+        _ => None,
+    };
+    let n = pts.len();
+    end_shape(c, pts[n - 1], pts[n - 2], end("headEndStyle"), line);
+    end_shape(c, pts[0], pts[1], end("tailEndStyle"), line);
+}
+
 fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     let pts = points_of(r, e);
     if pts.len() < 2 {
         return;
     }
+    if views::is_freeline(r, e) {
+        return draw_freeline(c, r, e, &pts);
+    }
     let line = color(r, e, "lineColor", BLACK);
     let ty = r.ty(e).to_string();
     let mut dashed = matches!(
         ty.as_str(),
-        "UMLDependencyView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLIncludeView" | "UMLExtendView" | "UMLNoteLinkView" | "UMLComponentRealizationView" | "UMLDeploymentView"
+        "UMLDependencyView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLIncludeView" | "UMLExtendView" | "UMLNoteLinkView" | "UMLComponentRealizationView" | "UMLDeploymentView" | "UMLAssociationClassLinkView" | "UMLTemplateBindingView" | "UMLConstraintLinkView" | "UMLInformationFlowView" | "UMLLinkObjectLinkView"
     );
     let (mut head, mut tail) = (None, None);
     match ty.as_str() {
-        "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" => head = Some(End::Triangle),
-        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" => head = Some(End::Arrow),
-        "UMLAssociationView" => {
+        "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLComponentRealizationView" => head = Some(End::Triangle),
+        // an extension: a solid line with a filled triangle at the metaclass
+        "UMLExtensionView" => head = Some(End::FilledTriangle),
+        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" => head = Some(End::Arrow),
+        "UMLContainmentView" => head = Some(End::CirclePlus),
+        "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
             if let Some(m) = r.refd(e, "model") {
                 tail = assoc_end(r, r.child(m, "end1"));
                 head = assoc_end(r, r.child(m, "end2"));
@@ -308,10 +531,42 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         dashed = false;
         head = None;
     }
-    c.polyline(&pts, line, dashed);
+    let style = r.val(e, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+    let mut pts = pts;
+    // a dependency on an interface shown as a ball is a socket: a solid line ending in a half circle
+    // around the ball (ball-and-socket notation; the gap is estimated)
+    if head_ball && ty == "UMLDependencyView" {
+        if let Some(hv) = r.refd(e, "head") {
+            let b = node_rect(r, hv);
+            let ih = b.h - views::NAME_MIN_H;
+            let d = b.w.min(ih);
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + ih / 2.0 };
+            let rad = d / 2.0 + SOCKET_GAP;
+            let n = pts.len();
+            let prev = pts[n - 2];
+            let th = (prev.y - ctr.y).atan2(prev.x - ctr.x);
+            pts[n - 1] = P { x: ctr.x + rad * th.cos(), y: ctr.y + rad * th.sin() };
+            let arc: Vec<P> = (0..=16).map(|i| th - std::f64::consts::FRAC_PI_2 + std::f64::consts::PI * i as f64 / 16.0).map(|a| P { x: ctr.x + rad * a.cos(), y: ctr.y + rad * a.sin() }).collect();
+            c.polyline(&arc, line, false);
+            dashed = false;
+            head = None;
+        }
+    }
+    c.polyline(&views::drawn_points(&pts, style), line, dashed);
     let n = pts.len();
     end_shape(c, pts[n - 1], pts[n - 2], head, line);
     end_shape(c, pts[0], pts[1], tail, line);
+    // the ownership dot: an end owned by the classifier at the other end (its ownerAttribute) gets a
+    // small filled circle at its tip (UML 2.5; size estimated)
+    if let Some(m) = r.refd(e, "model").filter(|m| r.has(*m, "end1")) {
+        for (k, tip, next) in [("end1", pts[0], pts[1]), ("end2", pts[n - 1], pts[n - 2])] {
+            if r.child(m, k).and_then(|end| r.refd(end, "ownerAttribute")).is_some() {
+                let len = ((next.x - tip.x).powi(2) + (next.y - tip.y).powi(2)).sqrt().max(1.0);
+                let at = P { x: tip.x + (next.x - tip.x) / len * 6.0, y: tip.y + (next.y - tip.y) / len * 6.0 };
+                c.ellipse(at, 3.0, 3.0, Some(line), Some(line));
+            }
+        }
+    }
     let fc = color(r, e, "fontColor", BLACK);
     for sv in r.list(e, "subViews") {
         if r.kind_of(sv, "LabelView") || r.ty(sv) == "EdgeLabelView" {
@@ -347,6 +602,9 @@ pub fn bounds(r: &Repo, d: Eid) -> Option<R> {
         if !r.alive(v) {
             continue;
         }
+        if !shown(r, v) {
+            continue;
+        }
         if is_edge(r, v) {
             for p in points_of(r, v) {
                 x1 = x1.min(p.x);
@@ -354,12 +612,28 @@ pub fn bounds(r: &Repo, d: Eid) -> Option<R> {
                 x2 = x2.max(p.x);
                 y2 = y2.max(p.y);
             }
+            // its labels, which can sit away from the line (the original counts children too)
+            for l in r.list(v, "subViews") {
+                if shown(r, l) && !r.str(l, "text").is_empty() && r.has(l, "width") {
+                    let b = node_rect(r, l);
+                    x1 = x1.min(b.x);
+                    y1 = y1.min(b.y);
+                    x2 = x2.max(b.x + b.w);
+                    y2 = y2.max(b.y + b.h);
+                }
+            }
         } else if is_node(r, v) {
-            let b = node_rect(r, v);
-            x1 = x1.min(b.x);
-            y1 = y1.min(b.y);
-            x2 = x2.max(b.x + b.w);
-            y2 = y2.max(b.y + b.h);
+            let mut boxes = vec![node_rect(r, v)];
+            // a template parameter box sticks out of its class
+            if let Some(tc) = r.refd(v, "templateParameterCompartment").filter(|tc| shown(r, *tc) && !r.list(*tc, "subViews").is_empty()) {
+                boxes.push(node_rect(r, tc));
+            }
+            for b in boxes {
+                x1 = x1.min(b.x);
+                y1 = y1.min(b.y);
+                x2 = x2.max(b.x + b.w);
+                y2 = y2.max(b.y + b.h);
+            }
         }
     }
     if x1.is_finite() { Some(R { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }) } else { None }

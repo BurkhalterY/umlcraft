@@ -5,15 +5,42 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod align;
+mod api;
 mod app;
+mod cli;
+mod clipboard;
+mod export;
+mod find;
+mod fragment;
+mod generate;
+mod html;
+mod layout;
+mod markdown;
+mod mermaid;
 mod canvas;
 mod icons;
+mod input;
+mod keymap;
 mod meta;
 mod model;
+mod palette;
 mod parse;
+mod pdf;
+mod picker;
+mod prefs;
+mod related;
+mod relview;
 mod render;
+mod selector;
+mod splitter;
+mod style;
+mod tags;
+mod templates;
+mod thumbs;
 mod ui;
+mod validate;
 mod views;
+mod xmi;
 #[cfg(test)]
 mod tests;
 
@@ -85,22 +112,22 @@ fn window_icon() -> Option<egui::IconData> {
     Some(egui::IconData { rgba: img.into_raw(), width, height })
 }
 
-fn setup_style(ctx: &egui::Context) {
+/// The egui style of the current theme: dark (the original's default, staruml-dark.css) or light.
+pub(crate) fn setup_style(ctx: &egui::Context) {
     use ui::*;
-    // the original's default theme is "dark" (index.html loads staruml-dark.css)
-    ctx.set_visuals(egui::Visuals::dark());
+    ctx.set_visuals(if light_theme() { egui::Visuals::light() } else { egui::Visuals::dark() });
     ctx.global_style_mut(|s| {
         let v = &mut s.visuals;
-        v.panel_fill = LAYER0;
-        v.window_fill = LAYER1;
-        v.extreme_bg_color = INPUT;
-        v.override_text_color = Some(TEXT);
-        v.selection.bg_fill = ACCENT;
-        v.widgets.inactive.bg_fill = INPUT;
-        v.widgets.inactive.weak_bg_fill = INPUT;
-        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, INPUT_BORDER);
-        v.widgets.hovered.weak_bg_fill = HOVER_ROW;
-        v.widgets.active.weak_bg_fill = ACCENT;
+        v.panel_fill = LAYER0();
+        v.window_fill = LAYER1();
+        v.extreme_bg_color = INPUT();
+        v.override_text_color = Some(TEXT());
+        v.selection.bg_fill = ACCENT();
+        v.widgets.inactive.bg_fill = INPUT();
+        v.widgets.inactive.weak_bg_fill = INPUT();
+        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, INPUT_BORDER());
+        v.widgets.hovered.weak_bg_fill = HOVER_ROW();
+        v.widgets.active.weak_bg_fill = ACCENT();
         s.text_styles.insert(egui::TextStyle::Body, egui::FontId::proportional(13.0));
         s.text_styles.insert(egui::TextStyle::Button, egui::FontId::proportional(13.0));
         s.spacing.button_padding = egui::vec2(8.0, 3.0);
@@ -109,6 +136,17 @@ fn setup_style(ctx: &egui::Context) {
 
 fn main() -> eframe::Result {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    // command-line commands (image, --help, --version) run without a window
+    let headless = || {
+        let ctx = egui::Context::default();
+        setup_fonts(&ctx);
+        let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
+        out.textures_delta.clear();
+        ctx
+    };
+    if let Some(code) = cli::run(&args, headless) {
+        std::process::exit(code);
+    }
     // `--resave <in.mdj> <out.mdj>`: open a model and save it again without a window
     if let Some(i) = args.iter().position(|a| a == "--resave") {
         let (Some(src), Some(dst)) = (args.get(i + 1), args.get(i + 2)) else {
@@ -157,22 +195,59 @@ fn main() -> eframe::Result {
     if let Some(icon) = window_icon() {
         viewport = viewport.with_icon(icon);
     }
-    let options = eframe::NativeOptions {
-        viewport: viewport
-            .with_title("Untitled — UMLCraft")
-            .with_app_id("umlcraft")
-            .with_inner_size([ui::WINDOW_WIDTH, ui::WINDOW_HEIGHT]),
-        ..Default::default()
-    };
+    viewport = viewport.with_title("UMLCraft").with_app_id("umlcraft").with_inner_size([ui::WINDOW_WIDTH, ui::WINDOW_HEIGHT]);
+    // the last window bounds and maximized state (windowState.main, window.js:26-94); screenshots
+    // keep the default size
+    if screenshot.is_none() {
+        let p = prefs::Prefs::load(prefs::default_path());
+        if let Some(ws) = p.get("windowState.main") {
+            let f = |k: &str| ws.get(k).and_then(|v| v.as_f64()).map(|v| v as f32);
+            if let (Some(w), Some(h)) = (f("width"), f("height")) {
+                if w >= 200.0 && h >= 150.0 {
+                    viewport = viewport.with_inner_size([w, h]);
+                }
+            }
+            if let (Some(x), Some(y)) = (f("x"), f("y")) {
+                viewport = viewport.with_position([x, y]);
+            }
+            if ws.get("isMaximized").and_then(|v| v.as_bool()) == Some(true) {
+                viewport = viewport.with_maximized(true);
+            }
+        }
+    }
+    let options = eframe::NativeOptions { viewport, ..Default::default() };
     eframe::run_native(
         "UMLCraft",
         options,
         Box::new(move |cc| {
             setup_fonts(&cc.egui_ctx);
             setup_style(&cc.egui_ctx);
+            let shot = screenshot.is_some();
             let mut a = app::App::new(screenshot);
-            if let Some(f) = file {
-                a.open_path(f);
+            // screenshots start from the defaults, so they do not depend on this machine's settings
+            if !shot {
+                a.prefs = prefs::Prefs::load(prefs::default_path());
+                a.apply_prefs();
+                if let Some(dir) = prefs::default_path().as_ref().and_then(|p| p.parent()) {
+                    a.load_user_keymap(dir);
+                    // the local HTTP API, unless settings.json turns it off (main.js:33-38)
+                    let (on, port) = api::settings(dir);
+                    if on {
+                        a.api_rx = api::start(port, cc.egui_ctx.clone());
+                    }
+                }
+            }
+            match file {
+                Some(f) => {
+                    a.open_path(f);
+                }
+                // with no file given: the backup after a crash, else the last file when asked to
+                None if !shot => {
+                    if !a.recover_backup() {
+                        a.auto_load_working_file();
+                    }
+                }
+                None => {}
             }
             a.show_by_name(diagram.as_deref(), select.as_deref());
             Ok(Box::new(a))
