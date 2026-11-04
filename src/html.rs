@@ -294,6 +294,14 @@ impl App {
             if r.ty(e) == "UMLInterface" {
                 self.links_section(&mut b, "Implementing Classifiers", &self.related(e, "UMLInterfaceRealization", false));
             }
+            self.links_section(&mut b, "Components", &self.related(e, "UMLComponentRealization", true));
+            if r.ty(e) == "UMLComponent" {
+                self.links_section(&mut b, "Realizing Classifiers", &self.related(e, "UMLComponentRealization", false));
+            }
+            self.links_section(&mut b, "Deployment Targets", &self.related(e, "UMLDeployment", true));
+            if r.ty(e) == "UMLNode" {
+                self.links_section(&mut b, "Deployed Elements", &self.related(e, "UMLDeployment", false));
+            }
             let associated: Vec<Eid> = r
                 .all()
                 .filter(|x| r.ty(*x) == "UMLAssociation")
