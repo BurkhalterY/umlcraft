@@ -772,9 +772,9 @@ impl App {
         }
         // a statechart's states go in the first region of its state machine (uml-factory.js:2005)
         let pseudo = views::pseudostate_kind(kind);
-        if pseudo.is_some() || kind == "UMLState" || kind == "UMLFinalState" || kind == "CompositeState" {
+        if pseudo.is_some() || matches!(kind, "UMLState" | "UMLFinalState" | "CompositeState" | "SubmachineState") {
             let region = self.statechart_region(d)?;
-            let ty = if pseudo.is_some() { "UMLPseudostate" } else if kind == "CompositeState" { "UMLState" } else { kind };
+            let ty = if pseudo.is_some() { "UMLPseudostate" } else if kind == "UMLFinalState" { kind } else { "UMLState" };
             let name = self.new_name(region, ty);
             let m = self.repo.create(ty, &[("name", json!(name))], Some((region, "vertices")));
             if let Some(k) = pseudo {
@@ -782,6 +782,16 @@ impl App {
             }
             if kind == "CompositeState" {
                 self.repo.create("UMLRegion", &[], Some((m, "regions")));
+            }
+            // a submachine state comes with a new state machine of its own, with one region, next to
+            // the diagram's state machine (uml-factory.js:2046; where it goes is estimated)
+            if kind == "SubmachineState" {
+                let sm = self.repo.parent(d)?;
+                let owner = self.repo.parent(sm).unwrap_or(self.repo.root);
+                let name = self.new_name(owner, "UMLStateMachine");
+                let sub = self.repo.create("UMLStateMachine", &[("name", json!(name))], Some((owner, "ownedElements")));
+                self.repo.create("UMLRegion", &[], Some((sub, "regions")));
+                self.repo.set_ref(m, "submachine", Some(sub));
             }
             let v = views::create_node_view(&mut self.repo, d, m, rect)?;
             self.apply_view_defaults(v);

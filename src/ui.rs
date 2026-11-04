@@ -264,6 +264,7 @@ const STATECHART_GROUPS: &[Group] = &[
         label: "Statechart (Advanced)",
         items: &[
             node("Composite State", "CompositeState", "state"),
+            node("Submachine State", "SubmachineState", "state"),
             node("Junction", "Junction", "initial"),
             node("Shallow History", "ShallowHistory", "history"),
             node("Deep History", "DeepHistory", "history"),

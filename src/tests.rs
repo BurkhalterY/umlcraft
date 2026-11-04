@@ -4756,3 +4756,16 @@ fn states_drawn_in_a_composite_state_belong_to_its_region() {
     assert_eq!(a.repo.parent(sm), a.repo.list(m2, "regions").first().copied());
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn the_submachine_state_tool_makes_its_state_machine() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let v = a.change(|a| a.create_node("SubmachineState", rect(100.0, 100.0, 100.0, 40.0))).unwrap();
+    let s = a.repo.refd(v, "model").unwrap();
+    let sub = a.repo.refd(s, "submachine").unwrap();
+    assert_eq!(a.repo.ty(sub), "UMLStateMachine");
+    assert_eq!(a.repo.list(sub, "regions").len(), 1);
+    assert_ne!(Some(sub), a.repo.parent(d));
+}
