@@ -25,6 +25,12 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLUseCase" => "usecase",
         "UMLActor" => "actor",
         "UMLUseCaseSubject" => "subject",
+        "UMLComponent" => "component",
+        "UMLArtifact" => "artifact",
+        "UMLNode" => "node",
+        "UMLComponentRealization" => "realization",
+        "UMLDeployment" => "dependency",
+        "UMLCommunicationPath" => "association",
         "UMLClassDiagram" | "UMLPackageDiagram" => "diagram-class",
         "UMLUseCaseDiagram" => "diagram-usecase",
         "UMLAssociation" => "association",
@@ -171,6 +177,20 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
         "text" => {
             line(&[(3.0, 3.5), (13.0, 3.5)], W);
             line(&[(8.0, 3.5), (8.0, 13.5)], W);
+        }
+        "component" => {
+            rect_at(4.0, 2.5, 10.0, 11.0, Y);
+            rect_at(2.0, 4.5, 4.0, 2.5, Y);
+            rect_at(2.0, 9.0, 4.0, 2.5, Y);
+        }
+        "artifact" => {
+            line(&[(3.5, 2.0), (10.0, 2.0), (13.0, 5.0), (13.0, 14.0), (3.5, 14.0), (3.5, 2.0)], Y);
+            line(&[(10.0, 2.0), (10.0, 5.0), (13.0, 5.0)], Y);
+        }
+        "node" => {
+            rect_at(2.0, 5.0, 10.0, 9.0, Y);
+            line(&[(2.0, 5.0), (5.0, 2.0), (15.0, 2.0), (15.0, 11.0), (12.0, 14.0)], Y);
+            line(&[(12.0, 5.0), (15.0, 2.0)], Y);
         }
         "boundary" => {
             p.circle_stroke(at(9.5, 8.0), 4.5 * s, st(W));

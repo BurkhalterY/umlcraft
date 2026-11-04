@@ -134,11 +134,43 @@ const USECASE_GROUPS: &[Group] = &[
     ANNOTATIONS,
 ];
 const OTHER_GROUPS: &[Group] = &[ANNOTATIONS];
+// component and deployment diagrams share the Component and Deployment groups (uml.json "uml.component",
+// "uml.deployment")
+const COMPONENT_GROUPS: &[Group] = &[
+    Group {
+        id: "component",
+        label: "Component",
+        items: &[
+            node("Component", "UMLComponent", "component"),
+            node("Artifact", "UMLArtifact", "artifact"),
+            node("Interface", "UMLInterface", "interface"),
+            line("Dependency", "UMLDependency", "dependency", AssocInit::Plain),
+            line("Interface Realization", "UMLInterfaceRealization", "realization", AssocInit::Plain),
+            line("Component Realization", "UMLComponentRealization", "realization", AssocInit::Plain),
+        ],
+    },
+    Group {
+        id: "deployment",
+        label: "Deployment",
+        items: &[
+            node("Node", "UMLNode", "node"),
+            line("Deployment", "UMLDeployment", "dependency", AssocInit::Plain),
+            line("Communication Path", "UMLCommunicationPath", "association", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
 // a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 3] = [("Class Diagram", "UMLClassDiagram"), ("Package Diagram", "UMLPackageDiagram"), ("Use Case Diagram", "UMLUseCaseDiagram")];
+const DIAGRAM_KINDS: [(&str, &str); 5] = [
+    ("Class Diagram", "UMLClassDiagram"),
+    ("Package Diagram", "UMLPackageDiagram"),
+    ("Component Diagram", "UMLComponentDiagram"),
+    ("Deployment Diagram", "UMLDeploymentDiagram"),
+    ("Use Case Diagram", "UMLUseCaseDiagram"),
+];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
 /// priorities from the UML metamodel; kinds without one, such as diagrams, come first).
@@ -338,7 +370,7 @@ impl App {
             for (l, k) in [
                 ("Package", "UMLPackage"), ("Profile", "UMLProfile"), ("Class", "UMLClass"), ("Interface", "UMLInterface"), ("Signal", "UMLSignal"),
                 ("DataType", "UMLDataType"), ("PrimitiveType", "UMLPrimitiveType"), ("Enumeration", "UMLEnumeration"), ("Stereotype", "UMLStereotype"),
-                ("Actor", "UMLActor"), ("Use Case", "UMLUseCase"),
+                ("Actor", "UMLActor"), ("Use Case", "UMLUseCase"), ("Component", "UMLComponent"), ("Artifact", "UMLArtifact"), ("Node", "UMLNode"),
             ] {
                 adds.push((l, k, false));
             }
@@ -1054,6 +1086,8 @@ impl App {
                 Some("UMLClassDiagram") => self.open_groups.insert("class"),
                 Some("UMLUseCaseDiagram") => self.open_groups.insert("usecase"),
                 Some("UMLPackageDiagram") => self.open_groups.insert("package"),
+                Some("UMLComponentDiagram") => self.open_groups.insert("component"),
+                Some("UMLDeploymentDiagram") => self.open_groups.insert("deployment"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1074,6 +1108,7 @@ impl App {
             Some("UMLClassDiagram") => CLASS_GROUPS,
             Some("UMLUseCaseDiagram") => USECASE_GROUPS,
             Some("UMLPackageDiagram") => PACKAGE_GROUPS,
+            Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],
         };

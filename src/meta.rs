@@ -88,6 +88,11 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLAssociation", Some("UMLUndirectedRelationship"), vec![("isDerived", d(json!(false)))]);
     def("UMLComponent", Some("UMLClassifier"), vec![("isIndirectlyInstantiated", d(json!(true)))]);
     def("UMLSubsystem", Some("UMLComponent"), vec![]);
+    def("UMLArtifact", Some("UMLClassifier"), vec![("fileName", d(json!("")))]);
+    def("UMLNode", Some("UMLClassifier"), vec![]);
+    def("UMLComponentRealization", Some("UMLRealization"), vec![]);
+    def("UMLDeployment", Some("UMLDependency"), vec![]);
+    def("UMLCommunicationPath", Some("UMLAssociation"), vec![]);
     def("UMLExtensionPoint", Some("UMLModelElement"), vec![("location", d(json!("")))]);
     def("UMLUseCase", Some("UMLClassifier"), vec![("extensionPoints", n())]);
     def("UMLActor", Some("UMLClassifier"), vec![]);
@@ -124,7 +129,7 @@ fn build() -> HashMap<&'static str, Kind> {
         ("showOperationSignature", d(json!(true))), ("attributeCompartment", n()), ("operationCompartment", n()), ("receptionCompartment", n()),
         ("templateParameterCompartment", n()),
     ]);
-    for name in ["UMLClassView", "UMLInterfaceView", "UMLDataTypeView", "UMLPrimitiveTypeView", "UMLSignalView", "UMLActorView"] {
+    for name in ["UMLClassView", "UMLInterfaceView", "UMLDataTypeView", "UMLPrimitiveTypeView", "UMLSignalView", "UMLActorView", "UMLComponentView", "UMLArtifactView", "UMLNodeView"] {
         def(name, Some("UMLClassifierView"), vec![]);
     }
     def("UMLEnumerationView", Some("UMLClassifierView"), vec![("suppressLiterals", d(json!(false))), ("enumerationLiteralCompartment", n())]);
@@ -146,9 +151,10 @@ fn build() -> HashMap<&'static str, Kind> {
         ("tailMultiplicityLabel", n()), ("headRoleNameLabel", n()), ("headPropertyLabel", n()), ("headMultiplicityLabel", n()),
     ]);
     def("UMLAssociationView", Some("UMLUndirectedRelationshipView"), vec![("tailQualifiersCompartment", n()), ("headQualifiersCompartment", n())]);
-    for name in ["UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView", "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView"] {
+    for name in ["UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView", "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLComponentRealizationView", "UMLDeploymentView"] {
         def(name, Some("UMLGeneralEdgeView"), vec![]);
     }
+    def("UMLCommunicationPathView", Some("UMLAssociationView"), vec![]);
     t
 }
 

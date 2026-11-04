@@ -169,6 +169,22 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             draw_name(c, r, v);
             return;
         }
+        "artifact" => {
+            // a page with a folded corner above the name
+            let ih = b.h - views::NAME_MIN_H;
+            let pw = (ih * views::ARTIFACT_ICON_W / views::ARTIFACT_ICON_H).min(b.w);
+            let (px, py, f) = (b.x + (b.w - pw) / 2.0, b.y, pw * 0.3);
+            let page = [P { x: px, y: py }, P { x: px + pw - f, y: py }, P { x: px + pw, y: py + f }, P { x: px + pw, y: py + ih }, P { x: px, y: py + ih }];
+            if r.bool(v, "showShadow") {
+                let s = Rgba(SHADOW_COLOR.0, SHADOW_COLOR.1, SHADOW_COLOR.2, (255.0 * SHADOW_ALPHA) as u8);
+                let sp: Vec<P> = page.iter().map(|p| P { x: p.x + SHADOW_OFFSET, y: p.y + SHADOW_OFFSET }).collect();
+                c.polygon(&sp, Some(s), None);
+            }
+            c.polygon(&page, Some(fill), Some(line));
+            c.polyline(&[P { x: px + pw - f, y: py }, P { x: px + pw - f, y: py + f }, P { x: px + pw, y: py + f }], line, false);
+            draw_name(c, r, v);
+            return;
+        }
         "boundary" | "entity" | "control" => {
             // the UML robustness icons above the name (estimated proportions)
             let ih = b.h - views::NAME_MIN_H;
@@ -233,7 +249,29 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
     }
     // a box: classifier, subject, or any kind UMLCraft does not draw itself
     shadow_rect(c, r, v, b);
+    if ty == "UMLNodeView" {
+        // a node is a box with depth: top and right faces behind the front one (estimated depth)
+        let d = NODE_DEPTH;
+        let top = [P { x: b.x, y: b.y }, P { x: b.x + d, y: b.y - d }, P { x: b.x + b.w + d, y: b.y - d }, P { x: b.x + b.w, y: b.y }];
+        let right = [P { x: b.x + b.w, y: b.y }, P { x: b.x + b.w + d, y: b.y - d }, P { x: b.x + b.w + d, y: b.y + b.h - d }, P { x: b.x + b.w, y: b.y + b.h }];
+        c.polygon(&top, Some(fill), Some(line));
+        c.polygon(&right, Some(fill), Some(line));
+    }
     c.rect(b, Some(fill), Some(line));
+    if ty == "UMLComponentView" {
+        // the component icon at the top right: a box with two tabs on its left side
+        let (ix, iy) = (b.x + b.w - 22.0, b.y + 6.0);
+        c.rect(R { x: ix, y: iy, w: 14.0, h: 16.0 }, Some(fill), Some(line));
+        c.rect(R { x: ix - 4.0, y: iy + 3.0, w: 8.0, h: 4.0 }, Some(fill), Some(line));
+        c.rect(R { x: ix - 4.0, y: iy + 9.0, w: 8.0, h: 4.0 }, Some(fill), Some(line));
+    }
+    if ty == "UMLArtifactView" {
+        // the artifact icon at the top right: a page with a folded corner
+        let (ix, iy, f) = (b.x + b.w - 20.0, b.y + 6.0, 4.0);
+        let page = [P { x: ix, y: iy }, P { x: ix + 12.0 - f, y: iy }, P { x: ix + 12.0, y: iy + f }, P { x: ix + 12.0, y: iy + 15.0 }, P { x: ix, y: iy + 15.0 }];
+        c.polygon(&page, Some(fill), Some(line));
+        c.polyline(&[P { x: ix + 12.0 - f, y: iy }, P { x: ix + 12.0 - f, y: iy + f }, P { x: ix + 12.0, y: iy + f }], line, false);
+    }
     if let Some(i) = info {
         for comp in &i.compartments {
             c.polyline(&[P { x: b.x, y: comp.y }, P { x: b.x + b.w, y: comp.y }], line, false);
@@ -280,6 +318,8 @@ pub enum End {
 }
 
 const CIRCLE_PLUS_R: f64 = 7.0;
+/// The depth of a node's box (estimated).
+const NODE_DEPTH: f64 = 10.0;
 /// The space between an interface ball and the socket around it (estimated).
 const SOCKET_GAP: f64 = 5.0;
 
@@ -347,10 +387,10 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     );
     let (mut head, mut tail) = (None, None);
     match ty.as_str() {
-        "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" => head = Some(End::Triangle),
-        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" => head = Some(End::Arrow),
+        "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLComponentRealizationView" => head = Some(End::Triangle),
+        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" => head = Some(End::Arrow),
         "UMLContainmentView" => head = Some(End::CirclePlus),
-        "UMLAssociationView" => {
+        "UMLAssociationView" | "UMLCommunicationPathView" => {
             if let Some(m) = r.refd(e, "model") {
                 tail = assoc_end(r, r.child(m, "end1"));
                 head = assoc_end(r, r.child(m, "end2"));

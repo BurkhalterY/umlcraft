@@ -21,6 +21,9 @@ pub const ACTOR_ICON_H: f64 = 55.0; // actor icon min height, elements.js:92
 /// The robustness icons (boundary, entity, control) of a class shown as an icon (estimated).
 pub const ROBUST_ICON_W: f64 = 50.0;
 pub const ROBUST_ICON_H: f64 = 36.0;
+/// An artifact shown as an icon (estimated).
+pub const ARTIFACT_ICON_W: f64 = 30.0;
+pub const ARTIFACT_ICON_H: f64 = 40.0;
 
 /// The robustness kind of a class shown as an icon: "boundary", "entity" or "control".
 pub fn robustness_kind(r: &Repo, v: Eid, m: Eid) -> Option<&'static str> {
@@ -160,6 +163,10 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         "UMLUseCase" => k("UMLUseCaseView", true, true, false),
         "UMLActor" => k("UMLActorView", true, true, false),
         "UMLUseCaseSubject" => k("UMLUseCaseSubjectView", false, false, false),
+        // component and deployment diagrams (uml.json "uml.component", "uml.deployment")
+        "UMLComponent" => k("UMLComponentView", true, true, false),
+        "UMLArtifact" => k("UMLArtifactView", true, true, false),
+        "UMLNode" => k("UMLNodeView", true, true, false),
         _ => None,
     }
 }
@@ -173,13 +180,17 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "UMLInterfaceRealization" => "UMLInterfaceRealizationView",
         "UMLInclude" => "UMLIncludeView",
         "UMLExtend" => "UMLExtendView",
+        "UMLComponentRealization" => "UMLComponentRealizationView",
+        "UMLDeployment" => "UMLDeploymentView",
+        "UMLCommunicationPath" => "UMLCommunicationPathView",
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 9] = [
+const KNOWN_EDGE_VIEWS: [&str; 12] = [
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
+    "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView",
 ];
 
 /// Size used when the person clicks instead of dragging (estimated).
@@ -191,6 +202,9 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" => (160.0, 80.0),
         "UMLUseCase" => (120.0, 40.0),
         "UMLActor" => (40.0, 80.0),
+        "UMLComponent" => (160.0, 60.0),
+        "UMLArtifact" => (80.0, 70.0),
+        "UMLNode" => (160.0, 80.0),
         "Boundary" | "Entity" | "Control" => (ROBUST_ICON_W, ROBUST_ICON_H + NAME_MIN_H),
         "UMLUseCaseSubject" => (240.0, 250.0),
         "Note" => (140.0, 60.0),
@@ -385,7 +399,7 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
     r.set_ref(e, "nameLabel", Some(nl));
     r.set_ref(e, "stereotypeLabel", Some(sl));
     r.set_ref(e, "propertyLabel", Some(pl));
-    if r.ty(m) == "UMLAssociation" {
+    if r.kind_of(m, "UMLAssociation") {
         r.set_raw(e, "showEndOrder", json!("hide")); // as the original writes it (sample.mdj)
         let end1 = r.child(m, "end1");
         let end2 = r.child(m, "end2");
@@ -799,6 +813,16 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         layout_name(r, ms, v, m, x, y + h - NAME_MIN_H, w, keyword, true);
         return Info { shape: "interface", ..Default::default() };
     }
+    // an artifact in icon display: a page with a folded corner, the name under it (size estimated)
+    if ty == "UMLArtifact" && (display == "icon" || display == "icon-label") {
+        hide_all(r);
+        let hide_st = display == "icon";
+        let min_w = name_min_width(r, ms, v, m, None, hide_st).max(ARTIFACT_ICON_W);
+        grow(r, v, min_w, NAME_MIN_H + ARTIFACT_ICON_H);
+        let (x, y, w, h) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"), r.f(v, "height"));
+        layout_name(r, ms, v, m, x, y + h - NAME_MIN_H, w, None, hide_st);
+        return Info { shape: "artifact", ..Default::default() };
+    }
     // a boundary, entity or control class as its robustness icon, the name under it
     if let Some(kind) = robustness_kind(r, v, m) {
         hide_all(r);
@@ -981,10 +1005,17 @@ fn end_rect(r: &Repo, v: Eid, info: &HashMap<Eid, Info>) -> R {
         return R { x: mid.x, y: mid.y, w: 0.0, h: 0.0 };
     }
     let nr = node_rect(r, v);
-    if info.get(&v).map(|i| i.shape == "interface").unwrap_or(false) {
+    let shape = info.get(&v).map(|i| i.shape).unwrap_or("");
+    if shape == "interface" {
         let ih = nr.h - NAME_MIN_H;
         let d = nr.w.min(ih);
         return R { x: nr.x + (nr.w - d) / 2.0, y: nr.y + (ih - d) / 2.0, w: d, h: d };
+    }
+    // lines meet the icon of an artifact or a robustness class, not its whole box
+    if shape == "artifact" || shape == "boundary" || shape == "entity" || shape == "control" {
+        let ih = nr.h - NAME_MIN_H;
+        let iw = if shape == "artifact" { (ih * ARTIFACT_ICON_W / ARTIFACT_ICON_H).min(nr.w) } else { nr.w.min(ROBUST_ICON_W) };
+        return R { x: nr.x + (nr.w - iw) / 2.0, y: nr.y, w: iw, h: ih };
     }
     nr
 }
@@ -1140,12 +1171,14 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     out.push(("nameLabel", if name.is_empty() { name } else { vis(m) + &name }));
     let st = match r.ty(m) {
         "UMLInclude" => "«include»".to_string(),
+        // a deployment is a «deploy» dependency (UML 2; the keyword is estimated for StarUML)
+        "UMLDeployment" if stereotype_text(r, m).is_empty() => "«deploy»".to_string(),
         "UMLExtend" => "«extend»".to_string(),
         _ => stereotype_text(r, m),
     };
     out.push(("stereotypeLabel", st));
     out.push(("propertyLabel", String::new()));
-    if r.ty(m) == "UMLAssociation" {
+    if r.kind_of(m, "UMLAssociation") {
         let role = |end: Option<Eid>| end.map(|x| { let n = r.name(x); if n.is_empty() { n } else { vis(x) + &n } }).unwrap_or_default();
         let (e1, e2) = (r.child(m, "end1"), r.child(m, "end2"));
         let show_mult = r.bool(e, "showMultiplicity");

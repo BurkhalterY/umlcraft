@@ -2635,3 +2635,37 @@ fn selection_change_focuses_the_canvas() {
     frame(&mut a);
     assert!(ctx.memory(|m| m.focused()).is_some());
 }
+
+#[test]
+fn component_and_deployment_diagrams() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.add_diagram(None, "UMLDeploymentDiagram");
+    let comp = a.change(|a| a.create_node("UMLComponent", rect(40.0, 40.0, 160.0, 60.0))).unwrap();
+    let art = a.change(|a| a.create_node("UMLArtifact", rect(300.0, 40.0, 80.0, 70.0))).unwrap();
+    let n1 = a.change(|a| a.create_node("UMLNode", rect(40.0, 250.0, 160.0, 80.0))).unwrap();
+    let n2 = a.change(|a| a.create_node("UMLNode", rect(300.0, 250.0, 160.0, 80.0))).unwrap();
+    assert_eq!(a.repo.ty(comp), "UMLComponentView");
+    assert_eq!(a.repo.name(a.repo.refd(n1, "model").unwrap()), "Node1");
+    // the component and node defaults: compartments suppressed, the artifact as an icon
+    assert!(a.repo.bool(comp, "suppressAttributes") && a.repo.bool(n1, "suppressOperations"));
+    assert_eq!(a.repo.str(art, "stereotypeDisplay"), "icon");
+    let t = |k: &'static str| crate::app::Tool { label: "", kind: k, icon: "", line: true, init: crate::app::AssocInit::Plain };
+    assert!(a.can_connect(&t("UMLDeployment"), art, n1));
+    assert!(!a.can_connect(&t("UMLDeployment"), n1, art));
+    assert!(a.can_connect(&t("UMLCommunicationPath"), n1, n2));
+    assert!(!a.can_connect(&t("UMLCommunicationPath"), comp, n2));
+    assert!(a.can_connect(&t("UMLComponentRealization"), art, comp));
+    let dep = a.change(|a| a.create_edge(&t("UMLDeployment"), art, n1)).unwrap();
+    let path = a.change(|a| a.create_edge(&t("UMLCommunicationPath"), n1, n2)).unwrap();
+    let pm = a.repo.refd(path, "model").unwrap();
+    assert_eq!(a.repo.ty(pm), "UMLCommunicationPath");
+    assert!(a.repo.child(pm, "end1").is_some() && a.repo.child(pm, "end2").is_some());
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info.get(&art).map(|i| i.shape), Some("artifact"));
+    let st = a.repo.refd(dep, "stereotypeLabel").unwrap();
+    assert_eq!(a.repo.str(st, "text"), "«deploy»");
+    let svg = String::from_utf8(crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap()).unwrap();
+    assert!(svg.contains("Node1") && svg.contains("Artifact1"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

@@ -218,7 +218,7 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("General", "validation.validateModel", "Validate Model", Kind::Check, json!(true)),
     ];
     // per element kind: fill colour (null = the general one), stereotype display and compartments
-    let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 12] = [
+    let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 15] = [
         ("Package", "package", None),
         ("Model", "model", None),
         ("Class", "class", Some(("label", false, false, None))),
@@ -230,6 +230,9 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("Use Case", "usecase", Some(("label", true, true, None))),
         ("Actor", "actor", Some(("label", true, true, None))),
         ("Use Case Subject", "subsystem", None),
+        ("Artifact", "artifact", Some(("icon", true, true, None))),
+        ("Component", "component", Some(("label", true, true, None))),
+        ("Node", "node", Some(("label", true, true, None))),
         ("Note", "note", None),
     ];
     for (label, id, more) in kinds {
@@ -265,6 +268,9 @@ fn kind_id(view_ty: &str, model_ty: Option<&str>) -> Option<&'static str> {
         "UMLUseCase" => "usecase",
         "UMLActor" => "actor",
         "UMLUseCaseSubject" => "subsystem",
+        "UMLArtifact" => "artifact",
+        "UMLComponent" => "component",
+        "UMLNode" => "node",
         _ => return None,
     })
 }

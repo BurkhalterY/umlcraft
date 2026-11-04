@@ -792,6 +792,11 @@ impl App {
         let classifier = |m: Eid| r.kind_of(m, "UMLClassifier");
         match kind {
             "UMLAssociation" => classifier(tm) && classifier(hm),
+            // deployment diagrams: a path joins two nodes, a deployment puts a classifier on a node and a
+            // component realization realizes a component (uml-factory.js:19-146)
+            "UMLCommunicationPath" => r.ty(tm) == "UMLNode" && r.ty(hm) == "UMLNode",
+            "UMLDeployment" => classifier(tm) && r.ty(hm) == "UMLNode" && tm != hm,
+            "UMLComponentRealization" => classifier(tm) && r.ty(hm) == "UMLComponent" && tm != hm,
             "UMLGeneralization" => classifier(tm) && classifier(hm) && tm != hm,
             "UMLInterfaceRealization" => classifier(tm) && r.ty(hm) == "UMLInterface",
             "UMLInclude" | "UMLExtend" => r.ty(tm) == "UMLUseCase" && r.ty(hm) == "UMLUseCase",
@@ -812,8 +817,8 @@ impl App {
         }
         let tm = self.repo.refd(tail, "model")?;
         let hm = self.repo.refd(head, "model")?;
-        let m = if tool.kind == "UMLAssociation" {
-            let m = self.repo.create("UMLAssociation", &[], Some((tm, "ownedElements")));
+        let m = if tool.kind == "UMLAssociation" || tool.kind == "UMLCommunicationPath" {
+            let m = self.repo.create(tool.kind, &[], Some((tm, "ownedElements")));
             let (r1, r2) = (self.repo.ref_to(tm), self.repo.ref_to(hm));
             let e1 = self.repo.create("UMLAssociationEnd", &[("reference", r1)], Some((m, "end1")));
             let e2 = self.repo.create("UMLAssociationEnd", &[("reference", r2)], Some((m, "end2")));
