@@ -29,7 +29,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLArtifact" => "artifact",
         "UMLNode" => "node",
         "UMLComponentRealization" => "realization",
-        "UMLDeployment" => "dependency",
+        "UMLDeployment" | "UMLTemplateBinding" => "dependency",
         "UMLCommunicationPath" => "association",
         "UMLClassDiagram" | "UMLPackageDiagram" => "diagram-class",
         "UMLUseCaseDiagram" => "diagram-usecase",

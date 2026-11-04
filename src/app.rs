@@ -854,6 +854,8 @@ impl App {
             "UMLCommunicationPath" => r.ty(tm) == "UMLNode" && r.ty(hm) == "UMLNode",
             "UMLDeployment" => classifier(tm) && r.ty(hm) == "UMLNode" && tm != hm,
             "UMLComponentRealization" => classifier(tm) && r.ty(hm) == "UMLComponent" && tm != hm,
+            // the bound classifier points at its template
+            "UMLTemplateBinding" => classifier(tm) && classifier(hm) && tm != hm,
             "UMLGeneralization" => classifier(tm) && classifier(hm) && tm != hm,
             "UMLInterfaceRealization" => classifier(tm) && r.ty(hm) == "UMLInterface",
             "UMLInclude" | "UMLExtend" => r.ty(tm) == "UMLUseCase" && r.ty(hm) == "UMLUseCase",

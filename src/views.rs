@@ -183,16 +183,18 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "UMLInclude" => "UMLIncludeView",
         "UMLExtend" => "UMLExtendView",
         "UMLComponentRealization" => "UMLComponentRealizationView",
+        "UMLTemplateBinding" => "UMLTemplateBindingView",
         "UMLDeployment" => "UMLDeploymentView",
         "UMLCommunicationPath" => "UMLCommunicationPathView",
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 13] = [
+const KNOWN_EDGE_VIEWS: [&str; 14] = [
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
+    "UMLTemplateBindingView",
 ];
 
 /// Size used when the person clicks instead of dragging (estimated).
@@ -1188,6 +1190,8 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
         // a deployment is a «deploy» dependency (UML 2; the keyword is estimated for StarUML)
         "UMLDeployment" if stereotype_text(r, m).is_empty() => "«deploy»".to_string(),
         "UMLExtend" => "«extend»".to_string(),
+        // a template binding shows the «bind» keyword (UML 2; estimated for StarUML)
+        "UMLTemplateBinding" if stereotype_text(r, m).is_empty() => "«bind»".to_string(),
         _ => stereotype_text(r, m),
     };
     out.push(("stereotypeLabel", st));

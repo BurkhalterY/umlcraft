@@ -3015,3 +3015,22 @@ fn association_class_tool() {
     let text = a.repo.serialize();
     assert!(text.contains("\"_type\": \"UMLAssociationClassLinkView\""));
 }
+
+#[test]
+fn template_binding_tool() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let bound = a.change(|a| a.create_node("UMLClass", rect(40.0, 240.0, 100.0, 60.0))).unwrap();
+    let template = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let t = tool("UMLTemplateBinding", AssocInit::Plain);
+    assert!(a.can_connect(&t, bound, template));
+    assert!(!a.can_connect(&t, bound, bound));
+    let e = a.change(|a| a.create_edge(&t, bound, template)).unwrap();
+    assert_eq!(a.repo.ty(e), "UMLTemplateBindingView");
+    let m = a.repo.refd(e, "model").unwrap();
+    assert_eq!(a.repo.refd(m, "source"), a.repo.refd(bound, "model"));
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let st = a.repo.refd(e, "stereotypeLabel").unwrap();
+    assert_eq!(a.repo.str(st, "text"), "«bind»");
+}

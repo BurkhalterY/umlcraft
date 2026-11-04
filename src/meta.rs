@@ -92,6 +92,8 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLNode", Some("UMLClassifier"), vec![]);
     def("UMLComponentRealization", Some("UMLRealization"), vec![]);
     def("UMLDeployment", Some("UMLDependency"), vec![]);
+    // a class bound to a template (field name estimated)
+    def("UMLTemplateBinding", Some("UMLDirectedRelationship"), vec![("arguments", n())]);
     def("UMLCommunicationPath", Some("UMLAssociation"), vec![]);
     def("UMLExtensionPoint", Some("UMLModelElement"), vec![("location", d(json!("")))]);
     def("UMLUseCase", Some("UMLClassifier"), vec![("extensionPoints", n())]);
@@ -155,7 +157,7 @@ fn build() -> HashMap<&'static str, Kind> {
         ("tailMultiplicityLabel", n()), ("headRoleNameLabel", n()), ("headPropertyLabel", n()), ("headMultiplicityLabel", n()),
     ]);
     def("UMLAssociationView", Some("UMLUndirectedRelationshipView"), vec![("tailQualifiersCompartment", n()), ("headQualifiersCompartment", n())]);
-    for name in ["UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView", "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLComponentRealizationView", "UMLDeploymentView"] {
+    for name in ["UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView", "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLComponentRealizationView", "UMLDeploymentView", "UMLTemplateBindingView"] {
         def(name, Some("UMLGeneralEdgeView"), vec![]);
     }
     def("UMLCommunicationPathView", Some("UMLAssociationView"), vec![]);
