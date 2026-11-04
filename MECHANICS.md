@@ -93,6 +93,8 @@ returned nothing).
 
 * Robustness: a class stereotyped «boundary», «entity» or «control» with Stereotype Display Icon (or Icon with Label) is drawn as the UML robustness icon with its name below; the Robustness tools create such a class with attributes and operations suppressed (`extensions/default/robustness/main.js:17`). UMLCraft draws its own icons in a 50×36 area (estimated).
 
+* Ball and socket: a dependency on an interface shown as a ball (icon display) is drawn as a solid line ending in a half circle around the ball, 5 px outside it, open towards the ball (UMLCraft's estimate of the documented socket notation, docs.staruml.io class-diagram).
+
 ## Exporting pictures
 
 * JPEG is the PNG flattened on white; Export All writes `<folder>/<png|jpg|svg>/<filenamify(path)>_<index>.<ext>`, the path joining owner names with "::" and filenamify turning `<>:"/\|?*` and control characters into "!" (`src/engine/default-commands.js:452-535`, `src/engine/diagram-export.js:130-134, 275-298`).

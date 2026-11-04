@@ -280,6 +280,8 @@ pub enum End {
 }
 
 const CIRCLE_PLUS_R: f64 = 7.0;
+/// The space between an interface ball and the socket around it (estimated).
+const SOCKET_GAP: f64 = 5.0;
 
 fn end_shape(c: &mut dyn Canvas, p0: P, p1: P, end: Option<End>, line: Rgba) {
     let Some(end) = end else { return };
@@ -362,6 +364,26 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         head = None;
     }
     let style = r.val(e, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+    let mut pts = pts;
+    // a dependency on an interface shown as a ball is a socket: a solid line ending in a half circle
+    // around the ball (ball-and-socket notation; the gap is estimated)
+    if head_ball && ty == "UMLDependencyView" {
+        if let Some(hv) = r.refd(e, "head") {
+            let b = node_rect(r, hv);
+            let ih = b.h - views::NAME_MIN_H;
+            let d = b.w.min(ih);
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + ih / 2.0 };
+            let rad = d / 2.0 + SOCKET_GAP;
+            let n = pts.len();
+            let prev = pts[n - 2];
+            let th = (prev.y - ctr.y).atan2(prev.x - ctr.x);
+            pts[n - 1] = P { x: ctr.x + rad * th.cos(), y: ctr.y + rad * th.sin() };
+            let arc: Vec<P> = (0..=16).map(|i| th - std::f64::consts::FRAC_PI_2 + std::f64::consts::PI * i as f64 / 16.0).map(|a| P { x: ctr.x + rad * a.cos(), y: ctr.y + rad * a.sin() }).collect();
+            c.polyline(&arc, line, false);
+            dashed = false;
+            head = None;
+        }
+    }
     c.polyline(&views::drawn_points(&pts, style), line, dashed);
     let n = pts.len();
     end_shape(c, pts[n - 1], pts[n - 2], head, line);
