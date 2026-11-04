@@ -113,7 +113,7 @@ const CLASS_GROUPS: &[Group] = &[
     Group {
         id: "package",
         label: "Packages",
-        items: &[node("Package", "UMLPackage", "package"), node("Model", "UMLModel", "model"), node("Subsystem", "UMLSubsystem", "package"), line("Dependency", "UMLDependency", "dependency", AssocInit::Plain)],
+        items: &[node("Package", "UMLPackage", "package"), node("Model", "UMLModel", "model"), node("Subsystem", "UMLSubsystem", "package"), line("Dependency", "UMLDependency", "dependency", AssocInit::Plain), line("Containment", "Containment", "containment", AssocInit::Plain)],
     },
     // the robustness extension's group (robustness/toolbox/robustness.json)
     Group { id: "robustness", label: "Robustness", items: &[node("Boundary", "Boundary", "boundary"), node("Entity", "Entity", "entity"), node("Control", "Control", "control")] },

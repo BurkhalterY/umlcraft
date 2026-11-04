@@ -2940,3 +2940,33 @@ fn explorer_drop_acceptance() {
     let assoc = a.repo.all_of("UMLAssociation")[0];
     assert!(a.can_drop_model(assoc));
 }
+
+#[test]
+fn containment_moves_the_element_into_the_package() {
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let owner = a.repo.parent(d).unwrap();
+    let pv = a.change(|a| a.create_node("UMLPackage", rect(40.0, 40.0, 200.0, 120.0))).unwrap();
+    let cv = a.change(|a| a.create_node("UMLClass", rect(300.0, 240.0, 100.0, 60.0))).unwrap();
+    let (pm, cm) = (a.repo.refd(pv, "model").unwrap(), a.repo.refd(cv, "model").unwrap());
+    assert_eq!(a.repo.parent(cm), Some(owner));
+    let t = tool("Containment", AssocInit::Plain);
+    assert!(a.can_connect(&t, cv, pv));
+    assert!(!a.can_connect(&t, pv, cv), "a class cannot contain a package");
+    let e = a.change(|a| a.create_edge(&t, cv, pv)).unwrap();
+    assert_eq!(a.repo.ty(e), "UMLContainmentView");
+    assert_eq!(a.repo.refd(e, "model"), None);
+    assert_eq!(a.repo.parent(cm), Some(pm));
+    assert_eq!(a.edge_kind(e), "Containment");
+    // a package cannot be put inside itself through its own child
+    let sub = a.change(|a| a.create_node("UMLPackage", rect(300.0, 400.0, 100.0, 60.0))).unwrap();
+    a.change(|a| a.create_edge(&t, sub, pv)).unwrap();
+    assert!(!a.can_connect(&t, pv, sub));
+    // Add Sub-Package
+    let buttons = crate::related::actions("UMLPackage");
+    let b = buttons.into_iter().find(|b| b.label == "Add Sub-Package").unwrap();
+    let n = a.add_related(pv, b).unwrap();
+    let nm = a.repo.refd(n, "model").unwrap();
+    assert_eq!(a.repo.parent(nm), Some(pm));
+    assert!(a.repo.list(d, "ownedViews").iter().filter(|v| a.repo.ty(**v) == "UMLContainmentView").count() == 3);
+}

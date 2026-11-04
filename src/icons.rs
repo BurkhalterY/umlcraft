@@ -161,6 +161,12 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             dashed(&[(8.0, 14.0), (8.0, 3.0)], B);
             arrow_up(B);
         }
+        "containment" => {
+            line(&[(8.0, 14.0), (8.0, 7.0)], B);
+            p.circle_stroke(at(8.0, 4.5), 2.5 * s, st(B));
+            line(&[(6.5, 4.5), (9.5, 4.5)], B);
+            line(&[(8.0, 3.0), (8.0, 6.0)], B);
+        }
         "realization" => {
             dashed(&[(8.0, 14.0), (8.0, 6.5)], B);
             triangle_up(B);

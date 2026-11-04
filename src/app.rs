@@ -814,6 +814,7 @@ impl App {
         match self.repo.refd(e, "model") {
             Some(m) => self.repo.ty(m).to_string(),
             None if self.repo.ty(e) == "UMLNoteLinkView" => "NoteLink".into(),
+            None if self.repo.ty(e) == "UMLContainmentView" => "Containment".into(),
             None => String::new(),
         }
     }
@@ -828,6 +829,10 @@ impl App {
             return false;
         }
         let (Some(tm), Some(hm)) = (r.refd(tail, "model"), r.refd(head, "model")) else { return false };
+        if kind == "Containment" {
+            // the tail's element goes into the head's package (shown in the explorer)
+            return r.kind_of(hm, "UMLPackage") && tm != hm && (r.parent(tm) == Some(hm) || self.can_relocate(tm, hm));
+        }
         let classifier = |m: Eid| r.kind_of(m, "UMLClassifier");
         match kind {
             "UMLAssociation" => classifier(tm) && classifier(hm),
@@ -853,6 +858,15 @@ impl App {
         let d = self.diagram?;
         if tool.kind == "NoteLink" {
             return views::create_edge_view(&mut self.repo, d, None, tail, head);
+        }
+        if tool.kind == "Containment" {
+            // a view-only line; the contained element moves into the container
+            let (tm, hm) = (self.repo.refd(tail, "model")?, self.repo.refd(head, "model")?);
+            if self.repo.parent(tm) != Some(hm) {
+                self.repo.relocate(tm, hm, "ownedElements");
+            }
+            let props = [("font", json!(views::FONT)), ("head", self.repo.ref_to(head)), ("tail", self.repo.ref_to(tail)), ("lineStyle", json!(views::DEFAULT_LINE_STYLE)), ("points", json!("0:0;0:0"))];
+            return Some(self.repo.create("UMLContainmentView", &props, Some((d, "ownedViews"))));
         }
         let tm = self.repo.refd(tail, "model")?;
         let hm = self.repo.refd(head, "model")?;
@@ -898,6 +912,14 @@ impl App {
         }
         self.change(|a| {
             a.repo.set_ref(e, if tail { "tail" } else { "head" }, Some(to));
+            // a containment moves the contained element into the container again
+            if kind == "Containment" {
+                if let (Some(cm), Some(pm)) = (a.repo.refd(nt, "model"), a.repo.refd(nh, "model")) {
+                    if a.repo.parent(cm) != Some(pm) {
+                        a.repo.relocate(cm, pm, "ownedElements");
+                    }
+                }
+            }
             // the ends are laid out again from the new box
             if let (Some(m), Some(tm)) = (a.repo.refd(e, "model"), a.repo.refd(to, "model")) {
                 if a.repo.has(m, "end1") {
