@@ -765,6 +765,23 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
             draw_label(c, r, sv, fc);
         }
     }
+    // the order of the ends: a filled triangle beside the name, pointing from end1 to end2 (forward)
+    // or back, on the side that end lies (UMLUndirectedRelationshipView.drawEndOrder, elements.js:5837-5868)
+    let order = r.str(e, "showEndOrder");
+    if let (true, Some(nl)) = (order == "forward" || order == "backward", r.refd(e, "nameLabel")) {
+        let (x1, x2) = (pts[0].x, pts[pts.len() - 1].x);
+        let right = if order == "forward" { x1 < x2 } else { x1 > x2 };
+        let (l, t, w, h) = (r.f(nl, "left"), r.f(nl, "top"), r.f(nl, "width"), r.f(nl, "height"));
+        let y = t + h / 2.0;
+        let tri = if right {
+            let x = l + w + 5.0;
+            [P { x, y: y - 5.0 }, P { x: x + 10.0, y }, P { x, y: y + 5.0 }]
+        } else {
+            let x = l - 5.0;
+            [P { x, y: y - 5.0 }, P { x: x - 10.0, y }, P { x, y: y + 5.0 }]
+        };
+        c.polygon(&tri, Some(line), None);
+    }
 }
 
 pub fn draw_diagram(c: &mut dyn Canvas, r: &Repo, d: Eid, info: &HashMap<Eid, Info>) {

@@ -4211,3 +4211,24 @@ fn a_subsystem_offers_its_interfaces() {
     let real = a.repo.all().find(|e| a.repo.ty(*e) == "UMLInterfaceRealization").expect("the realization is made");
     assert_eq!(a.repo.refd(real, "source"), Some(sm));
 }
+
+#[test]
+fn association_end_order_arrow() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    a.change(|a| a.repo.set(m, "name", json!("owns")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let polys = |a: &App| crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap().matches("<polygon").count();
+    let plain = polys(&a);
+    for order in ["forward", "backward"] {
+        a.change(|a| a.repo.set(e, "showEndOrder", json!(order)));
+        assert_eq!(polys(&a), plain + 1, "{order} draws one triangle");
+    }
+    a.change(|a| a.repo.set(e, "showEndOrder", json!("hide")));
+    assert_eq!(polys(&a), plain);
+}

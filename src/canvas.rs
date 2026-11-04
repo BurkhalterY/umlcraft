@@ -1665,6 +1665,7 @@ impl App {
         let mut related: Option<crate::related::Related> = None;
         let mut edge_note: Option<Eid> = None;
         let mut add_subst: Option<Eid> = None;
+        let mut picked_order: Option<(Eid, &'static str)> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
             egui::Frame::NONE.fill(Color32::WHITE).stroke(Stroke::new(1.0, c32(render::SELECT_COLOR))).show(ui, |ui| {
                 ui.visuals_mut().override_text_color = Some(Color32::BLACK);
@@ -1870,6 +1871,22 @@ impl App {
                             edge_note = Some(e);
                         }
                     }
+                    // an association's Order of Ends, a property of its line (quickedits/uml.json "uml.end-order")
+                    if let (Some(e), true) = (edge, self.repo.ty(*m) == "UMLAssociation") {
+                        let cur = self.repo.str(e, "showEndOrder");
+                        let opts = [("hide", "Hide"), ("forward", "Forward (End1 to End2)"), ("backward", "Backward (End2 to End1)")];
+                        let shown = opts.iter().find(|o| o.0 == cur).map(|o| o.1).unwrap_or("Hide");
+                        ui.menu_button(egui::RichText::new(format!("{} ▾", shown.split(' ').next().unwrap_or(""))).size(11.0).color(Color32::WHITE), |ui| {
+                            for (value, label) in opts {
+                                if ui.selectable_label(cur == value, label).clicked() {
+                                    picked_order = Some((e, value));
+                                    ui.close();
+                                }
+                            }
+                        })
+                        .response
+                        .on_hover_text("Order of Ends");
+                    }
                     // a template binding adds a parameter substitution (quickedits/uml.json "uml.template-binding")
                     if self.repo.ty(*m) == "UMLTemplateBinding" {
                         let b = ui.add(egui::Button::new(egui::RichText::new("+ Subst").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Template Parameter Substitution");
@@ -1878,6 +1895,11 @@ impl App {
                         }
                     }
                 }
+                // the choice applies at once and the edit stays open
+                if let Some((e, value)) = picked_order {
+                    self.change(|a| a.repo.set(e, "showEndOrder", serde_json::json!(value)));
+                    ed.fresh = true;
+                }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
                 if key.is_some() || related.is_some() || edge_note.is_some() || add_subst.is_some() {
                     commit = Some(true);
@@ -1885,7 +1907,7 @@ impl App {
                     commit = Some(false);
                 } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
                     commit = Some(true);
-                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() {
+                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() && picked_order.is_none() {
                     commit = Some(true);
                 }
             });
