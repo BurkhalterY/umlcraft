@@ -83,7 +83,7 @@ UMLCraft shows toolbox groups only for Class diagrams (Classes Basic/Advanced, P
 | C4 Model `c4` | C4Diagram | Element | ❌ | extensions/essential/c4/toolbox/c4.json |
 | C4 Model `c4` | C4Diagram | Relationship | ❌ | extensions/essential/c4/toolbox/c4.json |
 | Annotations `annotation` | all | Text | ✅ | extensions/essential/common/toolbox/common.json |
-| Annotations `annotation` | all | Text Box | ❌ | extensions/essential/common/toolbox/common.json |
+| Annotations `annotation` | all | Text Box | ✅ | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Free Line | ❌ | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Note | ✅ | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Note Link | ✅ | extensions/essential/common/toolbox/common.json |

@@ -2715,3 +2715,20 @@ fn deleting_a_box_deletes_its_contained_views() {
     assert!(!a.repo.alive(pkg) && !a.repo.alive(inner), "the contained view goes too");
     assert!(a.repo.alive(c) && a.repo.alive(m), "other views and the models stay");
 }
+
+#[test]
+fn text_box() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let v = a.change(|a| a.create_node("TextBox", rect(40.0, 40.0, 120.0, 50.0))).unwrap();
+    assert_eq!(a.repo.ty(v), "UMLTextBoxView");
+    assert!(a.repo.kind_of(v, "UMLCustomTextView"), "aligned like notes and texts");
+    a.edit_view(v, None);
+    a.editing.as_mut().unwrap().text = "boxed".into();
+    a.close_inline(true);
+    assert_eq!(a.repo.str(v, "text"), "boxed");
+    let svg = String::from_utf8(crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap()).unwrap();
+    assert!(svg.contains(">boxed<") && svg.contains("stroke=\"#000000\""), "{svg}");
+    assert!(a.broken_views(d).is_empty());
+}

@@ -76,7 +76,7 @@ pub struct Group {
 const ANNOTATIONS: Group = Group {
     id: "annotations",
     label: "Annotations",
-    items: &[node("Text", "Text", "text"), node("Note", "Note", "note"), line("Note Link", "NoteLink", "notelink", AssocInit::Plain)],
+    items: &[node("Text", "Text", "text"), node("Text Box", "TextBox", "textbox"), node("Note", "Note", "note"), line("Note Link", "NoteLink", "notelink", AssocInit::Plain)],
 };
 const CLASS_GROUPS: &[Group] = &[
     Group {

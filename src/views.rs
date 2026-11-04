@@ -211,6 +211,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLUseCaseSubject" => (240.0, 250.0),
         "Note" => (140.0, 60.0),
         "Text" => (60.0, 15.0),
+        "TextBox" => (100.0, 40.0),
         _ => (100.0, 60.0),
     }
 }

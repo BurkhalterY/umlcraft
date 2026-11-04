@@ -540,8 +540,12 @@ impl App {
 
     pub fn create_node(&mut self, kind: &str, rect: R) -> Option<Eid> {
         let d = self.diagram?;
-        if kind == "Note" || kind == "Text" {
-            let ty = if kind == "Note" { "UMLNoteView" } else { "UMLTextView" };
+        if kind == "Note" || kind == "Text" || kind == "TextBox" {
+            let ty = match kind {
+                "Note" => "UMLNoteView",
+                "TextBox" => "UMLTextBoxView",
+                _ => "UMLTextView",
+            };
             let v = views::create_note_view(&mut self.repo, d, rect, ty);
             self.apply_view_defaults(v);
             return Some(v);
@@ -1068,7 +1072,7 @@ impl App {
             .into_iter()
             .filter(|&v| {
                 let ty = r.ty(v);
-                let needs_model = ty.starts_with("UML") && !matches!(ty, "UMLNoteView" | "UMLTextView" | "UMLNoteLinkView" | "UMLContainmentView" | "UMLCustomTextView" | "UMLCustomNoteView");
+                let needs_model = ty.starts_with("UML") && !matches!(ty, "UMLNoteView" | "UMLTextView" | "UMLTextBoxView" | "UMLNoteLinkView" | "UMLContainmentView" | "UMLCustomTextView" | "UMLCustomNoteView");
                 if dangling(v, "model") || (needs_model && !r.has(v, "model") && crate::meta::known(ty)) {
                     return true;
                 }

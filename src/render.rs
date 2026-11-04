@@ -243,7 +243,14 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: b.w - 20.0, h: b.h - 10.0 }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 0.0);
         return;
     }
-    if ty == "UMLTextView" || ty == "UMLCustomTextView" || ty == "UMLTextBoxView" {
+    if ty == "UMLTextBoxView" {
+        // a text with a border and a fill
+        shadow_rect(c, r, v, b);
+        c.rect(b, Some(fill), Some(line));
+        draw_wrapped(c, &r.str(v, "text"), R { x: b.x + 5.0, y: b.y + 5.0, w: (b.w - 10.0).max(10.0), h: (b.h - 10.0).max(10.0) }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 0.0);
+        return;
+    }
+    if ty == "UMLTextView" || ty == "UMLCustomTextView" {
         draw_wrapped(c, &r.str(v, "text"), R { x: b.x, y: b.y, w: b.w.max(10.0), h: b.h.max(15.0) }, fc, views::view_font(r, v).1, r.bool(v, "wordWrap"), text_align(r, v), 100.0);
         return;
     }

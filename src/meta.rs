@@ -140,6 +140,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLCustomNoteView", Some("UMLCustomTextView"), vec![]);
     def("UMLNoteView", Some("UMLCustomNoteView"), vec![]);
     def("UMLTextView", Some("UMLCustomTextView"), vec![]);
+    def("UMLTextBoxView", Some("UMLCustomTextView"), vec![]);
     def("UMLNoteLinkView", Some("EdgeView"), vec![]);
     def("UMLContainmentView", Some("EdgeView"), vec![]);
     def("UMLGeneralEdgeView", Some("EdgeView"), vec![
