@@ -4515,3 +4515,26 @@ fn a_failing_inline_command_shows_an_error_toast() {
     assert_eq!((t.0.as_str(), t.2), ("Type should be assigned to have internal Parts", true));
     assert_eq!(a.repo.all().count(), n, "nothing created");
 }
+
+#[test]
+fn add_constraint_to_a_line() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 140.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 140.0, 100.0, 60.0))).unwrap();
+    let tool = crate::app::Tool { label: "", kind: "UMLTemplateBinding", icon: "", line: true, init: crate::app::AssocInit::Plain };
+    let e = a.change(|a| a.create_edge(&tool, c1, c2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let undo = a.undo.len();
+    let cv = a.add_constraint_to(e).unwrap();
+    assert_eq!(a.undo.len(), undo + 1);
+    let c = a.repo.refd(cv, "model").unwrap();
+    assert_eq!(a.repo.parent(c), a.repo.refd(e, "model"), "owned by the binding");
+    let link = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "UMLConstraintLinkView").unwrap();
+    assert_eq!((a.repo.refd(link, "tail"), a.repo.refd(link, "head")), (Some(cv), Some(e)));
+    let anchor = a.edge_anchor(e);
+    assert!(crate::views::node_rect(&a.repo, cv).x < anchor.x, "left of the name label");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

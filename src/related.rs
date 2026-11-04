@@ -231,15 +231,20 @@ impl App {
 
     /// Add Note on a line: a 100×50 note to the right of the line's name label, joined to the line by a
     /// note link, as one undo step; the note's text edit opens (uml-commands.js:684).
-    pub fn add_note_to_edge(&mut self, e: Eid) -> Option<Eid> {
-        let anchor = match self.repo.refd(e, "nameLabel") {
+    /// What a note or constraint added to a line is placed by: its name label, or its middle point.
+    pub fn edge_anchor(&self, e: Eid) -> R {
+        match self.repo.refd(e, "nameLabel") {
             Some(l) => node_rect(&self.repo, l),
             None => {
                 let pts = views::points_of(&self.repo, e);
                 let mid = pts.get(pts.len() / 2).copied().unwrap_or_default();
                 R { x: mid.x, y: mid.y, w: 0.0, h: 0.0 }
             }
-        };
+        }
+    }
+
+    pub fn add_note_to_edge(&mut self, e: Eid) -> Option<Eid> {
+        let anchor = self.edge_anchor(e);
         let rect = R { x: (anchor.x + anchor.w + 20.0).round(), y: (anchor.y - 20.0).max(0.0).round(), w: 100.0, h: 50.0 };
         let note = self.change(|app| {
             let n = app.create_node("Note", rect)?;

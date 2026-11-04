@@ -647,12 +647,18 @@ impl App {
     pub fn add_constraint_to(&mut self, v: Eid) -> Option<Eid> {
         let d = self.diagram?;
         let m = self.repo.refd(v, "model")?;
-        let b = views::node_rect(&self.repo, v);
+        // a line's constraint goes left of its name label, like its note goes right (uml-commands.js:727-782)
+        let edge = views::is_edge(&self.repo, v);
+        let b = if edge { self.edge_anchor(v) } else { views::node_rect(&self.repo, v) };
         let cv = self.change(|a| {
             let name = a.new_name(m, "UMLConstraint");
             let c = a.repo.create("UMLConstraint", &[("name", json!(name))], Some((m, "ownedElements")));
-            let p = P { x: (b.x - 50.0 - CONSTRAINT_GAP).max(0.0), y: b.y };
-            Some(a.place_constraint(d, c, p))
+            let p = P { x: (b.x - 50.0 - CONSTRAINT_GAP).max(0.0).round(), y: (if edge { b.y - 20.0 } else { b.y }).max(0.0).round() };
+            let cv = a.place_constraint(d, c, p);
+            if edge {
+                a.link_constraint(d, cv, v);
+            }
+            Some(cv)
         })?;
         self.select(vec![cv]);
         self.pending_edit = Some(cv);

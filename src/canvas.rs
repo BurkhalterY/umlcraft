@@ -1804,6 +1804,7 @@ impl App {
         let mut key: Option<ItemKey> = None;
         let mut related: Option<crate::related::Related> = None;
         let mut edge_note: Option<Eid> = None;
+        let mut edge_constraint: Option<Eid> = None;
         let mut add_subst: Option<Eid> = None;
         let mut picked_order: Option<(Eid, &'static str)> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
@@ -2010,6 +2011,10 @@ impl App {
                         if b.is_pointer_button_down_on() {
                             edge_note = Some(e);
                         }
+                        let b = ui.add(egui::Button::new(egui::RichText::new("+ Constraint").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Constraint");
+                        if b.is_pointer_button_down_on() {
+                            edge_constraint = Some(e);
+                        }
                     }
                     // an association's Order of Ends, a property of its line (quickedits/uml.json "uml.end-order")
                     if let (Some(e), true) = (edge, self.repo.ty(*m) == "UMLAssociation") {
@@ -2041,7 +2046,7 @@ impl App {
                     ed.fresh = true;
                 }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if key.is_some() || related.is_some() || edge_note.is_some() || add_subst.is_some() {
+                if key.is_some() || related.is_some() || edge_note.is_some() || edge_constraint.is_some() || add_subst.is_some() {
                     commit = Some(true);
                 } else if esc {
                     commit = Some(false);
@@ -2068,6 +2073,9 @@ impl App {
         }
         if let Some(e) = edge_note.filter(|e| self.repo.alive(*e)) {
             self.add_note_to_edge(e);
+        }
+        if let Some(e) = edge_constraint.filter(|e| self.repo.alive(*e)) {
+            self.add_constraint_to(e);
         }
         // the new substitution is selected in the explorer (uml-commands.js:1026-1034)
         if let Some(b) = add_subst.filter(|b| self.repo.alive(*b)) {
