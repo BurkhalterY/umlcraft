@@ -1381,7 +1381,7 @@ impl App {
                 let ty = match self.repo.ty(m) {
                     "UMLEnumeration" => "UMLEnumerationLiteral",
                     "UMLUseCase" => "UMLExtensionPoint",
-                    "UMLObject" => "UMLSlot",
+                    _ if self.repo.kind_of(m, "UMLInstance") => "UMLSlot",
                     _ => "UMLAttribute",
                 };
                 self.add_item(host, m, ty);

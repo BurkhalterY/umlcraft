@@ -107,6 +107,9 @@ fn build() -> HashMap<&'static str, Kind> {
     // objects, their slots and the links between them (object diagrams; field names estimated)
     def("UMLInstance", Some("UMLModelElement"), vec![("classifier", n()), ("slots", n())]);
     def("UMLObject", Some("UMLInstance"), vec![]);
+    for name in ["UMLArtifactInstance", "UMLComponentInstance", "UMLNodeInstance"] {
+        def(name, Some("UMLInstance"), vec![]);
+    }
     def("UMLSlot", Some("UMLModelElement"), vec![("definingFeature", n()), ("type", n()), ("value", d(json!("")))]);
     def("UMLLink", Some("UMLUndirectedRelationship"), vec![("association", n())]);
     def("UMLLinkEnd", Some("UMLRelationshipEnd"), vec![]);
@@ -151,6 +154,10 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLUseCaseView", Some("UMLClassifierView"), vec![("extensionPointCompartment", n())]);
     def("UMLUseCaseSubjectView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLObjectView", Some("UMLGeneralNodeView"), vec![("slotCompartment", n())]);
+    // artifact, component and node instances: drawn like their classifiers (base type estimated)
+    for name in ["UMLArtifactInstanceView", "UMLComponentInstanceView", "UMLNodeInstanceView"] {
+        def(name, Some("UMLObjectView"), vec![]);
+    }
     def("UMLCustomTextView", Some("NodeView"), vec![("text", d(json!(""))), ("wordWrap", d(json!(true))), ("horzAlign", d(json!(0))), ("vertAlign", d(json!(3)))]);
     def("UMLCustomNoteView", Some("UMLCustomTextView"), vec![]);
     def("UMLNoteView", Some("UMLCustomNoteView"), vec![]);

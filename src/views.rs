@@ -171,6 +171,9 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         "UMLNode" => k("UMLNodeView", true, true, false),
         // an object: its name and classifier underlined, then its slots
         "UMLObject" => k("UMLObjectView", false, false, false),
+        "UMLArtifactInstance" => k("UMLArtifactInstanceView", false, false, false),
+        "UMLComponentInstance" => k("UMLComponentInstanceView", false, false, false),
+        "UMLNodeInstance" => k("UMLNodeInstanceView", false, false, false),
         _ => None,
     }
 }
@@ -335,7 +338,7 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
     }
     let nc = name_compartment(r, v, model);
     r.set_ref(v, "nameCompartment", Some(nc));
-    if kind.view == "UMLObjectView" {
+    if r.kind_of(model, "UMLInstance") {
         let s = list_compartment(r, v, model, "UMLSlotCompartmentView", true);
         r.set_ref(v, "slotCompartment", Some(s));
     }
@@ -1085,7 +1088,7 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
             }
         }
     }
-    if t == "UMLObjectView" {
+    if t == "UMLObjectView" || t.ends_with("InstanceView") {
         if let Some(m) = m {
             return layout_object(r, ms, v, m);
         }

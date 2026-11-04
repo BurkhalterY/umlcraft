@@ -172,6 +172,7 @@ const COMPONENT_GROUPS: &[Group] = &[
             line("Communication Path", "UMLCommunicationPath", "association", AssocInit::Plain),
         ],
     },
+    INSTANCES,
     ANNOTATIONS,
 ];
 // objects and links (uml.json "uml.instance": UMLClassDiagram, UMLObjectDiagram, …)
@@ -180,6 +181,9 @@ const INSTANCES: Group = Group {
     label: "Instances",
     items: &[
         node("Object", "UMLObject", "object"),
+        node("Artifact Instance", "UMLArtifactInstance", "artifact"),
+        node("Component Instance", "UMLComponentInstance", "component"),
+        node("Node Instance", "UMLNodeInstance", "node"),
         line("Link", "UMLLink", "association", AssocInit::Plain),
         line("Directed Link", "UMLLink", "directed", AssocInit::Directed),
     ],

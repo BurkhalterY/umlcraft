@@ -283,7 +283,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
     }
     // a box: classifier, subject, or any kind UMLCraft does not draw itself
     shadow_rect(c, r, v, b);
-    if ty == "UMLNodeView" {
+    if ty == "UMLNodeView" || ty == "UMLNodeInstanceView" {
         // a node is a box with depth: top and right faces behind the front one (estimated depth)
         let d = NODE_DEPTH;
         let top = [P { x: b.x, y: b.y }, P { x: b.x + d, y: b.y - d }, P { x: b.x + b.w + d, y: b.y - d }, P { x: b.x + b.w, y: b.y }];
@@ -292,7 +292,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         c.polygon(&right, Some(fill), Some(line));
     }
     c.rect(b, Some(fill), Some(line));
-    if ty == "UMLComponentView" {
+    if ty == "UMLComponentView" || ty == "UMLComponentInstanceView" {
         // the component icon at the top right: a box with two tabs on its left side
         let (ix, iy) = (b.x + b.w - 22.0, b.y + 6.0);
         c.rect(R { x: ix, y: iy, w: 14.0, h: 16.0 }, Some(fill), Some(line));
@@ -327,7 +327,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             }
         }
     }
-    if ty == "UMLArtifactView" {
+    if ty == "UMLArtifactView" || ty == "UMLArtifactInstanceView" {
         // the artifact icon at the top right: a page with a folded corner
         let (ix, iy, f) = (b.x + b.w - 20.0, b.y + 6.0, 4.0);
         let page = [P { x: ix, y: iy }, P { x: ix + 12.0 - f, y: iy }, P { x: ix + 12.0, y: iy + f }, P { x: ix + 12.0, y: iy + 15.0 }, P { x: ix, y: iy + 15.0 }];

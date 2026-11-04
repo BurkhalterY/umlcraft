@@ -3410,3 +3410,32 @@ fn xmi_import() {
     let e1 = c.repo.child(ass, "end1").unwrap();
     assert_eq!((c.repo.name(e1).as_str(), c.repo.str(e1, "multiplicity").as_str()), ("b", "*"));
 }
+
+#[test]
+fn artifact_component_node_instances() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.add_diagram(None, "UMLDeploymentDiagram");
+    let n = a.change(|a| a.create_node("UMLNode", rect(40.0, 300.0, 160.0, 80.0))).unwrap();
+    let nm = a.repo.refd(n, "model").unwrap();
+    for (kind, view) in [("UMLArtifactInstance", "UMLArtifactInstanceView"), ("UMLComponentInstance", "UMLComponentInstanceView"), ("UMLNodeInstance", "UMLNodeInstanceView")] {
+        let v = a.change(|a| a.create_node(kind, rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+        assert_eq!(a.repo.ty(v), view);
+        assert!(a.repo.refd(v, "slotCompartment").is_some());
+    }
+    let ni = a.repo.all_of("UMLNodeInstance")[0];
+    a.repo.set_ref(ni, "classifier", Some(nm));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let v = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "UMLNodeInstanceView").unwrap();
+    let nl = a.repo.refd(a.repo.refd(v, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert!(a.repo.str(nl, "text").ends_with(&format!(" : {}", a.repo.name(nm))) && a.repo.bool(nl, "underline"));
+    assert!(!crate::validate::validate(&a.repo).iter().any(|p| p.rule == "UML015"));
+    // a component instance typed by a node breaks UML014
+    let ci = a.repo.all_of("UMLComponentInstance")[0];
+    a.repo.set_ref(ci, "classifier", Some(nm));
+    assert!(crate::validate::validate(&a.repo).iter().any(|p| p.rule == "UML014"));
+    // Ctrl+Enter adds a slot on any instance
+    let use_ = (crate::app::EditKind::Name(ni), crate::canvas::ItemKey::Add);
+    a.item_key(v, use_.0, use_.1);
+    assert_eq!(a.repo.list(ni, "slots").len(), 1);
+}
