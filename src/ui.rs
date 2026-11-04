@@ -1472,7 +1472,7 @@ impl App {
         let measure = EguiMeasure { ctx: ui.ctx().clone() };
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
-                if ui.button("New                     Ctrl+N").clicked() {
+                if ui.button(&menu_label("New                     Ctrl+N")).clicked() {
                     self.cmd_new(&measure);
                     ui.close();
                 }
@@ -1487,7 +1487,7 @@ impl App {
                         }
                     }
                 });
-                if ui.button("Open...                 Ctrl+O").clicked() {
+                if ui.button(&menu_label("Open...                 Ctrl+O")).clicked() {
                     self.cmd_open(&measure);
                     ui.close();
                 }
@@ -1503,11 +1503,11 @@ impl App {
                     });
                 });
                 ui.separator();
-                if ui.button("Save                    Ctrl+S").clicked() {
+                if ui.button(&menu_label("Save                    Ctrl+S")).clicked() {
                     self.save(&measure);
                     ui.close();
                 }
-                if ui.button("Save As...      Ctrl+Shift+S").clicked() {
+                if ui.button(&menu_label("Save As...      Ctrl+Shift+S")).clicked() {
                     self.save_as(&measure);
                     ui.close();
                 }
@@ -1567,46 +1567,46 @@ impl App {
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Exit                    Ctrl+Q").clicked() {
+                if ui.button(&menu_label("Exit                    Ctrl+Q")).clicked() {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     ui.close();
                 }
             });
             ui.menu_button("Edit", |ui| {
-                if ui.add_enabled(!self.undo.is_empty(), egui::Button::new("Undo                Ctrl+Z")).clicked() {
+                if ui.add_enabled(!self.undo.is_empty(), egui::Button::new(&menu_label("Undo                Ctrl+Z"))).clicked() {
                     self.do_undo();
                     ui.close();
                 }
-                if ui.add_enabled(!self.redo.is_empty(), egui::Button::new("Redo                Ctrl+Y")).clicked() {
+                if ui.add_enabled(!self.redo.is_empty(), egui::Button::new(&menu_label("Redo                Ctrl+Y"))).clicked() {
                     self.do_redo();
                     ui.close();
                 }
                 ui.separator();
                 self.clipboard_items(ui);
-                if ui.button("Delete              Delete").clicked() {
+                if ui.button(&menu_label("Delete              Delete")).clicked() {
                     self.delete_selection(false);
                     ui.close();
                 }
-                if ui.button("Delete From Model   Ctrl+Delete").clicked() {
+                if ui.button(&menu_label("Delete From Model   Ctrl+Delete")).clicked() {
                     self.delete_selection(true);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Select All          Ctrl+A").clicked() {
+                if ui.button(&menu_label("Select All          Ctrl+A")).clicked() {
                     self.select_all();
                     ui.close();
                 }
-                if ui.button("Select In Explorer  Ctrl+E").clicked() {
+                if ui.button(&menu_label("Select In Explorer  Ctrl+E")).clicked() {
                     if let Some(f) = self.focus {
                         self.reveal(f);
                     }
                     ui.close();
                 }
-                if ui.add_enabled(self.focus.is_some(), egui::Button::new("Select In Diagram   Ctrl+D")).clicked() {
+                if ui.add_enabled(self.focus.is_some(), egui::Button::new(&menu_label("Select In Diagram   Ctrl+D"))).clicked() {
                     self.select_in_diagram();
                     ui.close();
                 }
-                if ui.add_enabled(self.focus.is_some(), egui::Button::new("Open Sub-Diagram    Ctrl+Shift+D")).clicked() {
+                if ui.add_enabled(self.focus.is_some(), egui::Button::new(&menu_label("Open Sub-Diagram    Ctrl+Shift+D"))).clicked() {
                     self.open_sub_diagram();
                     ui.close();
                 }
@@ -1614,7 +1614,7 @@ impl App {
                 self.move_items(ui);
             });
             ui.menu_button("Format", |ui| {
-                if ui.add_enabled(!self.selection.is_empty(), egui::Button::new("Font...                         Ctrl+Shift+F")).clicked() {
+                if ui.add_enabled(!self.selection.is_empty(), egui::Button::new(&menu_label("Font...                         Ctrl+Shift+F"))).clicked() {
                     self.open_font_dialog();
                     ui.close();
                 }
@@ -1650,7 +1650,7 @@ impl App {
                         }
                     }
                 });
-                if ui.button("Find...                   Ctrl+F").clicked() {
+                if ui.button(&menu_label("Find...                   Ctrl+F")).clicked() {
                     self.open_find();
                     ui.close();
                 }
@@ -1661,7 +1661,7 @@ impl App {
                     }
                 });
                 let taggable = self.focus.map(|f| self.repo.alive(f) && self.repo.kind_of(f, "ExtensibleModel")).unwrap_or(false);
-                if ui.add_enabled(taggable, egui::Button::new("Tag Editor...       Ctrl+T")).clicked() {
+                if ui.add_enabled(taggable, egui::Button::new(&menu_label("Tag Editor...       Ctrl+T"))).clicked() {
                     self.open_tag_editor();
                     ui.close();
                 }
@@ -1692,7 +1692,7 @@ impl App {
                 });
             });
             ui.menu_button("View", |ui| {
-                if ui.button("Quick Find...        Ctrl+P").clicked() {
+                if ui.button(&menu_label("Quick Find...        Ctrl+P")).clicked() {
                     self.open_palette(crate::palette::Mode::Find);
                     ui.close();
                 }
@@ -1704,25 +1704,25 @@ impl App {
                 self.diagram_close_items(ui);
                 ui.separator();
                 let many = self.open.len() > 1;
-                if ui.add_enabled(many, egui::Button::new("Next Diagram        Ctrl+Shift+]")).clicked() {
+                if ui.add_enabled(many, egui::Button::new(&menu_label("Next Diagram        Ctrl+Shift+]"))).clicked() {
                     self.cycle_diagram(1);
                     ui.close();
                 }
-                if ui.add_enabled(many, egui::Button::new("Previous Diagram    Ctrl+Shift+[")).clicked() {
+                if ui.add_enabled(many, egui::Button::new(&menu_label("Previous Diagram    Ctrl+Shift+["))).clicked() {
                     self.cycle_diagram(-1);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Zoom In             Ctrl+=").clicked() {
+                if ui.button(&menu_label("Zoom In             Ctrl+=")).clicked() {
                     self.zoom_keep_centre(self.zoom + crate::app::ZOOM_STEP);
                 }
-                if ui.button("Zoom Out            Ctrl+-").clicked() {
+                if ui.button(&menu_label("Zoom Out            Ctrl+-")).clicked() {
                     self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP);
                 }
-                if ui.button("Actual Size         Ctrl+0").clicked() {
+                if ui.button(&menu_label("Actual Size         Ctrl+0")).clicked() {
                     self.zoom_keep_centre(1.0);
                 }
-                if ui.button("Fit To Window       Ctrl+9").clicked() {
+                if ui.button(&menu_label("Fit To Window       Ctrl+9")).clicked() {
                     self.fit();
                     ui.close();
                 }
@@ -1730,10 +1730,10 @@ impl App {
                 ui.checkbox(&mut self.show_grid, "Show Grid");
                 ui.checkbox(&mut self.snap, "Snap to Grid");
                 ui.separator();
-                ui.checkbox(&mut self.show_minimap, "Minimap               Ctrl+Alt+M");
-                ui.checkbox(&mut self.show_markdown, "Markdown Documentation  Ctrl+Alt+D");
-                ui.checkbox(&mut self.show_thumbnails, "Diagram Thumbnails  Ctrl+Alt+T");
-                ui.checkbox(&mut self.show_relationships, "Relationships     Ctrl+Alt+R");
+                ui.checkbox(&mut self.show_minimap, &menu_label("Minimap               Ctrl+Alt+M"));
+                ui.checkbox(&mut self.show_markdown, &menu_label("Markdown Documentation  Ctrl+Alt+D"));
+                ui.checkbox(&mut self.show_thumbnails, &menu_label("Diagram Thumbnails  Ctrl+Alt+T"));
+                ui.checkbox(&mut self.show_relationships, &menu_label("Relationships     Ctrl+Alt+R"));
                 ui.separator();
                 for (i, label) in PANELS.iter().enumerate() {
                     let mut on = *self.panel_flag(i);
@@ -1940,7 +1940,7 @@ impl App {
         ui.add_enabled_ui(has, |ui| {
             ui.menu_button("Line Style", |ui| {
                 let cur = self.line_style_state();
-                for (style, label) in [(0, "Rectilinear              Ctrl+L"), (1, "Oblique                    Ctrl+B"), (2, "Rounded Rectilinear  Ctrl+Alt+L"), (3, "Curve                        Ctrl+Alt+B")] {
+                for (style, label) in [(0, &menu_label("Rectilinear              Ctrl+L")), (1, &menu_label("Oblique                    Ctrl+B")), (2, &menu_label("Rounded Rectilinear  Ctrl+Alt+L")), (3, &menu_label("Curve                        Ctrl+Alt+B"))] {
                     let mut on = cur == Some(style);
                     if ui.checkbox(&mut on, label).clicked() {
                         self.set_line_style(style);
@@ -1954,11 +1954,11 @@ impl App {
     /// Move Up and Move Down (Edit menu and explorer menu).
     pub(crate) fn move_items(&mut self, ui: &mut egui::Ui) {
         let e = self.focus.filter(|f| self.repo.alive(*f) && self.repo.ty(*f) != "Project" && !self.is_view(*f));
-        if ui.add_enabled(e.is_some(), egui::Button::new("Move Up             Ctrl+Shift+Up")).clicked() {
+        if ui.add_enabled(e.is_some(), egui::Button::new(&menu_label("Move Up             Ctrl+Shift+Up"))).clicked() {
             self.move_element(e.unwrap(), true);
             ui.close();
         }
-        if ui.add_enabled(e.is_some(), egui::Button::new("Move Down           Ctrl+Shift+Down")).clicked() {
+        if ui.add_enabled(e.is_some(), egui::Button::new(&menu_label("Move Down           Ctrl+Shift+Down"))).clicked() {
             self.move_element(e.unwrap(), false);
             ui.close();
         }
@@ -1967,19 +1967,19 @@ impl App {
     /// Cut, Copy and Paste (Edit menu, canvas menu and explorer menu).
     pub(crate) fn clipboard_items(&mut self, ui: &mut egui::Ui) {
         let can = self.can_copy();
-        if ui.add_enabled(can, egui::Button::new("Cut                 Ctrl+X")).clicked() {
+        if ui.add_enabled(can, egui::Button::new(&menu_label("Cut                 Ctrl+X"))).clicked() {
             self.cmd_cut(Some(&ui.ctx().clone()));
             ui.close();
         }
-        if ui.add_enabled(can, egui::Button::new("Copy                Ctrl+C")).clicked() {
+        if ui.add_enabled(can, egui::Button::new(&menu_label("Copy                Ctrl+C"))).clicked() {
             self.cmd_copy(Some(&ui.ctx().clone()));
             ui.close();
         }
-        if ui.add_enabled(self.diagram.is_some(), egui::Button::new("Copy Diagram As Image  Ctrl+Shift+C")).clicked() {
+        if ui.add_enabled(self.diagram.is_some(), egui::Button::new(&menu_label("Copy Diagram As Image  Ctrl+Shift+C"))).clicked() {
             self.cmd_copy_diagram_image(&ui.ctx().clone());
             ui.close();
         }
-        if ui.button("Paste               Ctrl+V").clicked() {
+        if ui.button(&menu_label("Paste               Ctrl+V")).clicked() {
             self.cmd_paste();
             ui.close();
         }
@@ -1988,15 +1988,15 @@ impl App {
     /// Close Diagram, Close Other Diagrams and Close All Diagrams (View menu and Working Diagrams menu).
     fn diagram_close_items(&mut self, ui: &mut egui::Ui) {
         let has = self.diagram.is_some();
-        if ui.add_enabled(has, egui::Button::new("Close Diagram       F4")).clicked() {
+        if ui.add_enabled(has, egui::Button::new(&menu_label("Close Diagram       F4"))).clicked() {
             self.close_diagram(None);
             ui.close();
         }
-        if ui.add_enabled(has, egui::Button::new("Close Other Diagrams  Ctrl+F4")).clicked() {
+        if ui.add_enabled(has, egui::Button::new(&menu_label("Close Other Diagrams  Ctrl+F4"))).clicked() {
             self.close_other_diagrams();
             ui.close();
         }
-        if ui.add_enabled(!self.open.is_empty(), egui::Button::new("Close All Diagrams  Shift+F4")).clicked() {
+        if ui.add_enabled(!self.open.is_empty(), egui::Button::new(&menu_label("Close All Diagrams  Shift+F4"))).clicked() {
             self.close_all_diagrams();
             ui.close();
         }
@@ -2028,7 +2028,7 @@ impl App {
             }
             let has = !self.flag_views(field).is_empty();
             let mut on = self.flag_state(field) == Some(true);
-            if ui.add_enabled(has, egui::Checkbox::new(&mut on, label)).clicked() {
+            if ui.add_enabled(has, egui::Checkbox::new(&mut on, menu_label(label))).clicked() {
                 self.toggle_flag(field);
                 ui.close();
             }
@@ -3005,4 +3005,20 @@ fn swatch(ui: &mut egui::Ui, c: Color32, size: Vec2) -> egui::Response {
     p.rect_filled(rect, 0.0, c);
     p.rect_stroke(rect, 0.0, Stroke::new(1.0, if r.hovered() { TEXT() } else { BORDER() }), egui::StrokeKind::Inside);
     r
+}
+
+/// A menu label "Name      Ctrl+X": on macOS its shortcut is shown as symbols, "Name  ⌘X"
+/// (keymap-manager.js:75-152); elsewhere it is left as written.
+pub(crate) fn menu_label(label: &str) -> String {
+    menu_label_for(label, cfg!(target_os = "macos"))
+}
+
+pub(crate) fn menu_label_for(label: &str, mac: bool) -> String {
+    if !mac {
+        return label.to_string();
+    }
+    match label.trim_end().rsplit_once("  ") {
+        Some((name, key)) if !key.trim().is_empty() => format!("{}  {}", name.trim_end(), crate::palette::shortcut_label(key.trim(), true)),
+        _ => label.to_string(),
+    }
 }

@@ -3634,3 +3634,12 @@ fn shortcut_labels_per_platform() {
     assert_eq!(shortcut_label("Ctrl+Up", false), "Ctrl+↑");
     assert_eq!(shortcut_label("", true), "");
 }
+
+#[test]
+fn menu_labels_keep_their_text_off_macos() {
+    use crate::ui::menu_label_for;
+    assert_eq!(menu_label_for("Save As...      Ctrl+Shift+S", false), "Save As...      Ctrl+Shift+S");
+    assert_eq!(menu_label_for("Save As...      Ctrl+Shift+S", true), "Save As...  ⌘⇧S");
+    assert_eq!(menu_label_for("Close Diagram  F4", true), "Close Diagram  F4");
+    assert_eq!(menu_label_for("Plain", true), "Plain");
+}
