@@ -2599,3 +2599,17 @@ fn http_api() {
     assert!(out.starts_with("HTTP/1.1 200 OK"), "{out}");
     assert!(out.contains("\"type\":\"UMLClassDiagram\""));
 }
+
+#[test]
+fn add_template_parameter_from_the_inline_edit() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 160.0, 80.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    a.item_key(c, crate::app::EditKind::Name(m), crate::canvas::ItemKey::AddTemplateParameter);
+    let t = a.repo.list(m, "templateParameters");
+    assert_eq!(t.len(), 1);
+    assert_eq!(a.focus, Some(t[0]));
+}

@@ -144,6 +144,8 @@ pub enum ItemKey {
     Move(bool),
     /// Up / Down: edit the previous or next item
     Nav(bool),
+    /// The class name edit's Add Template Parameter button
+    AddTemplateParameter,
 }
 
 impl App {
@@ -1316,6 +1318,7 @@ impl App {
                 self.add_item(host, owner, &ty);
             }
             (ItemKey::AddOperation, _) => self.add_item(host, m, "UMLOperation"),
+            (ItemKey::AddTemplateParameter, _) => self.add_item(host, m, "UMLTemplateParameter"),
             (ItemKey::Delete, Some(f)) => {
                 let (Some(owner), Some(field)) = (self.repo.parent(f), self.repo.field_of(f)) else { return };
                 let i = self.repo.list(owner, &field).iter().position(|x| *x == f).unwrap_or(0);
@@ -1551,6 +1554,13 @@ impl App {
                     if self.repo.refd(h, "model") == Some(*m) && !acts.is_empty() {
                         ui.horizontal_wrapped(|ui| {
                             ui.set_max_width(w.max(220.0));
+                            // a class also gets Add Template Parameter (quickedits/uml.json "uml.class")
+                            if self.repo.ty(*m) == "UMLClass" {
+                                let b = ui.add(egui::Button::new(egui::RichText::new("T").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Template Parameter");
+                                if b.is_pointer_button_down_on() {
+                                    key = Some(ItemKey::AddTemplateParameter);
+                                }
+                            }
                             for a in acts {
                                 let b = ui.add(egui::Button::new(egui::RichText::new(short_label(a.label)).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(a.label);
                                 // taken on press: the text field loses focus (and the edit closes) before a release
