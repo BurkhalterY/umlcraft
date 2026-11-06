@@ -297,6 +297,8 @@ const ACTIVITY_GROUPS: &[Group] = &[
         id: "activity-adv",
         label: "Activities (Advanced)",
         items: &[
+            node("Input Pin", "UMLInputPin", "pin"),
+            node("Output Pin", "UMLOutputPin", "pin"),
             node("Send Signal", "SendSignal", "send-signal"),
             node("Accept Signal", "AcceptSignal", "accept-signal"),
             node("Accept Time Event", "AcceptTimeEvent", "time-event"),

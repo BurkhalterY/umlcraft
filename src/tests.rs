@@ -4916,3 +4916,38 @@ fn action_buttons_add_flows_and_scaffolds() {
     assert_eq!(into.len(), 2, "two actions flow into the join");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn pins_sit_on_their_action_and_take_object_flows() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let s1 = a.change(|a| a.create_node("UMLAction", rect(100.0, 100.0, 80.0, 40.0))).unwrap();
+    let s2 = a.change(|a| a.create_node("UMLAction", rect(400.0, 100.0, 80.0, 40.0))).unwrap();
+    let (m1, m2) = (a.repo.refd(s1, "model").unwrap(), a.repo.refd(s2, "model").unwrap());
+    // the pin tool needs an action under the point
+    assert!(a.create_feature_box("UMLInputPin", crate::views::P { x: 10.0, y: 10.0 }, rect(0.0, 0.0, 0.0, 0.0)).is_err());
+    let p = a.change(|a| a.create_feature_box("UMLInputPin", crate::views::P { x: 100.0, y: 120.0 }, rect(0.0, 0.0, 0.0, 0.0)).ok()).unwrap();
+    assert_eq!(a.repo.ty(p), "UMLInputPinView");
+    assert_eq!(a.repo.list(m1, "inputs").len(), 1);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let b = crate::views::node_rect(&a.repo, p);
+    assert_eq!((b.w, b.h), (18.0, 18.0));
+    assert_eq!(b.x + b.w, 109.0, "centred on the left border where it was dropped");
+    assert_eq!(crate::views::pin_side(&a.repo, p), "left");
+    // an object flow between two actions joins a new output pin to a new input pin
+    let of = a.change(|a| a.create_edge(&tool("UMLObjectFlow", AssocInit::Plain), s1, s2)).unwrap();
+    let (t, h) = (a.repo.refd(of, "tail").unwrap(), a.repo.refd(of, "head").unwrap());
+    assert_eq!((a.repo.ty(t), a.repo.ty(h)), ("UMLOutputPinView", "UMLInputPinView"));
+    assert_eq!(a.repo.refd(t, "containerView"), Some(s1));
+    assert_eq!(a.repo.list(m1, "outputs").len(), 1);
+    assert_eq!(a.repo.list(m2, "inputs").len(), 1);
+    let fm = a.repo.refd(of, "model").unwrap();
+    assert_eq!(a.repo.ty(a.repo.refd(fm, "source").unwrap()), "UMLOutputPin");
+    // the Add Output Pin button puts it on the right border
+    let op = a.add_pin(s2, false).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(crate::views::pin_side(&a.repo, op), "right");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

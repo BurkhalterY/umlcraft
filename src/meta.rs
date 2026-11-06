@@ -61,6 +61,10 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLStructuralFeature", Some("UMLFeature"), vec![("type", n()), ("multiplicity", d(json!(""))), ("isReadOnly", d(json!(false))), ("isOrdered", d(json!(false))), ("isUnique", d(json!(false))), ("defaultValue", d(json!("")))]);
     // a port: an attribute shown on its classifier's border (uml/metamodel.json)
     def("UMLPort", Some("UMLAttribute"), vec![("isBehavior", d(json!(false))), ("isService", d(json!(false))), ("isConjugated", d(json!(false)))]);
+    // an action's pins (elements.js:3080-3090)
+    def("UMLPin", Some("UMLStructuralFeature"), vec![]);
+    def("UMLInputPin", Some("UMLPin"), vec![]);
+    def("UMLOutputPin", Some("UMLPin"), vec![]);
     def("UMLParameter", Some("UMLStructuralFeature"), vec![("direction", d(json!("in")))]);
     def("UMLBehavioralFeature", Some("UMLFeature"), vec![("parameters", n()), ("raisedExceptions", n()), ("concurrency", d(json!("sequential")))]);
     def("UMLAttribute", Some("UMLStructuralFeature"), vec![("isDerived", d(json!(false))), ("aggregation", d(json!("none"))), ("isID", d(json!(false)))]);
@@ -254,6 +258,10 @@ fn build() -> HashMap<&'static str, Kind> {
     // a node with floating labels around it, placed by angle and distance from its centre (elements.js:5162-5188)
     def("UMLFloatingNodeView", Some("NodeView"), vec![("nameLabel", n()), ("stereotypeLabel", n()), ("propertyLabel", n()), ("showProperty", d(json!(true)))]);
     def("UMLNaryAssociationNodeView", Some("UMLFloatingNodeView"), vec![("showVisibility", d(json!(false)))]);
+    // a pin: an 18 px square on its action's border (elements.js:9662-9800)
+    def("UMLPinView", Some("UMLFloatingNodeView"), vec![]);
+    def("UMLInputPinView", Some("UMLPinView"), vec![]);
+    def("UMLOutputPinView", Some("UMLPinView"), vec![]);
     def("UMLPortView", Some("UMLFloatingNodeView"), vec![("showVisibility", d(json!(false))), ("showType", d(json!(true))), ("showMultiplicity", d(json!(true)))]);
     def("HyperlinkView", Some("NodeView"), vec![("nameLabel", n()), ("typeLabel", n())]);
     def("UMLCustomTextView", Some("NodeView"), vec![("text", d(json!(""))), ("wordWrap", d(json!(true))), ("horzAlign", d(json!(0))), ("vertAlign", d(json!(3)))]);

@@ -1273,7 +1273,12 @@ impl App {
             // a transition joins two vertices: states and pseudostates
             "UMLTransition" => r.kind_of(tm, "UMLVertex") && r.kind_of(hm, "UMLVertex"),
             // a control or object flow joins two activity nodes (uml-factory.js:119-127)
-            "UMLControlFlow" | "UMLObjectFlow" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
+            "UMLControlFlow" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
+            // an object flow may also end on a pin (UMLObjectFlowView.canConnectTo, elements.js:10528)
+            "UMLObjectFlow" => {
+                let ok = |m: Eid| r.kind_of(m, "UMLActivityNode") || r.kind_of(m, "UMLPin");
+                ok(tm) && ok(hm)
+            }
             _ => true,
         }
     }
@@ -1286,6 +1291,17 @@ impl App {
 
     fn create_edge_inner(&mut self, tool: &Tool, tail: Eid, head: Eid) -> Option<Eid> {
         let d = self.diagram?;
+        // an object flow between two actions runs from a new output pin of the first to a new input
+        // pin of the second, each where the line between the actions leaves their boxes
+        // (uml-factory.js:2313-2370)
+        let action = |a: &Self, v: Eid| a.repo.refd(v, "model").map(|m| a.repo.ty(m) == "UMLAction").unwrap_or(false);
+        if tool.kind == "UMLObjectFlow" && action(self, tail) && action(self, head) && !views::is_edge(&self.repo, tail) && !views::is_edge(&self.repo, head) {
+            let (tb, hb) = (views::node_rect(&self.repo, tail), views::node_rect(&self.repo, head));
+            let (tc, hc) = (P { x: tb.x + tb.w / 2.0, y: tb.y + tb.h / 2.0 }, P { x: hb.x + hb.w / 2.0, y: hb.y + hb.h / 2.0 });
+            let out = self.create_feature_on(tail, "UMLOutputPin", views::port_junction(tb, hc), R::default()).ok()?;
+            let inp = self.create_feature_on(head, "UMLInputPin", views::port_junction(hb, tc), R::default()).ok()?;
+            return self.create_edge_inner(tool, out, inp);
+        }
         if tool.kind == "NoteLink" {
             return views::create_edge_view(&mut self.repo, d, None, tail, head);
         }
@@ -1513,7 +1529,7 @@ impl App {
             .list(d, "ownedViews")
             .into_iter()
             .rev()
-            .filter(|v| views::is_node(&self.repo, *v) && self.repo.ty(*v) != "UMLPortView" && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
+            .filter(|v| views::is_node(&self.repo, *v) && !matches!(self.repo.ty(*v), "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView") && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
             .find(|v| {
                 let b = views::node_rect(&self.repo, *v);
                 at.x >= b.x && at.y >= b.y && at.x <= b.x + b.w && at.y <= b.y + b.h
@@ -1522,9 +1538,20 @@ impl App {
         self.create_feature_on(host, kind, at, rect)
     }
 
-    /// A port or part on a given box (see `create_feature_box`).
+    /// A port or part on a given box (see `create_feature_box`), or an input or output pin on an
+    /// action's box, in the action's inputs or outputs (uml-factory.js:3827-3834).
     pub fn create_feature_on(&mut self, host: Eid, kind: &str, at: P, rect: R) -> Result<Eid, String> {
         let d = self.diagram.ok_or_else(String::new)?;
+        if kind == "UMLInputPin" || kind == "UMLOutputPin" {
+            let refused = format!("{kind} cannot be placed here.");
+            let hm = self.repo.refd(host, "model").filter(|m| self.repo.ty(*m) == "UMLAction").ok_or(refused)?;
+            let name = self.new_name(hm, kind);
+            let field = if kind == "UMLInputPin" { "inputs" } else { "outputs" };
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((hm, field)));
+            let v = views::create_pin_view(&mut self.repo, d, m, host, at);
+            self.apply_view_defaults(v);
+            return Ok(v);
+        }
         let refused = format!("{} cannot be placed here.", if kind == "UMLPort" { "UMLPort" } else { "UMLAttribute" });
         let hm = self.repo.refd(host, "model").ok_or(refused.clone())?;
         let owner = if self.repo.ty(hm) == "UMLAttribute" {

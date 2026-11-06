@@ -187,6 +187,8 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                 ],
                 // an action's decision, merge, fork and join scaffolds (quickedits/uml.json "uml.action")
                 "UMLAction" => vec![
+                    ("+ Out Pin", "Add Output Pin", "", ItemKey::AddPin(false)),
+                    ("+ In Pin", "Add Input Pin", "", ItemKey::AddPin(true)),
                     ("+ Decision", "Add Decision", "", ItemKey::Scaffold("UMLDecisionNode")),
                     ("+ Merge", "Add Merge", "", ItemKey::Scaffold("UMLMergeNode")),
                     ("+ Fork", "Add Fork", "", ItemKey::Scaffold("UMLForkNode")),
@@ -250,6 +252,8 @@ pub enum ItemKey {
     Scaffold(&'static str),
     /// A state's Add Region
     AddRegion,
+    /// An action's Add Input Pin (true) or Add Output Pin (false)
+    AddPin(bool),
     /// A composite state's Add Internal Transition
     InternalTransition,
     /// A state's Add Entry, Do or Exit Activity: asks which kind of behaviour
@@ -1263,7 +1267,7 @@ impl App {
                     let (mw, mh) = views::tool_min_size(tool.kind).unwrap_or((1.0, 1.0));
                     R { x: x1, y: y1, w: (x2 - x1).max(mw), h: (y2 - y1).max(mh) }
                 };
-                if tool.kind == "UMLPort" || tool.kind == "UMLPart" {
+                if matches!(tool.kind, "UMLPort" | "UMLPart" | "UMLInputPin" | "UMLOutputPin") {
                     // a port is placed at the point (a "point" tool), a part takes the box; both go on the
                     // classifier box under the point (toolbox/uml.json "parasitic")
                     if !self.tool_sticky {
@@ -1470,7 +1474,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView")));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView")));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
@@ -1578,6 +1582,23 @@ impl App {
         }
     }
 
+    /// Add Input Pin or Add Output Pin on an action: an input pin on the left border, an output pin
+    /// on the right, under the pins already on that side (the original picks a random point on the
+    /// box, uml-commands.js:3559-3597). The new pin's name edit opens.
+    pub fn add_pin(&mut self, host: Eid, input: bool) -> Option<Eid> {
+        let d = self.diagram?;
+        let b = node_rect(&self.repo, host);
+        let ty = if input { "UMLInputPinView" } else { "UMLOutputPinView" };
+        let n = self.repo.list(d, "ownedViews").into_iter().filter(|v| self.repo.refd(*v, "containerView") == Some(host) && self.repo.ty(*v) == ty).count() as f64;
+        let x = if input { b.x - views::PIN_SIZE / 2.0 } else { b.x + b.w + views::PIN_SIZE / 2.0 };
+        let at = P { x, y: b.y + 10.0 + 22.0 * n + views::PIN_SIZE / 2.0 };
+        let kind = if input { "UMLInputPin" } else { "UMLOutputPin" };
+        let v = self.change(|a| a.create_feature_on(host, kind, at, R::default()).map_err(|e| a.toast_error(&e)).ok())?;
+        self.select(vec![v]);
+        self.pending_edit = Some(v);
+        Some(v)
+    }
+
     /// Add Connected Part on a port or part: a new part in the same box, away from the border the
     /// port sits on (or under the part), joined to it by a connector (uml-commands.js:1636-1673).
     fn add_connected_part(&mut self, v: Eid) {
@@ -1649,6 +1670,9 @@ impl App {
             (ItemKey::AddTemplateParameter, _) => self.add_item(host, m, "UMLTemplateParameter"),
             (ItemKey::AddReception, _) => self.add_item(host, m, "UMLReception"),
             (ItemKey::AddPort, _) | (ItemKey::AddPart, _) => self.add_port_or_part(host, key == ItemKey::AddPort),
+            (ItemKey::AddPin(input), _) => {
+                self.add_pin(host, input);
+            }
             (ItemKey::SelectType, _) => {
                 // the Element Picker for the port's or part's type (uml-commands.js:1589-1600)
                 self.open_element_picker(m, "type");

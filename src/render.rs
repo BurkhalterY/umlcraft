@@ -543,6 +543,40 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             draw_name(c, r, v);
             return;
         }
+        "pin" => {
+            // a square on the action's border with an arrow pointing into the action for an input
+            // pin and out of it for an output pin (elements.js:9790-9840)
+            c.rect(b, Some(fill), Some(line));
+            let input = r.ty(v) == "UMLInputPinView";
+            let dir = match (views::pin_side(r, v), input) {
+                ("top", true) | ("bottom", false) => Some("down"),
+                ("bottom", true) | ("top", false) => Some("up"),
+                ("left", true) | ("right", false) => Some("right"),
+                ("right", true) | ("left", false) => Some("left"),
+                _ => None,
+            };
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+            let (t, bt, l, rt) = (P { x: ctr.x, y: b.y + 2.0 }, P { x: ctr.x, y: b.y + b.h - 2.0 }, P { x: b.x + 2.0, y: ctr.y }, P { x: b.x + b.w - 2.0, y: ctr.y });
+            let (from, to) = match dir {
+                Some("down") => (t, bt),
+                Some("up") => (bt, t),
+                Some("right") => (l, rt),
+                Some("left") => (rt, l),
+                _ => (ctr, ctr),
+            };
+            if dir.is_some() {
+                c.polyline(&[from, to], line, false);
+                let (dx, dy) = (((to.x - from.x).signum()), ((to.y - from.y).signum()));
+                let (a, bb) = if dx != 0.0 { (P { x: to.x - 3.0 * dx, y: to.y - 3.0 }, P { x: to.x - 3.0 * dx, y: to.y + 3.0 }) } else { (P { x: to.x - 3.0, y: to.y - 3.0 * dy }, P { x: to.x + 3.0, y: to.y - 3.0 * dy }) };
+                c.polyline(&[a, to, bb], line, false);
+            }
+            for f in ["stereotypeLabel", "nameLabel", "propertyLabel"] {
+                if let Some(lv) = r.refd(v, f) {
+                    draw_label(c, r, lv, fc);
+                }
+            }
+            return;
+        }
         "port" => {
             // a filled square on the border, its labels floating by it (elements.js:6950-6953)
             c.rect(b, Some(fill), Some(line));

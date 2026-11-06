@@ -71,6 +71,7 @@ const FRAME_CONTENT_MIN_W: f64 = 10.0; // elements.js:220
 const FRAME_CONTENT_MIN_H: f64 = 30.0; // elements.js:221
 const LABEL_INTERVAL: f64 = 3.0; // elements.js:62
 pub const PORT_SIZE: f64 = 14.0; // elements.js:89-90
+pub const PIN_SIZE: f64 = 18.0; // elements.js:159-160
 pub const NARY_MIN_W: f64 = 30.0; // elements.js:82
 pub const NARY_MIN_H: f64 = 22.0; // elements.js:83
 pub const HYPERLINK_MIN_W: f64 = 100.0; // elements.js:231
@@ -654,6 +655,79 @@ pub fn create_port_view(r: &mut Repo, diagram: Eid, model: Eid, host: Eid, at: P
     }
     contain(r, host, v);
     v
+}
+
+/// A pin on its action's border: an 18 × 18 square with its labels floating by it, contained in
+/// `host` (UMLInputPinView, UMLOutputPinView, elements.js:9662-9800).
+pub fn create_pin_view(r: &mut Repo, diagram: Eid, model: Eid, host: Eid, at: P) -> Eid {
+    let m = r.ref_to(model);
+    let ty = if r.ty(model) == "UMLInputPin" { "UMLInputPinView" } else { "UMLOutputPinView" };
+    let h = PIN_SIZE / 2.0;
+    let v = r.create(
+        ty,
+        &[("model", m.clone()), ("font", json!(FONT)), ("parentStyle", json!(false)), ("left", num(at.x - h)), ("top", num(at.y - h)), ("width", num(PIN_SIZE)), ("height", num(PIN_SIZE))],
+        Some((diagram, "ownedViews")),
+    );
+    let pi = std::f64::consts::PI;
+    for (field, alpha, distance) in [("nameLabel", 3.0 * pi / 4.0, 20.0), ("stereotypeLabel", 3.0 * pi / 4.0, 35.0), ("propertyLabel", -3.0 * pi / 4.0, 20.0)] {
+        let l = r.create("NodeLabelView", &[("model", m.clone()), ("font", json!(FONT)), ("alpha", json!(alpha)), ("distance", json!(distance)), ("height", json!(LABEL_H))], Some((v, "subViews")));
+        r.set_ref(v, field, Some(l));
+    }
+    contain(r, host, v);
+    v
+}
+
+/// Which side of its action a pin sits on: within half a pin of the top, bottom, left or right
+/// edge (UMLPinView.getPosition, elements.js:9687-9703).
+pub fn pin_side(r: &Repo, v: Eid) -> &'static str {
+    let Some(host) = r.refd(v, "containerView") else { return "else" };
+    let (c, b) = (node_rect(r, host), node_rect(r, v));
+    let range = (PIN_SIZE / 2.0).round();
+    let near = |a: f64, x: f64| a - range <= x && x <= a + range;
+    if near(c.y, b.y + b.h) {
+        "top"
+    } else if near(c.y + c.h, b.y) {
+        "bottom"
+    } else if near(c.x, b.x + b.w) {
+        "left"
+    } else if near(c.x + c.w, b.x) {
+        "right"
+    } else {
+        "else"
+    }
+}
+
+/// A pin: just outside its action's border, where the line from the action's centre through the
+/// pin meets it; the text `name: Type[mult]` floats by it (UMLPinView.arrange and update,
+/// elements.js:9668-9680, 9741-9765).
+fn layout_pin(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    if let Some(host) = r.refd(v, "containerView").filter(|h| r.alive(*h)) {
+        let c = node_rect(r, host);
+        let b = node_rect(r, v);
+        let p = port_junction(c, center(&b));
+        let inside = b.x <= p.x && p.x <= b.x + b.w && b.y <= p.y && p.y <= b.y + b.h;
+        if !inside {
+            let x = if c.x < p.x { p.x } else { p.x - PIN_SIZE + 1.0 };
+            let y = if c.y < p.y { p.y } else { p.y - PIN_SIZE + 1.0 };
+            r.set(v, "left", num(x));
+            r.set(v, "top", num(y));
+        }
+    }
+    r.set(v, "width", num(PIN_SIZE));
+    r.set(v, "height", num(PIN_SIZE));
+    let show = Show { vis: false, mult: true, sig: true, ty: true, prop: true };
+    let text = attribute_text(r, m, show);
+    let st = stereotype_text(r, m);
+    let text = if st.is_empty() { text } else { text.trim_start_matches(st.as_str()).trim_start().to_string() };
+    for (field, t) in [("nameLabel", text), ("stereotypeLabel", st), ("propertyLabel", String::new())] {
+        if let Some(lv) = r.refd(v, field) {
+            place_floating_label(r, ms, v, lv, &t, true);
+            if field == "nameLabel" {
+                let underline = r.bool(m, "isStatic");
+                r.set(lv, "underline", json!(underline));
+            }
+        }
+    }
 }
 
 /// A part inside its classifier's box: a box with the part's "name: Type[mult]" (UMLPartView,
@@ -1753,6 +1827,12 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
             grow(r, v, w.ceil(), 20.0);
         }
         return Info::default();
+    }
+    if t == "UMLInputPinView" || t == "UMLOutputPinView" {
+        if let Some(m) = m {
+            layout_pin(r, ms, v, m);
+        }
+        return Info { shape: "pin", ..Default::default() };
     }
     if t == "UMLPortView" {
         if let Some(m) = m {

@@ -307,8 +307,8 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Swimlane (Horizontal) | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Interruptible Activity Region | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Structured Activity | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Input Pin | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Output Pin | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Input Pin | ✅ | on the action box under the point, in its inputs: an 18 px square kept just outside the border, with an arrow into the action and `name: Type` floating by it (src/app.rs:1545-1555; src/views.rs:662-735; src/render.rs:546-580) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Output Pin | ✅ | on the action box under the point, in its outputs, with an arrow out of the action (src/app.rs:1545-1555; src/render.rs:546-580) | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Send Signal | ✅ | an action of kind sendSignal, drawn as a pentagon pointing right (src/views.rs:281-289; src/render.rs:461-500) | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Accept Signal | ✅ | an action of kind acceptSignal, a box notched on the left (src/views.rs:281-289; src/render.rs:461-500) | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Accept Time Event | ✅ | an action of kind timeEvent, a 24 px hourglass with its name under it (src/views.rs:563-584; src/render.rs:461-500) | extensions/essential/uml/toolbox/uml.json |
@@ -321,7 +321,7 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Input Expansion Node | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Output Expansion Node | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Frame | ✅ | in the Activities (Advanced) group, the same Frame tool as on other diagrams (src/ui.rs:281-312) | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Object Flow | 🟡 | between two activity nodes, owned by the activity's edges; it does not add the pins StarUML adds between two actions (src/app.rs:1276, 1335) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Object Flow | ✅ | between two activity nodes or pins, owned by the activity's edges; between two actions it runs from a new output pin of the first to a new input pin of the second (src/app.rs:1294-1303) | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Exception Handler | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Activity Interrupt | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Activity Edge Connector | ❌ | extensions/essential/uml/toolbox/uml.json |
