@@ -47,6 +47,20 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLFinalState" => "final",
         "UMLPseudostate" => "initial",
         "UMLTransition" => "dependency",
+        // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
+        "UMLAction" => match r.str(e, "kind").as_str() {
+            "sendSignal" | "triggerEvent" => "send-signal",
+            "acceptSignal" | "acceptEvent" => "accept-signal",
+            "timeEvent" => "time-event",
+            _ => "action",
+        },
+        "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLActivityParameterNode" => "object-node",
+        "UMLInitialNode" => "initial",
+        "UMLActivityFinalNode" => "final",
+        "UMLFlowFinalNode" => "flow-final",
+        "UMLForkNode" | "UMLJoinNode" => "fork",
+        "UMLMergeNode" | "UMLDecisionNode" => "choice",
+        "UMLControlFlow" | "UMLObjectFlow" => "dependency",
         "UMLDeployment" | "UMLTemplateBinding" => "dependency",
         "UMLCommunicationPath" => "association",
         "UMLClassDiagram" | "UMLPackageDiagram" | "UMLCompositeStructureDiagram" => "diagram-class",
@@ -244,6 +258,18 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(5.5, 5.0), (5.5, 11.0)], Y);
             line(&[(10.5, 5.0), (10.5, 11.0)], Y);
             line(&[(5.5, 8.0), (10.5, 8.0)], Y);
+        }
+        "action" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(13.0 * s, 9.0 * s)), (3.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "object-node" => rect_at(1.5, 4.5, 13.0, 7.0, Y),
+        "send-signal" => line(&[(1.5, 3.5), (11.0, 3.5), (14.5, 8.0), (11.0, 12.5), (1.5, 12.5), (1.5, 3.5)], Y),
+        "accept-signal" => line(&[(1.5, 3.5), (14.5, 3.5), (14.5, 12.5), (1.5, 12.5), (5.0, 8.0), (1.5, 3.5)], Y),
+        "time-event" => line(&[(3.0, 2.0), (13.0, 2.0), (3.0, 14.0), (13.0, 14.0), (3.0, 2.0)], Y),
+        "flow-final" => {
+            p.circle_stroke(at(8.0, 8.0), (6.0 * s) as f32, st(Y));
+            line(&[(4.0, 4.0), (12.0, 12.0)], Y);
+            line(&[(4.0, 12.0), (12.0, 4.0)], Y);
         }
         "terminate" => {
             line(&[(3.0, 3.0), (13.0, 13.0)], Y);

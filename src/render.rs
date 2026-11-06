@@ -458,6 +458,78 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             }
             return;
         }
+        "action" => {
+            // an action by its kind (UMLActionView.drawObject, elements.js:10100-10215)
+            let m = r.refd(v, "model");
+            let kind = m.map(|m| r.str(m, "kind")).unwrap_or_default();
+            let (x1, y1, x2, y2) = (b.x, b.y, b.x + b.w, b.y + b.h);
+            match kind.as_str() {
+                "sendSignal" => {
+                    let q = b.h / 4.0;
+                    c.polygon(&[P { x: x1, y: y1 }, P { x: x1, y: y2 }, P { x: x2 - q, y: y2 }, P { x: x2, y: y1 + b.h / 2.0 }, P { x: x2 - q, y: y1 }], Some(fill), Some(line));
+                }
+                "acceptSignal" | "acceptEvent" => {
+                    let q = b.h / 4.0;
+                    c.polygon(&[P { x: x1, y: y1 }, P { x: x2, y: y1 }, P { x: x2, y: y2 }, P { x: x1, y: y2 }, P { x: x1 + q, y: y1 + b.h / 2.0 }], Some(fill), Some(line));
+                }
+                "timeEvent" => {
+                    // an hourglass 24 px across, centred above the name
+                    let cx = (x1 + x2) / 2.0;
+                    let (l, rr, t, bt) = (cx - 12.0, cx + 12.0, y1, y1 + 24.0);
+                    c.polygon(&[P { x: l, y: t }, P { x: rr, y: t }, P { x: l, y: bt }, P { x: rr, y: bt }], Some(fill), Some(line));
+                }
+                _ => {
+                    c.polygon(&round_rect(b, 10.0), Some(fill), Some(line));
+                    let m = m.unwrap_or(v);
+                    if kind == "callBehavior" {
+                        // calling an activity: a rake at the top right
+                        if r.refd(m, "target").map(|t| r.ty(t) == "UMLActivity").unwrap_or(false) {
+                            for (a, bb) in [((x2 - 10.0, y1 + 5.0), (x2 - 10.0, y1 + 20.0)), ((x2 - 15.0, y1 + 13.0), (x2 - 5.0, y1 + 13.0)), ((x2 - 15.0, y1 + 13.0), (x2 - 15.0, y1 + 20.0)), ((x2 - 5.0, y1 + 13.0), (x2 - 5.0, y1 + 20.0))] {
+                                c.polyline(&[P { x: a.0, y: a.1 }, P { x: bb.0, y: bb.1 }], line, false);
+                            }
+                        }
+                    } else if r.refd(m, "subactivity").is_some() {
+                        // a subactivity: two small circles joined by a line at the bottom right
+                        c.ellipse(P { x: x2 - 23.0, y: y2 - 13.0 }, 3.0, 3.0, None, Some(line));
+                        c.polyline(&[P { x: x2 - 20.0, y: y2 - 13.0 }, P { x: x2 - 14.0, y: y2 - 13.0 }], line, false);
+                        c.ellipse(P { x: x2 - 11.0, y: y2 - 13.0 }, 3.0, 3.0, None, Some(line));
+                    }
+                }
+            }
+            draw_name(c, r, v);
+            return;
+        }
+        "object-node" => {
+            // a plain box with its name (elements.js:10244-10247)
+            c.rect(b, Some(fill), Some(line));
+            draw_name(c, r, v);
+            return;
+        }
+        "control-node" => {
+            // the mark of each control node (UMLControlNodeView.drawObject, elements.js:10393-10485)
+            let ty = r.refd(v, "model").map(|m| r.ty(m).to_string()).unwrap_or_default();
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+            let (rx, ry) = (b.w / 2.0, b.h / 2.0);
+            match ty.as_str() {
+                "UMLInitialNode" => c.ellipse(ctr, rx, ry, Some(line), None),
+                "UMLActivityFinalNode" => {
+                    c.ellipse(ctr, rx, ry, None, Some(line));
+                    c.ellipse(ctr, (rx - 5.0).max(0.0), (ry - 5.0).max(0.0), Some(line), None);
+                }
+                "UMLFlowFinalNode" => {
+                    c.ellipse(ctr, rx, ry, Some(fill), Some(line));
+                    let d = (std::f64::consts::SQRT_2 * b.w / 4.0).round();
+                    c.polyline(&[P { x: ctr.x - d, y: ctr.y - d }, P { x: ctr.x + d, y: ctr.y + d }], line, false);
+                    c.polyline(&[P { x: ctr.x + d, y: ctr.y - d }, P { x: ctr.x - d, y: ctr.y + d }], line, false);
+                }
+                "UMLForkNode" | "UMLJoinNode" => {
+                    let bar = if b.w >= b.h { R { h: views::BAR_THICK, ..b } } else { R { w: views::BAR_THICK, ..b } };
+                    c.polygon(&round_rect(bar, 3.0), Some(line), None);
+                }
+                _ => c.polygon(&[P { x: b.x, y: ctr.y }, P { x: ctr.x, y: b.y }, P { x: b.x + b.w, y: ctr.y }, P { x: ctr.x, y: b.y + b.h }], Some(fill), Some(line)),
+            }
+            return;
+        }
         "collaboration" => {
             // a dashed ellipse (elements.js:7214-7227, 7275-7279)
             let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
@@ -825,7 +897,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLComponentRealizationView" => head = Some(End::Triangle),
         // an extension: a solid line with a filled triangle at the metaclass
         "UMLExtensionView" => head = Some(End::FilledTriangle),
-        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" | "UMLTransitionView" => head = Some(End::Arrow),
+        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" | "UMLTransitionView" | "UMLControlFlowView" | "UMLObjectFlowView" => head = Some(End::Arrow),
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
             if let Some(m) = r.refd(e, "model") {

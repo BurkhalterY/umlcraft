@@ -4820,3 +4820,56 @@ fn internal_transitions_need_a_composite_state() {
     assert_eq!(a.repo.parent(t), Some(rg));
     assert_eq!((a.repo.refd(t, "source"), a.repo.refd(t, "target"), a.repo.str(t, "kind")), (Some(cm), Some(cm), "internal".to_string()));
 }
+
+#[test]
+fn an_activity_diagram_with_actions_and_flows() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let act = a.repo.parent(d).unwrap();
+    assert_eq!(a.repo.ty(act), "UMLActivity");
+    assert_eq!(a.repo.name(act), "Activity1");
+    let init = a.change(|a| a.create_node("UMLInitialNode", rect(40.0, 40.0, 0.0, 0.0))).unwrap();
+    let s1 = a.change(|a| a.create_node("UMLAction", rect(120.0, 30.0, 10.0, 10.0))).unwrap();
+    let dec = a.change(|a| a.create_node("UMLDecisionNode", rect(200.0, 160.0, 5.0, 5.0))).unwrap();
+    let fork = a.change(|a| a.create_node("UMLForkNode", rect(200.0, 260.0, 120.0, 40.0))).unwrap();
+    let send = a.change(|a| a.create_node("SendSignal", rect(300.0, 30.0, 80.0, 40.0))).unwrap();
+    let obj = a.change(|a| a.create_node("UMLDataStoreNode", rect(300.0, 130.0, 80.0, 40.0))).unwrap();
+    let fin = a.change(|a| a.create_node("UMLActivityFinalNode", rect(320.0, 300.0, 26.0, 26.0))).unwrap();
+    assert_eq!(a.repo.list(act, "nodes").len(), 7, "every node in the activity");
+    let sm = a.repo.refd(send, "model").unwrap();
+    assert_eq!((a.repo.ty(sm), a.repo.str(sm, "kind").as_str()), ("UMLAction", "sendSignal"));
+    assert!(a.repo.refd(init, "nameCompartment").is_none(), "a control node has no name");
+    let t = tool("UMLControlFlow", AssocInit::Plain);
+    assert!(a.can_connect(&t, init, s1));
+    let e1 = a.change(|a| a.create_edge(&t, init, s1)).unwrap();
+    let e2 = a.change(|a| a.create_edge(&t, s1, fin)).unwrap();
+    let of = a.change(|a| a.create_edge(&tool("UMLObjectFlow", AssocInit::Plain), s1, obj)).unwrap();
+    assert_eq!(a.repo.ty(e1), "UMLControlFlowView");
+    assert_eq!(a.repo.ty(of), "UMLObjectFlowView");
+    assert_eq!(a.repo.list(act, "edges").len(), 3, "flows in the activity's edges");
+    let fm = a.repo.refd(e2, "model").unwrap();
+    a.change(|a| a.repo.set(fm, "guard", json!("ok")));
+    a.change(|a| a.repo.set(fm, "weight", json!("2")));
+    assert_eq!(crate::views::activity_edge_text(&a.repo, fm), " [ok] {weight=2}");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(init, "width"), a.repo.f(init, "height")), (20.0, 20.0));
+    assert_eq!((a.repo.f(dec, "width"), a.repo.f(dec, "height")), (23.0, 19.0));
+    assert_eq!((a.repo.f(fork, "width"), a.repo.f(fork, "height")), (120.0, 6.0), "a horizontal bar keeps its thickness");
+    assert!(a.repo.f(s1, "width") >= 60.0 && a.repo.f(s1, "height") >= 40.0);
+    assert_eq!(a.info[&s1].shape, "action");
+    assert_eq!(a.info[&obj].shape, "object-node");
+    let nl = a.repo.refd(a.repo.refd(obj, "nameCompartment").unwrap(), "stereotypeLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "«datastore»");
+    // an activity dropped on the diagram: an unnamed action calling it
+    let other = a.change(|a| a.add_model(root, "UMLActivity"));
+    let dropped = a.drop_model(other, crate::views::P { x: 40.0, y: 300.0 }).unwrap();
+    let am = a.repo.refd(dropped[0], "model").unwrap();
+    assert_eq!(a.repo.parent(am), Some(act));
+    assert_eq!(a.repo.refd(am, "subactivity"), Some(other));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nm = a.repo.refd(a.repo.refd(dropped[0], "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nm, "text"), format!(":{}", a.repo.name(other)));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

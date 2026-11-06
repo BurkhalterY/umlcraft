@@ -136,6 +136,22 @@ fn build() -> HashMap<&'static str, Kind> {
         ("kind", d(json!("opaque"))), ("inputs", n()), ("outputs", n()), ("triggers", n()), ("target", n()), ("subactivity", n()), ("isLocallyReentrant", d(json!(false))),
         ("isSynchronous", d(json!(true))), ("language", d(json!(""))), ("body", n()), ("localPreconditions", n()), ("localPostconditions", n()),
     ]);
+    // activity nodes and edges (uml/metamodel.json, elements.js:3100-3580)
+    def("UMLObjectNode", Some("UMLActivityNode"), vec![("type", n()), ("isControlType", d(json!(false))), ("ordering", d(json!("FIFO"))), ("inStates", n())]);
+    def("UMLCentralBufferNode", Some("UMLObjectNode"), vec![]);
+    def("UMLDataStoreNode", Some("UMLCentralBufferNode"), vec![]);
+    def("UMLControlNode", Some("UMLActivityNode"), vec![]);
+    def("UMLInitialNode", Some("UMLControlNode"), vec![]);
+    def("UMLFinalNode", Some("UMLControlNode"), vec![]);
+    def("UMLActivityFinalNode", Some("UMLFinalNode"), vec![]);
+    def("UMLFlowFinalNode", Some("UMLFinalNode"), vec![]);
+    def("UMLForkNode", Some("UMLControlNode"), vec![]);
+    def("UMLJoinNode", Some("UMLControlNode"), vec![]);
+    def("UMLMergeNode", Some("UMLControlNode"), vec![]);
+    def("UMLDecisionNode", Some("UMLControlNode"), vec![]);
+    def("UMLActivityEdge", Some("UMLDirectedRelationship"), vec![("guard", d(json!(""))), ("weight", d(json!("")))]);
+    def("UMLControlFlow", Some("UMLActivityEdge"), vec![]);
+    def("UMLObjectFlow", Some("UMLActivityEdge"), vec![]);
     def("UMLActivity", Some("UMLBehavior"), vec![("isReadOnly", d(json!(false))), ("isSingleExecution", d(json!(false))), ("nodes", n()), ("edges", n()), ("groups", n())]);
     def("UMLTemplateParameterSubstitution", Some("UMLModelElement"), vec![("formal", n()), ("actual", n())]);
     def("UMLExtensionPoint", Some("UMLModelElement"), vec![("location", d(json!("")))]);
@@ -167,6 +183,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLCompositeStructureDiagram", Some("UMLDiagram"), vec![]);
     def("UMLUseCaseDiagram", Some("UMLDiagram"), vec![]);
     def("UMLStatechartDiagram", Some("UMLDiagram"), vec![]);
+    def("UMLActivityDiagram", Some("UMLDiagram"), vec![]);
     def("UMLPackageDiagram", Some("UMLDiagram"), vec![]);
     def("UMLComponentDiagram", Some("UMLDiagram"), vec![]);
     def("UMLDeploymentDiagram", Some("UMLDiagram"), vec![]);
@@ -210,6 +227,13 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLStateView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLPseudostateView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLFinalStateView", Some("UMLGeneralNodeView"), vec![]);
+    // activities: actions and object nodes with their name, control nodes as marks without one
+    // (elements.js:9903-10300)
+    def("UMLActionView", Some("UMLGeneralNodeView"), vec![]);
+    def("UMLObjectNodeView", Some("UMLGeneralNodeView"), vec![]);
+    def("UMLCentralBufferNodeView", Some("UMLObjectNodeView"), vec![]);
+    def("UMLDataStoreNodeView", Some("UMLObjectNodeView"), vec![]);
+    def("UMLControlNodeView", Some("NodeView"), vec![]);
     def("UMLCollaborationUseView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLPartView", Some("UMLGeneralNodeView"), vec![("showMultiplicity", d(json!(true)))]);
     def("UMLMetaClassView", Some("UMLGeneralNodeView"), vec![]);
@@ -253,7 +277,7 @@ fn build() -> HashMap<&'static str, Kind> {
         ("tailMultiplicityLabel", n()), ("headRoleNameLabel", n()), ("headPropertyLabel", n()), ("headMultiplicityLabel", n()),
     ]);
     def("UMLAssociationView", Some("UMLUndirectedRelationshipView"), vec![("tailQualifiersCompartment", n()), ("headQualifiersCompartment", n())]);
-    for name in ["UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView", "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLComponentRealizationView", "UMLDeploymentView", "UMLTemplateBindingView", "UMLInformationFlowView", "UMLExtensionView", "UMLTransitionView"] {
+    for name in ["UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView", "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLComponentRealizationView", "UMLDeploymentView", "UMLTemplateBindingView", "UMLInformationFlowView", "UMLExtensionView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView"] {
         def(name, Some("UMLGeneralEdgeView"), vec![]);
     }
     def("UMLCommunicationPathView", Some("UMLAssociationView"), vec![]);

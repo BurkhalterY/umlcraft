@@ -754,6 +754,11 @@ impl App {
         }
     }
 
+    /// The activity an activity diagram's nodes go in: the activity that owns the diagram.
+    pub fn diagram_activity(&self, d: Eid) -> Option<Eid> {
+        self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLActivity")
+    }
+
     pub fn create_node(&mut self, kind: &str, rect: R) -> Option<Eid> {
         let d = self.diagram?;
         if matches!(kind, "Note" | "Text" | "TextBox" | "Rect" | "RoundRect" | "Ellipse" | "Image") {
@@ -767,6 +772,22 @@ impl App {
                 _ => "UMLTextView",
             };
             let v = views::create_note_view(&mut self.repo, d, rect, ty);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // an activity diagram's nodes go in the nodes of its activity (uml-factory.js:3774-3826); the
+        // Send Signal, Accept Signal and Accept Time Event tools make actions of those kinds
+        // (uml.json "uml.activity-adv")
+        let action = views::action_kind(kind);
+        if action.is_some() || matches!(kind, "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLInitialNode" | "UMLActivityFinalNode" | "UMLFlowFinalNode" | "UMLForkNode" | "UMLJoinNode" | "UMLMergeNode" | "UMLDecisionNode") {
+            let act = self.diagram_activity(d)?;
+            let ty = if action.is_some() { "UMLAction" } else { kind };
+            let name = self.new_name(act, ty);
+            let m = self.repo.create(ty, &[("name", json!(name))], Some((act, "nodes")));
+            if let Some(k) = action.filter(|k| *k != "opaque") {
+                self.repo.set(m, "kind", json!(k));
+            }
+            let v = views::create_node_view(&mut self.repo, d, m, rect)?;
             self.apply_view_defaults(v);
             return Some(v);
         }
@@ -989,6 +1010,7 @@ impl App {
             ],
             "UMLObjectDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier", "UMLInstance", "UMLSlot", "UMLDependency", "UMLLink"],
             "UMLStatechartDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLVertex", "UMLTransition", "UMLStateMachine"],
+            "UMLActivityDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLActivityNode", "UMLActivityEdge", "UMLActivity"],
             "UMLUseCaseDiagram" => vec![
                 "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
@@ -1005,7 +1027,7 @@ impl App {
         }
         let ty = self.repo.ty(m);
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
-        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLStateMachine" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
@@ -1038,6 +1060,19 @@ impl App {
         // a constraint gets its view and links to its owner's boxes (factory.js:899-918)
         if ty == "UMLConstraint" {
             let v = self.change(|a| Some(a.place_constraint(d, m, p)));
+            return Ok(v.into_iter().collect());
+        }
+        // an activity dropped on an activity diagram becomes an action without a name whose
+        // subactivity is that activity (uml-factory.js:3450-3480)
+        if ty == "UMLActivity" {
+            let v = self.change(|a| {
+                let (w, h) = views::default_size("UMLAction");
+                let v = a.create_node("UMLAction", views::R { x: p.x, y: p.y, w, h })?;
+                let s = a.repo.refd(v, "model")?;
+                a.repo.set(s, "name", json!(""));
+                a.repo.set_ref(s, "subactivity", Some(m));
+                Some(v)
+            });
             return Ok(v.into_iter().collect());
         }
         // a state machine dropped on a statechart becomes a submachine state that refers to it
@@ -1237,6 +1272,8 @@ impl App {
             "UMLInclude" | "UMLExtend" => r.ty(tm) == "UMLUseCase" && r.ty(hm) == "UMLUseCase",
             // a transition joins two vertices: states and pseudostates
             "UMLTransition" => r.kind_of(tm, "UMLVertex") && r.kind_of(hm, "UMLVertex"),
+            // a control or object flow joins two activity nodes (uml-factory.js:119-127)
+            "UMLControlFlow" | "UMLObjectFlow" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
             _ => true,
         }
     }
@@ -1295,6 +1332,8 @@ impl App {
             // a transition belongs to the region of its source state
             let owner = match self.repo.parent(tm) {
                 Some(rg) if tool.kind == "UMLTransition" && self.repo.ty(rg) == "UMLRegion" => (rg, "transitions"),
+                // a flow belongs to the edges of the diagram's activity (uml-factory.js:2253-2300)
+                _ if matches!(tool.kind, "UMLControlFlow" | "UMLObjectFlow") && self.diagram_activity(d).is_some() => (self.diagram_activity(d)?, "edges"),
                 _ => (tm, "ownedElements"),
             };
             self.repo.create(tool.kind, &[("source", s), ("target", t)], Some(owner))
@@ -1562,6 +1601,8 @@ impl App {
     pub fn add_diagram(&mut self, parent: Option<Eid>, ty: &str) -> Eid {
         let target = match parent {
             Some(p) if self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" || self.repo.kind_of(p, "UMLClassifier") => p,
+            // an activity diagram added on an activity goes in it (uml-factory.js:574)
+            Some(p) if ty == "UMLActivityDiagram" && self.repo.ty(p) == "UMLActivity" => p,
             _ => self.package_for(self.diagram),
         };
         // a profile diagram goes in a profile: the target if it is one, else a new profile "Profile" (uml-factory.js:184)
@@ -1586,6 +1627,14 @@ impl App {
             let sm = self.repo.create("UMLStateMachine", &[("name", json!(name))], Some((target, "ownedElements")));
             self.repo.create("UMLRegion", &[], Some((sm, "regions")));
             sm
+        } else {
+            target
+        };
+        // an activity diagram goes in an activity: the target if it is one, else a new one
+        // (uml-factory.js:572-597)
+        let target = if ty == "UMLActivityDiagram" && self.repo.ty(target) != "UMLActivity" {
+            let name = self.new_name(target, "UMLActivity");
+            self.repo.create("UMLActivity", &[("name", json!(name))], Some((target, "ownedElements")))
         } else {
             target
         };
