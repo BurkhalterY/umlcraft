@@ -4873,3 +4873,46 @@ fn an_activity_diagram_with_actions_and_flows() {
     assert_eq!(a.repo.str(nm, "text"), format!(":{}", a.repo.name(other)));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn action_buttons_add_flows_and_scaffolds() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let act = a.repo.parent(d).unwrap();
+    let s = a.change(|a| a.create_node("UMLAction", rect(300.0, 300.0, 60.0, 40.0))).unwrap();
+    let m = a.repo.refd(s, "model").unwrap();
+    let btn = |t: &str, l: &str| crate::related::actions(t).into_iter().find(|x| x.label == l).unwrap();
+    let ends = |a: &App, n: crate::model::Eid| {
+        let e = a.repo.list(d, "ownedViews").into_iter().find(|v| crate::views::is_edge(&a.repo, *v) && (a.repo.refd(*v, "tail") == Some(n) || a.repo.refd(*v, "head") == Some(n))).unwrap();
+        (a.repo.ty(e).to_string(), a.repo.refd(e, "tail").unwrap(), a.repo.refd(e, "head").unwrap())
+    };
+    let out = a.add_related(s, btn("UMLAction", "Add Outgoing Control Flow")).unwrap();
+    assert!(crate::views::node_rect(&a.repo, out).y > 340.0, "below");
+    assert_eq!(ends(&a, out), ("UMLControlFlowView".to_string(), s, out));
+    let init = a.add_related(s, btn("UMLAction", "Add Initial Node")).unwrap();
+    assert_eq!(a.repo.ty(a.repo.refd(init, "model").unwrap()), "UMLInitialNode");
+    assert_eq!(ends(&a, init), ("UMLControlFlowView".to_string(), init, s));
+    let obj = a.add_related(s, btn("UMLAction", "Add Outgoing Object Flow")).unwrap();
+    let om = a.repo.refd(obj, "model").unwrap();
+    assert_eq!(a.repo.ty(om), "UMLObjectNode");
+    // a control flow from an object node makes it a control type
+    a.add_related(obj, btn("UMLObjectNode", "Add Outgoing Control Flow")).unwrap();
+    assert!(a.repo.bool(om, "isControlType"));
+    // a decision with two branch actions, as one undo step
+    let before = a.repo.list(act, "nodes").len();
+    let undo = a.undo.len();
+    a.item_key(s, EditKind::Name(m), ItemKey::Scaffold("UMLDecisionNode"));
+    assert_eq!(a.undo.len(), undo + 1);
+    assert_eq!(a.repo.list(act, "nodes").len(), before + 3);
+    let dv = a.selection[0];
+    assert_eq!(a.repo.ty(a.repo.refd(dv, "model").unwrap()), "UMLDecisionNode");
+    assert_eq!((a.repo.f(dv, "left"), a.repo.f(dv, "top")), (300.0, 380.0), "40 px below, level with the left side");
+    let join = { a.item_key(s, EditKind::Name(m), ItemKey::Scaffold("UMLJoinNode")); a.selection[0] };
+    assert_eq!(a.repo.f(join, "top"), 260.0, "40 px above");
+    let into: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| a.repo.refd(*v, "head") == Some(join)).collect();
+    assert_eq!(into.len(), 2, "two actions flow into the join");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

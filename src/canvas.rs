@@ -185,6 +185,13 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                     ("+ Choice", "Add Choice", "", ItemKey::Scaffold("Choice")),
                     ("+ Fork", "Add Fork", "", ItemKey::Scaffold("Fork")),
                 ],
+                // an action's decision, merge, fork and join scaffolds (quickedits/uml.json "uml.action")
+                "UMLAction" => vec![
+                    ("+ Decision", "Add Decision", "", ItemKey::Scaffold("UMLDecisionNode")),
+                    ("+ Merge", "Add Merge", "", ItemKey::Scaffold("UMLMergeNode")),
+                    ("+ Fork", "Add Fork", "", ItemKey::Scaffold("UMLForkNode")),
+                    ("+ Join", "Add Join", "", ItemKey::Scaffold("UMLJoinNode")),
+                ],
                 "UMLUseCase" => vec![("+ Ext", "Add Extension Point", "Ctrl+Enter", ItemKey::Add)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
                 // classes, interfaces, signals, data types, components, nodes, artifacts: Add Reception
@@ -1662,7 +1669,8 @@ impl App {
                 Err(e) => self.toast_error(&e),
             },
             (ItemKey::Scaffold(kind), _) => {
-                if let Some(p) = self.add_scaffold(host, kind) {
+                let p = if kind.starts_with("UML") { self.add_activity_scaffold(host, kind) } else { self.add_scaffold(host, kind) };
+                if let Some(p) = p {
                     self.select(vec![p]);
                 }
             }
