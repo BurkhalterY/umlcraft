@@ -4951,3 +4951,34 @@ fn pins_sit_on_their_action_and_take_object_flows() {
     assert_eq!(crate::views::pin_side(&a.repo, op), "right");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn swimlanes_hold_the_activity_nodes_drawn_in_them() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let act = a.repo.parent(d).unwrap();
+    let lane = a.change(|a| a.create_node("SwimlaneVert", rect(0.0, 0.0, 10.0, 10.0))).unwrap();
+    let hl = a.change(|a| a.create_node("SwimlaneHorz", rect(0.0, 400.0, 10.0, 10.0))).unwrap();
+    let pm = a.repo.refd(lane, "model").unwrap();
+    assert_eq!((a.repo.ty(pm), a.repo.name(pm).as_str()), ("UMLActivityPartition", "ActivityPartition1"));
+    assert_eq!(a.repo.list(act, "groups").len(), 2);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(lane, "width"), a.repo.f(lane, "height")), (crate::views::LANE_THIN.max(a.repo.f(lane, "width")), 300.0));
+    assert_eq!(a.repo.f(hl, "width"), 300.0);
+    assert!(!a.repo.bool(hl, "isVertical"));
+    // an action drawn in the lane belongs to its partition; moved out, back to the activity
+    let s = a.change(|a| a.create_node("UMLAction", rect(5.0, 50.0, 60.0, 40.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    assert_eq!(a.repo.parent(sm), Some(pm));
+    assert_eq!(a.repo.refd(s, "containerView"), Some(lane));
+    assert!(a.can_contain_view(lane, s));
+    a.change(|a| a.set_container(&[s], None));
+    assert_eq!(a.repo.parent(sm), Some(act));
+    assert_eq!(a.repo.field_of(sm).as_deref(), Some("nodes"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("rotate(-90"), "a horizontal lane's name reads upwards");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

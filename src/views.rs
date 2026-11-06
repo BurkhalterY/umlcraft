@@ -269,6 +269,50 @@ const KNOWN_EDGE_VIEWS: [&str; 24] = [
 pub const PSEUDO_SIZE: f64 = 20.0;
 pub const FINAL_SIZE: f64 = 26.0;
 
+/// Swimlanes (elements.js:179-187): a vertical lane is at least 50 wide and 300 high (a horizontal
+/// one the other way round), its name 4 px from the top (left) and 10 px from the sides.
+pub const LANE_THIN: f64 = 50.0;
+pub const LANE_LONG: f64 = 300.0;
+
+/// A swimlane: a lane with its name in a header (UMLSwimlaneView, elements.js:10560-10680).
+pub fn create_swimlane_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R, vertical: bool) -> Eid {
+    let m = r.ref_to(model);
+    let v = r.create(
+        "UMLSwimlaneView",
+        &[("model", m.clone()), ("font", json!(FONT)), ("parentStyle", json!(false)), ("left", num(rect.x)), ("top", num(rect.y)), ("width", num(rect.w)), ("height", num(rect.h))],
+        Some((diagram, "ownedViews")),
+    );
+    if !vertical {
+        r.set(v, "isVertical", json!(false));
+    }
+    let l = r.create("LabelView", &[("model", m), ("font", json!(FONT)), ("parentStyle", json!(true)), ("horizontalAlignment", json!(2)), ("verticalAlignment", json!(4))], Some((v, "subViews")));
+    r.set_ref(v, "nameLabel", Some(l));
+    v
+}
+
+/// A swimlane's size and its name's box: the header is the name plus 4 + 4 px across the lane
+/// (UMLSwimlaneView.sizeObject and arrangeObject, elements.js:10596-10650).
+fn layout_swimlane(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    let name = r.name(m);
+    let (tw, th) = (ms.width(&name, 0).ceil(), ms.size());
+    let vertical = r.bool(v, "isVertical");
+    // not affected by auto resize (elements.js:10627)
+    let (min_w, min_h) = if vertical { ((tw + 20.0).max(LANE_THIN), (th + 8.0).max(LANE_LONG)) } else { ((th + 8.0).max(LANE_LONG), (tw + 20.0).max(LANE_THIN)) };
+    let (w, h) = (r.f(v, "width").max(min_w), r.f(v, "height").max(min_h));
+    r.set(v, "width", num(w));
+    r.set(v, "height", num(h));
+    let (x, y) = (r.f(v, "left"), r.f(v, "top"));
+    if let Some(l) = r.refd(v, "nameLabel") {
+        r.set(l, "text", json!(name));
+        r.set(l, "visible", json!(!name.is_empty()));
+        if vertical {
+            set_box(r, l, x, y + 4.0, w, th);
+        } else {
+            set_box(r, l, x + 4.0, y, th, h);
+        }
+    }
+}
+
 /// Activity sizes (elements.js:155-175): an action is at least 60 × 40 with corners rounded by 10, a
 /// fork or join bar 70 long and 6 thick, a decision or merge diamond 23 × 19.
 pub const ACTION_MIN_W: f64 = 60.0;
@@ -336,6 +380,8 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLInitialNode" => (PSEUDO_SIZE, PSEUDO_SIZE),
         "UMLActivityFinalNode" | "UMLFlowFinalNode" => (FINAL_SIZE, FINAL_SIZE),
         "UMLForkNode" | "UMLJoinNode" => (BAR_LENGTH, BAR_THICK),
+        "SwimlaneVert" => (LANE_THIN, LANE_LONG),
+        "SwimlaneHorz" => (LANE_LONG, LANE_THIN),
         "UMLMergeNode" | "UMLDecisionNode" => (DECISION_W, DECISION_H),
         "CompositeState" | "OrthogonalState" => (200.0, 150.0),
         "SubmachineState" => (100.0, 40.0),
@@ -1886,6 +1932,12 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
             layout_activity_box(r, ms, v, m);
         }
         return Info { shape: if t == "UMLActionView" { "action" } else { "object-node" }, ..Default::default() };
+    }
+    if t == "UMLSwimlaneView" {
+        if let Some(m) = m {
+            layout_swimlane(r, ms, v, m);
+        }
+        return Info { shape: "swimlane", ..Default::default() };
     }
     if t == "UMLControlNodeView" {
         if let Some(m) = m {

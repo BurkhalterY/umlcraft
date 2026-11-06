@@ -62,6 +62,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLMergeNode" | "UMLDecisionNode" => "choice",
         "UMLControlFlow" | "UMLObjectFlow" => "dependency",
         "UMLInputPin" | "UMLOutputPin" => "pin",
+        "UMLActivityPartition" => "swimlane-vert",
         "UMLDeployment" | "UMLTemplateBinding" => "dependency",
         "UMLCommunicationPath" => "association",
         "UMLClassDiagram" | "UMLPackageDiagram" | "UMLCompositeStructureDiagram" => "diagram-class",
@@ -264,6 +265,14 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(13.0 * s, 9.0 * s)), (3.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
         }
         "object-node" => rect_at(1.5, 4.5, 13.0, 7.0, Y),
+        "swimlane-vert" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, Y);
+            line(&[(1.5, 5.0), (14.5, 5.0)], Y);
+        }
+        "swimlane-horz" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, Y);
+            line(&[(5.0, 1.5), (5.0, 14.5)], Y);
+        }
         "pin" => {
             rect_at(1.5, 3.5, 9.0, 9.0, Y);
             rect_at(10.5, 6.0, 4.0, 4.0, Y);

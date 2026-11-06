@@ -778,6 +778,15 @@ impl App {
         // an activity diagram's nodes go in the nodes of its activity (uml-factory.js:3774-3826); the
         // Send Signal, Accept Signal and Accept Time Event tools make actions of those kinds
         // (uml.json "uml.activity-adv")
+        // a swimlane: a partition in the activity's groups (uml.json "UMLSwimlaneVert", "UMLSwimlaneHorz")
+        if kind == "SwimlaneVert" || kind == "SwimlaneHorz" {
+            let act = self.diagram_activity(d)?;
+            let name = self.new_name(act, "UMLActivityPartition");
+            let m = self.repo.create("UMLActivityPartition", &[("name", json!(name))], Some((act, "groups")));
+            let v = views::create_swimlane_view(&mut self.repo, d, m, rect, kind == "SwimlaneVert");
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
         let action = views::action_kind(kind);
         if action.is_some() || matches!(kind, "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLInitialNode" | "UMLActivityFinalNode" | "UMLFlowFinalNode" | "UMLForkNode" | "UMLJoinNode" | "UMLMergeNode" | "UMLDecisionNode") {
             let act = self.diagram_activity(d)?;
@@ -789,6 +798,11 @@ impl App {
             }
             let v = views::create_node_view(&mut self.repo, d, m, rect)?;
             self.apply_view_defaults(v);
+            // drawn inside a swimlane: it goes in that lane's partition
+            let lane = self.repo.list(d, "ownedViews").into_iter().rev().find(|c| self.repo.ty(*c) == "UMLSwimlaneView" && { let b = views::node_rect(&self.repo, *c); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h });
+            if let Some(c) = lane {
+                self.set_container(&[v], Some(c));
+            }
             return Some(v);
         }
         // a statechart's states go in the first region of its state machine (uml-factory.js:2005)
@@ -884,6 +898,12 @@ impl App {
         if ct == "UMLStateView" && !vertex(v) {
             return false;
         }
+        // a swimlane holds actions, control nodes and object nodes (UMLSwimlaneView.canContainViewKind,
+        // elements.js:10574-10581)
+        if ct == "UMLSwimlaneView" {
+            let vt = self.repo.ty(v);
+            return matches!(vt, "UMLActionView" | "UMLControlNodeView" | "UMLObjectNodeView" | "UMLCentralBufferNodeView" | "UMLDataStoreNodeView" | "UMLFinalStateView");
+        }
         if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView" || ct == "UMLStateView") || !views::is_node(&self.repo, v) {
             return false;
         }
@@ -949,6 +969,18 @@ impl App {
                 };
                 if let Some(rg) = region.filter(|rg| self.repo.parent(vm) != Some(*rg)) {
                     self.repo.relocate(vm, rg, "vertices");
+                }
+                continue;
+            }
+            // an activity node goes in the nodes of the partition it is put in, or of the diagram's
+            // activity when released (uml/main.js:24-41; engine.js:1158-1166)
+            if let Some(vm) = self.repo.refd(v, "model").filter(|m| self.repo.kind_of(*m, "UMLActivityNode")) {
+                let target = match to.and_then(|c| self.repo.refd(c, "model")) {
+                    Some(pm) if self.repo.kind_of(pm, "UMLActivityGroup") => Some(pm),
+                    _ => self.diagram_activity(d),
+                };
+                if let Some(t) = target.filter(|t| self.repo.parent(vm) != Some(*t) && self.repo.field_of(vm).as_deref() == Some("nodes")) {
+                    self.repo.relocate(vm, t, "nodes");
                 }
                 continue;
             }

@@ -55,6 +55,11 @@ pub trait Canvas: Measure {
     fn ellipse(&mut self, c: P, rx: f64, ry: f64, fill: Option<Rgba>, stroke: Option<Rgba>);
     /// align: 0 left, 1 right, 2 centre; text is centred vertically in the box
     fn text(&mut self, t: &str, b: R, align: i64, style: u8, size: f64, color: Rgba, underline: bool);
+    /// Text turned a quarter left, reading upwards, centred in the box (a horizontal swimlane's
+    /// name, LabelView DK_VERT); surfaces that cannot turn text write it level.
+    fn text_up(&mut self, t: &str, b: R, style: u8, size: f64, color: Rgba) {
+        self.text(t, b, 2, style, size, color, false);
+    }
     /// A picture given as a data URL, stretched over the box; surfaces that cannot show one skip it.
     fn image(&mut self, _b: R, _data_url: &str) {}
     fn rect(&mut self, r: R, fill: Option<Rgba>, stroke: Option<Rgba>) {
@@ -497,6 +502,32 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
                 }
             }
             draw_name(c, r, v);
+            return;
+        }
+        "swimlane" => {
+            // a lane open at the far end, with a filled header holding its name (elements.js:10652-10690;
+            // the 2 px pen is drawn 1 px wide)
+            let vertical = r.bool(v, "isVertical");
+            let lv = r.refd(v, "nameLabel");
+            let th = lv.map(|l| if vertical { r.f(l, "height") } else { r.f(l, "width") }).unwrap_or(0.0);
+            let (x2, y2) = (b.x + b.w, b.y + b.h);
+            let (hdr, open) = if vertical {
+                (R { x: b.x, y: b.y, w: b.w, h: th + 8.0 }, vec![P { x: b.x, y: y2 }, P { x: b.x, y: b.y }, P { x: x2, y: b.y }, P { x: x2, y: y2 }])
+            } else {
+                (R { x: b.x, y: b.y, w: th + 8.0, h: b.h }, vec![P { x: x2, y: b.y }, P { x: b.x, y: b.y }, P { x: b.x, y: y2 }, P { x: x2, y: y2 }])
+            };
+            c.rect(hdr, Some(fill), Some(line));
+            c.polyline(&open, line, false);
+            if let Some(l) = lv.filter(|l| shown(r, *l)) {
+                let lb = R { x: r.f(l, "left"), y: r.f(l, "top"), w: r.f(l, "width"), h: r.f(l, "height") };
+                let size = views::view_font(r, v).1;
+                let t = r.str(l, "text");
+                if vertical {
+                    c.text(&t, lb, 2, 0, size, fc, false);
+                } else {
+                    c.text_up(&t, lb, 0, size, fc);
+                }
+            }
             return;
         }
         "object-node" => {
@@ -1131,6 +1162,15 @@ impl Canvas for Svg<'_> {
     }
     fn ellipse(&mut self, c: P, rx: f64, ry: f64, fill: Option<Rgba>, stroke: Option<Rgba>) {
         self.out += &format!("<ellipse cx=\"{:.2}\" cy=\"{:.2}\" rx=\"{:.2}\" ry=\"{:.2}\"{}{}/>\n", c.x, c.y, rx, ry, paint("fill", fill), paint("stroke", stroke));
+    }
+    fn text_up(&mut self, t: &str, b: R, style: u8, size: f64, color: Rgba) {
+        let (x, y) = (b.x + b.w / 2.0, b.y + b.h / 2.0);
+        let weight = if style & 1 != 0 { " font-weight=\"bold\"" } else { "" };
+        self.out += &format!(
+            "<text x=\"{x:.2}\" y=\"{y:.2}\" transform=\"rotate(-90 {x:.2} {y:.2})\" font-family=\"Arial, Liberation Sans, Arimo, sans-serif\" font-size=\"{size}\" text-anchor=\"middle\" dominant-baseline=\"central\"{weight}{}>{}</text>\n",
+            paint("fill", Some(color)),
+            esc(t)
+        );
     }
     fn text(&mut self, t: &str, b: R, align: i64, style: u8, size: f64, color: Rgba, underline: bool) {
         let (x, anchor) = match align {

@@ -153,6 +153,8 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLJoinNode", Some("UMLControlNode"), vec![]);
     def("UMLMergeNode", Some("UMLControlNode"), vec![]);
     def("UMLDecisionNode", Some("UMLControlNode"), vec![]);
+    def("UMLActivityGroup", Some("UMLModelElement"), vec![("subgroups", n()), ("nodes", n()), ("edges", n())]);
+    def("UMLActivityPartition", Some("UMLActivityGroup"), vec![]);
     def("UMLActivityEdge", Some("UMLDirectedRelationship"), vec![("guard", d(json!(""))), ("weight", d(json!("")))]);
     def("UMLControlFlow", Some("UMLActivityEdge"), vec![]);
     def("UMLObjectFlow", Some("UMLActivityEdge"), vec![]);
@@ -238,6 +240,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLCentralBufferNodeView", Some("UMLObjectNodeView"), vec![]);
     def("UMLDataStoreNodeView", Some("UMLObjectNodeView"), vec![]);
     def("UMLControlNodeView", Some("NodeView"), vec![]);
+    def("UMLSwimlaneView", Some("NodeView"), vec![("nameLabel", n()), ("isVertical", d(json!(true)))]);
     def("UMLCollaborationUseView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLPartView", Some("UMLGeneralNodeView"), vec![("showMultiplicity", d(json!(true)))]);
     def("UMLMetaClassView", Some("UMLGeneralNodeView"), vec![]);

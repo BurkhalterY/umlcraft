@@ -110,6 +110,15 @@ impl Canvas for ScreenCanvas<'_> {
             self.painter.add(Shape::ellipse_stroke(ctr, r, st));
         }
     }
+    fn text_up(&mut self, t: &str, b: R, style: u8, size: f64, color: Rgba) {
+        let font = FontId::new((size * self.zoom) as f32, diagram_family(style));
+        let galley = self.painter.layout_no_wrap(t.to_string(), font, c32(color));
+        let (gw, gh) = (galley.size().x, galley.size().y);
+        // turned a quarter left about its top-left corner: it then spans gh across and gw up
+        let c = self.pos(P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 });
+        let pos = Pos2::new(c.x - gh / 2.0, c.y + gw / 2.0);
+        self.painter.add(egui::epaint::TextShape::new(pos, galley, c32(color)).with_angle(-std::f32::consts::FRAC_PI_2));
+    }
     fn text(&mut self, t: &str, b: R, align: i64, style: u8, size: f64, color: Rgba, underline: bool) {
         let font = FontId::new((size * self.zoom) as f32, diagram_family(style));
         let (x, a) = match align {
@@ -1474,7 +1483,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView")));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView")));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
