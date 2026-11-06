@@ -754,6 +754,11 @@ impl App {
         }
     }
 
+    /// The activity an activity diagram's nodes go in: the activity that owns the diagram.
+    pub fn diagram_activity(&self, d: Eid) -> Option<Eid> {
+        self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLActivity")
+    }
+
     pub fn create_node(&mut self, kind: &str, rect: R) -> Option<Eid> {
         let d = self.diagram?;
         if matches!(kind, "Note" | "Text" | "TextBox" | "Rect" | "RoundRect" | "Ellipse" | "Image") {
@@ -768,6 +773,36 @@ impl App {
             };
             let v = views::create_note_view(&mut self.repo, d, rect, ty);
             self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // an activity diagram's nodes go in the nodes of its activity (uml-factory.js:3774-3826); the
+        // Send Signal, Accept Signal and Accept Time Event tools make actions of those kinds
+        // (uml.json "uml.activity-adv")
+        // a swimlane: a partition in the activity's groups (uml.json "UMLSwimlaneVert", "UMLSwimlaneHorz")
+        if kind == "SwimlaneVert" || kind == "SwimlaneHorz" {
+            let act = self.diagram_activity(d)?;
+            let name = self.new_name(act, "UMLActivityPartition");
+            let m = self.repo.create("UMLActivityPartition", &[("name", json!(name))], Some((act, "groups")));
+            let v = views::create_swimlane_view(&mut self.repo, d, m, rect, kind == "SwimlaneVert");
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        let action = views::action_kind(kind);
+        if action.is_some() || matches!(kind, "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLInitialNode" | "UMLActivityFinalNode" | "UMLFlowFinalNode" | "UMLForkNode" | "UMLJoinNode" | "UMLMergeNode" | "UMLDecisionNode") {
+            let act = self.diagram_activity(d)?;
+            let ty = if action.is_some() { "UMLAction" } else { kind };
+            let name = self.new_name(act, ty);
+            let m = self.repo.create(ty, &[("name", json!(name))], Some((act, "nodes")));
+            if let Some(k) = action.filter(|k| *k != "opaque") {
+                self.repo.set(m, "kind", json!(k));
+            }
+            let v = views::create_node_view(&mut self.repo, d, m, rect)?;
+            self.apply_view_defaults(v);
+            // drawn inside a swimlane: it goes in that lane's partition
+            let lane = self.repo.list(d, "ownedViews").into_iter().rev().find(|c| self.repo.ty(*c) == "UMLSwimlaneView" && { let b = views::node_rect(&self.repo, *c); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h });
+            if let Some(c) = lane {
+                self.set_container(&[v], Some(c));
+            }
             return Some(v);
         }
         // a statechart's states go in the first region of its state machine (uml-factory.js:2005)
@@ -863,6 +898,12 @@ impl App {
         if ct == "UMLStateView" && !vertex(v) {
             return false;
         }
+        // a swimlane holds actions, control nodes and object nodes (UMLSwimlaneView.canContainViewKind,
+        // elements.js:10574-10581)
+        if ct == "UMLSwimlaneView" {
+            let vt = self.repo.ty(v);
+            return matches!(vt, "UMLActionView" | "UMLControlNodeView" | "UMLObjectNodeView" | "UMLCentralBufferNodeView" | "UMLDataStoreNodeView" | "UMLFinalStateView");
+        }
         if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView" || ct == "UMLStateView") || !views::is_node(&self.repo, v) {
             return false;
         }
@@ -931,6 +972,18 @@ impl App {
                 }
                 continue;
             }
+            // an activity node goes in the nodes of the partition it is put in, or of the diagram's
+            // activity when released (uml/main.js:24-41; engine.js:1158-1166)
+            if let Some(vm) = self.repo.refd(v, "model").filter(|m| self.repo.kind_of(*m, "UMLActivityNode")) {
+                let target = match to.and_then(|c| self.repo.refd(c, "model")) {
+                    Some(pm) if self.repo.kind_of(pm, "UMLActivityGroup") => Some(pm),
+                    _ => self.diagram_activity(d),
+                };
+                if let Some(t) = target.filter(|t| self.repo.parent(vm) != Some(*t) && self.repo.field_of(vm).as_deref() == Some("nodes")) {
+                    self.repo.relocate(vm, t, "nodes");
+                }
+                continue;
+            }
             let target = match to {
                 Some(c) if self.repo.ty(c) == "UMLUseCaseSubjectView" => None,
                 Some(c) => self.repo.refd(c, "model"),
@@ -989,6 +1042,7 @@ impl App {
             ],
             "UMLObjectDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier", "UMLInstance", "UMLSlot", "UMLDependency", "UMLLink"],
             "UMLStatechartDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLVertex", "UMLTransition", "UMLStateMachine"],
+            "UMLActivityDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLActivityNode", "UMLActivityEdge", "UMLActivity"],
             "UMLUseCaseDiagram" => vec![
                 "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
@@ -1005,7 +1059,7 @@ impl App {
         }
         let ty = self.repo.ty(m);
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
-        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLStateMachine" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
@@ -1038,6 +1092,19 @@ impl App {
         // a constraint gets its view and links to its owner's boxes (factory.js:899-918)
         if ty == "UMLConstraint" {
             let v = self.change(|a| Some(a.place_constraint(d, m, p)));
+            return Ok(v.into_iter().collect());
+        }
+        // an activity dropped on an activity diagram becomes an action without a name whose
+        // subactivity is that activity (uml-factory.js:3450-3480)
+        if ty == "UMLActivity" {
+            let v = self.change(|a| {
+                let (w, h) = views::default_size("UMLAction");
+                let v = a.create_node("UMLAction", views::R { x: p.x, y: p.y, w, h })?;
+                let s = a.repo.refd(v, "model")?;
+                a.repo.set(s, "name", json!(""));
+                a.repo.set_ref(s, "subactivity", Some(m));
+                Some(v)
+            });
             return Ok(v.into_iter().collect());
         }
         // a state machine dropped on a statechart becomes a submachine state that refers to it
@@ -1237,6 +1304,13 @@ impl App {
             "UMLInclude" | "UMLExtend" => r.ty(tm) == "UMLUseCase" && r.ty(hm) == "UMLUseCase",
             // a transition joins two vertices: states and pseudostates
             "UMLTransition" => r.kind_of(tm, "UMLVertex") && r.kind_of(hm, "UMLVertex"),
+            // a control or object flow joins two activity nodes (uml-factory.js:119-127)
+            "UMLControlFlow" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
+            // an object flow may also end on a pin (UMLObjectFlowView.canConnectTo, elements.js:10528)
+            "UMLObjectFlow" => {
+                let ok = |m: Eid| r.kind_of(m, "UMLActivityNode") || r.kind_of(m, "UMLPin");
+                ok(tm) && ok(hm)
+            }
             _ => true,
         }
     }
@@ -1249,6 +1323,17 @@ impl App {
 
     fn create_edge_inner(&mut self, tool: &Tool, tail: Eid, head: Eid) -> Option<Eid> {
         let d = self.diagram?;
+        // an object flow between two actions runs from a new output pin of the first to a new input
+        // pin of the second, each where the line between the actions leaves their boxes
+        // (uml-factory.js:2313-2370)
+        let action = |a: &Self, v: Eid| a.repo.refd(v, "model").map(|m| a.repo.ty(m) == "UMLAction").unwrap_or(false);
+        if tool.kind == "UMLObjectFlow" && action(self, tail) && action(self, head) && !views::is_edge(&self.repo, tail) && !views::is_edge(&self.repo, head) {
+            let (tb, hb) = (views::node_rect(&self.repo, tail), views::node_rect(&self.repo, head));
+            let (tc, hc) = (P { x: tb.x + tb.w / 2.0, y: tb.y + tb.h / 2.0 }, P { x: hb.x + hb.w / 2.0, y: hb.y + hb.h / 2.0 });
+            let out = self.create_feature_on(tail, "UMLOutputPin", views::port_junction(tb, hc), R::default()).ok()?;
+            let inp = self.create_feature_on(head, "UMLInputPin", views::port_junction(hb, tc), R::default()).ok()?;
+            return self.create_edge_inner(tool, out, inp);
+        }
         if tool.kind == "NoteLink" {
             return views::create_edge_view(&mut self.repo, d, None, tail, head);
         }
@@ -1295,6 +1380,8 @@ impl App {
             // a transition belongs to the region of its source state
             let owner = match self.repo.parent(tm) {
                 Some(rg) if tool.kind == "UMLTransition" && self.repo.ty(rg) == "UMLRegion" => (rg, "transitions"),
+                // a flow belongs to the edges of the diagram's activity (uml-factory.js:2253-2300)
+                _ if matches!(tool.kind, "UMLControlFlow" | "UMLObjectFlow") && self.diagram_activity(d).is_some() => (self.diagram_activity(d)?, "edges"),
                 _ => (tm, "ownedElements"),
             };
             self.repo.create(tool.kind, &[("source", s), ("target", t)], Some(owner))
@@ -1474,7 +1561,7 @@ impl App {
             .list(d, "ownedViews")
             .into_iter()
             .rev()
-            .filter(|v| views::is_node(&self.repo, *v) && self.repo.ty(*v) != "UMLPortView" && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
+            .filter(|v| views::is_node(&self.repo, *v) && !matches!(self.repo.ty(*v), "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView") && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
             .find(|v| {
                 let b = views::node_rect(&self.repo, *v);
                 at.x >= b.x && at.y >= b.y && at.x <= b.x + b.w && at.y <= b.y + b.h
@@ -1483,9 +1570,20 @@ impl App {
         self.create_feature_on(host, kind, at, rect)
     }
 
-    /// A port or part on a given box (see `create_feature_box`).
+    /// A port or part on a given box (see `create_feature_box`), or an input or output pin on an
+    /// action's box, in the action's inputs or outputs (uml-factory.js:3827-3834).
     pub fn create_feature_on(&mut self, host: Eid, kind: &str, at: P, rect: R) -> Result<Eid, String> {
         let d = self.diagram.ok_or_else(String::new)?;
+        if kind == "UMLInputPin" || kind == "UMLOutputPin" {
+            let refused = format!("{kind} cannot be placed here.");
+            let hm = self.repo.refd(host, "model").filter(|m| self.repo.ty(*m) == "UMLAction").ok_or(refused)?;
+            let name = self.new_name(hm, kind);
+            let field = if kind == "UMLInputPin" { "inputs" } else { "outputs" };
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((hm, field)));
+            let v = views::create_pin_view(&mut self.repo, d, m, host, at);
+            self.apply_view_defaults(v);
+            return Ok(v);
+        }
         let refused = format!("{} cannot be placed here.", if kind == "UMLPort" { "UMLPort" } else { "UMLAttribute" });
         let hm = self.repo.refd(host, "model").ok_or(refused.clone())?;
         let owner = if self.repo.ty(hm) == "UMLAttribute" {
@@ -1562,6 +1660,8 @@ impl App {
     pub fn add_diagram(&mut self, parent: Option<Eid>, ty: &str) -> Eid {
         let target = match parent {
             Some(p) if self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" || self.repo.kind_of(p, "UMLClassifier") => p,
+            // an activity diagram added on an activity goes in it (uml-factory.js:574)
+            Some(p) if ty == "UMLActivityDiagram" && self.repo.ty(p) == "UMLActivity" => p,
             _ => self.package_for(self.diagram),
         };
         // a profile diagram goes in a profile: the target if it is one, else a new profile "Profile" (uml-factory.js:184)
@@ -1586,6 +1686,14 @@ impl App {
             let sm = self.repo.create("UMLStateMachine", &[("name", json!(name))], Some((target, "ownedElements")));
             self.repo.create("UMLRegion", &[], Some((sm, "regions")));
             sm
+        } else {
+            target
+        };
+        // an activity diagram goes in an activity: the target if it is one, else a new one
+        // (uml-factory.js:572-597)
+        let target = if ty == "UMLActivityDiagram" && self.repo.ty(target) != "UMLActivity" {
+            let name = self.new_name(target, "UMLActivity");
+            self.repo.create("UMLActivity", &[("name", json!(name))], Some((target, "ownedElements")))
         } else {
             target
         };

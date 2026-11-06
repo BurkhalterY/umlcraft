@@ -295,33 +295,33 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Terminate | ✅ | a pseudostate of kind terminate, an X (src/render.rs:433-460) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Connection Point Reference | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Advanced) `uml.statechart-adv` | UMLStatechartDiagram | Frame | ✅ | in the Statechart (Advanced) group, the same Frame tool as on other diagrams (src/ui.rs:246-279) | extensions/essential/uml/toolbox/uml.json |
-| Activities (Basic) `uml.activity` | UMLActivityDiagram | Action | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Basic) `uml.activity` | UMLActivityDiagram | Initial | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Basic) `uml.activity` | UMLActivityDiagram | Final | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Basic) `uml.activity` | UMLActivityDiagram | Fork | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Basic) `uml.activity` | UMLActivityDiagram | Join | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Basic) `uml.activity` | UMLActivityDiagram | Merge | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Basic) `uml.activity` | UMLActivityDiagram | Decision | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Basic) `uml.activity` | UMLActivityDiagram | Control Flow | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Swimlane (Vertical) | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Swimlane (Horizontal) | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Activities (Basic) `uml.activity` | UMLActivityDiagram | Action | ✅ | an opaque action in the diagram activity's nodes, at least 60 × 40 with corners rounded by 10 (src/app.rs:778-791; src/views.rs:563-584; src/render.rs:461-500) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Basic) `uml.activity` | UMLActivityDiagram | Initial | ✅ | an initial node in the activity's nodes, a filled 20 px circle without a name (src/app.rs:778-791; src/views.rs:587-606; src/render.rs:508-530) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Basic) `uml.activity` | UMLActivityDiagram | Final | ✅ | an activity final node, a 26 px bull's eye (src/app.rs:778-791; src/render.rs:508-530) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Basic) `uml.activity` | UMLActivityDiagram | Fork | ✅ | a fork node: a bar 6 px thick, horizontal unless drawn taller than wide, at least 70 long (src/views.rs:587-606; src/render.rs:508-530) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Basic) `uml.activity` | UMLActivityDiagram | Join | ✅ | a join node, the same bar as Fork (src/views.rs:587-606; src/render.rs:508-530) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Basic) `uml.activity` | UMLActivityDiagram | Merge | ✅ | a merge node, a diamond of at least 23 × 19 (src/views.rs:587-606; src/render.rs:508-530) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Basic) `uml.activity` | UMLActivityDiagram | Decision | ✅ | a decision node, a diamond of at least 23 × 19 (src/views.rs:587-606; src/render.rs:508-530) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Basic) `uml.activity` | UMLActivityDiagram | Control Flow | ✅ | between two activity nodes, owned by the activity's edges, an open arrow labelled `name [guard] {weight=w}` (src/app.rs:1276, 1335; src/views.rs:2108-2120) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Swimlane (Vertical) | ✅ | an activity partition in the activity's groups, a lane at least 50 × 300 with its name in a header; actions, control nodes and object nodes drawn or dropped in it go in its partition (src/app.rs:781-789, 901-906, 975-986; src/views.rs:274-318; src/render.rs:507-532) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Swimlane (Horizontal) | ✅ | the same lane lying down, at least 300 × 50, its name reading upwards in a header on the left (src/views.rs:274-318; src/render.rs:507-532) | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Interruptible Activity Region | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Structured Activity | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Input Pin | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Output Pin | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Send Signal | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Accept Signal | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Accept Time Event | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Flow Final | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Object Node | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Central Buffer | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Datastore | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Input Pin | ✅ | on the action box under the point, in its inputs: an 18 px square kept just outside the border, with an arrow into the action and `name: Type` floating by it (src/app.rs:1545-1555; src/views.rs:662-735; src/render.rs:546-580) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Output Pin | ✅ | on the action box under the point, in its outputs, with an arrow out of the action (src/app.rs:1545-1555; src/render.rs:546-580) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Send Signal | ✅ | an action of kind sendSignal, drawn as a pentagon pointing right (src/views.rs:281-289; src/render.rs:461-500) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Accept Signal | ✅ | an action of kind acceptSignal, a box notched on the left (src/views.rs:281-289; src/render.rs:461-500) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Accept Time Event | ✅ | an action of kind timeEvent, a 24 px hourglass with its name under it (src/views.rs:563-584; src/render.rs:461-500) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Flow Final | ✅ | a flow final node, a 26 px circle with an X (src/render.rs:508-530) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Object Node | ✅ | an object node in the activity's nodes, a box showing `name: Type` (src/views.rs:1252-1273; src/render.rs:502-507) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Central Buffer | ✅ | a central buffer node, an object node box with «centralBuffer» (src/views.rs:1252-1273) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Datastore | ✅ | a data store node, an object node box with «datastore» (src/views.rs:1252-1273) | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Activity Parameter Node | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Expansion Region | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Input Expansion Node | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Output Expansion Node | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Frame | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Object Flow | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Frame | ✅ | in the Activities (Advanced) group, the same Frame tool as on other diagrams (src/ui.rs:281-312) | extensions/essential/uml/toolbox/uml.json |
+| Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Object Flow | ✅ | between two activity nodes or pins, owned by the activity's edges; between two actions it runs from a new output pin of the first to a new input pin of the second (src/app.rs:1294-1303) | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Exception Handler | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Activity Interrupt | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Activities (Advanced) `uml.activity-adv` | UMLActivityDiagram | Activity Edge Connector | ❌ | extensions/essential/uml/toolbox/uml.json |

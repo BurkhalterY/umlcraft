@@ -4820,3 +4820,165 @@ fn internal_transitions_need_a_composite_state() {
     assert_eq!(a.repo.parent(t), Some(rg));
     assert_eq!((a.repo.refd(t, "source"), a.repo.refd(t, "target"), a.repo.str(t, "kind")), (Some(cm), Some(cm), "internal".to_string()));
 }
+
+#[test]
+fn an_activity_diagram_with_actions_and_flows() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let act = a.repo.parent(d).unwrap();
+    assert_eq!(a.repo.ty(act), "UMLActivity");
+    assert_eq!(a.repo.name(act), "Activity1");
+    let init = a.change(|a| a.create_node("UMLInitialNode", rect(40.0, 40.0, 0.0, 0.0))).unwrap();
+    let s1 = a.change(|a| a.create_node("UMLAction", rect(120.0, 30.0, 10.0, 10.0))).unwrap();
+    let dec = a.change(|a| a.create_node("UMLDecisionNode", rect(200.0, 160.0, 5.0, 5.0))).unwrap();
+    let fork = a.change(|a| a.create_node("UMLForkNode", rect(200.0, 260.0, 120.0, 40.0))).unwrap();
+    let send = a.change(|a| a.create_node("SendSignal", rect(300.0, 30.0, 80.0, 40.0))).unwrap();
+    let obj = a.change(|a| a.create_node("UMLDataStoreNode", rect(300.0, 130.0, 80.0, 40.0))).unwrap();
+    let fin = a.change(|a| a.create_node("UMLActivityFinalNode", rect(320.0, 300.0, 26.0, 26.0))).unwrap();
+    assert_eq!(a.repo.list(act, "nodes").len(), 7, "every node in the activity");
+    let sm = a.repo.refd(send, "model").unwrap();
+    assert_eq!((a.repo.ty(sm), a.repo.str(sm, "kind").as_str()), ("UMLAction", "sendSignal"));
+    assert!(a.repo.refd(init, "nameCompartment").is_none(), "a control node has no name");
+    let t = tool("UMLControlFlow", AssocInit::Plain);
+    assert!(a.can_connect(&t, init, s1));
+    let e1 = a.change(|a| a.create_edge(&t, init, s1)).unwrap();
+    let e2 = a.change(|a| a.create_edge(&t, s1, fin)).unwrap();
+    let of = a.change(|a| a.create_edge(&tool("UMLObjectFlow", AssocInit::Plain), s1, obj)).unwrap();
+    assert_eq!(a.repo.ty(e1), "UMLControlFlowView");
+    assert_eq!(a.repo.ty(of), "UMLObjectFlowView");
+    assert_eq!(a.repo.list(act, "edges").len(), 3, "flows in the activity's edges");
+    let fm = a.repo.refd(e2, "model").unwrap();
+    a.change(|a| a.repo.set(fm, "guard", json!("ok")));
+    a.change(|a| a.repo.set(fm, "weight", json!("2")));
+    assert_eq!(crate::views::activity_edge_text(&a.repo, fm), " [ok] {weight=2}");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(init, "width"), a.repo.f(init, "height")), (20.0, 20.0));
+    assert_eq!((a.repo.f(dec, "width"), a.repo.f(dec, "height")), (23.0, 19.0));
+    assert_eq!((a.repo.f(fork, "width"), a.repo.f(fork, "height")), (120.0, 6.0), "a horizontal bar keeps its thickness");
+    assert!(a.repo.f(s1, "width") >= 60.0 && a.repo.f(s1, "height") >= 40.0);
+    assert_eq!(a.info[&s1].shape, "action");
+    assert_eq!(a.info[&obj].shape, "object-node");
+    let nl = a.repo.refd(a.repo.refd(obj, "nameCompartment").unwrap(), "stereotypeLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "«datastore»");
+    // an activity dropped on the diagram: an unnamed action calling it
+    let other = a.change(|a| a.add_model(root, "UMLActivity"));
+    let dropped = a.drop_model(other, crate::views::P { x: 40.0, y: 300.0 }).unwrap();
+    let am = a.repo.refd(dropped[0], "model").unwrap();
+    assert_eq!(a.repo.parent(am), Some(act));
+    assert_eq!(a.repo.refd(am, "subactivity"), Some(other));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nm = a.repo.refd(a.repo.refd(dropped[0], "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nm, "text"), format!(":{}", a.repo.name(other)));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn action_buttons_add_flows_and_scaffolds() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let act = a.repo.parent(d).unwrap();
+    let s = a.change(|a| a.create_node("UMLAction", rect(300.0, 300.0, 60.0, 40.0))).unwrap();
+    let m = a.repo.refd(s, "model").unwrap();
+    let btn = |t: &str, l: &str| crate::related::actions(t).into_iter().find(|x| x.label == l).unwrap();
+    let ends = |a: &App, n: crate::model::Eid| {
+        let e = a.repo.list(d, "ownedViews").into_iter().find(|v| crate::views::is_edge(&a.repo, *v) && (a.repo.refd(*v, "tail") == Some(n) || a.repo.refd(*v, "head") == Some(n))).unwrap();
+        (a.repo.ty(e).to_string(), a.repo.refd(e, "tail").unwrap(), a.repo.refd(e, "head").unwrap())
+    };
+    let out = a.add_related(s, btn("UMLAction", "Add Outgoing Control Flow")).unwrap();
+    assert!(crate::views::node_rect(&a.repo, out).y > 340.0, "below");
+    assert_eq!(ends(&a, out), ("UMLControlFlowView".to_string(), s, out));
+    let init = a.add_related(s, btn("UMLAction", "Add Initial Node")).unwrap();
+    assert_eq!(a.repo.ty(a.repo.refd(init, "model").unwrap()), "UMLInitialNode");
+    assert_eq!(ends(&a, init), ("UMLControlFlowView".to_string(), init, s));
+    let obj = a.add_related(s, btn("UMLAction", "Add Outgoing Object Flow")).unwrap();
+    let om = a.repo.refd(obj, "model").unwrap();
+    assert_eq!(a.repo.ty(om), "UMLObjectNode");
+    // a control flow from an object node makes it a control type
+    a.add_related(obj, btn("UMLObjectNode", "Add Outgoing Control Flow")).unwrap();
+    assert!(a.repo.bool(om, "isControlType"));
+    // a decision with two branch actions, as one undo step
+    let before = a.repo.list(act, "nodes").len();
+    let undo = a.undo.len();
+    a.item_key(s, EditKind::Name(m), ItemKey::Scaffold("UMLDecisionNode"));
+    assert_eq!(a.undo.len(), undo + 1);
+    assert_eq!(a.repo.list(act, "nodes").len(), before + 3);
+    let dv = a.selection[0];
+    assert_eq!(a.repo.ty(a.repo.refd(dv, "model").unwrap()), "UMLDecisionNode");
+    assert_eq!((a.repo.f(dv, "left"), a.repo.f(dv, "top")), (300.0, 380.0), "40 px below, level with the left side");
+    let join = { a.item_key(s, EditKind::Name(m), ItemKey::Scaffold("UMLJoinNode")); a.selection[0] };
+    assert_eq!(a.repo.f(join, "top"), 260.0, "40 px above");
+    let into: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| a.repo.refd(*v, "head") == Some(join)).collect();
+    assert_eq!(into.len(), 2, "two actions flow into the join");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn pins_sit_on_their_action_and_take_object_flows() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let s1 = a.change(|a| a.create_node("UMLAction", rect(100.0, 100.0, 80.0, 40.0))).unwrap();
+    let s2 = a.change(|a| a.create_node("UMLAction", rect(400.0, 100.0, 80.0, 40.0))).unwrap();
+    let (m1, m2) = (a.repo.refd(s1, "model").unwrap(), a.repo.refd(s2, "model").unwrap());
+    // the pin tool needs an action under the point
+    assert!(a.create_feature_box("UMLInputPin", crate::views::P { x: 10.0, y: 10.0 }, rect(0.0, 0.0, 0.0, 0.0)).is_err());
+    let p = a.change(|a| a.create_feature_box("UMLInputPin", crate::views::P { x: 100.0, y: 120.0 }, rect(0.0, 0.0, 0.0, 0.0)).ok()).unwrap();
+    assert_eq!(a.repo.ty(p), "UMLInputPinView");
+    assert_eq!(a.repo.list(m1, "inputs").len(), 1);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let b = crate::views::node_rect(&a.repo, p);
+    assert_eq!((b.w, b.h), (18.0, 18.0));
+    assert_eq!(b.x + b.w, 109.0, "centred on the left border where it was dropped");
+    assert_eq!(crate::views::pin_side(&a.repo, p), "left");
+    // an object flow between two actions joins a new output pin to a new input pin
+    let of = a.change(|a| a.create_edge(&tool("UMLObjectFlow", AssocInit::Plain), s1, s2)).unwrap();
+    let (t, h) = (a.repo.refd(of, "tail").unwrap(), a.repo.refd(of, "head").unwrap());
+    assert_eq!((a.repo.ty(t), a.repo.ty(h)), ("UMLOutputPinView", "UMLInputPinView"));
+    assert_eq!(a.repo.refd(t, "containerView"), Some(s1));
+    assert_eq!(a.repo.list(m1, "outputs").len(), 1);
+    assert_eq!(a.repo.list(m2, "inputs").len(), 1);
+    let fm = a.repo.refd(of, "model").unwrap();
+    assert_eq!(a.repo.ty(a.repo.refd(fm, "source").unwrap()), "UMLOutputPin");
+    // the Add Output Pin button puts it on the right border
+    let op = a.add_pin(s2, false).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(crate::views::pin_side(&a.repo, op), "right");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn swimlanes_hold_the_activity_nodes_drawn_in_them() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let act = a.repo.parent(d).unwrap();
+    let lane = a.change(|a| a.create_node("SwimlaneVert", rect(0.0, 0.0, 10.0, 10.0))).unwrap();
+    let hl = a.change(|a| a.create_node("SwimlaneHorz", rect(0.0, 400.0, 10.0, 10.0))).unwrap();
+    let pm = a.repo.refd(lane, "model").unwrap();
+    assert_eq!((a.repo.ty(pm), a.repo.name(pm).as_str()), ("UMLActivityPartition", "ActivityPartition1"));
+    assert_eq!(a.repo.list(act, "groups").len(), 2);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(lane, "width"), a.repo.f(lane, "height")), (crate::views::LANE_THIN.max(a.repo.f(lane, "width")), 300.0));
+    assert_eq!(a.repo.f(hl, "width"), 300.0);
+    assert!(!a.repo.bool(hl, "isVertical"));
+    // an action drawn in the lane belongs to its partition; moved out, back to the activity
+    let s = a.change(|a| a.create_node("UMLAction", rect(5.0, 50.0, 60.0, 40.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    assert_eq!(a.repo.parent(sm), Some(pm));
+    assert_eq!(a.repo.refd(s, "containerView"), Some(lane));
+    assert!(a.can_contain_view(lane, s));
+    a.change(|a| a.set_container(&[s], None));
+    assert_eq!(a.repo.parent(sm), Some(act));
+    assert_eq!(a.repo.field_of(sm).as_deref(), Some("nodes"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("rotate(-90"), "a horizontal lane's name reads upwards");
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
