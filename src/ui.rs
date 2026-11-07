@@ -277,13 +277,50 @@ const STATECHART_GROUPS: &[Group] = &[
     },
     ANNOTATIONS,
 ];
+// activity diagrams (uml.json "uml.activity", "uml.activity-adv"): the advanced tools UMLCraft has
+const ACTIVITY_GROUPS: &[Group] = &[
+    Group {
+        id: "activity",
+        label: "Activities (Basic)",
+        items: &[
+            node("Action", "UMLAction", "action"),
+            node("Initial", "UMLInitialNode", "initial"),
+            node("Final", "UMLActivityFinalNode", "final"),
+            node("Fork", "UMLForkNode", "fork"),
+            node("Join", "UMLJoinNode", "fork"),
+            node("Merge", "UMLMergeNode", "choice"),
+            node("Decision", "UMLDecisionNode", "choice"),
+            line("Control Flow", "UMLControlFlow", "dependency", AssocInit::Plain),
+        ],
+    },
+    Group {
+        id: "activity-adv",
+        label: "Activities (Advanced)",
+        items: &[
+            node("Swimlane (Vertical)", "SwimlaneVert", "swimlane-vert"),
+            node("Swimlane (Horizontal)", "SwimlaneHorz", "swimlane-horz"),
+            node("Input Pin", "UMLInputPin", "pin"),
+            node("Output Pin", "UMLOutputPin", "pin"),
+            node("Send Signal", "SendSignal", "send-signal"),
+            node("Accept Signal", "AcceptSignal", "accept-signal"),
+            node("Accept Time Event", "AcceptTimeEvent", "time-event"),
+            node("Flow Final", "UMLFlowFinalNode", "flow-final"),
+            node("Object Node", "UMLObjectNode", "object-node"),
+            node("Central Buffer", "UMLCentralBufferNode", "object-node"),
+            node("Datastore", "UMLDataStoreNode", "object-node"),
+            node("Frame", "Frame", "frame"),
+            line("Object Flow", "UMLObjectFlow", "dependency", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
 // a composite structure diagram: the two class groups and Composite Structure (uml.json)
 const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE, ANNOTATIONS];
 // a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 10] = [
+const DIAGRAM_KINDS: [(&str, &str); 11] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -294,6 +331,7 @@ const DIAGRAM_KINDS: [(&str, &str); 10] = [
     ("Information Flow Diagram", "UMLInformationFlowDiagram"),
     ("Profile Diagram", "UMLProfileDiagram"),
     ("Statechart Diagram", "UMLStatechartDiagram"),
+    ("Activity Diagram", "UMLActivityDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -1509,6 +1547,7 @@ impl App {
                 Some("UMLProfileDiagram") => self.open_groups.insert("profile"),
                 Some("UMLCompositeStructureDiagram") => self.open_groups.insert("compositestructure"),
                 Some("UMLStatechartDiagram") => self.open_groups.insert("statechart"),
+                Some("UMLActivityDiagram") => self.open_groups.insert("activity"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1534,6 +1573,7 @@ impl App {
             Some("UMLProfileDiagram") => PROFILE_GROUPS,
             Some("UMLCompositeStructureDiagram") => COMPOSITE_GROUPS,
             Some("UMLStatechartDiagram") => STATECHART_GROUPS,
+            Some("UMLActivityDiagram") => ACTIVITY_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

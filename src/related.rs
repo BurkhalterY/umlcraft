@@ -101,6 +101,25 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             r("Add Initial State", "Initial", "UMLTransition", Plain, true, Above),
             r("Add Final State", "UMLFinalState", "UMLTransition", Plain, false, Below),
         ],
+        // an action: a new action joined by an outgoing control flow (below) or an incoming one
+        // (above), a new object node joined by an object flow, an initial node above and a final
+        // node below (quickedits/uml.json "uml.action"; uml-commands.js:3600-4067)
+        "UMLAction" => vec![
+            r("Add Outgoing Control Flow", "UMLAction", "UMLControlFlow", Plain, false, Below),
+            r("Add Incoming Control Flow", "UMLAction", "UMLControlFlow", Plain, true, Above),
+            r("Add Outgoing Object Flow", "UMLObjectNode", "UMLObjectFlow", Plain, false, Below),
+            r("Add Incoming Object Flow", "UMLObjectNode", "UMLObjectFlow", Plain, true, Above),
+            r("Add Initial Node", "UMLInitialNode", "UMLControlFlow", Plain, true, Above),
+            r("Add Final Node", "UMLActivityFinalNode", "UMLControlFlow", Plain, false, Below),
+        ],
+        // an object node: object flows first, then control flows, which make it a control type
+        // (quickedits/uml.json "uml.object-node")
+        "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" => vec![
+            r("Add Outgoing Object Flow", "UMLObjectNode", "UMLObjectFlow", Plain, false, Below),
+            r("Add Incoming Object Flow", "UMLObjectNode", "UMLObjectFlow", Plain, true, Above),
+            r("Add Outgoing Control Flow", "UMLAction", "UMLControlFlow", Plain, false, Below),
+            r("Add Incoming Control Flow", "UMLAction", "UMLControlFlow", Plain, true, Above),
+        ],
         // an object: a linked object to the right (uml-commands.js:1675)
         "UMLObject" => vec![r("Add Linked Object", "UMLObject", "UMLLink", Plain, false, Right)],
         "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" | "UMLEnumeration" => vec![
@@ -192,6 +211,12 @@ impl App {
         let size = if a.kind == "Note" { (100.0, 50.0) } else { views::default_size(a.kind) };
         let rect = self.related_rect(v, &a, size);
         let new = self.change(|app| {
+            // a control flow on an object node makes it a control type (uml-commands.js:3607-3612)
+            if a.rel == "UMLControlFlow" {
+                if let Some(m) = app.repo.refd(v, "model").filter(|m| app.repo.kind_of(*m, "UMLObjectNode")) {
+                    app.repo.set(m, "isControlType", json!(true));
+                }
+            }
             let n = app.create_node(a.kind, rect)?;
             if a.kind == "Note" {
                 app.repo.set(n, "text", json!(""));
@@ -258,6 +283,32 @@ impl App {
                 app.create_edge(&tool, pv, s)?;
             }
             Some(pv)
+        })
+    }
+
+    /// Add Decision, Merge, Fork or Join on an action: the node 40 px below it (decision, fork) or
+    /// above it (merge, join), level with its left side, and two new actions 40 px beyond the node,
+    /// one 60 px (50 for fork and join) left of it and one at its right edge, wired by control flows
+    /// running down the page; one undo step (uml-commands.js:3743-4004; the shift beside nodes
+    /// already joined is not followed).
+    pub fn add_activity_scaffold(&mut self, v: Eid, kind: &str) -> Option<Eid> {
+        let b = node_rect(&self.repo, v);
+        let (nw, nh) = views::default_size(kind);
+        let below = matches!(kind, "UMLDecisionNode" | "UMLForkNode");
+        let ny = if below { b.y + b.h + 40.0 } else { (b.y - 40.0).max(0.0) };
+        let n = R { x: b.x, y: ny, w: nw, h: nh };
+        let (aw, ah) = views::default_size("UMLAction");
+        let left = if matches!(kind, "UMLForkNode" | "UMLJoinNode") { 50.0 } else { 60.0 };
+        let ay = if below { n.y + n.h + 40.0 } else { (n.y - 80.0).max(0.0) };
+        let tool = Tool { label: "", kind: "UMLControlFlow", icon: "", line: true, init: AssocInit::Plain };
+        self.change(|app| {
+            let nv = app.create_node(kind, n)?;
+            if below { app.create_edge(&tool, v, nv)? } else { app.create_edge(&tool, nv, v)? };
+            for x in [n.x - left, n.x + n.w] {
+                let s = app.create_node("UMLAction", R { x: x.max(0.0), y: ay, w: aw, h: ah })?;
+                if below { app.create_edge(&tool, nv, s)? } else { app.create_edge(&tool, s, nv)? };
+            }
+            Some(nv)
         })
     }
 

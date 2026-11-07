@@ -71,6 +71,7 @@ const FRAME_CONTENT_MIN_W: f64 = 10.0; // elements.js:220
 const FRAME_CONTENT_MIN_H: f64 = 30.0; // elements.js:221
 const LABEL_INTERVAL: f64 = 3.0; // elements.js:62
 pub const PORT_SIZE: f64 = 14.0; // elements.js:89-90
+pub const PIN_SIZE: f64 = 18.0; // elements.js:159-160
 pub const NARY_MIN_W: f64 = 30.0; // elements.js:82
 pub const NARY_MIN_H: f64 = 22.0; // elements.js:83
 pub const HYPERLINK_MIN_W: f64 = 100.0; // elements.js:231
@@ -217,6 +218,12 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         "UMLState" => k("UMLStateView", false, false, false),
         "UMLPseudostate" => k("UMLPseudostateView", false, false, false),
         "UMLFinalState" => k("UMLFinalStateView", false, false, false),
+        // activities (elements.js:9903-10300)
+        "UMLAction" => k("UMLActionView", false, false, false),
+        "UMLObjectNode" => k("UMLObjectNodeView", false, false, false),
+        "UMLCentralBufferNode" => k("UMLCentralBufferNodeView", false, false, false),
+        "UMLDataStoreNode" => k("UMLDataStoreNodeView", false, false, false),
+        "UMLInitialNode" | "UMLActivityFinalNode" | "UMLFlowFinalNode" | "UMLForkNode" | "UMLJoinNode" | "UMLMergeNode" | "UMLDecisionNode" => k("UMLControlNodeView", false, false, false),
         "UMLArtifactInstance" => k("UMLArtifactInstanceView", false, false, false),
         "UMLComponentInstance" => k("UMLComponentInstanceView", false, false, false),
         "UMLNodeInstance" => k("UMLNodeInstanceView", false, false, false),
@@ -243,12 +250,14 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "UMLInformationFlow" => "UMLInformationFlowView",
         "UMLExtension" => "UMLExtensionView",
         "UMLTransition" => "UMLTransitionView",
+        "UMLControlFlow" => "UMLControlFlowView",
+        "UMLObjectFlow" => "UMLObjectFlowView",
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 22] = [
-    "UMLConnectorView", "UMLRoleBindingView", "UMLTransitionView",
+const KNOWN_EDGE_VIEWS: [&str; 24] = [
+    "UMLConnectorView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
@@ -259,6 +268,70 @@ const KNOWN_EDGE_VIEWS: [&str; 22] = [
 /// Statechart marks (sizes estimated): pseudostates are 20 px circles or diamonds, a final state 26 px.
 pub const PSEUDO_SIZE: f64 = 20.0;
 pub const FINAL_SIZE: f64 = 26.0;
+
+/// Swimlanes (elements.js:179-187): a vertical lane is at least 50 wide and 300 high (a horizontal
+/// one the other way round), its name 4 px from the top (left) and 10 px from the sides.
+pub const LANE_THIN: f64 = 50.0;
+pub const LANE_LONG: f64 = 300.0;
+
+/// A swimlane: a lane with its name in a header (UMLSwimlaneView, elements.js:10560-10680).
+pub fn create_swimlane_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R, vertical: bool) -> Eid {
+    let m = r.ref_to(model);
+    let v = r.create(
+        "UMLSwimlaneView",
+        &[("model", m.clone()), ("font", json!(FONT)), ("parentStyle", json!(false)), ("left", num(rect.x)), ("top", num(rect.y)), ("width", num(rect.w)), ("height", num(rect.h))],
+        Some((diagram, "ownedViews")),
+    );
+    if !vertical {
+        r.set(v, "isVertical", json!(false));
+    }
+    let l = r.create("LabelView", &[("model", m), ("font", json!(FONT)), ("parentStyle", json!(true)), ("horizontalAlignment", json!(2)), ("verticalAlignment", json!(4))], Some((v, "subViews")));
+    r.set_ref(v, "nameLabel", Some(l));
+    v
+}
+
+/// A swimlane's size and its name's box: the header is the name plus 4 + 4 px across the lane
+/// (UMLSwimlaneView.sizeObject and arrangeObject, elements.js:10596-10650).
+fn layout_swimlane(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    let name = r.name(m);
+    let (tw, th) = (ms.width(&name, 0).ceil(), ms.size());
+    let vertical = r.bool(v, "isVertical");
+    // not affected by auto resize (elements.js:10627)
+    let (min_w, min_h) = if vertical { ((tw + 20.0).max(LANE_THIN), (th + 8.0).max(LANE_LONG)) } else { ((th + 8.0).max(LANE_LONG), (tw + 20.0).max(LANE_THIN)) };
+    let (w, h) = (r.f(v, "width").max(min_w), r.f(v, "height").max(min_h));
+    r.set(v, "width", num(w));
+    r.set(v, "height", num(h));
+    let (x, y) = (r.f(v, "left"), r.f(v, "top"));
+    if let Some(l) = r.refd(v, "nameLabel") {
+        r.set(l, "text", json!(name));
+        r.set(l, "visible", json!(!name.is_empty()));
+        if vertical {
+            set_box(r, l, x, y + 4.0, w, th);
+        } else {
+            set_box(r, l, x + 4.0, y, th, h);
+        }
+    }
+}
+
+/// Activity sizes (elements.js:155-175): an action is at least 60 × 40 with corners rounded by 10, a
+/// fork or join bar 70 long and 6 thick, a decision or merge diamond 23 × 19.
+pub const ACTION_MIN_W: f64 = 60.0;
+pub const ACTION_MIN_H: f64 = 40.0;
+pub const BAR_LENGTH: f64 = 70.0;
+pub const BAR_THICK: f64 = 6.0;
+pub const DECISION_W: f64 = 23.0;
+pub const DECISION_H: f64 = 19.0;
+
+/// The action kind an activity tool makes (uml.json "uml.activity-adv", "model-init" kind).
+pub fn action_kind(tool: &str) -> Option<&'static str> {
+    Some(match tool {
+        "UMLAction" => "opaque",
+        "SendSignal" => "sendSignal",
+        "AcceptSignal" => "acceptSignal",
+        "AcceptTimeEvent" => "timeEvent",
+        _ => return None,
+    })
+}
 
 /// The pseudostate kind a statechart tool makes (uml.json "uml.statechart", "model-init" kind).
 pub fn pseudostate_kind(tool: &str) -> Option<&'static str> {
@@ -300,6 +373,16 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLPart" => (80.0, 30.0),
         "UMLPort" => (PORT_SIZE, PORT_SIZE),
         "UMLState" => (100.0, 40.0),
+        // activities: the minimum sizes, which a plain click makes (elements.js:155-175)
+        "UMLAction" | "SendSignal" | "AcceptSignal" => (ACTION_MIN_W, ACTION_MIN_H),
+        "AcceptTimeEvent" => (24.0, 24.0 + NAME_MIN_H),
+        "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" => (ACTION_MIN_W, ACTION_MIN_H),
+        "UMLInitialNode" => (PSEUDO_SIZE, PSEUDO_SIZE),
+        "UMLActivityFinalNode" | "UMLFlowFinalNode" => (FINAL_SIZE, FINAL_SIZE),
+        "UMLForkNode" | "UMLJoinNode" => (BAR_LENGTH, BAR_THICK),
+        "SwimlaneVert" => (LANE_THIN, LANE_LONG),
+        "SwimlaneHorz" => (LANE_LONG, LANE_THIN),
+        "UMLMergeNode" | "UMLDecisionNode" => (DECISION_W, DECISION_H),
         "CompositeState" | "OrthogonalState" => (200.0, 150.0),
         "SubmachineState" => (100.0, 40.0),
         "UMLFinalState" => (FINAL_SIZE, FINAL_SIZE),
@@ -435,6 +518,10 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
         r.set(v, "suppressAttributes", json!(true));
         r.set(v, "suppressOperations", json!(true));
     }
+    // a control node is a NodeView without a name (elements.js:10288)
+    if kind.view == "UMLControlNodeView" {
+        return Some(v);
+    }
     let nc = name_compartment(r, v, model);
     r.set_ref(v, "nameCompartment", Some(nc));
     // a collaboration keeps a template parameter compartment, hidden while it has none (elements.js:7022-7050)
@@ -517,6 +604,52 @@ fn layout_state(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
     grow(r, v, min_w, nh + rows_h);
 }
 
+/// An action or an object node: its name on top, at least 60 × 40 for an action. An accept time
+/// event action is an hourglass of 24 × 24 with its name under it (UMLActionView.sizeObject,
+/// arrangeObject, elements.js:9937-9978).
+fn layout_activity_box(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    let kw = keyword_of(r.ty(m));
+    let min_w = name_min_width(r, ms, v, m, kw, false);
+    if r.str(m, "kind") == "timeEvent" {
+        grow(r, v, min_w.max(24.0), 24.0 + NAME_MIN_H);
+        let (x, y, w) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"));
+        let nh = layout_name(r, ms, v, m, x, y + 24.0, w, kw, false);
+        grow(r, v, min_w.max(24.0), 24.0 + nh);
+        return;
+    }
+    let (min_w, min_h) = if r.ty(m) == "UMLAction" {
+        let extra = if r.str(m, "kind") == "callBehavior" { 15.0 } else { 0.0 };
+        ((min_w + extra).max(ACTION_MIN_W), ACTION_MIN_H)
+    } else {
+        (min_w, NAME_MIN_H)
+    };
+    grow(r, v, min_w, min_h);
+    let (x, y, w) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"));
+    let nh = layout_name(r, ms, v, m, x, y, w, kw, false);
+    grow(r, v, min_w, min_h.max(nh));
+}
+
+/// A control node keeps at least its mark's size; a fork or join bar is horizontal unless it is
+/// taller than wide, and keeps its thickness (UMLControlNodeView.sizeObject, elements.js:10296-10343).
+fn layout_control_node(r: &mut Repo, v: Eid, m: Eid) {
+    let (w, h) = (r.f(v, "width"), r.f(v, "height"));
+    let (min_w, min_h) = match r.ty(m) {
+        "UMLInitialNode" => (PSEUDO_SIZE, PSEUDO_SIZE),
+        "UMLActivityFinalNode" | "UMLFlowFinalNode" => (FINAL_SIZE, FINAL_SIZE),
+        "UMLForkNode" | "UMLJoinNode" => {
+            if h > w {
+                r.set(v, "width", num(BAR_THICK));
+                (BAR_THICK, BAR_LENGTH)
+            } else {
+                r.set(v, "height", num(BAR_THICK));
+                (BAR_LENGTH, BAR_THICK)
+            }
+        }
+        _ => (DECISION_W, DECISION_H),
+    };
+    grow(r, v, min_w, min_h);
+}
+
 fn layout_collaboration(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
     let typed = (r.ty(m) == "UMLCollaborationUse").then(|| r.refd(m, "type").map(|t| r.name(t))).flatten().filter(|n| !n.is_empty());
     let mut min_w = name_min_width(r, ms, v, m, None, false);
@@ -568,6 +701,79 @@ pub fn create_port_view(r: &mut Repo, diagram: Eid, model: Eid, host: Eid, at: P
     }
     contain(r, host, v);
     v
+}
+
+/// A pin on its action's border: an 18 × 18 square with its labels floating by it, contained in
+/// `host` (UMLInputPinView, UMLOutputPinView, elements.js:9662-9800).
+pub fn create_pin_view(r: &mut Repo, diagram: Eid, model: Eid, host: Eid, at: P) -> Eid {
+    let m = r.ref_to(model);
+    let ty = if r.ty(model) == "UMLInputPin" { "UMLInputPinView" } else { "UMLOutputPinView" };
+    let h = PIN_SIZE / 2.0;
+    let v = r.create(
+        ty,
+        &[("model", m.clone()), ("font", json!(FONT)), ("parentStyle", json!(false)), ("left", num(at.x - h)), ("top", num(at.y - h)), ("width", num(PIN_SIZE)), ("height", num(PIN_SIZE))],
+        Some((diagram, "ownedViews")),
+    );
+    let pi = std::f64::consts::PI;
+    for (field, alpha, distance) in [("nameLabel", 3.0 * pi / 4.0, 20.0), ("stereotypeLabel", 3.0 * pi / 4.0, 35.0), ("propertyLabel", -3.0 * pi / 4.0, 20.0)] {
+        let l = r.create("NodeLabelView", &[("model", m.clone()), ("font", json!(FONT)), ("alpha", json!(alpha)), ("distance", json!(distance)), ("height", json!(LABEL_H))], Some((v, "subViews")));
+        r.set_ref(v, field, Some(l));
+    }
+    contain(r, host, v);
+    v
+}
+
+/// Which side of its action a pin sits on: within half a pin of the top, bottom, left or right
+/// edge (UMLPinView.getPosition, elements.js:9687-9703).
+pub fn pin_side(r: &Repo, v: Eid) -> &'static str {
+    let Some(host) = r.refd(v, "containerView") else { return "else" };
+    let (c, b) = (node_rect(r, host), node_rect(r, v));
+    let range = (PIN_SIZE / 2.0).round();
+    let near = |a: f64, x: f64| a - range <= x && x <= a + range;
+    if near(c.y, b.y + b.h) {
+        "top"
+    } else if near(c.y + c.h, b.y) {
+        "bottom"
+    } else if near(c.x, b.x + b.w) {
+        "left"
+    } else if near(c.x + c.w, b.x) {
+        "right"
+    } else {
+        "else"
+    }
+}
+
+/// A pin: just outside its action's border, where the line from the action's centre through the
+/// pin meets it; the text `name: Type[mult]` floats by it (UMLPinView.arrange and update,
+/// elements.js:9668-9680, 9741-9765).
+fn layout_pin(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    if let Some(host) = r.refd(v, "containerView").filter(|h| r.alive(*h)) {
+        let c = node_rect(r, host);
+        let b = node_rect(r, v);
+        let p = port_junction(c, center(&b));
+        let inside = b.x <= p.x && p.x <= b.x + b.w && b.y <= p.y && p.y <= b.y + b.h;
+        if !inside {
+            let x = if c.x < p.x { p.x } else { p.x - PIN_SIZE + 1.0 };
+            let y = if c.y < p.y { p.y } else { p.y - PIN_SIZE + 1.0 };
+            r.set(v, "left", num(x));
+            r.set(v, "top", num(y));
+        }
+    }
+    r.set(v, "width", num(PIN_SIZE));
+    r.set(v, "height", num(PIN_SIZE));
+    let show = Show { vis: false, mult: true, sig: true, ty: true, prop: true };
+    let text = attribute_text(r, m, show);
+    let st = stereotype_text(r, m);
+    let text = if st.is_empty() { text } else { text.trim_start_matches(st.as_str()).trim_start().to_string() };
+    for (field, t) in [("nameLabel", text), ("stereotypeLabel", st), ("propertyLabel", String::new())] {
+        if let Some(lv) = r.refd(v, field) {
+            place_floating_label(r, ms, v, lv, &t, true);
+            if field == "nameLabel" {
+                let underline = r.bool(m, "isStatic");
+                r.set(lv, "underline", json!(underline));
+            }
+        }
+    }
 }
 
 /// A part inside its classifier's box: a box with the part's "name: Type[mult]" (UMLPartView,
@@ -1159,6 +1365,33 @@ pub fn display_name(r: &Repo, m: Eid) -> String {
     }
 }
 
+/// The name an activity box shows (UMLActionView.update, UMLObjectNodeView.update,
+/// elements.js:9912-9934, 10232-10241): an action that calls an activity shows "name:Activity", one
+/// calling a behaviour with no name of its own shows the behaviour's name, and an object node shows
+/// "name: Type". Other boxes show their display name.
+fn box_name(r: &Repo, m: Eid) -> String {
+    let name = r.name(m);
+    if r.ty(m) == "UMLAction" {
+        if let Some(sub) = r.refd(m, "subactivity").filter(|s| r.ty(*s) == "UMLActivity") {
+            return format!("{name}:{}", r.name(sub));
+        }
+        if r.str(m, "kind") == "callBehavior" && name.trim().is_empty() {
+            if let Some(t) = r.refd(m, "target").filter(|t| r.kind_of(*t, "UMLBehavior")) {
+                return r.name(t);
+            }
+        }
+        return name;
+    }
+    if r.kind_of(m, "UMLObjectNode") {
+        let ty = match r.refd(m, "type") {
+            Some(t) => r.name(t),
+            None => r.str(m, "type"),
+        };
+        return if ty.is_empty() { name } else { format!("{name}: {ty}") };
+    }
+    display_name(r, m)
+}
+
 fn name_style(r: &Repo, m: Eid) -> u8 {
     if r.bool(m, "isAbstract") { 3 } else { 1 }
 }
@@ -1179,7 +1412,7 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
         }
     }
     if let Some(nm) = p.nm {
-        let name = display_name(r, m);
+        let name = box_name(r, m);
         r.set(nm, "text", json!(name));
         set_label_font(r, ms, nm, Some(style as i64));
         // an object's name is underlined (UML instance notation)
@@ -1218,7 +1451,7 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
 fn name_min_width(r: &Repo, ms: &dyn Measure, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) -> f64 {
     let wrap = r.bool(v, "wordWrap");
     let width = |t: &str, style: u8| if wrap { widest_word(ms, t, style) } else { ms.width(t, style) };
-    let mut w = width(&display_name(r, m), name_style(r, m));
+    let mut w = width(&box_name(r, m), name_style(r, m));
     if let Some(p) = name_parts(r, v, m, keyword, hide_st) {
         if p.show_st {
             w = w.max(width(&p.st_text, 0));
@@ -1309,6 +1542,9 @@ fn keyword_of(ty: &str) -> Option<&'static str> {
         "UMLInformationItem" => Some("information"),
         "UMLStereotype" => Some("stereotype"),
         "UMLMetaClass" => Some("metaclass"),
+        // central buffers and data stores (elements.js:10254-10272)
+        "UMLCentralBufferNode" => Some("centralBuffer"),
+        "UMLDataStoreNode" => Some("datastore"),
         _ => None,
     }
 }
@@ -1638,6 +1874,12 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         }
         return Info::default();
     }
+    if t == "UMLInputPinView" || t == "UMLOutputPinView" {
+        if let Some(m) = m {
+            layout_pin(r, ms, v, m);
+        }
+        return Info { shape: "pin", ..Default::default() };
+    }
     if t == "UMLPortView" {
         if let Some(m) = m {
             layout_port(r, ms, v, m);
@@ -1684,6 +1926,24 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
             r.set_raw(nc, "visible", json!(false));
         }
         return Info { shape: if t == "UMLFinalStateView" { "final" } else { "pseudostate" }, ..Default::default() };
+    }
+    if t == "UMLActionView" || t == "UMLObjectNodeView" || t == "UMLCentralBufferNodeView" || t == "UMLDataStoreNodeView" {
+        if let Some(m) = m {
+            layout_activity_box(r, ms, v, m);
+        }
+        return Info { shape: if t == "UMLActionView" { "action" } else { "object-node" }, ..Default::default() };
+    }
+    if t == "UMLSwimlaneView" {
+        if let Some(m) = m {
+            layout_swimlane(r, ms, v, m);
+        }
+        return Info { shape: "swimlane", ..Default::default() };
+    }
+    if t == "UMLControlNodeView" {
+        if let Some(m) = m {
+            layout_control_node(r, v, m);
+        }
+        return Info { shape: "control-node", ..Default::default() };
     }
     if t == "UMLCollaborationView" || t == "UMLCollaborationUseView" {
         if let Some(m) = m {
@@ -1975,6 +2235,21 @@ pub fn transition_text(r: &Repo, m: Eid) -> String {
     s
 }
 
+/// A control or object flow's label: `name [guard] {weight=w}`, each part only when present
+/// (UMLActivityEdge.getString, elements.js:3555-3567).
+pub fn activity_edge_text(r: &Repo, m: Eid) -> String {
+    let mut s = r.name(m);
+    let guard = r.str(m, "guard");
+    if !guard.is_empty() {
+        s.push_str(&format!(" [{guard}]"));
+    }
+    let weight = r.str(m, "weight");
+    if !weight.is_empty() {
+        s.push_str(&format!(" {{weight={weight}}}"));
+    }
+    s
+}
+
 fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     let Some(m) = r.refd(e, "model") else { return vec![] };
     let show_vis = r.bool(e, "showVisibility");
@@ -1985,6 +2260,8 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     let derived = if r.kind_of(m, "UMLAssociation") && r.bool(m, "isDerived") { "/" } else { "" };
     if r.ty(m) == "UMLTransition" {
         out.push(("nameLabel", transition_text(r, m)));
+    } else if r.kind_of(m, "UMLActivityEdge") {
+        out.push(("nameLabel", activity_edge_text(r, m)));
     } else {
         out.push(("nameLabel", if name.is_empty() && derived.is_empty() { name } else { vis(m) + derived + &name }));
     }

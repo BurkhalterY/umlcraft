@@ -55,6 +55,11 @@ pub trait Canvas: Measure {
     fn ellipse(&mut self, c: P, rx: f64, ry: f64, fill: Option<Rgba>, stroke: Option<Rgba>);
     /// align: 0 left, 1 right, 2 centre; text is centred vertically in the box
     fn text(&mut self, t: &str, b: R, align: i64, style: u8, size: f64, color: Rgba, underline: bool);
+    /// Text turned a quarter left, reading upwards, centred in the box (a horizontal swimlane's
+    /// name, LabelView DK_VERT); surfaces that cannot turn text write it level.
+    fn text_up(&mut self, t: &str, b: R, style: u8, size: f64, color: Rgba) {
+        self.text(t, b, 2, style, size, color, false);
+    }
     /// A picture given as a data URL, stretched over the box; surfaces that cannot show one skip it.
     fn image(&mut self, _b: R, _data_url: &str) {}
     fn rect(&mut self, r: R, fill: Option<Rgba>, stroke: Option<Rgba>) {
@@ -458,6 +463,104 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             }
             return;
         }
+        "action" => {
+            // an action by its kind (UMLActionView.drawObject, elements.js:10100-10215)
+            let m = r.refd(v, "model");
+            let kind = m.map(|m| r.str(m, "kind")).unwrap_or_default();
+            let (x1, y1, x2, y2) = (b.x, b.y, b.x + b.w, b.y + b.h);
+            match kind.as_str() {
+                "sendSignal" => {
+                    let q = b.h / 4.0;
+                    c.polygon(&[P { x: x1, y: y1 }, P { x: x1, y: y2 }, P { x: x2 - q, y: y2 }, P { x: x2, y: y1 + b.h / 2.0 }, P { x: x2 - q, y: y1 }], Some(fill), Some(line));
+                }
+                "acceptSignal" | "acceptEvent" => {
+                    let q = b.h / 4.0;
+                    c.polygon(&[P { x: x1, y: y1 }, P { x: x2, y: y1 }, P { x: x2, y: y2 }, P { x: x1, y: y2 }, P { x: x1 + q, y: y1 + b.h / 2.0 }], Some(fill), Some(line));
+                }
+                "timeEvent" => {
+                    // an hourglass 24 px across, centred above the name
+                    let cx = (x1 + x2) / 2.0;
+                    let (l, rr, t, bt) = (cx - 12.0, cx + 12.0, y1, y1 + 24.0);
+                    c.polygon(&[P { x: l, y: t }, P { x: rr, y: t }, P { x: l, y: bt }, P { x: rr, y: bt }], Some(fill), Some(line));
+                }
+                _ => {
+                    c.polygon(&round_rect(b, 10.0), Some(fill), Some(line));
+                    let m = m.unwrap_or(v);
+                    if kind == "callBehavior" {
+                        // calling an activity: a rake at the top right
+                        if r.refd(m, "target").map(|t| r.ty(t) == "UMLActivity").unwrap_or(false) {
+                            for (a, bb) in [((x2 - 10.0, y1 + 5.0), (x2 - 10.0, y1 + 20.0)), ((x2 - 15.0, y1 + 13.0), (x2 - 5.0, y1 + 13.0)), ((x2 - 15.0, y1 + 13.0), (x2 - 15.0, y1 + 20.0)), ((x2 - 5.0, y1 + 13.0), (x2 - 5.0, y1 + 20.0))] {
+                                c.polyline(&[P { x: a.0, y: a.1 }, P { x: bb.0, y: bb.1 }], line, false);
+                            }
+                        }
+                    } else if r.refd(m, "subactivity").is_some() {
+                        // a subactivity: two small circles joined by a line at the bottom right
+                        c.ellipse(P { x: x2 - 23.0, y: y2 - 13.0 }, 3.0, 3.0, None, Some(line));
+                        c.polyline(&[P { x: x2 - 20.0, y: y2 - 13.0 }, P { x: x2 - 14.0, y: y2 - 13.0 }], line, false);
+                        c.ellipse(P { x: x2 - 11.0, y: y2 - 13.0 }, 3.0, 3.0, None, Some(line));
+                    }
+                }
+            }
+            draw_name(c, r, v);
+            return;
+        }
+        "swimlane" => {
+            // a lane open at the far end, with a filled header holding its name (elements.js:10652-10690;
+            // the 2 px pen is drawn 1 px wide)
+            let vertical = r.bool(v, "isVertical");
+            let lv = r.refd(v, "nameLabel");
+            let th = lv.map(|l| if vertical { r.f(l, "height") } else { r.f(l, "width") }).unwrap_or(0.0);
+            let (x2, y2) = (b.x + b.w, b.y + b.h);
+            let (hdr, open) = if vertical {
+                (R { x: b.x, y: b.y, w: b.w, h: th + 8.0 }, vec![P { x: b.x, y: y2 }, P { x: b.x, y: b.y }, P { x: x2, y: b.y }, P { x: x2, y: y2 }])
+            } else {
+                (R { x: b.x, y: b.y, w: th + 8.0, h: b.h }, vec![P { x: x2, y: b.y }, P { x: b.x, y: b.y }, P { x: b.x, y: y2 }, P { x: x2, y: y2 }])
+            };
+            c.rect(hdr, Some(fill), Some(line));
+            c.polyline(&open, line, false);
+            if let Some(l) = lv.filter(|l| shown(r, *l)) {
+                let lb = R { x: r.f(l, "left"), y: r.f(l, "top"), w: r.f(l, "width"), h: r.f(l, "height") };
+                let size = views::view_font(r, v).1;
+                let t = r.str(l, "text");
+                if vertical {
+                    c.text(&t, lb, 2, 0, size, fc, false);
+                } else {
+                    c.text_up(&t, lb, 0, size, fc);
+                }
+            }
+            return;
+        }
+        "object-node" => {
+            // a plain box with its name (elements.js:10244-10247)
+            c.rect(b, Some(fill), Some(line));
+            draw_name(c, r, v);
+            return;
+        }
+        "control-node" => {
+            // the mark of each control node (UMLControlNodeView.drawObject, elements.js:10393-10485)
+            let ty = r.refd(v, "model").map(|m| r.ty(m).to_string()).unwrap_or_default();
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+            let (rx, ry) = (b.w / 2.0, b.h / 2.0);
+            match ty.as_str() {
+                "UMLInitialNode" => c.ellipse(ctr, rx, ry, Some(line), None),
+                "UMLActivityFinalNode" => {
+                    c.ellipse(ctr, rx, ry, None, Some(line));
+                    c.ellipse(ctr, (rx - 5.0).max(0.0), (ry - 5.0).max(0.0), Some(line), None);
+                }
+                "UMLFlowFinalNode" => {
+                    c.ellipse(ctr, rx, ry, Some(fill), Some(line));
+                    let d = (std::f64::consts::SQRT_2 * b.w / 4.0).round();
+                    c.polyline(&[P { x: ctr.x - d, y: ctr.y - d }, P { x: ctr.x + d, y: ctr.y + d }], line, false);
+                    c.polyline(&[P { x: ctr.x + d, y: ctr.y - d }, P { x: ctr.x - d, y: ctr.y + d }], line, false);
+                }
+                "UMLForkNode" | "UMLJoinNode" => {
+                    let bar = if b.w >= b.h { R { h: views::BAR_THICK, ..b } } else { R { w: views::BAR_THICK, ..b } };
+                    c.polygon(&round_rect(bar, 3.0), Some(line), None);
+                }
+                _ => c.polygon(&[P { x: b.x, y: ctr.y }, P { x: ctr.x, y: b.y }, P { x: b.x + b.w, y: ctr.y }, P { x: ctr.x, y: b.y + b.h }], Some(fill), Some(line)),
+            }
+            return;
+        }
         "collaboration" => {
             // a dashed ellipse (elements.js:7214-7227, 7275-7279)
             let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
@@ -469,6 +572,40 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             }).collect();
             dashes(c, &pts, line, 5.0, 5.0);
             draw_name(c, r, v);
+            return;
+        }
+        "pin" => {
+            // a square on the action's border with an arrow pointing into the action for an input
+            // pin and out of it for an output pin (elements.js:9790-9840)
+            c.rect(b, Some(fill), Some(line));
+            let input = r.ty(v) == "UMLInputPinView";
+            let dir = match (views::pin_side(r, v), input) {
+                ("top", true) | ("bottom", false) => Some("down"),
+                ("bottom", true) | ("top", false) => Some("up"),
+                ("left", true) | ("right", false) => Some("right"),
+                ("right", true) | ("left", false) => Some("left"),
+                _ => None,
+            };
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+            let (t, bt, l, rt) = (P { x: ctr.x, y: b.y + 2.0 }, P { x: ctr.x, y: b.y + b.h - 2.0 }, P { x: b.x + 2.0, y: ctr.y }, P { x: b.x + b.w - 2.0, y: ctr.y });
+            let (from, to) = match dir {
+                Some("down") => (t, bt),
+                Some("up") => (bt, t),
+                Some("right") => (l, rt),
+                Some("left") => (rt, l),
+                _ => (ctr, ctr),
+            };
+            if dir.is_some() {
+                c.polyline(&[from, to], line, false);
+                let (dx, dy) = (((to.x - from.x).signum()), ((to.y - from.y).signum()));
+                let (a, bb) = if dx != 0.0 { (P { x: to.x - 3.0 * dx, y: to.y - 3.0 }, P { x: to.x - 3.0 * dx, y: to.y + 3.0 }) } else { (P { x: to.x - 3.0, y: to.y - 3.0 * dy }, P { x: to.x + 3.0, y: to.y - 3.0 * dy }) };
+                c.polyline(&[a, to, bb], line, false);
+            }
+            for f in ["stereotypeLabel", "nameLabel", "propertyLabel"] {
+                if let Some(lv) = r.refd(v, f) {
+                    draw_label(c, r, lv, fc);
+                }
+            }
             return;
         }
         "port" => {
@@ -825,7 +962,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLComponentRealizationView" => head = Some(End::Triangle),
         // an extension: a solid line with a filled triangle at the metaclass
         "UMLExtensionView" => head = Some(End::FilledTriangle),
-        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" | "UMLTransitionView" => head = Some(End::Arrow),
+        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" | "UMLTransitionView" | "UMLControlFlowView" | "UMLObjectFlowView" => head = Some(End::Arrow),
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
             if let Some(m) = r.refd(e, "model") {
@@ -1025,6 +1162,15 @@ impl Canvas for Svg<'_> {
     }
     fn ellipse(&mut self, c: P, rx: f64, ry: f64, fill: Option<Rgba>, stroke: Option<Rgba>) {
         self.out += &format!("<ellipse cx=\"{:.2}\" cy=\"{:.2}\" rx=\"{:.2}\" ry=\"{:.2}\"{}{}/>\n", c.x, c.y, rx, ry, paint("fill", fill), paint("stroke", stroke));
+    }
+    fn text_up(&mut self, t: &str, b: R, style: u8, size: f64, color: Rgba) {
+        let (x, y) = (b.x + b.w / 2.0, b.y + b.h / 2.0);
+        let weight = if style & 1 != 0 { " font-weight=\"bold\"" } else { "" };
+        self.out += &format!(
+            "<text x=\"{x:.2}\" y=\"{y:.2}\" transform=\"rotate(-90 {x:.2} {y:.2})\" font-family=\"Arial, Liberation Sans, Arimo, sans-serif\" font-size=\"{size}\" text-anchor=\"middle\" dominant-baseline=\"central\"{weight}{}>{}</text>\n",
+            paint("fill", Some(color)),
+            esc(t)
+        );
     }
     fn text(&mut self, t: &str, b: R, align: i64, style: u8, size: f64, color: Rgba, underline: bool) {
         let (x, anchor) = match align {
