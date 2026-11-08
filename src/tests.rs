@@ -2810,18 +2810,23 @@ fn http_api() {
     let (st, all) = a.api_answer("/get_all_diagrams_info", &json!({}), &ms);
     let all: serde_json::Value = serde_json::from_str(&all).unwrap();
     assert_eq!(st, 200);
+    assert_eq!(all["success"], true);
+    let all = &all["data"];
     assert_eq!(all.as_array().unwrap().len(), a.repo.all_of("Diagram").len());
     assert_eq!(all[0]["type"], "UMLClassDiagram");
     let (_, cur) = a.api_answer("/get_current_diagram_info", &json!({}), &ms);
     let cur: serde_json::Value = serde_json::from_str(&cur).unwrap();
+    let cur = &cur["data"];
     assert_eq!(cur["id"], a.repo.id(a.diagram.unwrap()));
     let (st, img) = a.api_answer("/get_diagram_image_by_id", &json!({"diagramId": cur["id"]}), &ms);
     assert_eq!(st, 200);
-    assert!(img.contains("\"data\":\"iVBOR"), "a base64 PNG");
+    assert!(img.starts_with("{\"success\":true,\"data\":\"iVBOR"), "a base64 PNG");
     let (st, err) = a.api_answer("/get_diagram_image_by_id", &json!({"diagramId": "nope"}), &ms);
-    assert_eq!((st, err.contains("Diagram not found or invalid ID")), (500, true));
-    let (st, _) = a.api_answer("/generate_diagram", &json!({}), &ms);
+    assert_eq!((st, err.as_str()), (500, "{\"success\":false,\"error\":\"Error: Diagram not found or invalid ID: nope\"}"));
+    let (st, bad) = a.api_answer("/generate_diagram", &json!({}), &ms);
     assert_eq!(st, 400);
+    let bad: serde_json::Value = serde_json::from_str(&bad).unwrap();
+    assert_eq!(bad, json!({"success": false, "error": "Invalid request body", "details": {"formErrors": [], "fieldErrors": {"code": ["Required"]}}}));
     let (st, ok) = a.api_answer("/generate_diagram", &json!({"code": "classDiagram\nA <|-- B"}), &ms);
     assert_eq!((st, ok.as_str()), (200, "{\"success\":true}"));
 

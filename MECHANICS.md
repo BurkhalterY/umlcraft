@@ -193,7 +193,7 @@ File › Import › XMI Import (v2.1) puts what it reads into a new UMLModel `XM
 
 ## HTTP API
 
-* A local server (127.0.0.1, port 58321) starts with the window, not for command-line commands; `settings.json` keys `apiServer` and `apiServerPort` turn it off or move it. `GET /` greets; `POST /generate_diagram {code}`, `/get_all_diagrams_info`, `/get_current_diagram_info` (records `{id, type, name, description}`) and `/get_diagram_image_by_id {diagramId}` (unknown id: 500 "Diagram not found or invalid ID") (`src/main-process/api-server.js:12-154`, `main.js:33-38`). UMLCraft's image answer is `{success, data, mimeType}` (estimated) and its greeting names UMLCraft.
+* A local server (127.0.0.1, port 58321) starts with the window, not for command-line commands; `settings.json` keys `apiServer` and `apiServerPort` turn it off or move it. `GET /` greets; `POST /generate_diagram {code}`, `/get_all_diagrams_info`, `/get_current_diagram_info` (records `{id, type, name, description}`) and `/get_diagram_image_by_id {diagramId}` (unknown id: 500 "Diagram not found or invalid ID") (`src/main-process/api-server.js:12-154`, `main.js:33-38`). Every answer is `{success: true, data}` (`{success: true}` for generate_diagram; the image's data is the bare base64 PNG, `null` when it cannot be drawn); a body without its string field gives 400 `{success: false, error: "Invalid request body", details}` where details is zod 3's `flatten()` (`{formErrors: [], fieldErrors: {code: ["Required"]}}`, or `["Expected string, received number"]`); a failed command gives 500 `{success: false, error: "Error: <message>"}` (`api-server.js:34-146`, `window.js:164-176`, `app-context.js:795-802`, `diagram-export.js:106-170`). UMLCraft's greeting names UMLCraft.
 
 ## Keymap
 
