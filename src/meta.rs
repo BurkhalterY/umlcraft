@@ -128,6 +128,18 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLInteraction", Some("UMLInteractionFragment"), vec![("messages", n()), ("participants", n()), ("fragments", n())]);
     def("UMLStateMachine", Some("UMLBehavior"), vec![("regions", n())]);
     def("UMLCombinedFragment", Some("UMLInteractionFragment"), vec![("interactionOperator", n()), ("operands", n())]);
+    // sequence diagrams (uml/metamodel.json, elements.js:3603-3990)
+    def("UMLMessageEndpoint", Some("UMLModelElement"), vec![]);
+    def("UMLLifeline", Some("UMLMessageEndpoint"), vec![("selector", d(json!(""))), ("represent", n()), ("isMultiInstance", d(json!(false)))]);
+    def("UMLGate", Some("UMLMessageEndpoint"), vec![]);
+    def("UMLEndpoint", Some("UMLMessageEndpoint"), vec![]);
+    def("UMLMessage", Some("UMLDirectedRelationship"), vec![
+        ("messageSort", d(json!("synchCall"))), ("signature", n()), ("connector", n()), ("sequenceNumber", d(json!(""))), ("arguments", d(json!(""))), ("assignmentTarget", d(json!(""))),
+        ("guard", d(json!(""))), ("iteration", d(json!(""))), ("isConcurrentIteration", d(json!(false))),
+    ]);
+    def("UMLStateInvariant", Some("UMLInteractionFragment"), vec![("covered", n()), ("invariant", d(json!("")))]);
+    def("UMLContinuation", Some("UMLInteractionFragment"), vec![("setting", d(json!(false)))]);
+    def("UMLInteractionUse", Some("UMLInteractionFragment"), vec![("refersTo", n()), ("arguments", d(json!(""))), ("returnValue", d(json!(""))), ("returnValueRecipient", n())]);
     def("UMLInteractionOperand", Some("UMLInteractionFragment"), vec![("guard", d(json!("")))]);
     def("UMLRegion", Some("UMLModelElement"), vec![("vertices", n()), ("transitions", n())]);
     // states, transitions, events and actions, for the explorer (uml/metamodel.json)
@@ -209,6 +221,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLObjectDiagram", Some("UMLDiagram"), vec![]);
     def("UMLInformationFlowDiagram", Some("UMLDiagram"), vec![]);
     def("UMLProfileDiagram", Some("UMLDiagram"), vec![]);
+    def("UMLSequenceDiagram", Some("UMLDiagram"), vec![("showSequenceNumber", d(json!(true))), ("sequenceNumbering", d(json!("auto"))), ("showSignature", d(json!(true))), ("showActivation", d(json!(true)))]);
 
     // UML views
     def("UMLCompartmentView", Some("NodeView"), vec![]);
@@ -262,6 +275,17 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLExpansionRegionView", Some("UMLStructuredActivityNodeView"), vec![]);
     def("UMLSwimlaneView", Some("NodeView"), vec![("nameLabel", n()), ("isVertical", d(json!(true)))]);
     def("UMLCollaborationUseView", Some("UMLGeneralNodeView"), vec![]);
+    // sequence diagram views (uml/metamodel.json, elements.js:11017-12800)
+    def("UMLLinePartView", Some("NodeView"), vec![]);
+    def("UMLSeqLifelineView", Some("UMLGeneralNodeView"), vec![("linePart", n())]);
+    def("UMLMessageEndpointView", Some("NodeView"), vec![]);
+    def("UMLEndpointView", Some("UMLMessageEndpointView"), vec![]);
+    def("UMLGateView", Some("UMLMessageEndpointView"), vec![]);
+    def("UMLActivationView", Some("NodeView"), vec![]);
+    def("UMLSeqMessageView", Some("EdgeView"), vec![("nameLabel", n()), ("stereotypeLabel", n()), ("propertyLabel", n()), ("activation", n()), ("showProperty", d(json!(true))), ("showType", d(json!(true)))]);
+    def("UMLStateInvariantView", Some("NodeView"), vec![("invariantLabel", n())]);
+    def("UMLContinuationView", Some("NodeView"), vec![("nameLabel", n())]);
+    def("UMLInteractionUseView", Some("NodeView"), vec![("nameLabel", n()), ("frameTypeLabel", n()), ("wordWrap", d(json!(false)))]);
     def("UMLPartView", Some("UMLGeneralNodeView"), vec![("showMultiplicity", d(json!(true)))]);
     def("UMLMetaClassView", Some("UMLGeneralNodeView"), vec![]);
     // artifact, component and node instances: drawn like their classifiers (base type estimated)

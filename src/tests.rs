@@ -5411,3 +5411,76 @@ fn mermaid_makes_flowcharts_er_diagrams_mind_maps_and_statecharts() {
     assert!(a.generate_mermaid("sequenceDiagram\n A->>B: hi", &ms).is_err());
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn sequence_diagrams_have_lifelines_messages_and_activations() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    let collab = a.repo.parent(inter).unwrap();
+    assert_eq!((a.repo.ty(inter), a.repo.ty(collab)), ("UMLInteraction", "UMLCollaboration"));
+    assert_eq!(a.repo.ty(a.repo.list(d, "ownedViews")[0]), "UMLFrameView", "a new sequence diagram has a frame");
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 100.0, 100.0, 60.0))).unwrap();
+    let l2 = a.change(|a| a.create_node("UMLLifeline", rect(250.0, 300.0, 100.0, 60.0))).unwrap();
+    let m1 = a.repo.refd(l1, "model").unwrap();
+    assert_eq!((a.repo.name(m1).as_str(), a.repo.name(a.repo.refd(m1, "represent").unwrap()).as_str()), ("Lifeline1", "Role1"));
+    assert_eq!(a.repo.parent(a.repo.refd(m1, "represent").unwrap()), Some(collab));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(l1, "top"), a.repo.f(l2, "top")), (40.0, 40.0), "lifelines stand at the top");
+    // a call from the first to the second at y = 150, and a reply under it
+    let call = tool("UMLMessage", AssocInit::Plain);
+    assert!(a.can_connect(&call, l1, l2));
+    a.line_from = Some((crate::views::P { x: 100.0, y: 150.0 }, crate::views::P { x: 300.0, y: 150.0 }));
+    let e1 = a.change(|a| a.create_edge(&call, l1, l2)).unwrap();
+    a.line_from = Some((crate::views::P { x: 300.0, y: 200.0 }, crate::views::P { x: 100.0, y: 200.0 }));
+    let e2 = a.change(|a| a.create_edge(&tool("UMLReplyMessage", AssocInit::Plain), l2, l1)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let p1 = crate::views::points_of(&a.repo, e1);
+    let lp2 = a.repo.refd(l2, "linePart").unwrap();
+    let act = a.repo.refd(e1, "activation").unwrap();
+    assert_eq!(a.repo.refd(e1, "head"), Some(lp2));
+    assert_eq!((p1[0].y, p1[1].y), (150.0, 150.0));
+    assert_eq!(p1[1].x, crate::views::node_rect(&a.repo, act).x, "the call ends at the activation it starts");
+    assert_eq!(crate::views::node_rect(&a.repo, act).y, 150.0);
+    let mm1 = a.repo.refd(e1, "model").unwrap();
+    assert_eq!(a.repo.str(a.repo.refd(e1, "nameLabel").unwrap(), "text"), "1 : Message1");
+    assert_eq!(a.repo.str(a.repo.refd(e2, "model").unwrap(), "messageSort"), "reply");
+    // moving the reply above the call renumbers them
+    a.repo.set(e2, "points", json!("300:120;100:120"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.list(inter, "messages")[1], mm1);
+    // a self message is four points to the right of its lifeline
+    a.line_from = Some((crate::views::P { x: 100.0, y: 250.0 }, crate::views::P { x: 100.0, y: 250.0 }));
+    let e3 = a.change(|a| a.create_edge(&tool("UMLSelfMessage", AssocInit::Plain), l1, l1)).unwrap();
+    // a lost message ends at a new endpoint
+    a.line_from = Some((crate::views::P { x: 300.0, y: 300.0 }, crate::views::P { x: 500.0, y: 300.0 }));
+    let e4 = a.change(|a| a.create_edge(&tool("UMLLostMessage", AssocInit::Plain), l2, l2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(crate::views::points_of(&a.repo, e3).len(), 4);
+    let ep = a.repo.refd(e4, "head").unwrap();
+    assert_eq!(a.repo.ty(ep), "UMLEndpointView");
+    assert_eq!(a.repo.list(inter, "participants").len(), 3);
+    // the lifelines reach past their lowest message
+    let lb = crate::views::node_rect(&a.repo, l2);
+    assert!(lb.y + lb.h >= 300.0 + 15.0);
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("Lifeline1"));
+    // the lifeline and message expressions
+    let ty = crate::parse::apply_lifeline(&mut a.repo, m1, "<<boundary>> ui[1] : Screen");
+    assert_eq!((a.repo.name(m1).as_str(), a.repo.str(m1, "selector").as_str(), ty.as_deref()), ("ui", "1", Some("Screen")));
+    crate::parse::apply_message(&mut a.repo, mm1, "total = sum(a, b)");
+    assert_eq!((a.repo.name(mm1).as_str(), a.repo.str(mm1, "assignmentTarget").as_str(), a.repo.str(mm1, "arguments").as_str()), ("sum", "total", "a, b"));
+    assert_eq!(crate::parse::message_text(&a.repo, mm1), "total = sum(a, b)");
+    assert!(crate::sequence::message_text(&a.repo, d, mm1, true).ends_with(": total = sum(a, b)"));
+    // a class dropped on the diagram becomes a lifeline of a new role of that type
+    let class = a.change(|a| a.repo.create("UMLClass", &[("name", json!("Order"))], Some((root, "ownedElements"))));
+    let got = a.drop_model(class, crate::views::P { x: 600.0, y: 100.0 }).unwrap();
+    let lm = a.repo.refd(got[0], "model").unwrap();
+    assert_eq!(a.repo.refd(a.repo.refd(lm, "represent").unwrap(), "type"), Some(class));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nl = a.repo.refd(a.repo.refd(got[0], "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert!(a.repo.str(nl, "text").ends_with(": Order"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

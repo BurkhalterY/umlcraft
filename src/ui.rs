@@ -190,6 +190,35 @@ const MINDMAP_GROUPS: &[Group] = &[
     Group { id: "mindmap", label: "Mindmap", items: &[node("Node", "MMNode", "MMNode"), line("Edge", "MMEdge", "MMEdge", AssocInit::Plain)] },
     ANNOTATIONS,
 ];
+// a sequence diagram (uml.json "uml.sequence", "uml.sequence-adv"): the tools UMLCraft has
+const SEQUENCE_GROUPS: &[Group] = &[
+    Group {
+        id: "sequence",
+        label: "Interactions (Basic)",
+        items: &[
+            node("Lifeline", "UMLLifeline", "lifeline"),
+            line("Message", "UMLMessage", "message", AssocInit::Plain),
+            line("Self Message", "UMLSelfMessage", "self-message", AssocInit::Plain),
+            line("Async Message", "UMLAsyncMessage", "async-message", AssocInit::Plain),
+            line("Reply Message", "UMLReplyMessage", "reply-message", AssocInit::Plain),
+            line("Create Message", "UMLCreateMessage", "reply-message", AssocInit::Plain),
+            line("Delete Message", "UMLDeleteMessage", "message", AssocInit::Plain),
+            line("Async Signal Message", "UMLAsyncSignalMessage", "async-message", AssocInit::Plain),
+        ],
+    },
+    Group {
+        id: "sequence-adv",
+        label: "Interactions (Advanced)",
+        items: &[
+            line("Found Message", "UMLFoundMessage", "found-message", AssocInit::Plain),
+            line("Lost Message", "UMLLostMessage", "lost-message", AssocInit::Plain),
+            node("Endpoint", "UMLEndpoint", "endpoint"),
+            node("Gate", "UMLGate", "gate"),
+            node("Frame", "Frame", "frame"),
+        ],
+    },
+    ANNOTATIONS,
+];
 // a C4 diagram (c4/toolbox/c4.json)
 const C4_GROUPS: &[Group] = &[
     Group {
@@ -420,7 +449,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 16] = [
+const DIAGRAM_KINDS: [(&str, &str); 17] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -432,6 +461,7 @@ const DIAGRAM_KINDS: [(&str, &str); 16] = [
     ("Profile Diagram", "UMLProfileDiagram"),
     ("Statechart Diagram", "UMLStatechartDiagram"),
     ("Activity Diagram", "UMLActivityDiagram"),
+    ("Sequence Diagram", "UMLSequenceDiagram"),
     ("Flowchart Diagram", "FCFlowchartDiagram"),
     // the original's labels (dfd/menus/dfd.json, mindmap/menus/mindmap.json)
     ("DataFlowDiagram", "DFDDiagram"),
@@ -1715,6 +1745,7 @@ impl App {
                 Some("MMMindmapDiagram") => self.open_groups.insert("mindmap"),
                 Some("ERDDiagram") => self.open_groups.insert("erd"),
                 Some("C4Diagram") => self.open_groups.insert("c4"),
+                Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1746,6 +1777,7 @@ impl App {
             Some("MMMindmapDiagram") => MINDMAP_GROUPS,
             Some("ERDDiagram") => ERD_GROUPS,
             Some("C4Diagram") => C4_GROUPS,
+            Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

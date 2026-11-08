@@ -124,7 +124,7 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | UML | `uml.actor.stereotypeDisplay` | Stereotype Display | "label" | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.actor.suppressAttributes` | Suppress Attributes | true | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.actor.suppressOperations` | Suppress Operations | true | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.lifeline.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.lifeline.fillColor` | Fill Color | null | ✅ | in Preferences › UML › Lifeline; new lifelines take it (src/prefs.rs:260, 342) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.state.fillColor` | Fill Color | null | ✅ in Preferences › UML › State; new state views take it (src/prefs.rs:258, 300, 330-365) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.action.fillColor` | Fill Color | null | ✅ | in Preferences › UML › Action; new actions, structured activities and expansion regions take it (src/prefs.rs:260, 341) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.objectnode.fillColor` | Fill Color | null | ✅ | in Preferences › UML › Object Node; new object, central buffer, data store and parameter nodes take it (src/prefs.rs:261, 342) | extensions/essential/uml/preferences/uml.json |

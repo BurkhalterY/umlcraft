@@ -862,7 +862,8 @@ impl App {
         if let Some(tool) = self.tool {
             if !tool.line || tool.kind == "FreeLine" {
                 self.drag = Some(Drag::CreateNode { start: p, now: p });
-            } else if let Some(tail) = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject")) {
+            } else if let Some(tail) = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject")).or_else(|| if tool.kind == "UMLFoundMessage" { self.diagram } else { None }) {
+                // a found message may start anywhere: its endpoint is made at the press point
                 self.drag = Some(Drag::CreateEdge { start: p, now: p, tail });
             }
             return;
@@ -1336,13 +1337,24 @@ impl App {
                     self.pending_edit = Some(v);
                 }
             }
-            Drag::CreateEdge { tail, .. } => {
+            Drag::CreateEdge { tail, start, .. } => {
                 let Some(tool) = self.tool else { return };
                 // a self-connection tool joins the view under the release point to itself (factory.js:273-277)
                 let hit = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject"));
-                let (tail, hit) = if tool.label == "Self Transition" { (hit.unwrap_or(tail), hit) } else { (tail, hit) };
-                if let Some(head) = hit.map(|h| if tool.label == "Self Transition" { tail } else { h }) {
-                    if !self.can_connect(&tool, tail, head) {
+                let selfish = matches!(tool.label, "Self Transition" | "Self Message");
+                let (tail, hit) = if selfish { (hit.unwrap_or(tail), hit) } else { (tail, hit) };
+                // a message keeps the height it is drawn at; a found message comes from an endpoint at
+                // the press point, a lost one goes to an endpoint at the release point
+                self.line_from = Some((start, p));
+                let lifeline = |a: &Self, v: Eid| a.repo.refd(v, "model").map(|m| a.repo.ty(m) == "UMLLifeline").unwrap_or(false);
+                let hit = match tool.kind {
+                    "UMLLostMessage" if lifeline(self, tail) => Some(tail),
+                    "UMLFoundMessage" => hit.filter(|h| lifeline(self, *h)),
+                    _ => hit,
+                };
+                let free = matches!(tool.kind, "UMLFoundMessage" | "UMLLostMessage");
+                if let Some(head) = hit.map(|h| if selfish { tail } else { h }) {
+                    if !free && !self.can_connect(&tool, tail, head) {
                         // a refused link is reported (uml-factory.js:19-146, toolbox-view.js:209-216)
                         self.toast_error(&format!("Invalid connection ({})", tool.kind.trim_start_matches("UML")));
                     } else if let Some(v) = self.change(|a| a.create_edge(&tool, tail, head)) {
@@ -1793,6 +1805,8 @@ impl App {
             EditKind::Name(m) if self.repo.kind_of(*m, "UMLInstance") => Some(Grammar::Object),
             // a transition's expression is split by hand (uml-transition.pegjs)
             EditKind::Name(m) if self.repo.ty(*m) == "UMLTransition" => None,
+            // a lifeline's and a message's expressions are split by hand (uml-lifeline.pegjs, uml-message.pegjs)
+            EditKind::Name(m) if matches!(self.repo.ty(*m), "UMLLifeline" | "UMLMessage") => None,
             // other notations' elements take their name as typed (flowchart.json "fc.set-name")
             EditKind::Name(m) if crate::meta::plain_named(self.repo.ty(*m)) => None,
             EditKind::Name(_) => Some(Grammar::Name),
@@ -1871,6 +1885,29 @@ impl App {
             EditKind::Name(m) if self.repo.ty(m) == "UMLTransition" => {
                 if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
                     self.change(|a| crate::parse::apply_transition(&mut a.repo, m, &e.text));
+                }
+            }
+            EditKind::Name(m) if self.repo.ty(m) == "UMLLifeline" => {
+                if self.repo.alive(m) && crate::parse::lifeline_text(&self.repo, m) != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| {
+                        let ty = crate::parse::apply_lifeline(&mut a.repo, m, &t);
+                        if let Some(role) = a.repo.refd(m, "represent") {
+                            match ty {
+                                Some(ty) => match a.resolve_name(role, &ty, "UMLClassifier") {
+                                    Some(c) => a.repo.set_ref(role, "type", Some(c)),
+                                    None => a.repo.set(role, "type", serde_json::json!(ty)),
+                                },
+                                None => a.repo.remove(role, "type"),
+                            }
+                        }
+                    });
+                }
+            }
+            EditKind::Name(m) if self.repo.ty(m) == "UMLMessage" => {
+                if self.repo.alive(m) && crate::parse::message_text(&self.repo, m) != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| crate::parse::apply_message(&mut a.repo, m, &t));
                 }
             }
             EditKind::Name(m) if self.repo.ty(m) == "C4Relationship" => {

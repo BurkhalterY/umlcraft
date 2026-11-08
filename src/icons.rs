@@ -47,6 +47,11 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLFinalState" => "final",
         "UMLPseudostate" => "initial",
         "UMLConnectionPointReference" => "connection-point",
+        "UMLLifeline" => "lifeline",
+        "UMLMessage" => "message",
+        "UMLEndpoint" => "endpoint",
+        "UMLGate" => "gate",
+        "UMLSequenceDiagram" => "diagram",
         // a flowchart element's icon is its type (the shapes are drawn by key)
         t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") => crate::meta::static_name(t),
         "UMLTransition" => "dependency",
@@ -302,6 +307,34 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
                 line(&[(x, 5.5), (x, 10.5)], Y);
             }
         }
+        // sequence diagram tools
+        "lifeline" => {
+            rect_at(3.0, 1.5, 10.0, 4.5, Y);
+            dashed(&[(8.0, 6.0), (8.0, 15.0)], Y);
+        }
+        "message" | "async-message" | "reply-message" => {
+            let l = [(1.5, 8.0), (14.0, 8.0)];
+            if key == "reply-message" { dashed(&l, B) } else { line(&l, B) }
+            if key == "message" {
+                p.add(Shape::convex_polygon(vec![at(14.5, 8.0), at(10.5, 5.5), at(10.5, 10.5)], B, st(B)));
+            } else {
+                line(&[(11.0, 5.5), (14.5, 8.0), (11.0, 10.5)], B);
+            }
+        }
+        "self-message" => {
+            line(&[(4.0, 4.0), (12.0, 4.0), (12.0, 11.0), (4.0, 11.0)], B);
+            line(&[(7.0, 8.5), (4.0, 11.0), (7.0, 13.5)], B);
+        }
+        "found-message" | "lost-message" => {
+            line(&[(4.0, 8.0), (12.0, 8.0)], B);
+            line(&[(9.5, 5.5), (12.5, 8.0), (9.5, 10.5)], B);
+            let x = if key == "found-message" { 3.0 } else { 14.0 };
+            p.circle_filled(at(x, 8.0), 2.0 * s, B);
+        }
+        "endpoint" => {
+            p.circle_filled(at(8.0, 8.0), 4.0 * s, Y);
+        }
+        "gate" => rect_at(5.0, 5.0, 6.0, 6.0, Y),
         // C4 elements
         "C4Model" => {
             rect_at(1.5, 1.5, 13.0, 13.0, Y);

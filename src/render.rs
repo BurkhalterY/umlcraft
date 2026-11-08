@@ -562,6 +562,15 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             crate::flowchart::draw(c, r, v, fill, line, fc);
             return;
         }
+        "lifeline" => {
+            crate::sequence::draw_lifeline(c, r, v, fill, line);
+            draw_name(c, r, v);
+            return;
+        }
+        "endpoint" => {
+            crate::sequence::draw_endpoint(c, r, v, fill, line);
+            return;
+        }
         "c4" => {
             crate::c4::draw(c, r, v, fill, line, fc);
             return;
@@ -1053,6 +1062,13 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         "UMLDependencyView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLIncludeView" | "UMLExtendView" | "UMLNoteLinkView" | "UMLComponentRealizationView" | "UMLDeploymentView" | "UMLAssociationClassLinkView" | "UMLTemplateBindingView" | "UMLConstraintLinkView" | "UMLInformationFlowView" | "UMLLinkObjectLinkView" | "UMLRoleBindingView"
     );
     let (mut head, mut tail) = (None, None);
+    // a message: dotted for replies and create messages, a filled arrow for calls and deletes, an
+    // open one for the others (UMLSeqMessageView.update, elements.js:11700-11725)
+    let seq_sort = (ty == "UMLSeqMessageView").then(|| r.refd(e, "model").map(|m| r.str(m, "messageSort"))).flatten();
+    if let Some(sort) = &seq_sort {
+        dashed = matches!(sort.as_str(), "reply" | "createMessage");
+        head = Some(if matches!(sort.as_str(), "asynchCall" | "asynchSignal" | "createMessage" | "reply") { End::Arrow } else { End::SolidArrow });
+    }
     // a non-identifying ERD relationship is dotted (ERDRelationshipView.update, erd/elements.js:555-560)
     if ty == "ERDRelationshipView" && r.refd(e, "model").map(|m| !r.bool(m, "identifying")).unwrap_or(false) {
         dashed = true;
@@ -1062,6 +1078,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         // an extension: a solid line with a filled triangle at the metaclass
         "UMLExtensionView" => head = Some(End::FilledTriangle),
         "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" | "UMLTransitionView" | "UMLControlFlowView" | "UMLObjectFlowView" | "UMLExceptionHandlerView" | "UMLActivityInterruptView" => head = Some(End::Arrow),
+        "UMLSeqMessageView" => {}
         // a flowchart flow ends in a filled arrow (FCGeneralEdgeView, flowchart/elements.js:200)
         "FCFlowView" | "DFDDataFlowView" => head = Some(End::SolidArrow),
         // a C4 relationship is dotted with a filled arrow (C4RelationshipView, c4/elements.js:590-597)
@@ -1121,6 +1138,19 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         }
     }
     let n = pts.len();
+    // a message's activation, drawn over the line's end (UMLActivationView.drawObject, elements.js:11595)
+    if let Some(a) = r.refd(e, "activation").filter(|a| r.raw(*a, "visible").and_then(|v| v.as_bool()) != Some(false)) {
+        c.rect(node_rect(r, a), Some(color(r, e, "fillColor", WHITE)), Some(line));
+    }
+    // a delete message crosses out the end of its lifeline (elements.js:11940-11948)
+    if seq_sort.as_deref() == Some("deleteMessage") {
+        if let Some(h) = r.refd(e, "head") {
+            let b = node_rect(r, h);
+            let (cx, by) = (b.x + b.w / 2.0, b.y + b.h);
+            c.polyline(&[P { x: cx - 10.0, y: by - 10.0 }, P { x: cx + 10.0, y: by + 10.0 }], line, false);
+            c.polyline(&[P { x: cx + 10.0, y: by - 10.0 }, P { x: cx - 10.0, y: by + 10.0 }], line, false);
+        }
+    }
     end_shape(c, pts[n - 1], pts[n - 2], head, line);
     end_shape(c, pts[0], pts[1], tail, line);
     // an ERD relationship: crow's feet by each end's cardinality

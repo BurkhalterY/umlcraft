@@ -511,7 +511,7 @@ fn set_false(r: &mut Repo, e: Eid, key: &str) {
     r.set_raw(e, key, json!(false));
 }
 
-fn name_compartment(r: &mut Repo, view: Eid, model: Eid) -> Eid {
+pub(crate) fn name_compartment(r: &mut Repo, view: Eid, model: Eid) -> Eid {
     let m = r.ref_to(model);
     let nc = r.create("UMLNameCompartmentView", &[("model", m), ("font", json!(FONT)), ("parentStyle", json!(true))], Some((view, "subViews")));
     let st = label(r, nc, &[("height", json!(LABEL_H))]);
@@ -1206,7 +1206,7 @@ fn layout_frame(r: &mut Repo, ms: &dyn Measure, v: Eid) {
 
 const HALF_PI: f64 = std::f64::consts::FRAC_PI_2;
 
-fn edge_label(r: &mut Repo, edge: Eid, model: Option<Eid>, alpha: f64, distance: f64, pos: i64, visible_null: bool) -> Eid {
+pub(crate) fn edge_label(r: &mut Repo, edge: Eid, model: Option<Eid>, alpha: f64, distance: f64, pos: i64, visible_null: bool) -> Eid {
     let mut props: Vec<(&str, Value)> = vec![];
     if let Some(m) = model {
         props.push(("model", r.ref_to(m)));
@@ -1623,6 +1623,19 @@ fn box_name(r: &Repo, m: Eid) -> String {
             return attribute_text(r, p, Show { vis: false, mult: true, sig: true, ty: true, prop: true });
         }
     }
+    // a lifeline: "name[selector]: Type", its type that of the role it represents
+    // (UMLLifeline.getString, elements.js:3790-3800)
+    if r.ty(m) == "UMLLifeline" {
+        let sel = r.str(m, "selector");
+        let mut s = if sel.is_empty() { name } else { format!("{name}[{sel}]") };
+        if let Some(role) = r.refd(m, "represent") {
+            let ty = type_name(r, role, "type");
+            if !ty.is_empty() {
+                s += &format!(": {ty}");
+            }
+        }
+        return s;
+    }
     // a submachine state: "name: Machine" (UMLStateView.update, elements.js:9502-9505)
     if r.ty(m) == "UMLState" {
         if let Some(sm) = r.refd(m, "submachine").filter(|s| r.alive(*s)) {
@@ -1643,7 +1656,7 @@ fn name_style(r: &Repo, m: Eid) -> u8 {
     if r.bool(m, "isAbstract") { 3 } else { 1 }
 }
 
-fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w: f64, keyword: Option<&str>, hide_st: bool) -> f64 {
+pub(crate) fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w: f64, keyword: Option<&str>, hide_st: bool) -> f64 {
     let Some(p) = name_parts(r, v, m, keyword, hide_st) else { return NAME_MIN_H };
     let style = name_style(r, m);
     let wrap = r.bool(v, "wordWrap");
@@ -1695,7 +1708,7 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
     h
 }
 
-fn name_min_width(r: &Repo, ms: &dyn Measure, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) -> f64 {
+pub(crate) fn name_min_width(r: &Repo, ms: &dyn Measure, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) -> f64 {
     let wrap = r.bool(v, "wordWrap");
     let width = |t: &str, style: u8| if wrap { widest_word(ms, t, style) } else { ms.width(t, style) };
     let mut w = width(&box_name(r, m), name_style(r, m));
@@ -2085,6 +2098,15 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
     }
     if t == "ERDEntityView" {
         return crate::erd::layout(r, ms, v);
+    }
+    if t == "UMLSeqLifelineView" {
+        crate::sequence::layout_lifeline(r, ms, v);
+        return Info { shape: "lifeline", ..Default::default() };
+    }
+    if t == "UMLEndpointView" || t == "UMLGateView" {
+        r.set(v, "width", json!(crate::sequence::ENDPOINT_SIZE));
+        r.set(v, "height", json!(crate::sequence::ENDPOINT_SIZE));
+        return Info { shape: "endpoint", ..Default::default() };
     }
     if crate::c4::is_node_view(&t) {
         crate::c4::layout(r, ms, v);
@@ -2565,6 +2587,16 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     if r.ty(m) == "MMEdge" {
         return vec![];
     }
+    if r.ty(m) == "UMLMessage" {
+        let show_type = r.raw(e, "showType").and_then(|v| v.as_bool()).unwrap_or(true);
+        let text = r.parent(e).map(|d| crate::sequence::message_text(r, d, m, show_type)).unwrap_or_default();
+        let st = match r.str(m, "messageSort").as_str() {
+            "createMessage" => "«create»".to_string(),
+            "deleteMessage" => "«destroy»".to_string(),
+            _ => stereotype_text(r, m),
+        };
+        return vec![("nameLabel", text), ("stereotypeLabel", st), ("propertyLabel", String::new())];
+    }
     if r.ty(m) == "C4Relationship" {
         let tech = r.str(m, "technology");
         return vec![("descriptionLabel", r.str(m, "description")), ("technologyLabel", if tech.is_empty() { tech } else { format!("[{tech}]") })];
@@ -2656,7 +2688,7 @@ pub fn label_polar(p1: P, p2: P, c: P) -> (f64, f64) {
 pub const ZIGZAG_W: f64 = 25.0;
 pub const ZIGZAG_H: f64 = 20.0;
 
-fn layout_edge_labels(r: &mut Repo, ms: &dyn Measure, e: Eid, pts: &[P]) {
+pub(crate) fn layout_edge_labels(r: &mut Repo, ms: &dyn Measure, e: Eid, pts: &[P]) {
     if pts.len() < 2 {
         return;
     }
@@ -2712,6 +2744,9 @@ pub fn layout_diagram(r: &mut Repo, ms: &dyn Measure, d: Eid) -> HashMap<Eid, In
         if r.alive(*v) && KNOWN_EDGE_VIEWS.contains(&r.ty(*v)) && is_edge(r, *v) {
             layout_edge(r, ms, *v, &info);
         }
+    }
+    if r.ty(d) == "UMLSequenceDiagram" {
+        crate::sequence::layout(r, ms, d);
     }
     info
 }

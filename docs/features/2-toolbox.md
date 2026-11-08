@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, flowchart, data flow, mind map, ER and C4 diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
+UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER and C4 diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -235,25 +235,25 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Link | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Directed Link | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Instances `uml.instance` | UMLClassDiagram, UMLObjectDiagram, UMLComponentDiagram, UMLDeploymentDiagram | Link Object | ✅ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Lifeline | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Message | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Self Message | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Async Message | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Reply Message | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Create Message | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Delete Message | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Async Signal Message | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Found Message | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Lost Message | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Endpoint | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Gate | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Lifeline | ✅ | a UMLLifeline in the interaction's participants representing a new role "Role1"… of the classifier that owns the interaction; it stands at the top (40 px), at least 200 high, its head 40 high with "name[selector]: Type" and a dashed line reaching 15 px past its lowest message (src/app.rs:807-830; src/sequence.rs:36-50, 204-410) | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Message | ✅ | a synchronous call from line to line at the height it is drawn, numbered by height ("1 : Message1"), ending in a filled arrow at the activation it starts (src/app.rs:1530-1560; src/sequence.rs:55-75, 88-160, 204-350) | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Self Message | ✅ | a message from a lifeline to itself: four points 30 px out and 20 px down (src/canvas.rs:1344; src/sequence.rs:204-350) | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Async Message | ✅ | messageSort asynchCall, with an open arrow and an activation (src/sequence.rs:22-34; src/render.rs) | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Reply Message | ✅ | messageSort reply, unnamed, dotted with an open arrow (src/sequence.rs:22-34; src/render.rs) | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Create Message | ✅ | messageSort createMessage, dotted with «create»; the lifeline it reaches stands at its height and the message ends at its head (src/sequence.rs:204-350) | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Delete Message | ✅ | messageSort deleteMessage with «destroy», crossing out the end of the lifeline it reaches (src/sequence.rs:22-34; src/render.rs) | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Basic) `uml.sequence` | UMLSequenceDiagram | Async Signal Message | ✅ | messageSort asynchSignal, with an open arrow and no activation (src/sequence.rs:22-34) | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Found Message | ✅ | a message from a new endpoint at the press point to the lifeline it is released on (src/app.rs:1530-1560; src/canvas.rs:866) | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Lost Message | ✅ | a message from the lifeline to a new endpoint at the release point (src/app.rs:1530-1560) | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Endpoint | ✅ | an UMLEndpoint in the participants, a 15 px dot that a message keeps level with it (src/app.rs:807-815; src/sequence.rs:76-87, 412-420) | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Gate | ✅ | an UMLGate in the participants, a 15 px square (src/app.rs:807-815; src/sequence.rs:412-420) | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | State Invariant | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Continuation | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Combined Fragment | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Interaction Use | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Time Constraint | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Duration Constraint | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Frame | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Frame | ✅ | in the Interactions (Advanced) group, the same Frame tool as on other diagrams; a new sequence diagram starts with a frame of itself (src/ui.rs:194-225; src/app.rs:1925-1950) | extensions/essential/uml/toolbox/uml.json |
 | Communication `uml.communication` | UMLCommunicationDiagram | Lifeline | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Communication `uml.communication` | UMLCommunicationDiagram | Connector | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Communication `uml.communication` | UMLCommunicationDiagram | Self Connector | ❌ | extensions/essential/uml/toolbox/uml.json |

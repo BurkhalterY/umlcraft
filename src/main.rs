@@ -38,6 +38,7 @@ mod related;
 mod relview;
 mod render;
 mod selector;
+mod sequence;
 mod splitter;
 mod style;
 mod tags;

@@ -122,6 +122,9 @@ pub enum Area {
     Other,
 }
 
+/// The lowest a message may be drawn: just under the lifelines' heads.
+const LIFELINE_MESSAGE_MIN_Y: f64 = crate::sequence::LIFELINE_TOP + crate::sequence::HEAD_H + 10.0;
+
 pub struct App {
     pub repo: Repo,
     pub filename: Option<PathBuf>,
@@ -178,6 +181,8 @@ pub struct App {
     pub shot_requested: bool,
     pub quit_after_save: bool,
     pub pending_edit: Option<Eid>,
+    /// Where the line being drawn was pressed and released: a message keeps that height.
+    pub line_from: Option<(P, P)>,
     /// A compartment item to edit inline once its row is laid out: (box view, item, frames left).
     pub pending_item: Option<(Eid, Eid, u8)>,
     pub reveal_pending: Option<Eid>,
@@ -321,6 +326,7 @@ impl App {
             shot_requested: false,
             quit_after_save: false,
             pending_edit: None,
+            line_from: None,
             pending_item: None,
             reveal_pending: None,
             scrolls: HashMap::new(),
@@ -795,6 +801,28 @@ impl App {
             self.apply_view_defaults(v);
             return Some(v);
         }
+        // a lifeline goes in the participants of the diagram's interaction and represents a new role
+        // "Role1"… of the classifier that owns the interaction; it is at least 200 high (lifelineFn,
+        // uml-factory.js:1105-1180). Endpoints and gates are participants too.
+        if matches!(kind, "UMLLifeline" | "UMLEndpoint" | "UMLGate") {
+            let inter = self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLInteraction")?;
+            let name = self.new_name(inter, kind);
+            if kind != "UMLLifeline" {
+                let m = self.repo.create(kind, &[("name", json!(name))], Some((inter, "participants")));
+                let v = crate::sequence::create_endpoint_view(&mut self.repo, d, m, P { x: rect.x, y: rect.y });
+                self.apply_view_defaults(v);
+                return Some(v);
+            }
+            let classifier = self.repo.parent(inter).filter(|c| self.repo.kind_of(*c, "UMLClassifier"))?;
+            let names: HashSet<String> = self.repo.list(classifier, "attributes").into_iter().map(|a| self.repo.name(a)).collect();
+            let role_name = (1..).map(|i| format!("Role{i}")).find(|n| !names.contains(n)).unwrap();
+            let role = self.repo.create("UMLAttribute", &[("name", json!(role_name))], Some((classifier, "attributes")));
+            let rr = self.repo.ref_to(role);
+            let m = self.repo.create(kind, &[("name", json!(name)), ("represent", rr)], Some((inter, "participants")));
+            let v = crate::sequence::create_lifeline_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
         // a C4 element goes in the element that owns the diagram, named after its class ("C4Person1"…);
         // the container tools set its kind (c4-factory.js:70-90, toolbox/c4.json)
         if let Some((ty, ckind)) = crate::c4::tool(kind) {
@@ -1148,6 +1176,14 @@ impl App {
             "ERDDiagram" => vec!["Hyperlink", "Diagram", "ERDEntity", "ERDColumn", "ERDRelationship"],
             // C4Diagram.canAcceptModel (c4/elements.js:75-80)
             "C4Diagram" => vec!["Hyperlink", "Diagram", "C4Element", "C4Relationship"],
+            // UMLSequenceDiagram.canAcceptModel (elements.js:10958-10985)
+            "UMLSequenceDiagram" => {
+                // a role of the collaboration that owns the interaction
+                if self.repo.ty(m) == "UMLAttribute" {
+                    return self.repo.parent(m) == self.repo.parent(d).and_then(|i| self.repo.parent(i));
+                }
+                vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier"]
+            }
             "UMLUseCaseDiagram" => vec![
                 "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
@@ -1193,6 +1229,24 @@ impl App {
         }
         if views::edge_view_of(&ty).is_some() && self.rel_ends(m).is_some() {
             return self.drop_relationship(d, m, p);
+        }
+        // a classifier dropped on a sequence diagram becomes a lifeline representing a new role of that
+        // type; a role of the collaboration a lifeline representing it (viewForSequenceDiagramFn,
+        // uml-factory.js:2763-2850)
+        if self.repo.ty(d) == "UMLSequenceDiagram" && (self.repo.kind_of(m, "UMLClassifier") || self.repo.ty(m) == "UMLAttribute") {
+            let v = self.change(|a| {
+                let v = a.create_node("UMLLifeline", views::R { x: p.x, y: p.y, w: 100.0, h: 200.0 })?;
+                let lm = a.repo.refd(v, "model")?;
+                let role = a.repo.refd(lm, "represent")?;
+                if a.repo.ty(m) == "UMLAttribute" {
+                    a.repo.set_ref(lm, "represent", Some(m));
+                    a.repo.detach(role);
+                } else {
+                    a.repo.set_ref(role, "type", Some(m));
+                }
+                Some(v)
+            });
+            return Ok(v.into_iter().collect());
         }
         // a constraint gets its view and links to its owner's boxes (factory.js:899-918)
         if ty == "UMLConstraint" {
@@ -1417,6 +1471,8 @@ impl App {
             "DFDDataFlow" => r.kind_of(tm, "DFDElement") && r.kind_of(hm, "DFDElement"),
             "MMEdge" => r.ty(tm) == "MMNode" && r.ty(hm) == "MMNode",
             // a relationship joins two entities (entityLinkPrecondition, erd-factory.js:20-26)
+            // a message joins two lifelines, endpoints or gates (messageFn, uml-factory.js:1185-1215)
+            _ if crate::sequence::message_sort(kind).is_some() => r.kind_of(tm, "UMLMessageEndpoint") && r.kind_of(hm, "UMLMessageEndpoint"),
             // a C4 relationship joins two C4 elements (linkPrecondition, c4-factory.js:20-25)
             "C4Relationship" => r.kind_of(tm, "C4Element") && r.kind_of(hm, "C4Element"),
             "ERDRelationship" | "ERDRelationshipOneToMany" | "ERDRelationshipManyToMany" => r.ty(tm) == "ERDEntity" && r.ty(hm) == "ERDEntity",
@@ -1467,6 +1523,35 @@ impl App {
         }
         if tool.kind == "NoteLink" {
             return views::create_edge_view(&mut self.repo, d, None, tail, head);
+        }
+        // a message, from line part to line part (or endpoint), at the height it was drawn; found and
+        // lost messages start or end at a new endpoint (messageFn, foundMessageFn, lostMessageFn,
+        // uml-factory.js:1185-1510)
+        if let Some(sort) = crate::sequence::message_sort(tool.kind) {
+            let inter = self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLInteraction")?;
+            let (from, to) = self.line_from.take().unwrap_or_default();
+            let line = |a: &App, v: Eid| if a.repo.ty(v) == "UMLSeqLifelineView" { a.repo.refd(v, "linePart").unwrap_or(v) } else { v };
+            let endpoint = |a: &mut App, at: P| -> Option<Eid> {
+                let name = a.new_name(inter, "UMLEndpoint");
+                let m = a.repo.create("UMLEndpoint", &[("name", json!(name))], Some((inter, "participants")));
+                let v = crate::sequence::create_endpoint_view(&mut a.repo, d, m, at);
+                a.apply_view_defaults(v);
+                Some(v)
+            };
+            let (t, h) = match tool.kind {
+                "UMLFoundMessage" => (endpoint(self, from)?, line(self, head)),
+                "UMLLostMessage" => (line(self, tail), endpoint(self, to)?),
+                _ => (line(self, tail), line(self, head)),
+            };
+            let (tm, hm) = (self.repo.refd(t, "model")?, self.repo.refd(h, "model")?);
+            let name = if matches!(sort, "reply" | "createMessage" | "deleteMessage") { String::new() } else { self.new_name(inter, "UMLMessage") };
+            let (rs, rt) = (self.repo.ref_to(tm), self.repo.ref_to(hm));
+            let m = self.repo.create("UMLMessage", &[("name", json!(name)), ("source", rs), ("target", rt)], Some((inter, "messages")));
+            if sort != "synchCall" {
+                self.repo.set(m, "messageSort", json!(sort));
+            }
+            let y = if from.y > 0.0 { from.y } else { to.y };
+            return Some(crate::sequence::create_message_view(&mut self.repo, d, m, t, h, y.max(LIFELINE_MESSAGE_MIN_Y)));
         }
         // an ERD relationship, owned by its first entity, with an end at each; the one-to-many and
         // many-to-many tools make its ends "0..*" (toolbox/erd.json "model-init")
@@ -1834,6 +1919,34 @@ impl App {
         // (flowchart-factory.js:31-62)
         // and so do a data flow diagram (in any DFD element, else a new "DataFlowModel1") and a mind
         // map diagram (in a mind map, else a new "Mindmap1") (dfd-factory.js:30-55, mindmap-factory.js:30-60)
+        // a sequence diagram goes in an interaction: the target if it is one, else a new interaction in
+        // a classifier, else a new collaboration with an interaction; it starts with a frame showing
+        // it (sequenceDiagramFn and _addFrame, uml-factory.js:251-310)
+        if ty == "UMLSequenceDiagram" {
+            let target = match parent {
+                Some(p) if self.repo.ty(p) == "UMLInteraction" || self.repo.kind_of(p, "UMLClassifier") || self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" => p,
+                _ => self.package_for(self.diagram),
+            };
+            let target = if self.repo.ty(target) == "UMLInteraction" {
+                target
+            } else {
+                let holder = if self.repo.kind_of(target, "UMLClassifier") {
+                    target
+                } else {
+                    let name = self.new_name(target, "UMLCollaboration");
+                    self.repo.create("UMLCollaboration", &[("name", json!(name))], Some((target, "ownedElements")))
+                };
+                let name = self.new_name(holder, "UMLInteraction");
+                self.repo.create("UMLInteraction", &[("name", json!(name))], Some((holder, "ownedElements")))
+            };
+            let name = self.new_name(target, ty);
+            let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
+            let f = views::create_frame_view(&mut self.repo, d, Some(d), R { x: 8.0, y: 8.0, w: 692.0, h: 592.0 });
+            self.apply_view_defaults(f);
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
         // a C4 diagram goes in the C4 element it is added to; elsewhere in a new "C4Model1" in the
         // project (c4-factory.js:28-55)
         if ty == "C4Diagram" {
