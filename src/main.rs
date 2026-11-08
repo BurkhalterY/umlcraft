@@ -33,6 +33,7 @@ mod overview;
 mod palette;
 mod parse;
 mod pdf;
+mod pdf_font;
 mod picture;
 mod picker;
 mod prefs;
@@ -77,8 +78,9 @@ fn system_font(pattern: &str) -> Option<String> {
     std::path::Path::new(&file).exists().then_some(file)
 }
 
-pub(crate) fn setup_fonts(ctx: &egui::Context) {
-    let mut fonts = FontDefinitions::default();
+/// The diagram faces (regular, bold, italic, bold italic) with the files to try for each, the
+/// system's answer first. The screen and the PDF export use the same files.
+pub(crate) fn diagram_face_paths() -> Vec<(&'static str, Vec<String>)> {
     let lib = "/usr/share/fonts/truetype/liberation";
     // where Arial (or a metric-compatible face) lives on Linux/FreeBSD, Windows and macOS
     let win = "C:\\Windows\\Fonts";
@@ -89,10 +91,15 @@ pub(crate) fn setup_fonts(ctx: &egui::Context) {
         ("arial-i", "Arial:italic", vec![format!("{lib}/LiberationSans-Italic.ttf"), "/usr/local/share/fonts/Liberation/LiberationSans-Italic.ttf".into(), format!("{win}\\ariali.ttf"), format!("{mac}/Arial Italic.ttf"), "/Library/Fonts/Arial Italic.ttf".into()]),
         ("arial-bi", "Arial:bold:italic", vec![format!("{lib}/LiberationSans-BoldItalic.ttf"), "/usr/local/share/fonts/Liberation/LiberationSans-BoldItalic.ttf".into(), format!("{win}\\arialbi.ttf"), format!("{mac}/Arial Bold Italic.ttf"), "/Library/Fonts/Arial Bold Italic.ttf".into()]),
     ];
-    let faces: Vec<(&str, Vec<String>)> = faces
+    faces
         .into_iter()
         .map(|(name, pattern, known)| (name, system_font(pattern).into_iter().chain(known).collect()))
-        .collect();
+        .collect()
+}
+
+pub(crate) fn setup_fonts(ctx: &egui::Context) {
+    let mut fonts = FontDefinitions::default();
+    let faces = diagram_face_paths();
     let fallback: Vec<String> = fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
     for (name, paths) in faces {
         let refs: Vec<&str> = paths.iter().map(|s| s.as_str()).collect();

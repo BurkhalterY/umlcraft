@@ -361,7 +361,10 @@ fn zoom_commands_keep_the_screen_centre() {
     a.zoom_keep_centre(0.5);
     assert_eq!((a.scroll.x, a.scroll.y), (0.0, 0.0));
 
-    // fit: bounding box 1000..1600 x 1000..1400 fits at 1.0 and is centred
+    // fit: bounding box 1000..1600 x 1000..1400 fits at 1.0 and is centred (on the laid-out
+    // views, as each frame lays the diagram out first)
+    let ms = measure();
+    crate::views::layout_diagram(&mut a.repo, &ms, a.diagram.unwrap());
     a.fit();
     assert_eq!(a.zoom, 1.0);
     let (x, y) = centre(&a);
@@ -369,6 +372,7 @@ fn zoom_commands_keep_the_screen_centre() {
     assert!((x - (b.x + b.w / 2.0)).abs() < 1e-6 && (y - (b.y + b.h / 2.0)).abs() < 1e-6);
     // a box larger than the window zooms out
     a.change(|a| a.create_node("UMLClass", rect(3000.0, 1000.0, 200.0, 100.0)));
+    crate::views::layout_diagram(&mut a.repo, &ms, a.diagram.unwrap());
     a.fit();
     assert!(a.zoom < 1.0);
     let b = crate::render::bounds(&a.repo, a.diagram.unwrap()).unwrap();
@@ -1876,6 +1880,96 @@ fn template_parameters() {
     Repo::parse(&a.repo.serialize()).unwrap();
 }
 
+/// Checks a PDF's structure (every cross-reference offset lands on its object, every stream has
+/// its length) and returns its objects' bodies, streams inflated, by number.
+fn pdf_objects(pdf: &[u8]) -> std::collections::BTreeMap<usize, Vec<u8>> {
+    use std::io::Read;
+    let text = String::from_utf8_lossy(pdf);
+    assert!(text.starts_with("%PDF-1.4"));
+    assert!(text.trim_end().ends_with("%%EOF"));
+    let start: usize = text.rsplit("startxref\n").next().unwrap().lines().next().unwrap().trim().parse().unwrap();
+    assert!(pdf[start..].starts_with(b"xref\n0 "), "startxref points at the table");
+    let table = String::from_utf8(pdf[start..].to_vec()).unwrap();
+    let count: usize = table.lines().nth(1).unwrap().split(' ').nth(1).unwrap().parse().unwrap();
+    assert!(table.contains(&format!("/Size {count}")));
+    let mut out = std::collections::BTreeMap::new();
+    for (i, line) in table.lines().skip(3).take(count - 1).enumerate() {
+        let n = i + 1;
+        assert!(line.ends_with(" 00000 n "), "{line}");
+        let off: usize = line[..10].parse().unwrap();
+        let head = format!("{n} 0 obj\n");
+        assert!(pdf[off..].starts_with(head.as_bytes()), "object {n} is at its offset");
+        let body_start = off + head.len();
+        let mut body = pdf[body_start..].to_vec();
+        if let Some(s) = body.windows(7).position(|w| w == b"stream\n").filter(|s| !body[..*s].windows(6).any(|w| w == b"endobj")) {
+            let dict = String::from_utf8_lossy(&body[..s]).to_string();
+            let len: usize = dict.split("/Length ").nth(1).unwrap().split(|c: char| !c.is_ascii_digit()).next().unwrap().parse().unwrap();
+            let data = body[s + 7..s + 7 + len].to_vec();
+            assert!(body[s + 7 + len..].starts_with(b"\nendstream\nendobj\n"), "stream {n} has its length");
+            body = if dict.contains("/FlateDecode") {
+                let mut inflated = vec![];
+                flate2::read::ZlibDecoder::new(&data[..]).read_to_end(&mut inflated).unwrap();
+                [dict.as_bytes(), b"stream\n", &inflated].concat()
+            } else {
+                [dict.as_bytes(), b"stream\n", &data].concat()
+            };
+        } else {
+            let end = body.windows(8).position(|w| w == b"\nendobj\n").unwrap();
+            body.truncate(end);
+        }
+        out.insert(n, body);
+    }
+    out
+}
+
+/// The text a reader gets from each page of a PDF: each font's glyphs through its ToUnicode map,
+/// a line per text object.
+fn pdf_text(pdf: &[u8]) -> Vec<String> {
+    let objs = pdf_objects(pdf);
+    let s = |n: usize| String::from_utf8_lossy(&objs[&n]).to_string();
+    let refnum = |t: &str, key: &str| -> Option<usize> { t.split(key).nth(1)?.trim().split(' ').next()?.parse().ok() };
+    let mut pages = vec![];
+    for body in objs.values() {
+        let t = String::from_utf8_lossy(body).to_string();
+        if !t.starts_with("<< /Type /Page ") {
+            continue;
+        }
+        let res = s(refnum(&t, "/Resources ").unwrap());
+        let fonts = res.split("/Font << ").nth(1).unwrap().split(">>").next().unwrap().to_string();
+        let mut maps: std::collections::HashMap<String, std::collections::HashMap<String, String>> = Default::default();
+        let words: Vec<&str> = fonts.split_whitespace().collect();
+        for w in words.chunks(4) {
+            let font = s(w[1].parse().unwrap());
+            let cmap = s(refnum(&font, "/ToUnicode ").unwrap());
+            let mut m = std::collections::HashMap::new();
+            for l in cmap.lines().filter(|l| l.starts_with('<') && !l.starts_with("<<") && !l.starts_with("<0000> <FFFF>")) {
+                let parts: Vec<&str> = l.split(['<', '>', ' ']).filter(|x| !x.is_empty()).collect();
+                let units: Vec<u16> = parts[1].as_bytes().chunks(4).map(|c| u16::from_str_radix(std::str::from_utf8(c).unwrap(), 16).unwrap()).collect();
+                m.insert(parts[0].to_string(), String::from_utf16(&units).unwrap());
+            }
+            maps.insert(w[0].trim_start_matches('/').to_string(), m);
+        }
+        let content = s(refnum(&t, "/Contents ").unwrap());
+        let mut text = String::new();
+        let mut font = String::new();
+        let tokens: Vec<&str> = content.split_whitespace().collect();
+        for (i, tok) in tokens.iter().enumerate() {
+            if *tok == "Tf" {
+                font = tokens[i - 2].trim_start_matches('/').to_string();
+            } else if *tok == "Tj" {
+                let hex = tokens[i - 1].trim_matches(['<', '>']);
+                for g in hex.as_bytes().chunks(4) {
+                    text += &maps[&font][std::str::from_utf8(g).unwrap()];
+                }
+            } else if *tok == "ET" {
+                text.push('\n');
+            }
+        }
+        pages.push(text);
+    }
+    pages
+}
+
 #[test]
 fn print_to_pdf() {
     use crate::pdf::PrintOptions;
@@ -1888,16 +1982,114 @@ fn print_to_pdf() {
     assert_eq!(o.page(), (841.89, 595.28), "A4 landscape by default");
     let pdf = a.print_pdf(&o, &ms).unwrap();
     let text = String::from_utf8_lossy(&pdf);
-    assert!(text.starts_with("%PDF-1.4"));
-    assert!(text.trim_end().ends_with("%%EOF"));
     assert_eq!(text.matches("/Type /Page ").count(), all.len());
-    assert!(text.contains(&format!("({})", a.path_name(all[0]))), "the diagram name is printed");
+    let pages = pdf_text(&pdf);
+    assert_eq!(pages.len(), all.len());
+    assert!(pages[0].lines().any(|l| l == a.path_name(all[0])), "the diagram name is printed");
+    assert!(pages[0].lines().any(|l| l == "LibraryItem"), "the diagram's text is text: {}", pages[0]);
     let one = a.print_pdf(&PrintOptions { all: false, show_name: false, size: "letter".into(), landscape: false }, &ms).unwrap();
     let text = String::from_utf8_lossy(&one);
     assert_eq!(text.matches("/Type /Page ").count(), 1);
     assert!(text.contains("/MediaBox [0 0 612.00 792.00]"));
-    assert!(!text.contains(" Tj "));
+    let d = a.diagram.unwrap();
+    assert!(!pdf_text(&one)[0].lines().any(|l| l == a.path_name(d)), "no name");
     assert!(a.pdf_of(&[], &o, &ms).is_err());
+}
+
+#[test]
+fn pdf_is_vector_with_embedded_fonts() {
+    use crate::pdf::PrintOptions;
+    let ms = measure();
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let pdf = a.print_pdf(&PrintOptions::default(), &ms).unwrap();
+    let objs = pdf_objects(&pdf);
+    let all: String = objs.values().map(|b| String::from_utf8_lossy(b).to_string()).collect();
+    assert!(!all.contains("/DCTDecode") && !all.contains("/Subtype /Image"), "no picture of the diagram");
+    assert!(all.contains("/Subtype /Type0") && all.contains("/Encoding /Identity-H") && all.contains("/CIDFontType2"));
+    assert!(all.contains("/FontFile2 "), "the fonts are embedded");
+    assert!(!all.contains("/Helvetica"), "no unembedded standard font");
+    // the font files are subsets that still parse
+    let file = objs.values().find(|b| b.starts_with(b"<< /Length1 ")).unwrap();
+    let data = &file[file.windows(7).position(|w| w == b"stream\n").unwrap() + 7..];
+    let face = ttf_parser::Face::parse(data, 0).expect("a font file that parses");
+    assert!(face.tables().glyf.is_some() && face.number_of_glyphs() > 100);
+    assert!(data.len() < 200_000, "a subset ({} bytes)", data.len());
+    // lines, boxes, dashes and curves are drawn as paths
+    assert!(all.contains(" re "));
+    assert!(all.contains(" l S\n"));
+    assert!(all.contains("[3] 0 d"), "the note's dashed link");
+    assert!(all.contains(" c h"), "the interface's circle");
+    assert!(all.contains("/ExtGState << /GS0 "), "the shadows' opacity");
+}
+
+#[test]
+fn pdf_text_beyond_latin1() {
+    use crate::pdf::PrintOptions;
+    let ms = measure();
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 220.0, 100.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    a.change(|a| a.repo.set(m, "name", json!("Café Привет Ωμέγα")));
+    let pdf = a.print_pdf(&PrintOptions { all: false, ..PrintOptions::default() }, &ms).unwrap();
+    let page = &pdf_text(&pdf)[0];
+    assert!(page.lines().any(|l| l == "Café Привет Ωμέγα"), "{page}");
+}
+
+#[test]
+fn pdf_pictures() {
+    use crate::pdf::PrintOptions;
+    let ms = measure();
+    let dir = std::env::temp_dir().join(format!("umlcraft-pdf-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let png = dir.join("half.png");
+    image::RgbaImage::from_pixel(8, 4, image::Rgba([255, 0, 0, 128])).save(&png).unwrap();
+    let jpg = dir.join("blue.jpg");
+    image::RgbImage::from_pixel(8, 4, image::Rgb([0, 0, 255])).save(&jpg).unwrap();
+    let mut a = App::new(None);
+    a.drop_image_file(&png, crate::views::P { x: 100.0, y: 100.0 }).unwrap();
+    a.drop_image_file(&jpg, crate::views::P { x: 200.0, y: 100.0 }).unwrap();
+    let pdf = a.print_pdf(&PrintOptions { all: false, ..PrintOptions::default() }, &ms).unwrap();
+    let all: String = pdf_objects(&pdf).values().map(|b| String::from_utf8_lossy(b).to_string()).collect();
+    assert_eq!(all.matches("/Subtype /Image").count(), 3, "the PNG, its alpha mask and the JPEG");
+    assert!(all.contains("/SMask "), "the PNG keeps its transparency");
+    assert_eq!(all.matches("/DCTDecode").count(), 1, "the JPEG as it is");
+    assert_eq!(all.matches(" Do Q").count(), 2);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn export_box_includes_sub_views() {
+    let ms = measure();
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let mut beyond = 0;
+    for d in a.repo.all_of("Diagram") {
+        crate::views::layout_diagram(&mut a.repo, &ms, d);
+        let b = crate::render::bounds(&a.repo, d).unwrap();
+        for v in a.repo.list(d, "ownedViews") {
+            if crate::views::is_edge(&a.repo, v) {
+                continue;
+            }
+            let top = crate::views::node_rect(&a.repo, v);
+            let mut stack = a.repo.list(v, "subViews");
+            while let Some(s) = stack.pop() {
+                if a.repo.raw(s, "visible") == Some(&json!(false)) {
+                    continue;
+                }
+                stack.extend(a.repo.list(s, "subViews"));
+                let r = crate::views::node_rect(&a.repo, s);
+                if r.w <= 0.0 || (a.repo.ty(s).ends_with("LabelView") && a.repo.str(s, "text").is_empty()) {
+                    continue;
+                }
+                assert!(r.x >= b.x && r.y >= b.y && r.x + r.w <= b.x + b.w + 1e-6 && r.y + r.h <= b.y + b.h + 1e-6, "{} inside the box", a.repo.ty(s));
+                if r.y + r.h > top.y + top.h || r.x < top.x || r.x + r.w > top.x + top.w {
+                    beyond += 1;
+                }
+            }
+        }
+    }
+    assert!(beyond > 0, "some sub-view sticks out of its view (the interface's name under its circle)");
 }
 
 #[test]

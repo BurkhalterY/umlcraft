@@ -20,6 +20,8 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 arboard = { version = "3.6", default-features = false, features = ["image-data"] }
 resvg = { version = "0.45", default-features = false, features = ["text", "system-fonts", "memmap-fonts", "raster-images"] }
 roxmltree = "0.20"
+ttf-parser = "0.25"
+flate2 = "1"
 
 [profile.release]
 opt-level = 3
