@@ -266,7 +266,7 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "MMEdge" => "MMEdgeView",
         "ERDRelationship" => "ERDRelationshipView",
         "C4Relationship" => "C4RelationshipView",
-        _ => return None,
+        t => return crate::sysml::edge_view_of(t),
     })
 }
 
@@ -432,7 +432,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLTimeConstraint" => (1.0, 1.0),
         "UMLDurationConstraint" => (crate::sequence::DURATION_MIN_W, crate::sequence::DURATION_MIN_H),
         // a click makes a flowchart node at its smallest size, as in the original (factory.js:279-292)
-        _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) || kind == "ERDEntity" || crate::c4::tool(kind).is_some() || crate::wireframe::is_node_type(kind) => (1.0, 1.0),
+        _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) || kind == "ERDEntity" || crate::c4::tool(kind).is_some() || crate::wireframe::is_node_type(kind) || crate::sysml::view_of(kind).is_some() => (1.0, 1.0),
         _ => (100.0, 60.0),
     }
 }
@@ -534,7 +534,7 @@ pub(crate) fn name_compartment(r: &mut Repo, view: Eid, model: Eid) -> Eid {
     nc
 }
 
-fn list_compartment(r: &mut Repo, view: Eid, model: Eid, ty: &str, visible: bool) -> Eid {
+pub(crate) fn list_compartment(r: &mut Repo, view: Eid, model: Eid, ty: &str, visible: bool) -> Eid {
     let m = r.ref_to(model);
     let c = r.create(ty, &[("model", m), ("font", json!(FONT)), ("parentStyle", json!(true)), ("width", json!(10)), ("height", json!(10))], Some((view, "subViews")));
     if !visible {
@@ -558,6 +558,9 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
     }
     if crate::c4::is_node_type(r.ty(model)) {
         return Some(crate::c4::create_view(r, diagram, model, rect));
+    }
+    if crate::sysml::view_of(r.ty(model)).is_some() {
+        return crate::sysml::create_view(r, diagram, model, rect, false);
     }
     let kind = node_kind(r.ty(model))?;
     let m = r.ref_to(model);
@@ -806,7 +809,7 @@ pub fn create_port_view(r: &mut Repo, diagram: Eid, model: Eid, host: Eid, at: P
 
 /// The name, stereotype and property labels floating around a node (UMLFloatingNodeView,
 /// elements.js:5162-5188).
-fn floating_labels(r: &mut Repo, v: Eid, model: Eid) {
+pub(crate) fn floating_labels(r: &mut Repo, v: Eid, model: Eid) {
     let m = r.ref_to(model);
     let pi = std::f64::consts::PI;
     for (field, alpha, distance) in [("nameLabel", 3.0 * pi / 4.0, 20.0), ("stereotypeLabel", 3.0 * pi / 4.0, 35.0), ("propertyLabel", -3.0 * pi / 4.0, 20.0)] {
@@ -969,7 +972,7 @@ pub fn create_part_view(r: &mut Repo, diagram: Eid, model: Eid, host: Eid, rect:
 }
 
 /// Record `v` as contained in `host` (containerView, containedViews).
-fn contain(r: &mut Repo, host: Eid, v: Eid) {
+pub(crate) fn contain(r: &mut Repo, host: Eid, v: Eid) {
     r.set_ref(v, "containerView", Some(host));
     let mut a = match r.raw(host, "containedViews") {
         Some(Value::Array(a)) => a.clone(),
@@ -1008,7 +1011,7 @@ pub fn port_junction(b: R, p: P) -> P {
 }
 
 /// An attribute's text without its leading «stereotype», which a port or a part shows apart.
-fn feature_text(r: &Repo, v: Eid, m: Eid) -> String {
+pub(crate) fn feature_text(r: &Repo, v: Eid, m: Eid) -> String {
     let show = Show { vis: r.bool(v, "showVisibility"), mult: r.bool(v, "showMultiplicity"), sig: true, ty: r.bool(v, "showType"), prop: false };
     let text = attribute_text(r, m, show);
     let st = stereotype_text(r, m);
@@ -1017,7 +1020,7 @@ fn feature_text(r: &Repo, v: Eid, m: Eid) -> String {
 
 /// A port: snapped onto its container's border, 14 × 14, with "name: Type[mult]" floating by it
 /// (UMLPortView.update and arrange, elements.js:6914-6948).
-fn layout_port(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+pub(crate) fn layout_port(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
     if let Some(host) = r.refd(v, "containerView").filter(|h| r.alive(*h)) {
         let p = port_junction(node_rect(r, host), center(&node_rect(r, v)));
         set_box(r, v, p.x - PORT_SIZE / 2.0, p.y - PORT_SIZE / 2.0, PORT_SIZE, PORT_SIZE);
@@ -1055,7 +1058,7 @@ fn layout_part(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
 
 /// A floating label's box: its text's size, centred on the point at its angle and distance from
 /// the host's centre (NodeParasiticView.arrange, core.js:3600-3616).
-fn place_floating_label(r: &mut Repo, ms: &dyn Measure, host: Eid, lv: Eid, text: &str, shown: bool) {
+pub(crate) fn place_floating_label(r: &mut Repo, ms: &dyn Measure, host: Eid, lv: Eid, text: &str, shown: bool) {
     r.set(lv, "text", json!(text));
     r.set(lv, "visible", json!(shown && !text.is_empty()));
     let w = ms.width(text, 0).ceil();
@@ -1171,7 +1174,7 @@ pub fn frame_name_text(r: &Repo, v: Eid, m: Eid) -> String {
     };
     let mut tokens = vec![];
     if r.bool(v, "showType") {
-        tokens.push(format!("[{}]", r.ty(target).trim_start_matches("UML")));
+        tokens.push(format!("[{}]", crate::sysml::display_name(r.ty(target).trim_start_matches("UML"))));
     }
     match r.parent(target) {
         Some(p) if r.bool(v, "showNamespace") && r.kind_of(p, "ExtensibleModel") => tokens.push(format!("{}::{}", r.name(p), r.name(target))),
@@ -1534,7 +1537,7 @@ pub struct Info {
     pub is_active: bool,
 }
 
-fn set_box(r: &mut Repo, v: Eid, x: f64, y: f64, w: f64, h: f64) {
+pub(crate) fn set_box(r: &mut Repo, v: Eid, x: f64, y: f64, w: f64, h: f64) {
     r.set(v, "left", num(x));
     r.set(v, "top", num(y));
     r.set(v, "width", num(w));
@@ -1740,7 +1743,7 @@ pub(crate) fn name_min_width(r: &Repo, ms: &dyn Measure, v: Eid, m: Eid, keyword
 }
 
 /// Keep a list compartment's item views in step with the model list; returns (min width, height, rows).
-fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid], item_ty: &str, texts: &[String], wrap: bool) -> (f64, f64, Vec<Row>) {
+pub(crate) fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid], item_ty: &str, texts: &[String], wrap: bool) -> (f64, f64, Vec<Row>) {
     let existing = r.list(comp, "subViews");
     let mut keep = vec![];
     for it in items {
@@ -1781,7 +1784,7 @@ fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid], item_ty: 
 }
 
 /// The height of a list compartment `w` wide: its rows, with word-wrapped rows on several lines.
-fn list_height(r: &Repo, ms: &dyn Measure, rows: &[Row], w: f64) -> f64 {
+pub(crate) fn list_height(r: &Repo, ms: &dyn Measure, rows: &[Row], w: f64) -> f64 {
     if rows.is_empty() {
         return EMPTY_H;
     }
@@ -1789,7 +1792,7 @@ fn list_height(r: &Repo, ms: &dyn Measure, rows: &[Row], w: f64) -> f64 {
     2.0 * PAD + lines as f64 * ms.size() + ITEM_GAP * (rows.len() as f64 - 1.0)
 }
 
-fn place_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, x: f64, y: f64, w: f64, h: f64, rows: &[Row]) {
+pub(crate) fn place_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, x: f64, y: f64, w: f64, h: f64, rows: &[Row]) {
     set_box(r, comp, x, y, w + 1.0, h);
     let mut cy = y + PAD;
     for row in rows {
@@ -1799,7 +1802,7 @@ fn place_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, x: f64, y: f64, w: f64,
     }
 }
 
-fn hide_comp(r: &mut Repo, comp: Option<Eid>) {
+pub(crate) fn hide_comp(r: &mut Repo, comp: Option<Eid>) {
     let Some(c) = comp else { return };
     r.set_raw(c, "visible", json!(false));
     r.remove(c, "left");
@@ -1829,7 +1832,7 @@ fn keyword_of(ty: &str) -> Option<&'static str> {
 }
 
 /// Grow a box to its content; with autoResize on it takes exactly its content size (core.js:2115-2125).
-fn grow(r: &mut Repo, v: Eid, min_w: f64, min_h: f64) {
+pub(crate) fn grow(r: &mut Repo, v: Eid, min_w: f64, min_h: f64) {
     let auto = r.bool(v, "autoResize");
     let w = if auto { min_w } else { r.f(v, "width").max(min_w) };
     let h = if auto { min_h } else { r.f(v, "height").max(min_h) };
@@ -2152,6 +2155,9 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         crate::c4::layout(r, ms, v);
         return Info { shape: "c4", ..Default::default() };
     }
+    if crate::sysml::is_view(&t) {
+        return crate::sysml::layout(r, ms, v);
+    }
     if crate::notations::is_node_view(&t) {
         crate::notations::layout(r, ms, v);
         return Info { shape: "notation", ..Default::default() };
@@ -2339,7 +2345,7 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
 }
 
 // ------------------------------------------------------------------ edges
-fn center(r: &R) -> P {
+pub(crate) fn center(r: &R) -> P {
     P { x: r.x + r.w / 2.0, y: r.y + r.h / 2.0 }
 }
 
@@ -2675,6 +2681,8 @@ pub(crate) fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> 
         "UMLTemplateBinding" if stereotype_text(r, m).is_empty() => "«bind»".to_string(),
         // an information flow shows «flow» (UML 2; estimated for StarUML)
         "UMLInformationFlow" if stereotype_text(r, m).is_empty() => "«flow»".to_string(),
+        // a SysML relationship shows its keyword (getStereotypeString, sysml/elements.js:259-375)
+        t if crate::sysml::keyword(t).is_some() && stereotype_text(r, m).is_empty() => crate::sysml::keyword(t).unwrap_or_default().to_string(),
         _ => stereotype_text(r, m),
     };
     out.push(("stereotypeLabel", st));
@@ -2798,7 +2806,7 @@ pub fn layout_diagram(r: &mut Repo, ms: &dyn Measure, d: Eid) -> HashMap<Eid, In
     }
     for v in &views {
         // only line kinds UMLCraft knows are re-routed; others keep the points they were saved with
-        if r.alive(*v) && KNOWN_EDGE_VIEWS.contains(&r.ty(*v)) && is_edge(r, *v) {
+        if r.alive(*v) && (KNOWN_EDGE_VIEWS.contains(&r.ty(*v)) || crate::sysml::is_edge_view(r.ty(*v))) && is_edge(r, *v) {
             layout_edge(r, ms, *v, &info);
         }
     }

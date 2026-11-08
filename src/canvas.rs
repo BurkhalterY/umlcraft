@@ -169,6 +169,9 @@ pub fn item_buttons(r: &crate::model::Repo, host: Option<Eid>, kind: &EditKind) 
     match kind {
         EditKind::Name(m) => {
             let t = r.ty(*m);
+            if let Some(b) = crate::sysml::item_buttons(r, host, *m) {
+                return b;
+            }
             // a timing lifeline's and state's buttons (quickedits/uml.json "uml.lifeline-timing", "uml.state-timing")
             if t == "UMLLifeline" && host.map(|h| r.ty(h) == "UMLTimingLifelineView").unwrap_or(false) {
                 return vec![
@@ -1809,6 +1812,9 @@ impl App {
             EditKind::Feature(f) if self.repo.alive(f) => Some(f),
             _ => None,
         };
+        if self.sysml_item_key(host, m, item, key) {
+            return;
+        }
         match (key, item) {
             (ItemKey::Add, None) => {
                 // a literal on an enumeration, an extension point on a use case (quickedits/uml.json)

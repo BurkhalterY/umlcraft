@@ -377,6 +377,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("FCGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
     def("FCGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
     def("FCFlowView", Some("FCGeneralEdgeView"), vec![]);
+    crate::sysml::define(&mut def);
     // C4 models (c4/metamodel.json)
     def("C4Element", Some("ExtensibleModel"), vec![("technology", d(json!(""))), ("description", d(json!("")))]);
     def("C4Model", Some("C4Element"), vec![]);

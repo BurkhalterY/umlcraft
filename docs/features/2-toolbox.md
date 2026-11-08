@@ -135,15 +135,15 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | GCP `gcp.elements` | GCPDiagram | Path | ❌ | extensions/essential/gcp/toolbox/gcp.json |
 | Mindmap `mindmap` | MMMindmapDiagram | Node | ✅ | an MMNode ("MMNode1"…) in the mind map that owns the diagram, a box rounded by 14 with its word-wrapped name (src/app.rs:798-808; src/notations.rs:68-145) | extensions/essential/mindmap/toolbox/mindmap.json |
 | Mindmap `mindmap` | MMMindmapDiagram | Edge | ✅ | an MMEdge between two nodes, a plain line without arrows or label (src/app.rs:1389; src/views.rs) | extensions/essential/mindmap/toolbox/mindmap.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Package | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Requirement | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Frame | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Copy | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | DeriveReqt | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Verify | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Satisfy | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Refine | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Containment | ❌ | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Package | ✅ | a UMLPackage in the diagram's owner, as on a package diagram (src/app.rs:1063-1100) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Requirement | ✅ | a SysMLRequirement ("Requirement1"…) in the diagram's owner: a box with «requirement» over its bold name, its id and text listed as `id = "…"` property values, attributes and operations suppressed; a click makes it at its smallest (src/app.rs:911; src/sysml.rs:350-498, 555-566) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Frame | ✅ | asks which element the frame shows, as on the UML diagrams (src/canvas.rs:1389) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Copy | ✅ | a SysMLCopy from the tail's element to the head's, in the tail's owned elements: a dashed line with an open arrow and its «copy» keyword, unless it has a stereotype of its own (src/sysml.rs:123-164, 186-200; src/views.rs:2685; src/render.rs:1106) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | DeriveReqt | ✅ | a SysMLDeriveReqt, drawn as Copy with «deriveReqt» (src/sysml.rs:123-164) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Verify | ✅ | a SysMLVerify, drawn as Copy with «verify» (src/sysml.rs:123-164) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Satisfy | ✅ | a SysMLSatisfy, drawn as Copy with «satisfy» (src/sysml.rs:123-164) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Refine | ✅ | a SysMLRefine, drawn as Copy with «refine» (src/sysml.rs:123-164) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Containment | ✅ | on a SysML diagram between any two model elements, the head not inside the tail; the tail's element moves into the head's, and a circle with a plus marks the container (src/sysml.rs:186-200; src/app.rs:1740) | extensions/essential/sysml/toolbox/sysml.json |
 | Block `sysml.block` | SysMLBlockDefinitionDiagram | Block | ❌ | extensions/essential/sysml/toolbox/sysml.json |
 | Block `sysml.block` | SysMLBlockDefinitionDiagram | Value Type | ❌ | extensions/essential/sysml/toolbox/sysml.json |
 | Block `sysml.block` | SysMLBlockDefinitionDiagram | Interface Block | ❌ | extensions/essential/sysml/toolbox/sysml.json |

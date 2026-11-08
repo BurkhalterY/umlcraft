@@ -172,11 +172,11 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Model › Add › GCP Model | `factory:create-model` |  | ❌ |  | extensions/essential/gcp/menus/gcp.json |
 | Model › Add Diagram › Mindmap Diagram | `factory:create-diagram` |  | ✅ | "MindmapDiagram": in the selected mind map, or in a new "Mindmap1" (src/ui.rs:404; src/app.rs:1782-1805) | extensions/essential/mindmap/menus/mindmap.json |
 | Model › Add › Mindmap | `factory:create-model` |  | ✅ | "Mindmap" under any element, named MMMindmap1… as the original names it (src/ui.rs:646) | extensions/essential/mindmap/menus/mindmap.json |
-| Model › Add Diagram › Requirement Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/sysml/menus/sysml.json |
+| Model › Add Diagram › Requirement Diagram | `factory:create-diagram` |  | ✅ | offered with nothing, the project or a package selected; in the selected element, or under the project in a new model "Model1", with a frame that shows its type and name at 8, 8 to 700, 600 (src/ui.rs:587, 953, 2271; src/sysml.rs:533-586) | extensions/essential/sysml/menus/sysml.json |
 | Model › Add Diagram › Block Definition Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/sysml/menus/sysml.json |
 | Model › Add Diagram › Internal Block Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/sysml/menus/sysml.json |
 | Model › Add Diagram › Parametric Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Requirement | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Requirement | `factory:create-model` |  | ✅ | under the project, a package or a classifier, named "Requirement1"… (src/ui.rs:854; src/sysml.rs:589-598) | extensions/essential/sysml/menus/sysml.json |
 | Model › Add › Block | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
 | Model › Add › Value Type | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
 | Model › Add › Interface Block | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |

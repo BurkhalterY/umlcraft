@@ -86,6 +86,9 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             r("Add Provided Interface", "UMLInterface", "UMLInterfaceRealization", Plain, false, Above),
             r("Add Required Interface", "UMLInterface", "UMLDependency", Plain, false, Above),
         ],
+        // a requirement: a sub-requirement below it, joined by a containment from the new one
+        // (quickedits/sysml.json "sysml.requirement"; handleAddSubRequirement, sysml-commands.js:17-33)
+        "SysMLRequirement" => vec![r("Add Sub-Requirement", "SysMLRequirement", "Containment", Plain, true, Below)],
         // profiles (uml-commands.js:4069-4127)
         "UMLMetaClass" => vec![r("Add Stereotype", "UMLStereotype", "UMLExtension", Plain, true, Below)],
         "UMLStereotype" => vec![

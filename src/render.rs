@@ -68,7 +68,7 @@ pub trait Canvas: Measure {
     }
 }
 
-fn color(r: &Repo, v: Eid, key: &str, def: Rgba) -> Rgba {
+pub(crate) fn color(r: &Repo, v: Eid, key: &str, def: Rgba) -> Rgba {
     parse_color(&r.str(v, key), def)
 }
 
@@ -83,7 +83,7 @@ fn shown(r: &Repo, v: Eid) -> bool {
     !matches!(r.raw(v, "visible"), Some(serde_json::Value::Bool(false)) | Some(serde_json::Value::Null))
 }
 
-fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
+pub(crate) fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
     if !shown(r, lv) {
         return;
     }
@@ -107,7 +107,7 @@ fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
     c.text(&t, b, align, style, size, fc, r.bool(lv, "underline"));
 }
 
-fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid) {
+pub(crate) fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid) {
     let Some(nc) = r.refd(v, "nameCompartment") else { return };
     let fc = color(r, v, "fontColor", BLACK);
     for f in ["stereotypeLabel", "nameLabel", "namespaceLabel", "propertyLabel"] {
@@ -218,7 +218,7 @@ pub fn draw_icon_script(c: &mut dyn Canvas, b: R, script: &str, line0: Rgba, fil
 }
 
 /// A rectangle with corners rounded to radius `rad`, as a polygon (8 steps per corner).
-fn round_rect(b: R, rad: f64) -> Vec<P> {
+pub(crate) fn round_rect(b: R, rad: f64) -> Vec<P> {
     let mut pts = vec![];
     let corners = [(b.x + b.w - rad, b.y + rad, -90.0), (b.x + b.w - rad, b.y + b.h - rad, 0.0), (b.x + rad, b.y + b.h - rad, 90.0), (b.x + rad, b.y + rad, 180.0)];
     for (cx, cy, start) in corners {
@@ -230,7 +230,7 @@ fn round_rect(b: R, rad: f64) -> Vec<P> {
     pts
 }
 
-fn shadow_rect(c: &mut dyn Canvas, r: &Repo, v: Eid, b: R) {
+pub(crate) fn shadow_rect(c: &mut dyn Canvas, r: &Repo, v: Eid, b: R) {
     if r.bool(v, "showShadow") {
         let s = Rgba(SHADOW_COLOR.0, SHADOW_COLOR.1, SHADOW_COLOR.2, (255.0 * SHADOW_ALPHA) as u8);
         c.rect(R { x: b.x + SHADOW_OFFSET, y: b.y + SHADOW_OFFSET, ..b }, Some(s), None);
@@ -611,6 +611,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         }
         "c4" => {
             crate::c4::draw(c, r, v, fill, line, fc);
+            return;
+        }
+        "sysml" => {
+            crate::sysml::draw(c, r, v, fill, line, fc);
             return;
         }
         "erd-entity" => {
@@ -1098,7 +1102,8 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         return draw_freeline(c, r, e, &pts);
     }
     let line = color(r, e, "lineColor", BLACK);
-    let ty = r.ty(e).to_string();
+    // a SysML line is drawn as the UML line it extends
+    let ty = crate::sysml::uml_edge(r.ty(e)).unwrap_or(r.ty(e)).to_string();
     let mut dashed = matches!(
         ty.as_str(),
         "UMLDependencyView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLIncludeView" | "UMLExtendView" | "UMLNoteLinkView" | "UMLComponentRealizationView" | "UMLDeploymentView" | "UMLAssociationClassLinkView" | "UMLTemplateBindingView" | "UMLConstraintLinkView" | "UMLInformationFlowView" | "UMLLinkObjectLinkView" | "UMLRoleBindingView"

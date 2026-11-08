@@ -541,8 +541,26 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 // a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
+// SysML diagrams (sysml/toolbox/sysml.json)
+const SYSML_REQUIREMENTS: Group = Group {
+    id: "sysml.requirement",
+    label: "Requirements",
+    items: &[
+        node("Package", "UMLPackage", "package"),
+        node("Requirement", "SysMLRequirement", "SysMLRequirement"),
+        node("Frame", "Frame", "frame"),
+        line("Copy", "SysMLCopy", "dependency", AssocInit::Plain),
+        line("DeriveReqt", "SysMLDeriveReqt", "dependency", AssocInit::Plain),
+        line("Verify", "SysMLVerify", "dependency", AssocInit::Plain),
+        line("Satisfy", "SysMLSatisfy", "dependency", AssocInit::Plain),
+        line("Refine", "SysMLRefine", "dependency", AssocInit::Plain),
+        line("Containment", "Containment", "containment", AssocInit::Plain),
+    ],
+};
+const SYSML_REQUIREMENT_GROUPS: &[Group] = &[SYSML_REQUIREMENTS, ANNOTATIONS];
+
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 21] = [
+const DIAGRAM_KINDS: [(&str, &str); 22] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -565,6 +583,8 @@ const DIAGRAM_KINDS: [(&str, &str); 21] = [
     ("ER Diagram", "ERDDiagram"),
     ("C4 Diagram", "C4Diagram"),
     ("Wireframe Diagram", "WFWireframeDiagram"),
+    // the SysML kinds (sysml/menus/sysml.json)
+    ("Requirement Diagram", "SysMLRequirementDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -641,7 +661,7 @@ impl App {
                 "(none)".to_string()
             };
         }
-        if name.is_empty() { format!("({})", t.trim_start_matches("UML")) } else { name }
+        if name.is_empty() { format!("({})", crate::sysml::display_name(t.trim_start_matches("UML"))) } else { name }
     }
 
     fn tree_row(&mut self, ui: &mut egui::Ui, e: Eid, depth: usize, has_kids: bool, open: bool, search_parent: Option<String>) {
@@ -662,7 +682,8 @@ impl App {
         icons::draw(p, ir, icons::key_for(&self.repo, e));
         let mut label = self.label_of(e);
         if self.show_stereotype {
-            let st = views::stereotype_text(&self.repo, e);
+            // a SysML relationship shows its keyword (getNodeText, sysml/elements.js:259-375)
+            let st = Some(views::stereotype_text(&self.repo, e)).filter(|s| !s.is_empty()).or_else(|| crate::sysml::keyword(self.repo.ty(e)).map(String::from)).unwrap_or_default();
             if !st.is_empty() {
                 label = format!("{st} {label}");
             }
@@ -829,6 +850,8 @@ impl App {
             // and a wireframe (wireframe/menus/wireframe.json, wireframe-commands.js:50-60)
             adds.push(("Wireframe", "WFWireframe", false));
         }
+        // SysML elements (sysml/menus/sysml.json)
+        adds.extend(crate::sysml::add_kinds(&self.repo, e));
         // Model › Add › Constraint on any model element (uml.json)
         if self.repo.kind_of(e, "UMLModelElement") {
             adds.push(("Constraint", "UMLConstraint", false));
@@ -927,7 +950,7 @@ impl App {
         if is_pkg || is_classifier || other {
             let dfd = self.repo.kind_of(e, "DFDElement");
             ui.menu_button("Add Diagram", |ui| {
-                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram") || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
+                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, Some(e), k).unwrap_or(true)).filter(|(_, k)| crate::sysml::is_diagram(k) || is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram") || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
                 for (l, k) in kinds {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
@@ -1186,6 +1209,9 @@ impl App {
         }
         if t == "Hyperlink" {
             return vec![("name", "text"), ("reference", "link"), ("url", "text"), ("showName", "bool")];
+        }
+        if let Some(f) = crate::sysml::fields(r, e) {
+            return f;
         }
         // the other notations' visible attributes (their metamodel.json files)
         match t {
@@ -1854,6 +1880,7 @@ impl App {
                 Some("MMMindmapDiagram") => self.open_groups.insert("mindmap"),
                 Some("ERDDiagram") => self.open_groups.insert("erd"),
                 Some("C4Diagram") => self.open_groups.insert("c4"),
+                Some("SysMLRequirementDiagram") => self.open_groups.insert("sysml.requirement"),
                 // both groups open on a wireframe diagram ("auto-expands")
                 Some("WFWireframeDiagram") => self.open_groups.insert("wireframe.frames") | self.open_groups.insert("wireframe.components"),
                 Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
@@ -1891,6 +1918,7 @@ impl App {
             Some("MMMindmapDiagram") => MINDMAP_GROUPS,
             Some("ERDDiagram") => ERD_GROUPS,
             Some("C4Diagram") => C4_GROUPS,
+            Some("SysMLRequirementDiagram") => SYSML_REQUIREMENT_GROUPS,
             Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
             Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
             Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,
@@ -2239,7 +2267,9 @@ impl App {
                     ui.menu_button("Add", |ui| self.add_items(ui, target));
                 });
                 ui.menu_button("Add Diagram", |ui| {
-                    for (l, k) in DIAGRAM_KINDS {
+                    let sel = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f));
+                    let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, sel, k).unwrap_or(true)).collect();
+                    for (l, k) in kinds {
                         if ui.button(l).clicked() {
                             let f = self.focus;
                             self.change(|a| a.add_diagram(f, k));

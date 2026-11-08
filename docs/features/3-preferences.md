@@ -62,7 +62,7 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | Mindmap | `mindmap.edge.lineStyle` | Line Style | 1 | ✅ | in Preferences › Mindmap; a new line takes it, or the general line style when it is Rectilinear (0) (src/prefs.rs:274, 403-410) | extensions/essential/mindmap/preferences/mindmap.json |
 | Mindmap | `mindmap.node.fillColor` | Fill Color | null | ✅ | in Preferences › Mindmap; a new node of that kind takes it as its fill colour (src/prefs.rs:274-284, 376-386) | extensions/essential/mindmap/preferences/mindmap.json |
 | Mindmap | `mindmap.node.lineColor` | Line Color | null | ✅ | in Preferences › Mindmap; a new node takes it as its line colour (src/prefs.rs:284, 388-393) | extensions/essential/mindmap/preferences/mindmap.json |
-| SysML | `sysml.requirement.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.requirement.fillColor` | Fill Color | null | ✅ | in Preferences › SysML; a new requirement takes it as its fill colour, else the general one (src/sysml.rs:649-660; src/prefs.rs:284, 408) | extensions/essential/sysml/preferences/sysml.json |
 | SysML | `sysml.block.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
 | SysML | `sysml.block.suppressConstraints` | Suppress Constraints | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
 | SysML | `sysml.block.suppressParts` | Suppress Parts | true | ❌ | extensions/essential/sysml/preferences/sysml.json |

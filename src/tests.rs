@@ -5936,3 +5936,52 @@ fn views_move_and_resize_only_the_ways_they_may() {
     let sw = a.change(|a| a.create_node("WFSwitch", rect(50.0, 50.0, 1.0, 1.0))).unwrap();
     assert_eq!(sizable(&a.repo, sw), Sizable::None);
 }
+
+#[test]
+fn sysml_requirement_diagrams_have_requirements_and_traces() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "SysMLRequirementDiagram"));
+    let model = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(model), a.repo.name(model).as_str(), a.repo.name(d).as_str()), ("UMLModel", "Model1", "RequirementDiagram1"));
+    // the diagram starts with a frame showing it, its type and its name
+    let f = a.repo.list(d, "ownedViews")[0];
+    assert_eq!(a.repo.ty(f), "UMLFrameView");
+    assert!(a.repo.bool(f, "showType") && a.repo.bool(f, "showDiagramName"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(f, "frameTypeLabel").unwrap(), "text"), "req");
+    assert_eq!(a.repo.str(a.repo.refd(f, "nameLabel").unwrap(), "text"), "[Model] Model1 [RequirementDiagram1]");
+    let r1 = a.change(|a| a.create_node("SysMLRequirement", rect(50.0, 50.0, 1.0, 1.0))).unwrap();
+    let r2 = a.change(|a| a.create_node("SysMLRequirement", rect(300.0, 50.0, 1.0, 1.0))).unwrap();
+    let m1 = a.repo.refd(r1, "model").unwrap();
+    assert_eq!((a.repo.ty(r1), a.repo.name(m1).as_str(), a.repo.parent(m1)), ("SysMLRequirementView", "Requirement1", Some(model)));
+    assert!(a.repo.bool(r1, "suppressAttributes") && a.repo.bool(r1, "suppressOperations"));
+    a.repo.set(m1, "id", json!("R1"));
+    a.repo.set(m1, "text", json!("Brakes stop the car"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nc = a.repo.refd(r1, "nameCompartment").unwrap();
+    assert_eq!(a.repo.str(a.repo.refd(nc, "stereotypeLabel").unwrap(), "text"), "«requirement»");
+    let pv = a.repo.refd(r1, "propertyValueCompartment").unwrap();
+    let rows: Vec<String> = a.repo.list(pv, "subViews").iter().map(|x| a.repo.str(*x, "text")).collect();
+    assert_eq!(rows, vec!["id = \"R1\"", "text = \"Brakes stop the car\""]);
+    assert_eq!(a.repo.str(a.repo.list(pv, "subViews")[0], "property"), "id");
+    // a trace between two requirements shows its keyword
+    let t = tool("SysMLDeriveReqt", AssocInit::Plain);
+    assert!(a.can_connect(&t, r2, r1));
+    let e = a.change(|a| a.create_edge(&t, r2, r1)).unwrap();
+    assert_eq!(a.repo.ty(e), "SysMLDeriveReqtView");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(e, "stereotypeLabel").unwrap(), "text"), "«deriveReqt»");
+    // Add Sub-Requirement: a requirement inside the edited one, joined by a containment
+    let sub = crate::related::actions("SysMLRequirement").into_iter().find(|x| x.label == "Add Sub-Requirement").unwrap();
+    let s = a.add_related(r1, sub).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    assert_eq!(a.repo.parent(sm), Some(m1));
+    assert!(a.repo.list(d, "ownedViews").iter().any(|v| a.repo.ty(*v) == "UMLContainmentView"));
+    // Model › Add › Requirement
+    assert!(a.add_kinds(model).iter().any(|k| k.1 == "SysMLRequirement"));
+    let text = a.repo.serialize();
+    assert!(text.contains("\"_type\": \"SysMLRequirement\"") && text.contains("\"_type\": \"SysMLPropertyValueCompartmentView\""));
+    Repo::parse(&text).unwrap();
+}

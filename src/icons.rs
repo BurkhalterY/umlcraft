@@ -54,6 +54,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLSequenceDiagram" => "diagram",
         // a flowchart element's icon is its type (the shapes are drawn by key)
         t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") || t.starts_with("WF") => crate::meta::static_name(t),
+        t if t.starts_with("SysML") => crate::sysml::icon_key(t),
         "UMLTransition" => "dependency",
         // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
         "UMLAction" => match r.str(e, "kind").as_str() {
@@ -382,6 +383,19 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
         }
         "gate" => rect_at(5.0, 5.0, 6.0, 6.0, Y),
         // C4 elements
+        // SysML elements: a requirement is a box with text lines under its name; a block a box with its
+        // compartment lines and a heavy top; a constraint property a rounded box
+        "SysMLRequirement" => {
+            rect_at(2.0, 2.5, 12.0, 11.0, Y);
+            line(&[(2.0, 6.0), (14.0, 6.0)], Y);
+            line(&[(4.5, 8.5), (11.5, 8.5)], Y);
+            line(&[(4.5, 11.0), (9.5, 11.0)], Y);
+        }
+        "SysMLRequirementDiagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            rect_at(4.0, 4.0, 8.0, 8.0, G);
+            line(&[(4.0, 6.5), (12.0, 6.5)], G);
+        }
         "C4Model" => {
             rect_at(1.5, 1.5, 13.0, 13.0, Y);
             p.rect_stroke(Rect::from_min_size(at(4.0, 4.0), Vec2::new(8.0 * s, 8.0 * s)), (1.5 * s) as f32, st(Y), egui::StrokeKind::Middle);

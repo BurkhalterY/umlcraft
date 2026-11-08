@@ -616,6 +616,8 @@ impl App {
             other if other.starts_with("ERD") && other != "ERDDiagram" => &other[3..],
             // and a wireframe element "WF" (WFElement.getDisplayClassName, wireframe/elements.js:42-45)
             other if other.starts_with("WF") && other != "WFWireframeDiagram" => &other[2..],
+            // and a SysML element "SysML" (SysMLElementMixin.getDisplayClassName, sysml/elements.js:40-50)
+            other if other.starts_with("SysML") => crate::sysml::display_name(other),
             other => other.trim_start_matches("UML"),
         };
         let names: HashSet<String> = self.repo.children(parent).into_iter().map(|(_, c)| self.repo.name(c)).collect();
@@ -905,6 +907,9 @@ impl App {
             };
             self.apply_view_defaults(v);
             return Some(v);
+        }
+        if let Some(v) = self.create_sysml_node(d, kind, rect) {
+            return v;
         }
         // a C4 element goes in the element that owns the diagram, named after its class ("C4Person1"…);
         // the container tools set its kind (c4-factory.js:70-90, toolbox/c4.json)
@@ -1318,6 +1323,7 @@ impl App {
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
             ],
             "UMLProfileDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLMetaClass", "UMLStereotype", "UMLEnumeration", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation"],
+            t if crate::sysml::accepts(t).is_some() => crate::sysml::accepts(t).unwrap_or_default(),
             _ => return true,
         };
         kinds.iter().any(|k| self.repo.kind_of(m, k))
@@ -1329,7 +1335,7 @@ impl App {
         }
         let ty = self.repo.ty(m);
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
-        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || crate::sysml::view_of(ty).is_some() || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
@@ -1420,7 +1426,7 @@ impl App {
             }
             return Ok(v.into_iter().collect());
         }
-        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) {
+        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) && crate::sysml::view_of(&ty).is_none() {
             return Ok(vec![]);
         }
         // a hidden view of it is shown again instead of a second one
@@ -1578,6 +1584,9 @@ impl App {
             return false;
         }
         let (Some(tm), Some(hm)) = (r.refd(tail, "model"), r.refd(head, "model")) else { return false };
+        if let Some(ok) = crate::sysml::can_link(self, kind, tm, hm) {
+            return ok;
+        }
         if kind == "Containment" {
             // the tail's element goes into the head's package (shown in the explorer)
             return r.kind_of(hm, "UMLPackage") && tm != hm && (r.parent(tm) == Some(hm) || self.can_relocate(tm, hm));
@@ -2068,6 +2077,9 @@ impl App {
     }
 
     pub fn add_diagram(&mut self, parent: Option<Eid>, ty: &str) -> Eid {
+        if crate::sysml::is_diagram(ty) {
+            return self.add_sysml_diagram(parent, ty);
+        }
         let target = match parent {
             Some(p) if self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" || self.repo.kind_of(p, "UMLClassifier") => p,
             // an activity diagram added on an activity goes in it (uml-factory.js:574)
