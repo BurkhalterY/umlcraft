@@ -5175,6 +5175,7 @@ fn flowcharts_have_every_shape_and_flows() {
     // the flowchart preferences: a node's own fill colour, the flow's line style
     assert_eq!(a.repo.val(f, "lineStyle").and_then(|x| x.as_i64()), Some(2), "rounded rectilinear by default");
     a.prefs.set("flowchart.decision.fillColor", json!("#ffeeaa"));
+    a.prefs.set("uml.action.fillColor", json!("#abcdef"));
     let dv = a.change(|a| a.create_node("FCDecision", rect(0.0, 800.0, 10.0, 10.0))).unwrap();
     assert_eq!(a.repo.str(dv, "fillColor"), "#ffeeaa");
     // a node dragged from the explorer onto another flowchart diagram gets a second view there,
@@ -5354,4 +5355,16 @@ fn c4_diagrams_have_people_systems_containers_and_boundaries() {
     let pr = crate::templates::project(t);
     assert_eq!(pr.children(pr.root).len(), 1);
     Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn activity_boxes_take_their_fill_colour_preferences() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    a.prefs.set("uml.action.fillColor", json!("#abcdef"));
+    a.prefs.set("uml.objectnode.fillColor", json!("#fedcba"));
+    let act = a.change(|a| a.create_node("UMLAction", rect(0.0, 0.0, 60.0, 40.0))).unwrap();
+    let ds = a.change(|a| a.create_node("UMLDataStoreNode", rect(200.0, 0.0, 60.0, 40.0))).unwrap();
+    assert_eq!((a.repo.str(act, "fillColor").as_str(), a.repo.str(ds, "fillColor").as_str()), ("#abcdef", "#fedcba"));
 }

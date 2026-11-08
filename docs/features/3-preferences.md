@@ -126,8 +126,8 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | UML | `uml.actor.suppressOperations` | Suppress Operations | true | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.lifeline.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.state.fillColor` | Fill Color | null | ✅ in Preferences › UML › State; new state views take it (src/prefs.rs:258, 300, 330-365) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.action.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.objectnode.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.action.fillColor` | Fill Color | null | ✅ | in Preferences › UML › Action; new actions, structured activities and expansion regions take it (src/prefs.rs:260, 341) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.objectnode.fillColor` | Fill Color | null | ✅ | in Preferences › UML › Object Node; new object, central buffer, data store and parameter nodes take it (src/prefs.rs:261, 342) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.metaclass.fillColor` | Fill Color | null | ✅ in Preferences › UML › metaclass; new views of that kind take it (src/prefs.rs:252-257) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.stereotype.fillColor` | Fill Color | null | ✅ in Preferences › UML › stereotype; new views of that kind take it (src/prefs.rs:252-257) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.note.fillColor` | Fill Color | null | ✅ in Preferences › UML › note; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |

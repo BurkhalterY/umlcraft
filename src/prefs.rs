@@ -230,7 +230,7 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("General", "validation.validateModel", "Validate Model", Kind::Check, json!(true)),
     ];
     // per element kind: fill colour (null = the general one), stereotype display and compartments
-    let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 26] = [
+    let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 28] = [
         ("Package", "package", None),
         ("Model", "model", None),
         ("Class", "class", Some(("label", false, false, None))),
@@ -256,6 +256,9 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("MetaClass", "metaclass", None),
         ("Stereotype", "stereotype", None),
         ("State", "state", None),
+        // activities (uml/preferences/uml.json: UMLActionView and UMLObjectNodeView read these)
+        ("Action", "action", None),
+        ("Object Node", "objectnode", None),
         ("Note", "note", None),
     ];
     // flowcharts: the flow's line style and each node's fill colour (flowchart/preferences/flowchart.json)
@@ -335,6 +338,8 @@ fn kind_id(view_ty: &str, model_ty: Option<&str>) -> Option<&'static str> {
         "UMLCollaboration" => "collaboration",
         "UMLCollaborationUse" => "collaborationuse",
         "UMLState" => "state",
+        "UMLAction" | "UMLStructuredActivityNode" | "UMLExpansionRegion" => "action",
+        "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLActivityParameterNode" => "objectnode",
         "UMLUseCaseSubject" => "subsystem",
         "UMLArtifact" => "artifact",
         "UMLComponent" => "component",
