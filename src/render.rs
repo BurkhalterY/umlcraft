@@ -301,7 +301,8 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             return;
         }
         "actor" => {
-            let ih = b.h - views::NAME_MIN_H;
+            // the figure above the name; attributes and operations may follow under it
+            let ih = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "top") - b.y).filter(|h| *h > 0.0).unwrap_or(b.h - views::NAME_MIN_H);
             let iw = b.w.min(ih * views::ACTOR_ICON_W / views::ACTOR_ICON_H);
             let (ix, iy) = (b.x + (b.w - iw) / 2.0, b.y);
             let head_h = ih * 0.34 - 1.0;
@@ -311,6 +312,9 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             c.polyline(&[p(0.14, 0.46), p(0.86, 0.46)], line, false);
             c.polyline(&[p(0.0, 1.0), p(0.5, 0.66), p(1.0, 1.0)], line, false);
             draw_name(c, r, v);
+            for row in info.iter().flat_map(|i| i.compartments.iter()).flat_map(|comp| comp.rows.iter()) {
+                draw_label(c, r, row.iv, fc);
+            }
             return;
         }
         "artifact" => {

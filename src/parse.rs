@@ -271,14 +271,18 @@ pub enum Grammar {
     Object,
     /// `<<st>> vis name : type = value` (uml-slot.pegjs)
     Slot,
+    /// `<<st>> vis name [selector] : type`, its name without brackets (uml-lifeline.pegjs)
+    Lifeline,
 }
 
 /// A parsing expression grammar run over the text: each step returns the position after what it
 /// matched, or None. Repetitions are greedy and never give characters back, as in PEG.js.
 struct Peg<'a> {
     s: &'a [char],
-    /// the identifier accepts `'` (name, object, slot grammars)
+    /// the identifier accepts `'` (name, object, slot, lifeline grammars)
     quote_in_id: bool,
+    /// the identifier accepts `[`, `]` (all but the lifeline grammar)
+    brackets_in_id: bool,
     /// the type accepts `[`, `]` (template parameter, object, slot) and `'` (object, slot)
     brackets_in_type: bool,
     quote_in_type: bool,
@@ -290,7 +294,7 @@ impl Peg<'_> {
         c == ' ' || c.is_ascii_alphanumeric() || "`!@$%^&*_|{};.?-\"".contains(c) || ('\u{a0}'..='\u{fff0}').contains(&c) || c > '\u{ffff}'
     }
     fn id_char(&self, c: char) -> bool {
-        Self::common(c) || c == '[' || c == ']' || (self.quote_in_id && c == '\'')
+        Self::common(c) || (self.brackets_in_id && (c == '[' || c == ']')) || (self.quote_in_id && c == '\'')
     }
     fn type_char(&self, c: char) -> bool {
         Self::common(c) || c == '<' || c == '>' || (self.brackets_in_type && (c == '[' || c == ']')) || (self.quote_in_type && c == '\'')
@@ -358,6 +362,11 @@ impl Peg<'_> {
         let more = self.lit(self.ws(p), ",").and_then(|j| self.param_list(self.ws(j)));
         Some(more.unwrap_or(p))
     }
+    /// `"[" _ identifier _ "]"`
+    fn selector(&self, i: usize) -> Option<usize> {
+        let i = self.ident(self.ws(self.lit(i, "[")?))?;
+        self.lit(self.ws(i), "]")
+    }
     fn parameters(&self, i: usize) -> Option<usize> {
         let i = self.ws(self.lit(i, "(")?);
         let i = self.ws(self.opt(i, Self::param_list));
@@ -369,8 +378,14 @@ impl Peg<'_> {
 /// uml-commands.js:320-325; quickedit-manager.js:407-427).
 pub fn parses(g: Grammar, text: &str) -> bool {
     let s: Vec<char> = text.chars().collect();
-    let quote = matches!(g, Grammar::Name | Grammar::Object | Grammar::Slot);
-    let p = Peg { s: &s, quote_in_id: quote, brackets_in_type: matches!(g, Grammar::TemplateParameter | Grammar::Object | Grammar::Slot), quote_in_type: matches!(g, Grammar::Object | Grammar::Slot) };
+    let quote = matches!(g, Grammar::Name | Grammar::Object | Grammar::Slot | Grammar::Lifeline);
+    let p = Peg {
+        s: &s,
+        quote_in_id: quote,
+        brackets_in_id: g != Grammar::Lifeline,
+        brackets_in_type: matches!(g, Grammar::TemplateParameter | Grammar::Object | Grammar::Slot | Grammar::Lifeline),
+        quote_in_type: matches!(g, Grammar::Object | Grammar::Slot | Grammar::Lifeline),
+    };
     let end = (|| -> Option<usize> {
         match g {
             Grammar::Name => Some(p.ws(p.ident(p.head(true))?)),
@@ -399,6 +414,11 @@ pub fn parses(g: Grammar, text: &str) -> bool {
                 let i = p.ws(p.ident(p.head(true))?);
                 let i = p.ws(p.opt(i, Peg::typed));
                 Some(p.opt(i, Peg::default))
+            }
+            Grammar::Lifeline => {
+                let i = p.ws(p.ident(p.head(true))?);
+                let i = p.ws(p.opt(i, Peg::selector));
+                Some(p.opt(i, Peg::typed))
             }
         }
     })();

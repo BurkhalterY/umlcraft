@@ -1918,11 +1918,32 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     }
     if ty == "UMLActor" {
         hide_all(r);
-        let min_w = name_min_width(r, ms, v, m, None, false).max(ACTOR_ICON_W);
-        grow(r, v, min_w, NAME_MIN_H + ACTOR_ICON_H);
+        // the attributes and operations, when not suppressed, follow under the name without lines
+        // (UMLActorView.sizeAsIconicForm, elements.js:8628-8636; suppressed by default, 8614-8621)
+        let show = Show::of(r, v);
+        let mut comps: Vec<(Eid, f64, f64, Vec<Row>)> = vec![];
+        for (field, flag, list) in [("attributeCompartment", "suppressAttributes", "attributes"), ("operationCompartment", "suppressOperations", "operations")] {
+            let Some(c) = r.refd(v, field).filter(|_| !r.bool(v, flag)) else { continue };
+            r.remove(c, "visible");
+            let items = r.list(m, list);
+            let texts: Vec<String> = items.iter().map(|a| if list == "attributes" { attribute_text(r, *a, show) } else { operation_text(r, *a, show) }).collect();
+            let (cw, ch, rows) = sync_list(r, ms, c, &items, if list == "attributes" { "UMLAttributeView" } else { "UMLOperationView" }, &texts, false);
+            comps.push((c, cw, ch, rows));
+        }
+        let comps_h: f64 = comps.iter().map(|c| c.2).sum();
+        let min_w = comps.iter().map(|c| c.1).fold(name_min_width(r, ms, v, m, None, false).max(ACTOR_ICON_W), f64::max);
+        grow(r, v, min_w, NAME_MIN_H + ACTOR_ICON_H + comps_h);
         let (x, y, w, h) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"), r.f(v, "height"));
-        layout_name(r, ms, v, m, x, y + h - NAME_MIN_H, w, None, false);
-        return Info { shape: "actor", ..Default::default() };
+        let ny = y + h - NAME_MIN_H - comps_h;
+        layout_name(r, ms, v, m, x, ny, w, None, false);
+        let mut cy = ny + NAME_MIN_H;
+        let mut out = vec![];
+        for (c, _, ch, rows) in comps {
+            place_list(r, ms, c, x, cy, w, ch, &rows);
+            out.push(Comp { y: cy, rows });
+            cy += ch;
+        }
+        return Info { shape: "actor", compartments: out, ..Default::default() };
     }
     if ty == "UMLUseCase" {
         hide_all(r);

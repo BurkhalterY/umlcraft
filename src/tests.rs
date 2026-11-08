@@ -4139,6 +4139,7 @@ fn quick_edit_grammars_accept_and_reject_like_the_original() {
         (Attribute, "-id: int[1] = 0"), (Attribute, "<< st >> #name : List<String> [0..*] = x"), (Attribute, "x"),
         (Operation, "+placeOrder(item: Order, qty: int): boolean"), (Operation, "f()"), (Operation, "f(in a, out b: int[*] = 3, inout c)"), (Operation, "g(): void[0..1]"),
         (TemplateParameter, "T: Class[] = Object"), (Object, ""), (Object, ": Order"), (Object, "o1: Order"), (Slot, "x: int = 1"), (Name, "emoji 🦀"),
+        (Lifeline, "<<st>> -l1[i]: Order"), (Lifeline, "buyer : List<Item[]>"), (Lifeline, "it's"), (Lifeline, "l [ k ]"),
     ] {
         assert!(parses(g, ok), "{g:?} accepts {ok:?}");
     }
@@ -4146,6 +4147,7 @@ fn quick_edit_grammars_accept_and_reject_like_the_original() {
         (Name, ""), (Name, "a: B"), (Name, "f(x)"), (Name, "<<st"), (Name, "a = b"),
         (Attribute, "a: b: c"), (Attribute, "a = b = c"), (Attribute, "it's"), (Attribute, "f()"), (Attribute, "a: b[x]"),
         (Operation, "f(a, )"), (Operation, "f(a"), (Operation, "f(): (x)"), (TemplateParameter, "+T"), (Slot, "x = 1 = 2"),
+        (Lifeline, ""), (Lifeline, ": Order"), (Lifeline, "a[1"), (Lifeline, "a[]"), (Lifeline, "l = x"), (Lifeline, "f(x)"),
     ] {
         assert!(!parses(g, bad), "{g:?} rejects {bad:?}");
     }
@@ -7810,4 +7812,145 @@ fn model_add_offers_ports_and_collaborations() {
     let p = a.change(|a| a.add_feature(c, "UMLPort")).unwrap();
     assert_eq!((a.repo.ty(p), a.repo.field_of(p).as_deref()), ("UMLPort", Some("attributes")));
     assert_eq!(a.repo.name(p), "Port1");
+}
+
+#[test]
+fn quick_edit_components_sit_in_rows_left_and_right() {
+    use crate::app::{EditKind, Editing};
+    use crate::quickedit::{Act, Comp, Side};
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    let ed = |kind: EditKind, host: Option<crate::model::Eid>| Editing { kind, text: String::new(), rect: R::default(), multiline: false, center: false, fresh: false, host, orig: None };
+    let hint = |p: &crate::quickedit::Placed| match &p.comp {
+        Comp::Button { hint, .. } | Comp::Menu { hint, .. } => hint.clone(),
+        Comp::Combo(_) => "Multiplicity".to_string(),
+    };
+    let at = |a: &App, e: &Editing, h: &str| a.quick_components(e).into_iter().find(|p| hint(p).starts_with(h)).map(|p| (p.side, p.row));
+    // quickedits/uml.json "uml.class"
+    let e = ed(EditKind::Name(m), Some(c));
+    assert_eq!(at(&a, &e, "Visibility"), Some((Side::Left, 1)));
+    assert_eq!(at(&a, &e, "Add Note"), Some((Side::Left, 2)));
+    assert_eq!(at(&a, &e, "Add Constraint"), Some((Side::Left, 2)));
+    assert_eq!(at(&a, &e, "Add Attribute"), Some((Side::Right, 1)));
+    assert_eq!(at(&a, &e, "Add Template Parameter"), Some((Side::Right, 1)));
+    assert_eq!(at(&a, &e, "Add Sub-Class"), Some((Side::Right, 2)));
+    assert_eq!(at(&a, &e, "Add Composited Class"), Some((Side::Right, 3)));
+    assert_eq!(at(&a, &e, "Add Port"), Some((Side::Right, 4)));
+    let right1: Vec<String> = a.quick_components(&e).iter().filter(|p| p.side == Side::Right && p.row == 1).map(hint).collect();
+    assert_eq!(right1, ["Add Attribute (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)", "Add Template Parameter", "Add Reception"]);
+    // an association: its Order of Ends and visibility, and the ends' dropdowns and combo
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 60.0))).unwrap();
+    let l = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c, c2)).unwrap();
+    let am = a.repo.refd(l, "model").unwrap();
+    let e = ed(EditKind::Name(am), None);
+    assert_eq!(at(&a, &e, "Order of Ends"), Some((Side::Left, 1)));
+    assert_eq!(at(&a, &e, "Add Note"), Some((Side::Left, 2)));
+    let end = a.repo.child(am, "end1").unwrap();
+    let e = ed(EditKind::Name(end), None);
+    let left1: Vec<String> = a.quick_components(&e).iter().filter(|p| p.side == Side::Left && p.row == 1).map(hint).collect();
+    assert_eq!(left1, ["Aggregation Kind", "Navigability", "Visibility"], "nearest the field first");
+    assert_eq!(at(&a, &e, "Add Qualifier"), Some((Side::Left, 2)));
+    assert_eq!(at(&a, &e, "Multiplicity"), Some((Side::Right, 1)));
+    // an end showing its owner attribute keeps only the owner attribute and navigability
+    // (_tailEndSole, elements.js:5650)
+    let attr = a.change(|a| a.add_feature(a.repo.refd(c2, "model").unwrap(), "UMLAttribute")).unwrap();
+    a.change(|a| a.repo.set_ref(end, "ownerAttribute", Some(attr)));
+    let hints: Vec<String> = a.quick_components(&e).iter().map(hint).collect();
+    assert_eq!(hints, ["Owner Attribute", "Navigability"]);
+    assert!(crate::quickedit::end_owned(&a.repo, end));
+    // a transition's Add Trigger Event and Add Effect Behavior; an action's Add Trigger Event
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let s1 = a.change(|a| a.create_node("UMLState", rect(40.0, 40.0, 100.0, 40.0))).unwrap();
+    let s2 = a.change(|a| a.create_node("UMLState", rect(300.0, 40.0, 100.0, 40.0))).unwrap();
+    let t = a.change(|a| a.create_edge(&tool("UMLTransition", AssocInit::Plain), s1, s2)).unwrap();
+    let tm = a.repo.refd(t, "model").unwrap();
+    let e = ed(EditKind::Name(tm), None);
+    assert_eq!(at(&a, &e, "Add Note"), Some((Side::Left, 1)));
+    assert_eq!(at(&a, &e, "Visibility"), None, "uml.transition has none");
+    let trig = a.quick_components(&e).into_iter().find_map(|p| match p.comp {
+        Comp::Button { act: Act::Key(h, k), hint, .. } if hint == "Add Trigger Event" => Some((h, k)),
+        _ => None,
+    });
+    let (h, k) = trig.unwrap();
+    assert_eq!(h, t);
+    a.item_key(h, EditKind::Name(tm), k);
+    let evs = a.repo.list(tm, "triggers");
+    assert_eq!((evs.len(), a.repo.ty(evs[0])), (1, "UMLEvent"));
+    a.item_key(t, EditKind::Name(tm), crate::canvas::ItemKey::AddEffect);
+    assert!(a.select_one.is_some(), "asks which kind of behaviour");
+    a.select_one = None;
+    a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let s = a.change(|a| a.create_node("UMLAction", rect(300.0, 300.0, 60.0, 40.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    let e = ed(EditKind::Name(sm), Some(s));
+    assert_eq!(at(&a, &e, "Add Trigger Event"), Some((Side::Right, 1)));
+    assert_eq!(at(&a, &e, "Add Output Pin"), Some((Side::Left, 1)));
+    assert_eq!(at(&a, &e, "Add Decision"), Some((Side::Right, 3)));
+    assert_eq!(at(&a, &e, "Add Initial Node"), Some((Side::Right, 4)));
+    a.item_key(s, EditKind::Name(sm), crate::canvas::ItemKey::AddTrigger);
+    assert_eq!(a.repo.list(sm, "triggers").len(), 1);
+    let saved = a.repo.serialize();
+    assert!(saved.contains("\"triggers\""));
+    Repo::parse(&saved).unwrap();
+}
+
+#[test]
+fn a_typed_multiplicity_applies_when_the_end_edit_closes() {
+    use crate::app::EditKind;
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let m = a.repo.refd(e, "model").unwrap();
+    let end = a.repo.child(m, "end1").unwrap();
+    let pts = crate::views::points_of(&a.repo, e);
+    a.edit_view(e, Some(crate::views::P { x: pts[0].x + 10.0, y: pts[0].y }));
+    assert_eq!(a.editing.as_ref().map(|x| x.kind.clone()), Some(EditKind::Name(end)));
+    // Esc drops it
+    a.edit_combo = Some((end, "2..5".into()));
+    a.close_inline(false);
+    assert_eq!(a.repo.str(end, "multiplicity"), "");
+    a.edit_view(e, Some(crate::views::P { x: pts[0].x + 10.0, y: pts[0].y }));
+    a.editing.as_mut().map(|x| x.orig = Some(x.text.clone()));
+    a.edit_combo = Some((end, "2..5".into()));
+    a.close_inline(true);
+    assert_eq!(a.repo.str(end, "multiplicity"), "2..5");
+    assert!(a.edit_combo.is_none());
+    // a connector end has the same dropdowns and combo (quickedits/uml.json "uml.connector-end1")
+    let conn_end = a.change(|a| a.repo.create("UMLConnectorEnd", &[], None));
+    let ed = crate::app::Editing { kind: EditKind::Name(conn_end), text: String::new(), rect: R::default(), multiline: false, center: false, fresh: false, host: None, orig: None };
+    assert_eq!(a.quick_components(&ed).len(), 4, "aggregation, navigability, visibility, multiplicity");
+}
+
+#[test]
+fn actors_take_attributes_and_operations() {
+    use crate::app::EditKind;
+    use crate::canvas::{item_buttons, ItemKey};
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let v = a.change(|a| a.create_node("UMLActor", rect(40.0, 40.0, 40.0, 80.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    let hints: Vec<&str> = item_buttons(&a.repo, Some(v), &EditKind::Name(m)).into_iter().map(|b| b.1).collect();
+    assert_eq!(hints, ["Add Attribute", "Add Operation"], "quickedits/uml.json \"uml.actor\"");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let h0 = a.repo.f(v, "height");
+    assert!(a.repo.bool(v, "suppressAttributes"), "suppressed by default");
+    a.item_key(v, EditKind::Name(m), ItemKey::Add);
+    a.item_key(v, EditKind::Name(m), ItemKey::AddOperation);
+    assert_eq!((a.repo.list(m, "attributes").len(), a.repo.list(m, "operations").len()), (1, 1));
+    assert!(!a.repo.bool(v, "suppressAttributes") && !a.repo.bool(v, "suppressOperations"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info[&v].shape, "actor");
+    assert_eq!(a.info[&v].compartments.len(), 2, "attributes and operations under the name");
+    assert!(a.repo.f(v, "height") > h0, "the actor grows for them");
+    let nc = a.repo.refd(v, "nameCompartment").unwrap();
+    assert!(a.info[&v].compartments[0].y >= a.repo.f(nc, "top") + crate::views::NAME_MIN_H - 0.5);
+    a.take_pending_item();
+    Repo::parse(&a.repo.serialize()).unwrap();
 }

@@ -150,6 +150,8 @@ pub struct App {
     pub editing: Option<Editing>,
     /// When a rejected inline edit started shaking (it cannot close for 400 ms, quickedit-manager.js:407-427).
     pub edit_shake: Option<std::time::Instant>,
+    /// The multiplicity typed in the open association end edit's combo, not yet applied.
+    pub edit_combo: Option<(Eid, String)>,
     pub info: HashMap<Eid, Info>,
     pub expanded: HashSet<Eid>,
     pub search: String,
@@ -302,6 +304,7 @@ impl App {
             hover: None,
             editing: None,
             edit_shake: None,
+            edit_combo: None,
             info: HashMap::new(),
             expanded: HashSet::new(),
             search: String::new(),
@@ -2053,6 +2056,8 @@ impl App {
             "UMLSlot" => self.repo.kind_of(owner, "UMLInstance"),
             // template parameters on classes, interfaces and the other boxes with compartments
             "UMLTemplateParameter" => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase" && t != "UMLEnumeration",
+            // an actor takes attributes and operations (quickedits/uml.json "uml.actor"), not receptions
+            "UMLAttribute" | "UMLOperation" if t == "UMLActor" => true,
             _ => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase",
         }
     }

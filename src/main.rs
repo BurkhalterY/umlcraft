@@ -43,6 +43,7 @@ mod pdf_font;
 mod picture;
 mod picker;
 mod prefs;
+mod quickedit;
 mod related;
 mod relview;
 mod render;
