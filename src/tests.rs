@@ -3487,13 +3487,52 @@ fn receptions_show_when_not_suppressed() {
 }
 
 #[test]
+fn properties_rows_follow_the_metamodel() {
+    let mut a = App::new(None);
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    let at = a.change(|a| a.add_feature(m, "UMLAttribute")).unwrap();
+    // the parents' visible attributes first, in the metamodel's order
+    let names = |f: Vec<(&'static str, &'static str)>| f.into_iter().map(|x| x.0).collect::<Vec<_>>();
+    assert_eq!(
+        names(a.fields_for(at)),
+        ["name", "stereotype", "visibility", "isStatic", "isLeaf", "featureDirection", "type", "multiplicity", "isReadOnly", "isOrdered", "isUnique", "defaultValue", "isDerived", "aggregation", "isID"]
+    );
+    assert_eq!(names(a.fields_for(m)), ["name", "stereotype", "visibility", "isAbstract", "isFinalSpecialization", "isLeaf", "isActive"]);
+    let op = a.change(|a| a.add_feature(m, "UMLOperation")).unwrap();
+    assert!(a.fields_for(op).contains(&("raisedExceptions", "reflist")) && a.fields_for(op).contains(&("specification", "multiline")));
+    // an enum takes its enumeration's literals
+    assert_eq!(crate::meta::enum_literals("UMLAttribute", "featureDirection"), Some(&["provided", "required", "providedRequired"][..]));
+    assert_eq!(crate::meta::enum_literals("UMLMessage", "messageSort").map(|l| l.len()), Some(6));
+    // an association: its own rows, then each end's under its prefix
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(300.0, 40.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), v, c2)).unwrap();
+    let am = a.repo.refd(e, "model").unwrap();
+    let f = a.fields_for(am);
+    assert_eq!(names(f.clone())[..5], ["name", "stereotype", "visibility", "isDerived", "-"]);
+    assert!(f.contains(&("end1.navigable", "enum")) && f.contains(&("end2.ownerAttribute", "owner")));
+    assert_eq!(f.iter().filter(|x| x.0 == "-").count(), 2);
+    // a dependency shows its mapping; the project its document version; a sequence diagram its options
+    let dep = a.change(|a| a.create_edge(&tool("UMLDependency", AssocInit::Plain), v, c2)).unwrap();
+    assert_eq!(names(a.fields_for(a.repo.refd(dep, "model").unwrap())), ["name", "source", "target", "stereotype", "visibility", "mapping"]);
+    assert!(a.fields_for(a.repo.root).contains(&("documentVersion", "int")));
+    let root = a.repo.root;
+    let sd = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    assert_eq!(names(a.fields_for(sd)), ["name", "defaultDiagram", "showSequenceNumber", "sequenceNumbering", "showSignature", "showActivation"]);
+    // the other notations keep their own lists
+    let fc = a.change(|a| a.add_model(root, "ERDDataModel"));
+    assert_eq!(a.fields_for(fc), vec![("name", "text")]);
+}
+
+#[test]
 fn reception_signal_is_a_reference() {
     let mut a = App::new(None);
     let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
     let s = a.change(|a| a.create_node("UMLSignal", rect(240.0, 40.0, 100.0, 60.0))).unwrap();
     let (m, sm) = (a.repo.refd(v, "model").unwrap(), a.repo.refd(s, "model").unwrap());
     let rc = a.change(|a| a.add_feature(m, "UMLReception")).unwrap();
-    assert!(a.fields_for(rc).contains(&("signal", "type")));
+    // a reference, picked in the Element Picker, as the metamodel has it
+    assert!(a.fields_for(rc).contains(&("signal", "ref")));
     let name = a.repo.name(sm);
     a.commit_text(rc, "signal", "type", name);
     assert_eq!(a.repo.refd(rc, "signal"), Some(sm));
@@ -4687,7 +4726,7 @@ fn profile_stereotype_icons() {
     assert_eq!(a.info[&c].shape, "");
     assert!(crate::render::to_svg(&a.repo, d, &a.info, &ms).unwrap().contains("#ff0000"));
     // the icon's size is edited as integers
-    assert_eq!(a.fields_for(icon), vec![("width", "int"), ("height", "int"), ("image", "image"), ("content", "multiline")]);
+    assert!(a.fields_for(icon).ends_with(&[("width", "int"), ("height", "int"), ("image", "image"), ("content", "multiline")]));
     let text = a.repo.serialize();
     assert!(text.contains("\"UMLImage\""));
     let back = Repo::parse(&text).unwrap();

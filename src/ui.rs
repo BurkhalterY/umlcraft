@@ -827,6 +827,18 @@ pub(crate) fn uml_diagram_offered(r: &crate::model::Repo, e: Eid, kind: &str) ->
     })
 }
 
+/// A field path made at run time ("end1.name"), kept once for the program's life.
+fn intern(s: String) -> &'static str {
+    static SEEN: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, &'static str>>> = std::sync::OnceLock::new();
+    let mut m = SEEN.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(x) = m.get(&s) {
+        return x;
+    }
+    let x: &'static str = Box::leak(s.clone().into_boxed_str());
+    m.insert(s, x);
+    x
+}
+
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
 const DIAGRAM_KINDS: [(&str, &str); 29] = [
     ("Class Diagram", "UMLClassDiagram"),
@@ -1528,37 +1540,42 @@ impl App {
     }
 
     // ------------------------------------------------------------ editors
+    /// The Properties rows of an element: (field path, editor kind), "-" for a separator. UML and core
+    /// kinds take the visible attributes of the metamodel, their parents' first, then each expanded
+    /// part (an association's ends, a stereotype's icon) under its prefix (PropertyEditorView.show,
+    /// property-editor-view.js:699-810); the other notations keep their own lists.
     pub(crate) fn fields_for(&self, e: Eid) -> Vec<(&'static str, &'static str)> {
         let r = &self.repo;
         let t = r.ty(e);
-        let end = |p: &str| -> Vec<(&'static str, &'static str)> {
-            let names: [(&'static str, &'static str); 14] = [
-                ("name", "text"), ("reference", "ref"), ("stereotype", "text"), ("visibility", "enum"), ("navigable", "enum"), ("aggregation", "enum"), ("multiplicity", "text"),
-                ("defaultValue", "text"), ("isReadOnly", "bool"), ("isOrdered", "bool"), ("isUnique", "bool"), ("isDerived", "bool"), ("isID", "bool"), ("ownerAttribute", "owner"),
-            ];
-            names
-                .iter()
-                .map(|(n, k)| {
-                    let full: &'static str = match p {
-                        "end1" => Box::leak(format!("end1.{n}").into_boxed_str()),
-                        "end2" => Box::leak(format!("end2.{n}").into_boxed_str()),
-                        _ => n,
-                    };
-                    (full, *k)
-                })
-                .collect()
-        };
-        if t == "Project" {
-            return vec![("name", "text"), ("author", "text"), ("company", "text"), ("copyright", "text"), ("version", "text")];
-        }
-        if self.is_diagram(e) {
-            return vec![("name", "text"), ("defaultDiagram", "bool")];
-        }
         if t == "Hyperlink" {
             return vec![("name", "text"), ("reference", "link"), ("url", "text"), ("showName", "bool")];
         }
         if let Some(f) = crate::sysml::fields(r, e) {
             return f;
+        }
+        if crate::meta::has_visible(t) {
+            let mut f = vec![];
+            let mut parts = vec![];
+            for (name, kind) in crate::meta::visible_attrs(t) {
+                if kind == "expand" {
+                    parts.push(name);
+                } else {
+                    f.push((name, kind));
+                }
+            }
+            for p in parts {
+                let Some(c) = r.child(e, p) else { continue };
+                f.push(("-", ""));
+                for (name, kind) in crate::meta::visible_attrs(r.ty(c)) {
+                    if kind != "expand" {
+                        f.push((intern(format!("{p}.{name}")), kind));
+                    }
+                }
+            }
+            return f;
+        }
+        if self.is_diagram(e) {
+            return vec![("name", "text"), ("defaultDiagram", "bool")];
         }
         // the other notations' visible attributes (their metamodel.json files)
         match t {
@@ -1586,85 +1603,10 @@ impl App {
             _ if crate::cloud::element_kind(t).is_some() || crate::cloud::edge_view_of(t).is_some() => return crate::cloud::fields(t),
             _ => {}
         }
-        if t == "UMLAssociation" {
-            let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isDerived", "bool"), ("-", "")];
-            f.extend(end("end1"));
-            f.push(("-", ""));
-            f.extend(end("end2"));
-            return f;
-        }
-        // a link: its two ends, without the association-only owner attribute
-        if t == "UMLLink" {
-            let link_end = |p: &str| end(p).into_iter().filter(|x| !x.0.ends_with("ownerAttribute")).collect::<Vec<_>>();
-            let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("-", "")];
-            f.extend(link_end("end1"));
-            f.push(("-", ""));
-            f.extend(link_end("end2"));
-            return f;
-        }
-        if r.has(e, "source") && r.has(e, "target") {
-            let mut f = vec![("name", "text"), ("source", "ref"), ("target", "ref"), ("stereotype", "text"), ("visibility", "enum")];
-            if t == "UMLGeneralization" {
-                f.push(("discriminator", "text"));
-            }
-            if t == "UMLExtend" {
-                f.push(("condition", "text"));
-            }
-            if t == "UMLRoleBinding" {
-                f.push(("roleName", "text"));
-            }
-            if t == "UMLTransition" {
-                f.push(("kind", "enum"));
-                f.push(("guard", "text"));
-            }
-            // the items an information flow conveys, edited in the Element List Editor
-            if t == "UMLInformationFlow" {
-                f.push(("conveyed", "reflist"));
-            }
-            return f;
-        }
-        match t {
-            "UMLAttribute" => vec![
-                ("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("type", "type"), ("multiplicity", "text"),
-                ("isReadOnly", "bool"), ("isOrdered", "bool"), ("isUnique", "bool"), ("defaultValue", "text"), ("isDerived", "bool"), ("aggregation", "enum"), ("isID", "bool"),
-            ],
-            "UMLOperation" => vec![
-                ("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("concurrency", "enum"), ("isQuery", "bool"),
-                ("isAbstract", "bool"), ("specification", "multiline"),
-            ],
-            // behaviours (uml/metamodel.json: the visible attributes of UMLBehavior and UMLActivity)
-            "UMLOpaqueBehavior" | "UMLInteraction" | "UMLStateMachine" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isReentrant", "bool")],
-            "UMLActivity" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isReentrant", "bool"), ("isReadOnly", "bool"), ("isSingleExecution", "bool")],
-            "UMLTemplateParameterSubstitution" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("formal", "ref"), ("actual", "type")],
-            "UMLParameter" => vec![("name", "text"), ("stereotype", "text"), ("type", "type"), ("multiplicity", "text"), ("defaultValue", "text"), ("direction", "enum")],
-            "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
-            "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
-            "UMLObject" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("classifier", "type")],
-            // a stereotype's icon: its minimum size and its icon script (uml/metamodel.json UMLImage)
-            "UMLImage" => vec![("width", "int"), ("height", "int"), ("image", "image"), ("content", "multiline")],
-            "UMLCollaborationUse" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type")],
-            // the visible attributes of states, events and actions (uml/metamodel.json)
-            "UMLState" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("submachine", "ref")],
-            "UMLInteractionOperand" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("guard", "text")],
-            "UMLEvent" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("value", "text"), ("expression", "text"), ("targetOperation", "ref"), ("targetSignal", "ref")],
-            "UMLAction" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("isLocallyReentrant", "bool"), ("isSynchronous", "bool"), ("language", "text")],
-            "UMLTimeConstraint" | "UMLDurationConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist"), ("min", "text"), ("max", "text")],
-            "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
-            "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
-            // a reception names the signal it receives (uml-commands.js:1484)
-            "UMLReception" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("signal", "type")],
-            "UMLAssociationEnd" => end(""),
-            "UMLLinkEnd" => end("").into_iter().filter(|x| x.0 != "ownerAttribute").collect(),
-            _ if r.kind_of(e, "UMLClassifier") => {
-                let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isAbstract", "bool"), ("isFinalSpecialization", "bool"), ("isLeaf", "bool")];
-                if t == "UMLClass" {
-                    f.push(("isActive", "bool"));
-                }
-                f
-            }
-            _ if r.kind_of(e, "UMLModelElement") => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
-            _ if r.has(e, "name") || r.kind_of(e, "Model") => vec![("name", "text")],
-            _ => vec![],
+        if r.has(e, "name") || r.kind_of(e, "Model") {
+            vec![("name", "text")]
+        } else {
+            vec![]
         }
     }
 
@@ -1739,6 +1681,9 @@ impl App {
                 return &["opaque", "create", "destroy", "read", "write", "insert", "delete", "sendSignal", "acceptSignal", "triggerEvent", "acceptEvent", "structured", "timeEvent", "callBehavior", "callOperation"]
             }
             _ => {}
+        }
+        if let Some(l) = crate::meta::enum_literals(ty, field) {
+            return l;
         }
         match field {
             "visibility" => &["public", "protected", "private", "package"],
