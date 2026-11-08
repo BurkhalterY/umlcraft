@@ -7169,3 +7169,34 @@ fn preference_descriptions_and_font_faces() {
     sorted.sort();
     assert_eq!(sorted, crate::style::FONT_FACES.to_vec());
 }
+
+#[test]
+fn property_editor_numbers_references_and_autocomplete() {
+    use crate::ui::{parse_int, parse_real};
+    // numbers read as parseInt and parseFloat do
+    assert_eq!(parse_int(" 12px"), Some(12));
+    assert_eq!(parse_int("12.7"), Some(12));
+    assert_eq!(parse_int("-3"), Some(-3));
+    assert_eq!(parse_int("px"), None);
+    assert_eq!(parse_real("2.5e3x"), Some(2500.0));
+    assert_eq!(parse_real(".5"), Some(0.5));
+    assert_eq!(parse_real("abc"), None);
+    // a state's submachine is picked among state machines
+    assert_eq!(crate::picker::field_type("submachine"), "UMLStateMachine");
+    assert_eq!(crate::picker::field_type("targetOperation"), "UMLOperation");
+    // type names autocomplete among classifiers, case-insensitive, by substring
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let names: Vec<String> = a.autocomplete_hits("type", "oo").into_iter().map(|e| a.repo.name(e)).collect();
+    assert!(names.contains(&"Book".to_string()), "{names:?}");
+    assert!(a.autocomplete_hits("type", "OO").iter().all(|e| a.repo.kind_of(*e, "UMLClassifier")));
+    assert!(a.autocomplete_hits("stereotype", "Book").is_empty(), "only stereotypes for a stereotype field");
+    // a press in the diagram leaves the tree without a highlighted row until the tree is used again
+    let book = a.repo.all().find(|e| a.repo.name(*e) == "Book").unwrap();
+    a.tree_cleared = true;
+    a.focus_element(book);
+    assert!(!a.tree_cleared);
+    a.tree_cleared = true;
+    a.reveal(book);
+    assert!(!a.tree_cleared, "Select In Explorer highlights it again");
+}

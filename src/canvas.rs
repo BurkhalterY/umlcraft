@@ -805,6 +805,7 @@ impl App {
             if let Some(pos) = pointer.interact_pos() {
                 resp.request_focus();
                 self.last_area = crate::app::Area::Canvas;
+                self.tree_cleared = true;
                 // a rejected edit stays open, and the press does nothing else
                 if self.try_close_inline(true) {
                     self.on_press(rect, pos, mods);
@@ -2879,5 +2880,6 @@ impl App {
         }
         self.focus = Some(e);
         self.reveal_pending = Some(e);
+        self.tree_cleared = false;
     }
 }

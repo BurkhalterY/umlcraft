@@ -32,8 +32,13 @@ pub struct ElementPicker {
 pub fn field_type(field: &str) -> &'static str {
     match field {
         "stereotype" => "UMLStereotype",
-        "signal" => "UMLSignal",
+        "signal" | "targetSignal" => "UMLSignal",
         "reference" => "Model",
+        // the types of the other reference attributes (uml/metamodel.json, erd/metamodel.json)
+        "formal" => "UMLTemplateParameter",
+        "submachine" => "UMLStateMachine",
+        "targetOperation" => "UMLOperation",
+        "referenceTo" => "ERDColumn",
         _ => "UMLClassifier",
     }
 }
@@ -188,7 +193,7 @@ impl App {
         } else {
             match p.chosen {
                 Some(c) if !self.repo.kind_of(c, p.ty) => {
-                    self.message = Some((format!("Selected element ({}) is not an instance of {}", self.repo.name(c), p.ty), String::new()));
+                    self.alert(&format!("Selected element ({}) is not an instance of {}", self.repo.name(c), p.ty));
                 }
                 chosen if self.repo.alive(p.obj) => self.apply_picked(p.obj, &p.field, chosen),
                 _ => {}
@@ -217,27 +222,40 @@ impl App {
                 r.request_focus();
             }
             let q = p.search.trim().to_lowercase();
-            if !q.is_empty() {
-                // matches by name, with their namespace; picking one selects it in the tree
-                let hits: Vec<Eid> = self.repo.all().filter(|x| !self.is_view(*x) && self.repo.kind_of(*x, "Model") && self.repo.name(*x).to_lowercase().contains(&q)).take(99).collect();
-                egui::ScrollArea::vertical().id_salt("picker-search").max_height(120.0).show(ui, |ui| {
-                    for x in hits {
-                        ui.horizontal(|ui| {
-                            let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                            icons::draw(ui.painter(), ir, icons::key_for(&self.repo, x));
-                            let mut owners = self.repo.path(x);
-                            owners.pop();
-                            let ns: Vec<String> = owners.into_iter().map(|o| self.repo.name(o)).filter(|n| !n.is_empty()).collect();
-                            if ui.selectable_label(false, format!("{}  ({})", self.repo.name(x), ns.join("::"))).clicked() {
-                                p.chosen = Some(x);
-                                p.open.extend(self.repo.path(x));
-                                p.search.clear();
-                                p.fresh = true;
-                            }
+            // the list stays while the pointer is on it: a press there takes the focus from the box
+            let over = egui::Id::new("picker-search-over");
+            let was_over = ui.ctx().data(|d| d.get_temp::<bool>(over)).unwrap_or(false);
+            ui.ctx().data_mut(|d| d.insert_temp(over, false));
+            if !q.is_empty() && (ui.memory(|m| m.has_focus(r.id)) || was_over) {
+                // an autocomplete popup under the box: matches by name, with " — namespace"; picking one
+                // selects it in the tree (element-picker-dialog.js:235-274)
+                let hits: Vec<Eid> = self.repo.all().filter(|x| !self.is_view(*x) && self.repo.kind_of(*x, "Model") && self.repo.name(*x).to_lowercase().contains(&q)).collect();
+                if !hits.is_empty() {
+                    let area = egui::Area::new(egui::Id::new("picker-search")).order(egui::Order::Tooltip).fixed_pos(r.rect.left_bottom()).show(ui.ctx(), |ui| {
+                        egui::Frame::popup(ui.style()).show(ui, |ui| {
+                            ui.set_min_width(r.rect.width());
+                            egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                                for x in hits {
+                                    let ns = self.repo.parent(x).map(|o| self.repo.name(o)).unwrap_or_default();
+                                    let row = ui.horizontal(|ui| {
+                                        let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                                        icons::draw(ui.painter(), ir, icons::key_for(&self.repo, x));
+                                        let text = if ns.is_empty() { self.label_of(x) } else { format!("{}  — {ns}", self.label_of(x)) };
+                                        ui.add(egui::Label::new(text).sense(Sense::click()).wrap_mode(egui::TextWrapMode::Extend))
+                                    });
+                                    if row.inner.clicked() {
+                                        p.chosen = Some(x);
+                                        p.open.extend(self.repo.path(x));
+                                        p.search.clear();
+                                        p.fresh = true;
+                                    }
+                                }
+                            });
                         });
-                    }
-                });
-                ui.separator();
+                    });
+                    let hovered = area.response.contains_pointer() && !p.fresh;
+                    ui.ctx().data_mut(|d| d.insert_temp(over, hovered));
+                }
             }
             let fresh = p.fresh;
             egui::ScrollArea::vertical().id_salt("picker-tree").max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {

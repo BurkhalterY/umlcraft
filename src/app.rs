@@ -254,6 +254,9 @@ pub struct App {
     pub tree_rename: Option<(Eid, String, bool)>,
     /// The user's keymap.json bindings.
     pub user_keymap: Vec<(crate::keymap::Stroke, String)>,
+    /// A press in the diagram deselects the Model Explorer: its row is no longer highlighted, though
+    /// the model stays the focus the editors show, until the tree is used again (app-context.js:1325-1337).
+    pub tree_cleared: bool,
     /// Requests from the local HTTP API, answered each frame.
     pub api_rx: Option<std::sync::mpsc::Receiver<crate::api::ApiRequest>>,
     /// The window's bounds and maximized state, kept as windowState.main.
@@ -370,6 +373,7 @@ impl App {
             theme_applied: None,
             tree_rename: None,
             user_keymap: vec![],
+            tree_cleared: false,
             api_rx: None,
             window_state: None,
             md_preview: false,
@@ -2661,6 +2665,7 @@ impl App {
 
     pub fn focus_element(&mut self, e: Eid) {
         self.focus = Some(e);
+        self.tree_cleared = false;
         self.selection = match self.diagram {
             Some(d) => self.repo.list(d, "ownedViews").into_iter().filter(|v| self.repo.refd(*v, "model") == Some(e)).take(1).collect(),
             None => vec![],

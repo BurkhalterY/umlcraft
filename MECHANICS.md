@@ -147,7 +147,11 @@ Read from `extensions/default/staruml-v1` (main.js, reader.js, uml-readers.js); 
 ## Element Picker and type names
 
 * A name typed into a `type` or `stereotype` property is looked up among elements of the field's type (UMLClassifier or UMLStereotype): first the owner's namespace, then each enclosing namespace, then the whole project; a match is stored as a reference, otherwise the text (`views/property-editor-view.js:604-622`, `core/repository.js:2353-2361`).
-* The Element Picker ("Select Element") opens with the current value selected and its owners expanded, or "Do not specify" checked; a choice of the wrong type gives "Selected element (X) is not an instance of T" (`dialogs/element-picker-dialog.js:289-346`).
+* The Element Picker ("Select Element") opens with the current value selected and its owners expanded, or "Do not specify" checked; a choice of the wrong type gives the alert "Selected element (X) is not an instance of T" (`dialogs/element-picker-dialog.js:289-346`).
+* Type and stereotype fields autocomplete from the first typed character: elements of the field's type whose lower-cased name contains the lower-cased text, shown with their icon, label and " — " parent name; the Element Picker's quick search does the same over every element (`views/property-editor-view.js:149-158, 575-653`, `core/repository.js:2336-2344`, `dialogs/element-picker-dialog.js:235-274`).
+* Integer and Real properties are read with parseInt and parseFloat: the number the text starts with. The original stores NaN for text with no number (`_.isNumber(NaN)` is true); UMLCraft keeps the old value instead (`views/property-editor-view.js:274-330`).
+* Reference properties have a search button opening the Element Picker on the attribute's type, except readOnly ones (DirectedRelationship source and target, RelationshipEnd reference) (`views/property-editor-view.js:490-539`, `resources/default/metamodel.json`).
+* Selecting views in a diagram deselects the Model Explorer; the property editors still show the selected view's model (`app-context.js:1061-1068, 1325-1337`).
 
 ## Layout
 

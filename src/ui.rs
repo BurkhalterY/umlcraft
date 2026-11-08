@@ -793,7 +793,7 @@ impl App {
             }
             return;
         }
-        if self.focus == Some(e) {
+        if self.focus == Some(e) && !self.tree_cleared {
             let lr = Rect::from_min_size(Pos2::new(tx - 3.0, rect.top() + 1.0), Vec2::new(tw + 6.0, 20.0));
             p.rect_filled(lr, 0.0, SELECTED_ROW());
             p.rect_stroke(lr, 0.0, Stroke::new(1.0, Color32::from_rgb(0x4f, 0x99, 0xff)), egui::StrokeKind::Inside);
@@ -825,6 +825,7 @@ impl App {
         }
         if resp.clicked() || resp.secondary_clicked() {
             self.last_area = Area::Explorer;
+            self.tree_cleared = false;
             let on_toggle = resp.interact_pointer_pos().map(|q| q.x < x0 + 16.0).unwrap_or(false);
             if on_toggle && has_kids && resp.clicked() {
                 if !self.expanded.remove(&e) {
@@ -1517,8 +1518,21 @@ impl App {
                     let cur = merged.clone().unwrap_or_default();
                     let buf = self.prop_buf.entry(path.to_string()).or_insert(cur.clone());
                     let r = ui.add_sized(Vec2::new(fw, 23.0), egui::TextEdit::singleline(buf).hint_text("—").font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
-                    if r.lost_focus() {
-                        let text = buf.clone();
+                    let typed = buf.clone();
+                    // type and stereotype names autocomplete while typed (property-editor-view.js:575-653)
+                    let over_list = egui::Id::new(("autocomplete-over", path));
+                    let was_over = ui.ctx().data(|d| d.get_temp::<bool>(over_list)).unwrap_or(false);
+                    if var && (ui.memory(|m| m.has_focus(r.id)) || was_over) && !typed.trim().is_empty() && typed != cur {
+                        if let Some(e) = self.autocomplete_list(ui, &r, over_list, &field, &typed) {
+                            self.apply_picked(obj, &field, Some(e));
+                            r.surrender_focus();
+                        }
+                    } else {
+                        ui.ctx().data_mut(|d| d.insert_temp(over_list, false));
+                    }
+                    // a click in the list is a pick, not the end of typing
+                    if r.lost_focus() && !(var && was_over) {
+                        let text = typed.clone();
                         if single {
                             self.commit_text(obj, &field, kind, text);
                         } else if text != cur {
@@ -1652,14 +1666,17 @@ impl App {
                     }
                 }
                 // an integer: a typed value that is not a whole number is ignored (property-editor-view.js:274-330)
-                "int" => {
+                // a number read as parseInt or parseFloat would: the number the text starts with
+                // ("12px" is 12); text with no number keeps the old value (property-editor-view.js:274-330)
+                "int" | "real" => {
                     let cur = merged.clone().unwrap_or_default();
                     let buf = self.prop_buf.entry(path.to_string()).or_insert(cur.clone());
                     let r = ui.add_sized(Vec2::new(w, 23.0), egui::TextEdit::singleline(buf).hint_text("—").font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
                     if r.lost_focus() && *buf != cur {
-                        match buf.trim().parse::<i64>() {
-                            Ok(n) => self.change_all(&targets, |a, o, f| a.repo.set(o, f, json!(n))),
-                            Err(_) => *buf = cur,
+                        let v = if kind == "int" { parse_int(buf).map(|n| json!(n)) } else { parse_real(buf).map(|n| json!(n)) };
+                        match v {
+                            Some(v) => self.change_all(&targets, |a, o, f| a.repo.set(o, f, v.clone())),
+                            None => *buf = cur,
                         }
                     }
                 }
@@ -1676,17 +1693,29 @@ impl App {
                         self.open_element_picker(obj, &field);
                     }
                 }
+                // a reference: the element's icon and name, or "—"; a search button opens the Element
+                // Picker on the attribute's type, except for the read-only source, target and end
+                // reference (property-editor-view.js:490-539)
                 "ref" => {
                     let shared = targets.iter().map(|(o, f)| self.repo.refd(*o, f)).collect::<Vec<_>>();
-                    match shared[0].filter(|_| shared.iter().all(|x| *x == shared[0])) {
-                        Some(t) => {
-                            let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                            icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
-                            ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT()));
+                    let read_only = matches!(field.as_str(), "source" | "target" | "reference");
+                    let bw = if read_only || !single { 0.0 } else { 28.0 };
+                    ui.allocate_ui_with_layout(Vec2::new(w - bw, 23.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        ui.set_min_width(w - bw);
+                        match shared[0].filter(|_| shared.iter().all(|x| *x == shared[0])) {
+                            Some(t) => {
+                                let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                                icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
+                                ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT()));
+                            }
+                            None => {
+                                ui.label(egui::RichText::new("—").size(12.0).color(DIM()));
+                            }
                         }
-                        None => {
-                            ui.label(egui::RichText::new("—").size(12.0).color(DIM()));
-                        }
+                    });
+                    if bw > 0.0 && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("…")).on_hover_text("Select Element").clicked() {
+                        let ty = crate::picker::field_type(&field);
+                        self.open_typed_picker(obj, &field, ty);
                     }
                 }
                 _ => {}
@@ -3736,6 +3765,83 @@ fn swatch(ui: &mut egui::Ui, c: Color32, size: Vec2) -> egui::Response {
     r
 }
 
+
+impl App {
+    /// The elements a type or stereotype field suggests for a text: those of the field's type whose
+    /// name contains it, case-insensitive (repository.js:2336-2344).
+    pub fn autocomplete_hits(&self, field: &str, text: &str) -> Vec<Eid> {
+        let ty = if field == "stereotype" { "UMLStereotype" } else { crate::picker::field_type(field) };
+        let q = text.trim().to_lowercase();
+        self.repo.all().filter(|e| !self.is_view(*e) && self.repo.kind_of(*e, ty) && self.repo.name(*e).to_lowercase().contains(&q)).collect()
+    }
+
+    /// The suggestions under a type or stereotype field: elements of the field's type whose name
+    /// contains the text, case-insensitive, with icon and " — namespace" (repository.js:2336-2344;
+    /// property-editor-view.js:149-158, 589-640). Returns the one clicked. Whether the pointer is over
+    /// the list is kept under `over`, so the field's loss of focus to a click is not taken as typing.
+    fn autocomplete_list(&self, ui: &egui::Ui, field_resp: &egui::Response, over: egui::Id, field: &str, text: &str) -> Option<Eid> {
+        let hits = self.autocomplete_hits(field, text);
+        if hits.is_empty() {
+            ui.ctx().data_mut(|d| d.insert_temp(over, false));
+            return None;
+        }
+        let mut picked = None;
+        let area = egui::Area::new(over.with("list")).order(egui::Order::Tooltip).fixed_pos(field_resp.rect.left_bottom()).show(ui.ctx(), |ui| {
+            Frame::popup(ui.style()).show(ui, |ui| {
+                ui.set_min_width(field_resp.rect.width());
+                egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                    for e in hits {
+                        let ns = self.repo.parent(e).map(|p| self.repo.name(p)).unwrap_or_default();
+                        let row = ui.horizontal(|ui| {
+                            let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                            icons::draw(ui.painter(), ir, icons::key_for(&self.repo, e));
+                            let mut job = egui::text::LayoutJob::default();
+                            job.append(&self.label_of(e), 0.0, egui::TextFormat { font_id: FontId::proportional(12.0), color: TEXT(), ..Default::default() });
+                            if !ns.is_empty() {
+                                job.append(&format!(" — {ns}"), 5.0, egui::TextFormat { font_id: FontId::proportional(11.0), color: DIM(), ..Default::default() });
+                            }
+                            ui.add(egui::Label::new(job).sense(Sense::click()).wrap_mode(egui::TextWrapMode::Extend))
+                        });
+                        if row.inner.clicked() {
+                            picked = Some(e);
+                        }
+                    }
+                });
+            });
+        });
+        let hovered = area.response.contains_pointer();
+        ui.ctx().data_mut(|d| d.insert_temp(over, hovered));
+        picked
+    }
+}
+
+/// The whole number a text starts with, as JavaScript's parseInt reads it: blanks, a sign, digits
+/// ("12.7" and "12px" are 12); None without digits.
+pub fn parse_int(s: &str) -> Option<i64> {
+    let t = s.trim_start();
+    let (sign, rest) = match t.strip_prefix('-') {
+        Some(r) => (-1, r),
+        None => (1, t.strip_prefix('+').unwrap_or(t)),
+    };
+    let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    digits.parse::<i64>().ok().map(|n| sign * n)
+}
+
+/// The number a text starts with, as JavaScript's parseFloat reads it ("2.5e3x" is 2500); None
+/// without one.
+pub fn parse_real(s: &str) -> Option<f64> {
+    let t = s.trim_start();
+    // the longest prefix that parses (sign, digits, point, exponent)
+    let ends: Vec<usize> = t.char_indices().map(|(i, c)| i + c.len_utf8()).collect();
+    ends.into_iter().rev().find_map(|e| {
+        let p = &t[..e];
+        if p.chars().all(|c| c.is_ascii_digit() || matches!(c, '+' | '-' | '.' | 'e' | 'E')) {
+            p.parse::<f64>().ok().filter(|v| v.is_finite())
+        } else {
+            None
+        }
+    })
+}
 
 /// A soft shadow under the top edge of a scrolled list.
 fn scroll_shadow(p: &egui::Painter, r: Rect) {
