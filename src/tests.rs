@@ -9010,3 +9010,43 @@ fn validation_runs_in_the_background_with_a_window() {
     assert!(a.validated);
     assert_eq!(a.problems.len(), 2, "the example's two elements named Member");
 }
+
+#[test]
+fn a_node_holds_components_and_artifacts() {
+    let mut a = App::new(None);
+    a.add_diagram(None, "UMLDeploymentDiagram");
+    let n = a.change(|a| a.create_node("UMLNode", rect(40.0, 40.0, 400.0, 300.0))).unwrap();
+    let comp = a.change(|a| a.create_node("UMLComponent", rect(80.0, 120.0, 120.0, 60.0))).unwrap();
+    let art = a.change(|a| a.create_node("UMLArtifact", rect(250.0, 120.0, 80.0, 70.0))).unwrap();
+    let note = a.change(|a| a.create_node("Note", rect(600.0, 40.0, 100.0, 50.0))).unwrap();
+    // UMLNodeView.canContainViewKind (elements.js:8170-8179)
+    assert!(a.can_contain_view(n, comp) && a.can_contain_view(n, art));
+    assert!(!a.can_contain_view(n, note), "a note is not a classifier, package, object or instance");
+    assert!(!a.can_contain_view(comp, art), "a component box holds nothing");
+    a.change(|a| a.set_container(&[comp, art], Some(n)));
+    let nm = a.repo.refd(n, "model").unwrap();
+    assert_eq!(a.repo.parent(a.repo.refd(comp, "model").unwrap()), Some(nm), "the component goes into the node");
+    assert_eq!(a.repo.parent(a.repo.refd(art, "model").unwrap()), Some(nm));
+    assert_eq!(a.repo.refd(comp, "containerView"), Some(n));
+    assert!(!a.can_contain_view(comp, n), "nor can the node go into what it holds");
+    assert!(a.repo.serialize().contains("\"containedViews\""));
+}
+
+#[test]
+fn an_instance_deploys_on_a_node_instance() {
+    let mut a = App::new(None);
+    a.add_diagram(None, "UMLDeploymentDiagram");
+    let ai = a.change(|a| a.create_node("UMLArtifactInstance", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let ni = a.change(|a| a.create_node("UMLNodeInstance", rect(300.0, 40.0, 140.0, 80.0))).unwrap();
+    let n = a.change(|a| a.create_node("UMLNode", rect(300.0, 300.0, 140.0, 80.0))).unwrap();
+    let dep = tool("UMLDeployment", AssocInit::Plain);
+    // deploymentPrecondition (uml-factory.js:63-71)
+    assert!(a.can_connect(&dep, ai, ni));
+    assert!(!a.can_connect(&dep, ni, ai));
+    assert!(!a.can_connect(&dep, ai, n), "an instance goes on a node instance, not a node");
+    let e = a.change(|a| a.create_edge(&dep, ai, ni)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    assert_eq!(a.repo.ty(m), "UMLDeployment");
+    assert_eq!(a.repo.refd(m, "source"), a.repo.refd(ai, "model"));
+    assert_eq!(a.repo.refd(m, "target"), a.repo.refd(ni, "model"));
+}

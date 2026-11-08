@@ -14,6 +14,8 @@ pub const UNDO_LIMIT: usize = 100; // repository.js:37
 pub const DOCUMENT_VERSION: i64 = 1; // core.js:57
 /// The space between a box and a constraint added to its left (estimated).
 pub const CONSTRAINT_GAP: f64 = 30.0;
+/// The view kinds a node box can hold (UMLNodeView.canContainViewKind, elements.js:8170-8179).
+const NODE_HOLDS: [&str; 6] = ["UMLClassifierView", "UMLPackageView", "UMLObjectView", "UMLArtifactInstanceView", "UMLComponentInstanceView", "UMLNodeInstanceView"];
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum AssocInit {
@@ -1250,7 +1252,12 @@ impl App {
             }
             return structured || matches!(vt, "UMLActionView" | "UMLControlNodeView" | "UMLObjectNodeView" | "UMLCentralBufferNodeView" | "UMLDataStoreNodeView" | "UMLActivityParameterNodeView" | "UMLActivityEdgeConnectorView" | "UMLFinalStateView");
         }
-        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView" || ct == "UMLStateView") || !views::is_node(&self.repo, v) {
+        // a node holds classifiers, packages, objects and instances (UMLNodeView.canContainViewKind,
+        // elements.js:8170-8179)
+        if ct == "UMLNodeView" && !NODE_HOLDS.iter().any(|k| self.repo.kind_of(v, k)) {
+            return false;
+        }
+        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView" || ct == "UMLStateView" || ct == "UMLNodeView") || !views::is_node(&self.repo, v) {
             return false;
         }
         // not the view itself or anything inside it
@@ -1774,7 +1781,8 @@ impl App {
             // deployment diagrams: a path joins two nodes, a deployment puts a classifier on a node and a
             // component realization realizes a component (uml-factory.js:19-146)
             "UMLCommunicationPath" => r.ty(tm) == "UMLNode" && r.ty(hm) == "UMLNode",
-            "UMLDeployment" => classifier(tm) && r.ty(hm) == "UMLNode" && tm != hm,
+            // or an instance on a node instance (deploymentPrecondition, uml-factory.js:63-71)
+            "UMLDeployment" => (classifier(tm) && r.ty(hm) == "UMLNode" && tm != hm) || (r.kind_of(tm, "UMLInstance") && r.ty(hm) == "UMLNodeInstance" && tm != hm),
             "UMLComponentRealization" => classifier(tm) && r.ty(hm) == "UMLComponent" && tm != hm,
             "UMLInformationFlow" => tm != hm,
             // a stereotype extends a metaclass
