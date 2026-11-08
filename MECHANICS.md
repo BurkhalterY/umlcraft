@@ -207,6 +207,8 @@ File › Import › XMI Import (v2.1) puts what it reads into a new UMLModel `XM
 ## Keymap
 
 * `keymap.json` in the settings folder maps keystroke descriptors (`cmdctrl-alt-g`: modifiers then the key, case-insensitive, `cmdctrl` = Cmd on macOS and Ctrl elsewhere) to command ids; the user's bindings override the defaults for the same keystroke, and a bad file is logged and ignored (`ui/keymap-manager.js:49-54, 154-292`, `app-context.js:760-764`). UMLCraft's settings folder is `UMLCraft` instead of `StarUML`, and its command ids are the ones the Command Palette lists.
+* On macOS a descriptor's `delete` is Backspace (`ui/keymap-manager.js:183-185`). While a text field has focus (or a dialog is open), Ctrl+C/X/V/Z/Y, Ctrl/Cmd+A, Delete and Backspace are the field's, whatever else is held; every other keystroke still runs its command (`ui/keymap-manager.js:294-347`). An open dialog takes every key (`dialogs/dialog-manager.js:187-191`).
+* Menus show, for each command, the last keystroke bound to it in the final keymap; the UML keymap loads after the platform one, so Ctrl+Shift+D ends up on Show Diagram Name (`ui/menu-manager.js:55-62`, `ui/menu-helpers.js:111-150`, `uml/keymaps/uml.json`). UMLCraft keeps Ctrl+Shift+D on Open Sub-Diagram too, and shows it on both items.
 
 ## Snapping
 

@@ -28,33 +28,6 @@ pub struct Command {
     pub key: &'static str,
 }
 
-/// A shortcut as the platform shows it (keymap-manager.js:75-152): on macOS concatenated symbols
-/// (Ctrl, the command key, becomes ⌘; Shift ⇧; Alt ⌥; arrows and Backspace as symbols), elsewhere
-/// "Ctrl+Shift+X" with arrows as symbols.
-pub fn shortcut_label(key: &str, mac: bool) -> String {
-    let arrow = |k: &str| match k {
-        "Up" => "↑".to_string(),
-        "Down" => "↓".to_string(),
-        "Left" => "←".to_string(),
-        "Right" => "→".to_string(),
-        "Backspace" if mac => "⌫".to_string(),
-        _ => k.to_string(),
-    };
-    let parts: Vec<&str> = key.split('+').filter(|p| !p.is_empty()).collect();
-    if !mac {
-        return parts.iter().map(|p| arrow(p)).collect::<Vec<_>>().join("+");
-    }
-    parts
-        .iter()
-        .map(|p| match *p {
-            "Ctrl" | "Cmd" => "⌘".to_string(),
-            "Shift" => "⇧".to_string(),
-            "Alt" => "⌥".to_string(),
-            k => arrow(k),
-        })
-        .collect()
-}
-
 const fn c(id: &'static str, name: &'static str, key: &'static str) -> Command {
     Command { id, name, key }
 }
@@ -340,6 +313,16 @@ impl App {
             "help:release-notes" => ctx.open_url(egui::OpenUrl::new_tab(crate::ui::RELEASES_URL)),
             "help:about" => self.about_open = true,
             "uml:apply-profile.uml-standard" => self.apply_standard_profile(),
+            "application:quit" => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            "view:command-palette" => self.open_palette(Mode::Commands),
+            "find:find" => self.open_find(),
+            // Format › Stereotype Display (uml/keymaps/uml.json)
+            s if s.starts_with("format:stereotype-") => {
+                let v = &s["format:stereotype-".len()..];
+                if let Some((value, _)) = crate::style::STEREOTYPE_DISPLAYS.into_iter().find(|d| d.0 == v) {
+                    self.set_stereotype_display(value);
+                }
+            }
             _ => {}
         }
     }
@@ -353,7 +336,7 @@ impl App {
             Mode::Find => "Find models, views and diagrams...",
         };
         let rows: Vec<(String, String, Option<Hit>, Option<&'static str>)> = match pal.mode {
-            Mode::Commands => matching(&pal.query).into_iter().map(|c| (c.name.to_string(), shortcut_label(c.key, cfg!(target_os = "macos")), None, Some(c.id))).collect(),
+            Mode::Commands => matching(&pal.query).into_iter().map(|c| (c.name.to_string(), self.accel(c.id), None, Some(c.id))).collect(),
             Mode::Find => self
                 .find_hits(&pal.query)
                 .into_iter()

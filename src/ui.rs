@@ -1037,12 +1037,12 @@ impl App {
             self.open_diagram(e);
             ui.close();
         }
-        if self.repo.kind_of(e, "ExtensibleModel") && ui.button("Tag Editor...").clicked() {
+        if self.repo.kind_of(e, "ExtensibleModel") && ui.add(self.key_button("Tag Editor...", "model:tag-editor")).clicked() {
             self.focus = Some(e);
             self.open_tag_editor();
             ui.close();
         }
-        if !self.is_diagram(e) && t != "Project" && ui.button("Select In Diagram").clicked() {
+        if !self.is_diagram(e) && t != "Project" && ui.add(self.key_button("Select In Diagram", "edit:select-in-diagram")).clicked() {
             self.focus = Some(e);
             self.select_in_diagram();
             ui.close();
@@ -1051,7 +1051,7 @@ impl App {
         self.last_area = Area::Explorer;
         self.clipboard_items(ui);
         self.move_items(ui);
-        if ui.add_enabled(t != "Project", egui::Button::new("Delete from Model")).clicked() {
+        if ui.add_enabled(t != "Project", self.key_button("Delete from Model", "edit:delete-from-model")).clicked() {
             self.change(|a| a.delete_models(&[e]));
             ui.close();
         }
@@ -2170,7 +2170,7 @@ impl App {
         let measure = EguiMeasure { ctx: ui.ctx().clone() };
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
-                if ui.button(&menu_label("New                     Ctrl+N")).clicked() {
+                if ui.add(self.key_button("New", "application:new")).clicked() {
                     self.cmd_new(&measure);
                     ui.close();
                 }
@@ -2185,7 +2185,7 @@ impl App {
                         }
                     }
                 });
-                if ui.button(&menu_label("Open...                 Ctrl+O")).clicked() {
+                if ui.add(self.key_button("Open...", "project:open")).clicked() {
                     self.cmd_open(&measure);
                     ui.close();
                 }
@@ -2201,11 +2201,11 @@ impl App {
                     });
                 });
                 ui.separator();
-                if ui.button(&menu_label("Save                    Ctrl+S")).clicked() {
+                if ui.add(self.key_button("Save", "project:save")).clicked() {
                     self.save(&measure);
                     ui.close();
                 }
-                if ui.button(&menu_label("Save As...      Ctrl+Shift+S")).clicked() {
+                if ui.add(self.key_button("Save As...", "project:save-as")).clicked() {
                     self.save_as(&measure);
                     ui.close();
                 }
@@ -2259,56 +2259,59 @@ impl App {
                         ui.close();
                     }
                 });
-                if ui.button("Print to PDF...").clicked() {
+                if ui.add(self.key_button("Print to PDF...", "file:print-to-pdf")).clicked() {
                     self.print_open = true;
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Preferences...").clicked() {
+                if ui.add(self.key_button("Preferences...", "application:preferences")).clicked() {
                     self.prefs_open = Some("General".into());
                     ui.close();
                 }
                 ui.separator();
-                if ui.button(&menu_label("Exit                    Ctrl+Q")).clicked() {
+                if ui.add(self.key_button("Exit", "application:quit")).clicked() {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     ui.close();
                 }
             });
             ui.menu_button("Edit", |ui| {
-                if ui.add_enabled(!self.undo.is_empty(), egui::Button::new(&menu_label("Undo                Ctrl+Z"))).clicked() {
+                if ui.add_enabled(!self.undo.is_empty(), self.key_button("Undo", "edit:undo")).clicked() {
                     self.do_undo();
                     ui.close();
                 }
-                if ui.add_enabled(!self.redo.is_empty(), egui::Button::new(&menu_label("Redo                Ctrl+Y"))).clicked() {
+                if ui.add_enabled(!self.redo.is_empty(), self.key_button("Redo", "edit:redo")).clicked() {
                     self.do_redo();
                     ui.close();
                 }
                 ui.separator();
                 self.clipboard_items(ui);
-                if ui.button(&menu_label("Delete              Delete")).clicked() {
+                if ui.add(self.key_button("Delete", "edit:delete")).clicked() {
                     self.delete_selection(false);
                     ui.close();
                 }
-                if ui.button(&menu_label("Delete From Model   Ctrl+Delete")).clicked() {
+                // enabled when the selected model can be deleted (default-commands.js:1319-1324)
+                let sel: Vec<Eid> = self.selection.iter().copied().filter(|v| self.repo.alive(*v)).collect();
+                let can = if sel.is_empty() { self.focus.is_some_and(|f| self.repo.alive(f) && self.repo.ty(f) != "Project") } else { sel.iter().any(|v| self.repo.refd(*v, "model").is_some()) };
+                if ui.add_enabled(can, self.key_button("Delete From Model", "edit:delete-from-model")).clicked() {
                     self.delete_selection(true);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button(&menu_label("Select All          Ctrl+A")).clicked() {
+                if ui.add(self.key_button("Select All", "edit:select-all")).clicked() {
                     self.select_all();
                     ui.close();
                 }
-                if ui.button(&menu_label("Select In Explorer  Ctrl+E")).clicked() {
+                if ui.add(self.key_button("Select In Explorer", "edit:select-in-explorer")).clicked() {
                     if let Some(f) = self.focus {
                         self.reveal(f);
                     }
                     ui.close();
                 }
-                if ui.add_enabled(self.focus.is_some(), egui::Button::new(&menu_label("Select In Diagram   Ctrl+D"))).clicked() {
+                if ui.add_enabled(self.focus.is_some(), self.key_button("Select In Diagram", "edit:select-in-diagram")).clicked() {
                     self.select_in_diagram();
                     ui.close();
                 }
-                if ui.add_enabled(self.focus.is_some(), egui::Button::new(&menu_label("Open Sub-Diagram    Ctrl+Shift+D"))).clicked() {
+                if ui.add_enabled(self.focus.is_some(), self.key_button("Open Sub-Diagram", "edit:open-sub-diagram")).clicked() {
                     self.open_sub_diagram();
                     ui.close();
                 }
@@ -2316,7 +2319,7 @@ impl App {
                 self.move_items(ui);
             });
             ui.menu_button("Format", |ui| {
-                if ui.add_enabled(!self.selection.is_empty(), egui::Button::new(&menu_label("Font...                         Ctrl+Shift+F"))).clicked() {
+                if ui.add_enabled(!self.selection.is_empty(), self.key_button("Font...", "format:font")).clicked() {
                     self.open_font_dialog();
                     ui.close();
                 }
@@ -2352,7 +2355,7 @@ impl App {
                         }
                     }
                 });
-                if ui.button(&menu_label("Find...                   Ctrl+F")).clicked() {
+                if ui.add(self.key_button("Find...", "find:find")).clicked() {
                     self.open_find();
                     ui.close();
                 }
@@ -2363,7 +2366,7 @@ impl App {
                     }
                 });
                 let taggable = self.focus.map(|f| self.repo.alive(f) && self.repo.kind_of(f, "ExtensibleModel")).unwrap_or(false);
-                if ui.add_enabled(taggable, egui::Button::new(&menu_label("Tag Editor...       Ctrl+T"))).clicked() {
+                if ui.add_enabled(taggable, self.key_button("Tag Editor...", "model:tag-editor")).clicked() {
                     self.open_tag_editor();
                     ui.close();
                 }
@@ -2394,11 +2397,11 @@ impl App {
                 });
             });
             ui.menu_button("View", |ui| {
-                if ui.button(&menu_label("Quick Find...        Ctrl+P")).clicked() {
+                if ui.add(self.key_button("Quick Find...", "view:quick-find")).clicked() {
                     self.open_palette(crate::palette::Mode::Find);
                     ui.close();
                 }
-                if ui.button("Command Palette... Ctrl+Shift+P").clicked() {
+                if ui.add(self.key_button("Command Palette...", "view:command-palette")).clicked() {
                     self.open_palette(crate::palette::Mode::Commands);
                     ui.close();
                 }
@@ -2406,40 +2409,47 @@ impl App {
                 self.diagram_close_items(ui);
                 ui.separator();
                 let many = self.open.len() > 1;
-                if ui.add_enabled(many, egui::Button::new(&menu_label("Next Diagram        Ctrl+Shift+]"))).clicked() {
+                if ui.add_enabled(many, self.key_button("Next Diagram", "view:next-diagram")).clicked() {
                     self.cycle_diagram(1);
                     ui.close();
                 }
-                if ui.add_enabled(many, egui::Button::new(&menu_label("Previous Diagram    Ctrl+Shift+["))).clicked() {
+                if ui.add_enabled(many, self.key_button("Previous Diagram", "view:previous-diagram")).clicked() {
                     self.cycle_diagram(-1);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button(&menu_label("Zoom In             Ctrl+=")).clicked() {
+                if ui.add(self.key_button("Zoom In", "view:zoom-in")).clicked() {
                     self.zoom_keep_centre(self.zoom + crate::app::ZOOM_STEP);
                 }
-                if ui.button(&menu_label("Zoom Out            Ctrl+-")).clicked() {
+                if ui.add(self.key_button("Zoom Out", "view:zoom-out")).clicked() {
                     self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP);
                 }
-                if ui.button(&menu_label("Actual Size         Ctrl+0")).clicked() {
+                if ui.add(self.key_button("Actual Size", "view:actual-size")).clicked() {
                     self.zoom_keep_centre(1.0);
                 }
-                if ui.button(&menu_label("Fit To Window       Ctrl+9")).clicked() {
+                if ui.add(self.key_button("Fit To Window", "view:fit-to-window")).clicked() {
                     self.fit();
                     ui.close();
                 }
                 ui.separator();
-                ui.checkbox(&mut self.show_grid, "Show Grid");
-                ui.checkbox(&mut self.snap, "Snap to Grid");
+                let t = self.key_text("Show Grid", "view:show-grid");
+                ui.checkbox(&mut self.show_grid, t);
+                let t = self.key_text("Snap to Grid", "view:snap-to-grid");
+                ui.checkbox(&mut self.snap, t);
                 ui.separator();
-                ui.checkbox(&mut self.show_minimap, &menu_label("Minimap               Ctrl+Alt+M"));
-                ui.checkbox(&mut self.show_markdown, &menu_label("Markdown Documentation  Ctrl+Alt+D"));
-                ui.checkbox(&mut self.show_thumbnails, &menu_label("Diagram Thumbnails  Ctrl+Alt+T"));
-                ui.checkbox(&mut self.show_relationships, &menu_label("Relationships     Ctrl+Alt+R"));
+                let t = self.key_text("Minimap", "minimap:toggle");
+                ui.checkbox(&mut self.show_minimap, t);
+                let t = self.key_text("Markdown Documentation", "markdown-doc:toggle");
+                ui.checkbox(&mut self.show_markdown, t);
+                let t = self.key_text("Diagram Thumbnails", "diagram-thumbnails:toggle");
+                ui.checkbox(&mut self.show_thumbnails, t);
+                let t = self.key_text("Relationships", "relationship-view:toggle");
+                ui.checkbox(&mut self.show_relationships, t);
                 ui.separator();
                 for (i, label) in PANELS.iter().enumerate() {
                     let mut on = *self.panel_flag(i);
-                    if ui.checkbox(&mut on, format!("{label:<14}Ctrl+{}", i + 1)).clicked() {
+                    let t = self.key_text(label, &format!("view:{}", label.to_lowercase()));
+                    if ui.checkbox(&mut on, t).clicked() {
                         *self.panel_flag(i) = on;
                     }
                 }
@@ -2575,13 +2585,12 @@ impl App {
                 }
             });
         }
-        for (field, label) in FORMAT_TOGGLES {
+        for (field, label, _) in FORMAT_TOGGLES {
             if self.flag_views(field).is_empty() {
                 continue;
             }
             let mut on = self.flag_state(field) == Some(true);
-            let short = label.split("  ").next().unwrap_or(label).trim();
-            if ui.checkbox(&mut on, egui::RichText::new(short).size(12.0)).clicked() {
+            if ui.checkbox(&mut on, egui::RichText::new(label).size(12.0)).clicked() {
                 self.toggle_flag(field);
             }
         }
@@ -2658,7 +2667,7 @@ impl App {
         ui.add_enabled_ui(has, |ui| {
             ui.menu_button("Line Style", |ui| {
                 let cur = self.line_style_state();
-                for (style, label) in [(0, &menu_label("Rectilinear              Ctrl+L")), (1, &menu_label("Oblique                    Ctrl+B")), (2, &menu_label("Rounded Rectilinear  Ctrl+Alt+L")), (3, &menu_label("Curve                        Ctrl+Alt+B"))] {
+                for (style, label) in [(0, self.key_text("Rectilinear", "format:linestyle-rectilinear")), (1, self.key_text("Oblique", "format:linestyle-oblique")), (2, self.key_text("Rounded Rectilinear", "format:linestyle-roundrect")), (3, self.key_text("Curve", "format:linestyle-curve"))] {
                     let mut on = cur == Some(style);
                     if ui.checkbox(&mut on, label).clicked() {
                         self.set_line_style(style);
@@ -2672,11 +2681,11 @@ impl App {
     /// Move Up and Move Down (Edit menu and explorer menu).
     pub(crate) fn move_items(&mut self, ui: &mut egui::Ui) {
         let e = self.focus.filter(|f| self.repo.alive(*f) && self.repo.ty(*f) != "Project" && !self.is_view(*f));
-        if ui.add_enabled(e.is_some(), egui::Button::new(&menu_label("Move Up             Ctrl+Shift+Up"))).clicked() {
+        if ui.add_enabled(e.is_some(), self.key_button("Move Up", "edit:move-up")).clicked() {
             self.move_element(e.unwrap(), true);
             ui.close();
         }
-        if ui.add_enabled(e.is_some(), egui::Button::new(&menu_label("Move Down           Ctrl+Shift+Down"))).clicked() {
+        if ui.add_enabled(e.is_some(), self.key_button("Move Down", "edit:move-down")).clicked() {
             self.move_element(e.unwrap(), false);
             ui.close();
         }
@@ -2685,19 +2694,19 @@ impl App {
     /// Cut, Copy and Paste (Edit menu, canvas menu and explorer menu).
     pub(crate) fn clipboard_items(&mut self, ui: &mut egui::Ui) {
         let can = self.can_copy();
-        if ui.add_enabled(can, egui::Button::new(&menu_label("Cut                 Ctrl+X"))).clicked() {
+        if ui.add_enabled(can, self.key_button("Cut", "edit:cut")).clicked() {
             self.cmd_cut(Some(&ui.ctx().clone()));
             ui.close();
         }
-        if ui.add_enabled(can, egui::Button::new(&menu_label("Copy                Ctrl+C"))).clicked() {
+        if ui.add_enabled(can, self.key_button("Copy", "edit:copy")).clicked() {
             self.cmd_copy(Some(&ui.ctx().clone()));
             ui.close();
         }
-        if ui.add_enabled(self.diagram.is_some(), egui::Button::new(&menu_label("Copy Diagram As Image  Ctrl+Shift+C"))).clicked() {
+        if ui.add_enabled(self.diagram.is_some(), self.key_button("Copy Diagram As Image", "edit:copy-diagram-as-image")).clicked() {
             self.cmd_copy_diagram_image(&ui.ctx().clone());
             ui.close();
         }
-        if ui.button(&menu_label("Paste               Ctrl+V")).clicked() {
+        if ui.add(self.key_button("Paste", "edit:paste")).clicked() {
             self.cmd_paste();
             ui.close();
         }
@@ -2706,15 +2715,15 @@ impl App {
     /// Close Diagram, Close Other Diagrams and Close All Diagrams (View menu and Working Diagrams menu).
     fn diagram_close_items(&mut self, ui: &mut egui::Ui) {
         let has = self.diagram.is_some();
-        if ui.add_enabled(has, egui::Button::new(&menu_label("Close Diagram       F4"))).clicked() {
+        if ui.add_enabled(has, self.key_button("Close Diagram", "view:close-diagram")).clicked() {
             self.close_diagram(None);
             ui.close();
         }
-        if ui.add_enabled(has, egui::Button::new(&menu_label("Close Other Diagrams  Ctrl+F4"))).clicked() {
+        if ui.add_enabled(has, self.key_button("Close Other Diagrams", "view:close-other-diagrams")).clicked() {
             self.close_other_diagrams();
             ui.close();
         }
-        if ui.add_enabled(!self.open.is_empty(), egui::Button::new(&menu_label("Close All Diagrams  Shift+F4"))).clicked() {
+        if ui.add_enabled(!self.open.is_empty(), self.key_button("Close All Diagrams", "view:close-all-diagrams")).clicked() {
             self.close_all_diagrams();
             ui.close();
         }
@@ -2727,9 +2736,9 @@ impl App {
         ui.add_enabled_ui(!self.flag_views("stereotypeDisplay").is_empty(), |ui| {
             ui.menu_button("Stereotype Display", |ui| {
                 let cur = self.stereotype_display_state();
-                for (i, (value, label)) in crate::style::STEREOTYPE_DISPLAYS.into_iter().enumerate() {
+                for (value, label) in crate::style::STEREOTYPE_DISPLAYS {
                     let mut on = cur.as_deref() == Some(value);
-                    if ui.checkbox(&mut on, format!("{label:<24}Ctrl+Shift+{i}")).clicked() {
+                    if ui.checkbox(&mut on, self.key_text(label, &format!("format:stereotype-{value}"))).clicked() {
                         self.set_stereotype_display(value);
                         ui.close();
                     }
@@ -2739,14 +2748,14 @@ impl App {
     }
 
     pub(crate) fn format_toggles(&mut self, ui: &mut egui::Ui) {
-        for (i, (field, label)) in FORMAT_TOGGLES.into_iter().enumerate() {
+        for (i, (field, label, id)) in FORMAT_TOGGLES.into_iter().enumerate() {
             // UML display toggles after Auto Resize, Show Shadow and Inherit Style, then the Suppress ones
             if i == 3 || field == "suppressAttributes" {
                 ui.separator();
             }
             let has = !self.flag_views(field).is_empty();
             let mut on = self.flag_state(field) == Some(true);
-            if ui.add_enabled(has, egui::Checkbox::new(&mut on, menu_label(label))).clicked() {
+            if ui.add_enabled(has, egui::Checkbox::new(&mut on, self.key_text(label, id))).clicked() {
                 self.toggle_flag(field);
                 ui.close();
             }
@@ -2784,17 +2793,18 @@ impl App {
         if self.modal_open() {
             return;
         }
+        // while a text field has the keys, the edit keys (Ctrl+C/X/V/Z/Y, Ctrl+A, Delete and
+        // Backspace, with any other modifier) are the field's; every other shortcut still runs
+        // (keymap-manager.js:294-347)
         let typing = self.editing.is_some() || text_field_focused(ctx);
         let measure = EguiMeasure { ctx: ctx.clone() };
         let sc = |m: Modifiers, k: Key| KeyboardShortcut::new(m, k);
         let cs = Modifiers::COMMAND | Modifiers::SHIFT;
-        let hit = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
+        let hit = |s: KeyboardShortcut| !(typing && crate::keymap::is_edit_key(s.modifiers, s.logical_key)) && ctx.input_mut(|i| i.consume_shortcut(&s));
         // the user's keymap.json wins over the built-in shortcuts
-        if !typing {
-            self.user_shortcuts(ctx);
-        }
+        self.user_shortcuts(ctx, typing);
         // Ctrl+Shift toggles first: a Ctrl shortcut also matches when Shift is held (Ctrl+N, Ctrl+A…)
-        if !typing {
+        {
             if hit(sc(cs, Key::F)) {
                 self.open_font_dialog();
             }
@@ -2818,7 +2828,7 @@ impl App {
                 }
             }
             // Ctrl+Shift+V reaches egui as a paste (when the clipboard holds text), not as a key
-            let shift_paste = ctx.input_mut(|i| {
+            let shift_paste = !typing && ctx.input_mut(|i| {
                 let n = i.events.len();
                 if i.modifiers.command && i.modifiers.shift {
                     i.events.retain(|e| !matches!(e, egui::Event::Paste(_)));
@@ -2844,11 +2854,8 @@ impl App {
         if hit(sc(Modifiers::COMMAND, Key::Q)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
-        if typing {
-            return;
-        }
-        // Esc anywhere goes back to the Select tool and clears the lock (toolbox-view.js:473-479)
-        if ctx.input(|i| i.key_pressed(Key::Escape)) && self.drag.is_none() {
+        // Esc anywhere but in a field goes back to the Select tool and clears the lock (toolbox-view.js:473-479)
+        if !typing && ctx.input(|i| i.key_pressed(Key::Escape)) && self.drag.is_none() {
             self.tool = None;
             self.tool_sticky = false;
         }
@@ -2859,7 +2866,7 @@ impl App {
             self.do_undo();
         }
         // Ctrl+C, Ctrl+X and Ctrl+V reach egui as Copy, Cut and Paste events, not as keys
-        let clip = ctx.input_mut(|i| {
+        let clip = if typing { None } else { ctx.input_mut(|i| {
             let mut out = None;
             i.events.retain(|e| match e {
                 egui::Event::Copy | egui::Event::Cut | egui::Event::Paste(_) if out.is_none() => {
@@ -2869,7 +2876,7 @@ impl App {
                 _ => true,
             });
             out
-        });
+        }) };
         let shift = ctx.input(|i| i.modifiers.shift);
         match clip {
             // Ctrl+Shift+C also arrives as a Copy event
@@ -3461,23 +3468,25 @@ pub struct WorkingRow(pub Eid);
 pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 16] = [
-    ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
-    ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
-    ("parentStyle", "Inherit Style                     Ctrl+Shift+K"),
-    ("wordWrap", "Word Wrap                         Ctrl+Shift+W"),
-    ("showVisibility", "Show Visibility                 Ctrl+Shift+V"),
-    ("showNamespace", "Show Namespace                  Ctrl+Shift+N"),
-    ("showProperty", "Show Property                    Ctrl+Shift+B"),
-    ("showType", "Show Type                          Ctrl+Shift+Y"),
-    ("showMultiplicity", "Show Multiplicity               Ctrl+Shift+M"),
-    ("showOperationSignature", "Show Operation Signature    Ctrl+Shift+J"),
-    ("showDiagramName", "Show Diagram Name            Ctrl+Shift+D"),
-    ("suppressAttributes", "Suppress Attributes             Ctrl+Shift+A"),
-    ("suppressOperations", "Suppress Operations            Ctrl+Shift+O"),
-    ("suppressReceptions", "Suppress Receptions            Ctrl+Shift+E"),
-    ("suppressLiterals", "Suppress Literals                 Ctrl+Shift+T"),
-    ("suppressColumns", "Suppress Columns               Ctrl+Shift+U"),
+/// The Format menu's on/off items: the view field, the name and the command (whose keystroke the
+/// menu shows).
+const FORMAT_TOGGLES: [(&str, &str, &str); 16] = [
+    ("autoResize", "Auto Resize", "format:auto-resize"),
+    ("showShadow", "Show Shadow", "format:show-shadow"),
+    ("parentStyle", "Inherit Style", "format:inherit-style"),
+    ("wordWrap", "Word Wrap", "format:word-wrap"),
+    ("showVisibility", "Show Visibility", "format:show-visibility"),
+    ("showNamespace", "Show Namespace", "format:show-namespace"),
+    ("showProperty", "Show Property", "format:show-property"),
+    ("showType", "Show Type", "format:show-type"),
+    ("showMultiplicity", "Show Multiplicity", "format:show-multiplicity"),
+    ("showOperationSignature", "Show Operation Signature", "format:show-operation-signature"),
+    ("showDiagramName", "Show Diagram Name", "format:show-diagram-name"),
+    ("suppressAttributes", "Suppress Attributes", "format:suppress-attributes"),
+    ("suppressOperations", "Suppress Operations", "format:suppress-operations"),
+    ("suppressReceptions", "Suppress Receptions", "format:suppress-receptions"),
+    ("suppressLiterals", "Suppress Literals", "format:suppress-literals"),
+    ("suppressColumns", "Suppress Columns", "erd:suppress-columns"),
 ];
 
 /// The small padlock shown on a locked toolbox item.
@@ -3727,21 +3736,6 @@ fn swatch(ui: &mut egui::Ui, c: Color32, size: Vec2) -> egui::Response {
     r
 }
 
-/// A menu label "Name      Ctrl+X": on macOS its shortcut is shown as symbols, "Name  ⌘X"
-/// (keymap-manager.js:75-152); elsewhere it is left as written.
-pub(crate) fn menu_label(label: &str) -> String {
-    menu_label_for(label, cfg!(target_os = "macos"))
-}
-
-pub(crate) fn menu_label_for(label: &str, mac: bool) -> String {
-    if !mac {
-        return label.to_string();
-    }
-    match label.trim_end().rsplit_once("  ") {
-        Some((name, key)) if !key.trim().is_empty() => format!("{}  {}", name.trim_end(), crate::palette::shortcut_label(key.trim(), true)),
-        _ => label.to_string(),
-    }
-}
 
 /// A soft shadow under the top edge of a scrolled list.
 fn scroll_shadow(p: &egui::Painter, r: Rect) {

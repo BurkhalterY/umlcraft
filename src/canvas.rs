@@ -2708,15 +2708,15 @@ impl App {
     fn canvas_menu(&mut self, ui: &mut egui::Ui) {
         self.last_area = crate::app::Area::Canvas;
         let Some(v) = self.ctx_target.filter(|v| self.repo.alive(*v)) else {
-            if ui.button("Paste").clicked() {
+            if ui.add(self.key_button("Paste", "edit:paste")).clicked() {
                 self.cmd_paste();
                 ui.close();
             }
-            if ui.button("Select All").clicked() {
+            if ui.add(self.key_button("Select All", "edit:select-all")).clicked() {
                 self.select_all();
                 ui.close();
             }
-            if ui.button("Fit To Window").clicked() {
+            if ui.add(self.key_button("Fit To Window", "view:fit-to-window")).clicked() {
                 self.fit();
                 ui.close();
             }
@@ -2744,7 +2744,7 @@ impl App {
             self.line_style_menu(ui);
         }
         ui.menu_button("Format", |ui| {
-            if ui.button("Font...").clicked() {
+            if ui.add(self.key_button("Font...", "format:font")).clicked() {
                 self.open_font_dialog();
                 ui.close();
             }
@@ -2757,31 +2757,31 @@ impl App {
         });
         ui.separator();
         if let Some(m) = m {
-            if ui.button("Select In Explorer").clicked() {
+            if ui.add(self.key_button("Select In Explorer", "edit:select-in-explorer")).clicked() {
                 self.reveal(m);
                 ui.close();
             }
-            if ui.button("Select In Diagram").clicked() {
+            if ui.add(self.key_button("Select In Diagram", "edit:select-in-diagram")).clicked() {
                 self.focus = Some(m);
                 self.select_in_diagram();
                 ui.close();
             }
-            if ui.button("Open Sub-Diagram").clicked() {
+            if ui.add(self.key_button("Open Sub-Diagram", "edit:open-sub-diagram")).clicked() {
                 self.focus = Some(m);
                 self.open_sub_diagram();
                 ui.close();
             }
-            if ui.button("Tag Editor...").clicked() {
+            if ui.add(self.key_button("Tag Editor...", "model:tag-editor")).clicked() {
                 self.focus = Some(m);
                 self.open_tag_editor();
                 ui.close();
             }
         }
-        if ui.button("Delete").clicked() {
+        if ui.add(self.key_button("Delete", "edit:delete")).clicked() {
             self.delete_selection(false);
             ui.close();
         }
-        if m.is_some() && ui.button("Delete from Model").clicked() {
+        if m.is_some() && ui.add(self.key_button("Delete from Model", "edit:delete-from-model")).clicked() {
             self.delete_selection(true);
             ui.close();
         }

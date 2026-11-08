@@ -447,6 +447,18 @@ fn diagram_navigation_shortcuts() {
     a.open_diagram(d2);
     press(&mut a, Key::F4, Modifiers::SHIFT);
     assert!(a.open.is_empty(), "Shift+F4 closes all");
+    // while a field is being edited, the edit keys are its own and the other shortcuts still run
+    a.open_diagram(d2);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    a.select(vec![c]);
+    a.editing = Some(crate::app::Editing { kind: crate::app::EditKind::Name(m), text: String::new(), rect: rect(0.0, 0.0, 10.0, 10.0), multiline: false, center: false, fresh: false, host: None, orig: None });
+    let undo = a.undo.len();
+    press(&mut a, Key::Z, Modifiers::COMMAND);
+    press(&mut a, Key::A, Modifiers::COMMAND | Modifiers::SHIFT);
+    assert_eq!((a.undo.len(), a.repo.val(c, "suppressAttributes").and_then(|v| v.as_bool())), (undo, Some(false)), "Ctrl+Z and Ctrl+Shift+A stay in the field");
+    press(&mut a, Key::G, Modifiers::COMMAND);
+    assert!(!a.show_grid, "Ctrl+G still toggles the grid");
 }
 
 #[test]
@@ -3862,21 +3874,36 @@ fn link_object_tool() {
 
 #[test]
 fn shortcut_labels_per_platform() {
-    use crate::palette::shortcut_label;
-    assert_eq!(shortcut_label("Ctrl+Shift+P", false), "Ctrl+Shift+P");
-    assert_eq!(shortcut_label("Ctrl+Shift+P", true), "⌘⇧P");
-    assert_eq!(shortcut_label("Alt+Up", true), "⌥↑");
-    assert_eq!(shortcut_label("Ctrl+Up", false), "Ctrl+↑");
-    assert_eq!(shortcut_label("", true), "");
+    use crate::keymap::stroke_label;
+    use egui::{Key, Modifiers};
+    assert_eq!(stroke_label((Modifiers::COMMAND | Modifiers::SHIFT, Key::P), false), "Ctrl+Shift+P");
+    assert_eq!(stroke_label((Modifiers::COMMAND | Modifiers::SHIFT, Key::P), true), "⌘⇧P");
+    assert_eq!(stroke_label((Modifiers::ALT, Key::ArrowUp), true), "⌥↑");
+    assert_eq!(stroke_label((Modifiers::COMMAND, Key::ArrowUp), false), "Ctrl+↑");
 }
 
 #[test]
-fn menu_labels_keep_their_text_off_macos() {
-    use crate::ui::menu_label_for;
-    assert_eq!(menu_label_for("Save As...      Ctrl+Shift+S", false), "Save As...      Ctrl+Shift+S");
-    assert_eq!(menu_label_for("Save As...      Ctrl+Shift+S", true), "Save As...  ⌘⇧S");
-    assert_eq!(menu_label_for("Close Diagram  F4", true), "Close Diagram  F4");
-    assert_eq!(menu_label_for("Plain", true), "Plain");
+fn menu_accelerators_come_from_the_keymap() {
+    use crate::keymap::{parse_stroke, stroke_label};
+    use egui::{Key, Modifiers};
+    assert_eq!(stroke_label((Modifiers::COMMAND | Modifiers::SHIFT, Key::S), false), "Ctrl+Shift+S");
+    assert_eq!(stroke_label((Modifiers::COMMAND | Modifiers::SHIFT, Key::S), true), "⌘⇧S");
+    assert_eq!(stroke_label((Modifiers::NONE, Key::F4), true), "F4");
+    assert_eq!(stroke_label((Modifiers::COMMAND, Key::Minus), false), "Ctrl+-");
+    let mut a = App::new(None);
+    let mac = cfg!(target_os = "macos");
+    let label = |k: &str| stroke_label(parse_stroke(k).unwrap(), mac);
+    // the built-in keys, Ctrl+G among them
+    assert_eq!(a.accel("project:save-as"), label("cmdctrl-shift-s"));
+    assert_eq!(a.accel("view:show-grid"), label("cmdctrl-g"));
+    assert_eq!(a.accel("view:snap-to-grid"), label("cmdctrl-shift-g"));
+    assert_eq!(a.accel("format:stereotype-icon"), label("cmdctrl-shift-4"));
+    assert_eq!(a.accel("help:about"), "");
+    // a user binding is shown, and takes its keystroke from the command that had it
+    a.user_keymap = vec![(parse_stroke("cmdctrl-alt-g").unwrap(), "view:show-grid".into()), (parse_stroke("cmdctrl-s").unwrap(), "view:statusbar".into())];
+    assert_eq!(a.accel("view:show-grid"), label("cmdctrl-alt-g"));
+    assert_eq!(a.accel("view:statusbar"), label("cmdctrl-s"));
+    assert_eq!(a.accel("project:save"), "");
 }
 
 #[test]
