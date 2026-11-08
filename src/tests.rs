@@ -9010,3 +9010,28 @@ fn validation_runs_in_the_background_with_a_window() {
     assert!(a.validated);
     assert_eq!(a.problems.len(), 2, "the example's two elements named Member");
 }
+
+#[test]
+fn pdf_draws_svg_pictures_as_vectors() {
+    use crate::pdf::PrintOptions;
+    let ms = measure();
+    let dir = std::env::temp_dir().join(format!("umlcraft-pdf-svg-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let svg = dir.join("shape.svg");
+    std::fs::write(&svg, r##"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect x="2" y="2" width="20" height="10" fill="#ff0000"/><circle cx="30" cy="10" r="5" fill="none" stroke="#0000ff" stroke-width="2"/></svg>"##).unwrap();
+    let grad = dir.join("grad.svg");
+    std::fs::write(&grad, r##"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><defs><linearGradient id="g"><stop offset="0" stop-color="red"/><stop offset="1" stop-color="blue"/></linearGradient></defs><rect width="10" height="10" fill="url(#g)"/></svg>"##).unwrap();
+    let mut a = App::new(None);
+    a.drop_image_file(&svg, crate::views::P { x: 100.0, y: 100.0 }).unwrap();
+    let pdf = a.print_pdf(&PrintOptions { all: false, ..PrintOptions::default() }, &ms).unwrap();
+    let all: String = pdf_objects(&pdf).values().map(|b| String::from_utf8_lossy(b).to_string()).collect();
+    assert_eq!(all.matches("/Subtype /Image").count(), 0, "no picture for a plain SVG");
+    assert!(all.contains("1 0 0 rg") && all.contains("0 0 1 RG"), "its red fill and blue stroke");
+    assert!(all.contains(" c "), "the circle as curves");
+    // a gradient is left to the picture path
+    a.drop_image_file(&grad, crate::views::P { x: 300.0, y: 100.0 }).unwrap();
+    let pdf = a.print_pdf(&PrintOptions { all: false, ..PrintOptions::default() }, &ms).unwrap();
+    let all: String = pdf_objects(&pdf).values().map(|b| String::from_utf8_lossy(b).to_string()).collect();
+    assert!(all.matches("/Subtype /Image").count() >= 1);
+    let _ = std::fs::remove_dir_all(&dir);
+}

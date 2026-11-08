@@ -381,6 +381,10 @@ impl Canvas for PdfCanvas<'_> {
         if b.w <= 0.0 || b.h <= 0.0 {
             return;
         }
+        // an SVG picture becomes vector shapes, as SVGtoPDF makes them (pdf-graphics.js:1180-1240)
+        if self.svg_vectors(b, data_url) {
+            return;
+        }
         let i = match self.sh.image_of.get(data_url) {
             Some(i) => *i,
             None => {
@@ -396,6 +400,156 @@ impl Canvas for PdfCanvas<'_> {
             let _ = writeln!(self.out, "q {} 0 0 {} {} {} cm /Im{i} Do Q", num(b.w), num(-b.h), num(b.x), num(b.y + b.h));
         }
     }
+}
+
+/// An SVG drawn as PDF paths: what the SVG parser makes of it (shapes, strokes, text as outlines)
+/// in solid colours. A picture with gradients, patterns, embedded pictures or masks is left to the
+/// picture path instead.
+fn svg_drawable(g: &resvg::usvg::Group) -> bool {
+    use resvg::usvg::{Node, Paint};
+    let solid = |p: &Paint| matches!(p, Paint::Color(_));
+    g.clip_path().is_none()
+        && g.mask().is_none()
+        && g.filters().is_empty()
+        && g.children().iter().all(|n| match n {
+            Node::Group(g) => svg_drawable(g),
+            Node::Path(p) => p.fill().map(|f| solid(f.paint())).unwrap_or(true) && p.stroke().map(|s| solid(s.paint())).unwrap_or(true),
+            Node::Text(t) => svg_drawable(t.flattened()),
+            Node::Image(_) => false,
+        })
+}
+
+impl PdfCanvas<'_> {
+    /// Draw an SVG data URL fitted into `b` as vector paths; false when it is not an SVG the
+    /// conversion handles.
+    fn svg_vectors(&mut self, b: R, url: &str) -> bool {
+        use resvg::usvg;
+        let Some((mime, bytes)) = crate::picture::split_data_url(url) else { return false };
+        if mime != "image/svg+xml" {
+            return false;
+        }
+        let Ok(tree) = usvg::Tree::from_data(&bytes, &usvg::Options::default()) else { return false };
+        if !svg_drawable(tree.root()) {
+            return false;
+        }
+        let s = tree.size();
+        let (sx, sy) = (b.w / s.width().max(1e-6) as f64, b.h / s.height().max(1e-6) as f64);
+        let _ = writeln!(self.out, "q {} 0 0 {} {} {} cm", num(sx), num(sy), num(b.x), num(b.y));
+        // clip to the picture's box, as a picture is
+        let _ = writeln!(self.out, "0 0 {} {} re W n", num(s.width() as f64), num(s.height() as f64));
+        self.svg_group(tree.root(), 1.0);
+        self.out += "Q\n";
+        true
+    }
+
+    fn svg_group(&mut self, g: &resvg::usvg::Group, opacity: f32) {
+        use resvg::usvg::{FillRule, Node, Paint};
+        let opacity = opacity * g.opacity().get();
+        for n in g.children() {
+            match n {
+                Node::Group(c) => self.svg_group(c, opacity),
+                Node::Text(t) => self.svg_group(t.flattened(), opacity),
+                Node::Path(p) => {
+                    if !p.is_visible() {
+                        continue;
+                    }
+                    let t = p.abs_transform();
+                    // the point in the picture's space, through the path's whole transform
+                    let tp = |x: f32, y: f32| {
+                        let px = t.sx * x + t.kx * y + t.tx;
+                        let py = t.ky * x + t.sy * y + t.ty;
+                        format!("{} {}", num(px as f64), num(py as f64))
+                    };
+                    let mut path = String::new();
+                    for seg in p.data().segments() {
+                        use resvg::tiny_skia::PathSegment;
+                        let _ = match seg {
+                            PathSegment::MoveTo(a) => write!(path, "{} m ", tp(a.x, a.y)),
+                            PathSegment::LineTo(a) => write!(path, "{} l ", tp(a.x, a.y)),
+                            PathSegment::QuadTo(c, a) => {
+                                // a quadratic curve as the cubic it equals
+                                let last = last_point(&path);
+                                let (c1x, c1y) = (last.0 + 2.0 / 3.0 * (c.x as f64 - last.0), last.1 + 2.0 / 3.0 * (c.y as f64 - last.1));
+                                let (c2x, c2y) = (a.x as f64 + 2.0 / 3.0 * (c.x as f64 - a.x as f64), a.y as f64 + 2.0 / 3.0 * (c.y as f64 - a.y as f64));
+                                write!(path, "{} {} {} c ", tp(c1x as f32, c1y as f32), tp(c2x as f32, c2y as f32), tp(a.x, a.y))
+                            }
+                            PathSegment::CubicTo(c1, c2, a) => write!(path, "{} {} {} c ", tp(c1.x, c1.y), tp(c2.x, c2.y), tp(a.x, a.y)),
+                            PathSegment::Close => write!(path, "h "),
+                        };
+                        if let PathSegment::MoveTo(a) | PathSegment::LineTo(a) | PathSegment::QuadTo(_, a) | PathSegment::CubicTo(_, _, a) = seg {
+                            remember_point(&mut path, a.x as f64, a.y as f64);
+                        }
+                    }
+                    let path = strip_points(&path);
+                    let color = |paint: &Paint, o: f32| match paint {
+                        Paint::Color(c) => Some(Rgba(c.red, c.green, c.blue, (255.0 * (o * opacity).clamp(0.0, 1.0)) as u8)),
+                        _ => None,
+                    };
+                    let fill = p.fill().and_then(|f| color(f.paint(), f.opacity().get()));
+                    let even_odd = p.fill().map(|f| f.rule() == FillRule::EvenOdd).unwrap_or(false);
+                    let stroke = p.stroke().and_then(|s| color(s.paint(), s.opacity().get()));
+                    let mut q = false;
+                    if let Some(st) = p.stroke() {
+                        // the stroke width in page units: the path's scale applies to it
+                        let k = ((t.sx * t.sy - t.kx * t.ky).abs() as f64).sqrt();
+                        let _ = writeln!(self.out, "q {} w", num(st.width().get() as f64 * k));
+                        q = true;
+                    }
+                    if fill.is_none() && stroke.is_none() {
+                        if q {
+                            self.out += "Q\n";
+                        }
+                        continue;
+                    }
+                    let qa = self.opacity(fill, stroke);
+                    if let Some(f) = fill {
+                        let _ = write!(self.out, "{} rg ", rgb(f));
+                    }
+                    if let Some(s) = stroke {
+                        let _ = write!(self.out, "{} RG ", rgb(s));
+                    }
+                    self.out += path.trim_end();
+                    self.out += match (fill.is_some(), stroke.is_some(), even_odd) {
+                        (true, true, false) => " B\n",
+                        (true, true, true) => " B*\n",
+                        (true, false, false) => " f\n",
+                        (true, false, true) => " f*\n",
+                        _ => " S\n",
+                    };
+                    if qa {
+                        self.out += "Q\n";
+                    }
+                    if q {
+                        self.out += "Q\n";
+                    }
+                }
+                Node::Image(_) => {}
+            }
+        }
+    }
+}
+
+/// The last point of a path being written (kept as a `%x,y` marker, removed by `strip_points`).
+fn last_point(path: &str) -> (f64, f64) {
+    path.rsplit('%').next().and_then(|t| t.split(';').next()).and_then(|t| t.split_once(',')).map(|(x, y)| (x.parse().unwrap_or(0.0), y.parse().unwrap_or(0.0))).unwrap_or((0.0, 0.0))
+}
+
+fn remember_point(path: &mut String, x: f64, y: f64) {
+    let _ = write!(path, "%{x},{y};");
+}
+
+fn strip_points(path: &str) -> String {
+    let mut out = String::new();
+    let mut skip = false;
+    for c in path.chars() {
+        match c {
+            '%' => skip = true,
+            ';' if skip => skip = false,
+            _ if !skip => out.push(c),
+            _ => {}
+        }
+    }
+    out
 }
 
 /// The subset prefix of the n-th font's name: six capital letters.
