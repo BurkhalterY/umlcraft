@@ -306,6 +306,7 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         v.push(("BPMN", "", label, Kind::Header, Value::Null));
         v.push(("BPMN", key, "Line Style", Kind::LineStyle, json!(2)));
     }
+    v.extend(crate::sysml::preferences());
     // ER diagrams (erd/preferences/erd.json)
     v.push(("ERD", "", "Entity", Kind::Header, Value::Null));
     v.push(("ERD", "erd.entity.fillColor", "Fill Color", Kind::Color, Value::Null));
@@ -431,7 +432,7 @@ impl App {
             Some("C4Component") => Some("c4.component.fillColor"),
             // a BPMN box's own fill colour (the BPMN view constructors, bpmn/elements.js:970-2500)
             Some(_) if ty.starts_with("BPMN") => crate::bpmn::fill_pref(&ty),
-            _ => None,
+            _ => crate::sysml::fill_pref(&ty),
         };
         if let Some(p) = own.map(|k| self.pref(k)).filter(|p| p.is_string()) {
             fill = p;
@@ -477,6 +478,13 @@ impl App {
                 }
             }
         }
+        // a SysML block view's suppressed compartments (preferences/sysml.json)
+        for (field, key) in crate::sysml::suppress_prefs(&ty) {
+            let p = self.pref(key);
+            if !p.is_null() {
+                sets.push((field, p));
+            }
+        }
         for (field, value) in sets {
             if crate::meta::order_of(&ty, field).is_some() {
                 self.repo.set(v, field, value);
@@ -498,7 +506,7 @@ impl App {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(120.0);
-                    for s in ["General", "AWS", "Azure", "BPMN", "C4 Model", "GCP", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "UML"] {
+                    for s in ["General", "AWS", "Azure", "BPMN", "C4 Model", "GCP", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "SysML", "UML"] {
                         if ui.selectable_label(section == s, s).clicked() {
                             pick = Some(s.to_string());
                         }

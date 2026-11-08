@@ -51,6 +51,7 @@ mod sequence;
 mod splitter;
 mod staruml_v1;
 mod style;
+mod sysml;
 mod tags;
 mod templates;
 mod thumbs;

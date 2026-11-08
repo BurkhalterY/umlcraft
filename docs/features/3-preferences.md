@@ -62,21 +62,21 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | Mindmap | `mindmap.edge.lineStyle` | Line Style | 1 | ✅ | in Preferences › Mindmap; a new line takes it, or the general line style when it is Rectilinear (0) (src/prefs.rs:274, 403-410) | extensions/essential/mindmap/preferences/mindmap.json |
 | Mindmap | `mindmap.node.fillColor` | Fill Color | null | ✅ | in Preferences › Mindmap; a new node of that kind takes it as its fill colour (src/prefs.rs:274-284, 376-386) | extensions/essential/mindmap/preferences/mindmap.json |
 | Mindmap | `mindmap.node.lineColor` | Line Color | null | ✅ | in Preferences › Mindmap; a new node takes it as its line colour (src/prefs.rs:284, 388-393) | extensions/essential/mindmap/preferences/mindmap.json |
-| SysML | `sysml.requirement.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.suppressConstraints` | Suppress Constraints | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.suppressParts` | Suppress Parts | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.suppressPorts` | Suppress Ports | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.suppressReferences` | Suppress References | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.suppressValues` | Suppress Values | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.suppressFlowProperties` | Suppress FlowProperties | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.interface-block.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.constraint-block.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.value-type.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.part.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.port.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.constraint-property.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.constraint-parameter.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.requirement.fillColor` | Fill Color | null | ✅ | in Preferences › SysML; a new requirement takes it as its fill colour, else the general one (src/sysml.rs:1425-1468; src/prefs.rs:284, 408) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.fillColor` | Fill Color | null | ✅ | in Preferences › SysML; a new block takes it as its fill colour (src/sysml.rs:1425-1468; src/prefs.rs:408) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.suppressConstraints` | Suppress Constraints | true | ✅ | a new block, interface block or constraint block starts with its constraints suppressed or not (src/sysml.rs:1473-1482; src/prefs.rs:449) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.suppressParts` | Suppress Parts | true | ✅ | a new block or interface block starts with its parts suppressed or not (src/sysml.rs:1473-1482; src/prefs.rs:449) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.suppressPorts` | Suppress Ports | true | ✅ | the same for ports (src/sysml.rs:1473-1482) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.suppressReferences` | Suppress References | true | ✅ | the same for references (src/sysml.rs:1473-1482) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.suppressValues` | Suppress Values | true | ✅ | the same for values (src/sysml.rs:1473-1482) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.suppressFlowProperties` | Suppress FlowProperties | true | ✅ | the same for flow properties (src/sysml.rs:1473-1482) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.interface-block.fillColor` | Fill Color | null | ✅ | a new interface block's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.constraint-block.fillColor` | Fill Color | null | ✅ | a new constraint block's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.value-type.fillColor` | Fill Color | null | ✅ | a new value type's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.part.fillColor` | Fill Color | null | ✅ | a new part, reference or value view's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.port.fillColor` | Fill Color | null | ✅ | a new SysML port's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.constraint-property.fillColor` | Fill Color | null | ✅ | a new constraint property's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.constraint-parameter.fillColor` | Fill Color | null | ✅ | a new constraint parameter's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
 | UML | `uml.package.fillColor` | Fill Color | null | ✅ in Preferences › UML › package; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.model.fillColor` | Fill Color | null | ✅ in Preferences › UML › model; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.subsystem.fillColor` | Fill Color | null | ✅ in Preferences › UML › subsystem; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |

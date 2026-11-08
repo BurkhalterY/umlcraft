@@ -23,6 +23,9 @@ pub enum InputAction {
     CreateMessageOperation(Eid),
     /// A message's Create Signal: a new signal in the owner of the collaboration (uml-commands.js:2584-2610).
     CreateMessageSignal(Eid),
+    /// A SysML part's, port's or constraint property's Create Block, Value Type or ConstraintBlock:
+    /// the new element of that kind becomes its type (sysml-commands.js:96-170, 230-252).
+    CreateSysMLType(Eid, &'static str),
 }
 
 #[derive(Clone, Debug)]
@@ -89,6 +92,7 @@ impl App {
                 });
                 self.reveal(s);
             }
+            InputAction::CreateSysMLType(e, kind) => self.create_sysml_type(e, kind, &text),
             InputAction::CreateType(e) => {
                 let name = text.trim().to_string();
                 if !self.repo.alive(e) || name.is_empty() {

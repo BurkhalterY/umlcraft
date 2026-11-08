@@ -679,10 +679,84 @@ const ACTIVITY_GROUPS: &[Group] = &[
 // a composite structure diagram: the two class groups and Composite Structure (uml.json)
 const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE, ANNOTATIONS];
 // a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
-const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
+const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], SYSML_VIEWPOINTS, ANNOTATIONS];
+
+// SysML diagrams (sysml/toolbox/sysml.json)
+const SYSML_REQUIREMENTS: Group = Group {
+    id: "sysml.requirement",
+    label: "Requirements",
+    items: &[
+        node("Package", "UMLPackage", "package"),
+        node("Requirement", "SysMLRequirement", "SysMLRequirement"),
+        node("Frame", "Frame", "frame"),
+        line("Copy", "SysMLCopy", "dependency", AssocInit::Plain),
+        line("DeriveReqt", "SysMLDeriveReqt", "dependency", AssocInit::Plain),
+        line("Verify", "SysMLVerify", "dependency", AssocInit::Plain),
+        line("Satisfy", "SysMLSatisfy", "dependency", AssocInit::Plain),
+        line("Refine", "SysMLRefine", "dependency", AssocInit::Plain),
+        line("Containment", "Containment", "containment", AssocInit::Plain),
+    ],
+};
+// the Viewpoints group, on requirement, block definition and package diagrams
+const SYSML_VIEWPOINTS: Group = Group {
+    id: "sysml.viewpoint",
+    label: "Viewpoints",
+    items: &[
+        node("Stakeholder", "SysMLStakeholder", "class"),
+        node("View", "SysMLView", "class"),
+        node("Viewpoint", "SysMLViewpoint", "class"),
+        line("Conform", "SysMLConform", "generalization", AssocInit::Plain),
+        line("Expose", "SysMLExpose", "dependency", AssocInit::Plain),
+    ],
+};
+const SYSML_REQUIREMENT_GROUPS: &[Group] = &[SYSML_REQUIREMENTS, SYSML_VIEWPOINTS, ANNOTATIONS];
+const SYSML_BLOCK: Group = Group {
+    id: "sysml.block",
+    label: "Block",
+    items: &[
+        node("Block", "SysMLBlock", "SysMLBlock"),
+        node("Value Type", "SysMLValueType", "datatype"),
+        node("Interface Block", "SysMLInterfaceBlock", "SysMLBlock"),
+        node("Constraint Block", "SysMLConstraintBlock", "SysMLConstraintBlock"),
+        node("Enumeration", "UMLEnumeration", "enumeration"),
+        node("Signal", "UMLSignal", "datatype"),
+        node("Port", "SysMLPort", "port"),
+        node("Object", "UMLObject", "object"),
+        node("Frame", "Frame", "frame"),
+        line("Association", "UMLAssociation", "association", AssocInit::Plain),
+        line("Directed Association", "UMLAssociation", "directed", AssocInit::Directed),
+        line("Aggregation", "UMLAssociation", "aggregation", AssocInit::Shared),
+        line("Composition", "UMLAssociation", "composition", AssocInit::Composite),
+        line("Dependency", "UMLDependency", "dependency", AssocInit::Plain),
+        line("Generalization", "UMLGeneralization", "generalization", AssocInit::Plain),
+        line("Interface Realization", "UMLInterfaceRealization", "realization", AssocInit::Plain),
+        line("Connector", "SysMLConnector", "association", AssocInit::Plain),
+        line("Containment", "Containment", "containment", AssocInit::Plain),
+    ],
+};
+const SYSML_BLOCK_GROUPS: &[Group] = &[SYSML_BLOCK, SYSML_VIEWPOINTS, ANNOTATIONS];
+const SYSML_INTERNAL_BLOCK: Group = Group {
+    id: "sysml.internal-block",
+    label: "Internal Block",
+    items: &[
+        node("Part", "SysMLPart", "part"),
+        node("Reference", "SysMLReference", "part"),
+        node("Value", "SysMLValue", "part"),
+        node("Port", "SysMLPort", "port"),
+        node("Frame", "Frame", "frame"),
+        line("Connector", "SysMLConnector", "association", AssocInit::Plain),
+    ],
+};
+const SYSML_PARAMETRIC: Group = Group {
+    id: "sysml.parametric",
+    label: "Parametric",
+    items: &[node("Constraint Property", "SysMLConstraintProperty", "SysMLConstraintProperty"), node("Constraint Parameter", "SysMLConstraintParameter", "SysMLConstraintParameter")],
+};
+const SYSML_INTERNAL_BLOCK_GROUPS: &[Group] = &[SYSML_INTERNAL_BLOCK, ANNOTATIONS];
+const SYSML_PARAMETRIC_GROUPS: &[Group] = &[SYSML_INTERNAL_BLOCK, SYSML_PARAMETRIC, ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 25] = [
+const DIAGRAM_KINDS: [(&str, &str); 29] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -709,6 +783,11 @@ const DIAGRAM_KINDS: [(&str, &str); 25] = [
     ("AWS Architecture Diagram", "AWSDiagram"),
     ("Azure Architecture Diagram", "AzureDiagram"),
     ("GCP Architecture Diagram", "GCPDiagram"),
+    // the SysML kinds (sysml/menus/sysml.json)
+    ("Requirement Diagram", "SysMLRequirementDiagram"),
+    ("Block Definition Diagram", "SysMLBlockDefinitionDiagram"),
+    ("Internal Block Diagram", "SysMLInternalBlockDiagram"),
+    ("Parametric Diagram", "SysMLParametricDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -724,7 +803,7 @@ pub(crate) fn order_rank(t: &str) -> u32 {
         "UMLAssociationEnd" => 1801, "UMLAssociation" => 1802, "UMLDependency" => 1806, "UMLGeneralization" => 1807, "UMLRealization" => 1808,
         "UMLInterfaceRealization" => 1809, "UMLComponentRealization" => 1810, "UMLAbstraction" => 1811, "UMLInclude" => 1816, "UMLExtend" => 1817,
         "UMLTransition" => 1819, "UMLMessage" => 1822, "UMLProfile" => 1901, "UMLStereotype" => 1903,
-        _ => 0,
+        t => crate::sysml::order_rank(t),
     }
 }
 
@@ -785,7 +864,7 @@ impl App {
                 "(none)".to_string()
             };
         }
-        if name.is_empty() { format!("({})", t.trim_start_matches("UML")) } else { name }
+        if name.is_empty() { format!("({})", crate::sysml::display_name(t.trim_start_matches("UML"))) } else { name }
     }
 
     fn tree_row(&mut self, ui: &mut egui::Ui, e: Eid, depth: usize, has_kids: bool, open: bool, search_parent: Option<String>) {
@@ -806,7 +885,8 @@ impl App {
         icons::draw(p, ir, icons::key_for(&self.repo, e));
         let mut label = self.label_of(e);
         if self.show_stereotype {
-            let st = views::stereotype_text(&self.repo, e);
+            // a SysML relationship shows its keyword (getNodeText, sysml/elements.js:259-375)
+            let st = Some(views::stereotype_text(&self.repo, e)).filter(|s| !s.is_empty()).or_else(|| crate::sysml::keyword(self.repo.ty(e)).map(String::from)).unwrap_or_default();
             if !st.is_empty() {
                 label = format!("{st} {label}");
             }
@@ -979,6 +1059,8 @@ impl App {
                 adds.push((label, model, false));
             }
         }
+        // SysML elements (sysml/menus/sysml.json)
+        adds.extend(crate::sysml::add_kinds(&self.repo, e));
         // Model › Add › Constraint on any model element (uml.json)
         if self.repo.kind_of(e, "UMLModelElement") {
             adds.push(("Constraint", "UMLConstraint", false));
@@ -998,6 +1080,10 @@ impl App {
         }
         if t == "UMLTransition" {
             adds.push(("Effect", "effects", false));
+        }
+        // a block takes no plain attributes (updateMenus, sysml-commands.js:308-309)
+        if self.repo.kind_of(e, "SysMLBlock") {
+            adds.retain(|a| a.1 != "UMLAttribute");
         }
         adds
     }
@@ -1077,7 +1163,7 @@ impl App {
         if is_pkg || is_classifier || other {
             let dfd = self.repo.kind_of(e, "DFDElement");
             ui.menu_button("Add Diagram", |ui| {
-                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram" | "BPMNDiagram") || crate::cloud::is_diagram(k) || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
+                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, Some(e), k).unwrap_or(true)).filter(|(_, k)| crate::sysml::is_diagram(k) || is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram" | "BPMNDiagram") || crate::cloud::is_diagram(k) || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
                 for (l, k) in kinds {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
@@ -1337,6 +1423,9 @@ impl App {
         if t == "Hyperlink" {
             return vec![("name", "text"), ("reference", "link"), ("url", "text"), ("showName", "bool")];
         }
+        if let Some(f) = crate::sysml::fields(r, e) {
+            return f;
+        }
         // the other notations' visible attributes (their metamodel.json files)
         match t {
             "FCFlow" | "DFDDataFlow" | "MMEdge" => return vec![("name", "text"), ("source", "ref"), ("target", "ref")],
@@ -1492,6 +1581,9 @@ impl App {
     }
 
     fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
+        if let Some(o) = crate::sysml::enum_options(ty, field) {
+            return o;
+        }
         match (ty, field) {
             ("UMLTransition", "kind") => return &["external", "internal", "local"],
             (t, f) if t.starts_with("BPMN") && crate::bpmn::enum_options(f).is_some() => return crate::bpmn::enum_options(f).unwrap_or(&[]),
@@ -2031,6 +2123,10 @@ impl App {
                 Some("AWSDiagram") => self.open_groups.insert("aws.elements"),
                 Some("AzureDiagram") => self.open_groups.insert("azure.elements"),
                 Some("GCPDiagram") => self.open_groups.insert("gcp.elements"),
+                Some("SysMLRequirementDiagram") => self.open_groups.insert("sysml.requirement"),
+                Some("SysMLBlockDefinitionDiagram") => self.open_groups.insert("sysml.block"),
+                Some("SysMLInternalBlockDiagram") => self.open_groups.insert("sysml.internal-block"),
+                Some("SysMLParametricDiagram") => self.open_groups.insert("sysml.parametric"),
                 // both groups open on a wireframe diagram ("auto-expands")
                 Some("WFWireframeDiagram") => self.open_groups.insert("wireframe.frames") | self.open_groups.insert("wireframe.components"),
                 Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
@@ -2072,6 +2168,10 @@ impl App {
             Some("AWSDiagram") => AWS_GROUPS,
             Some("AzureDiagram") => AZURE_GROUPS,
             Some("GCPDiagram") => GCP_GROUPS,
+            Some("SysMLRequirementDiagram") => SYSML_REQUIREMENT_GROUPS,
+            Some("SysMLBlockDefinitionDiagram") => SYSML_BLOCK_GROUPS,
+            Some("SysMLInternalBlockDiagram") => SYSML_INTERNAL_BLOCK_GROUPS,
+            Some("SysMLParametricDiagram") => SYSML_PARAMETRIC_GROUPS,
             Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
             Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
             Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,
@@ -2424,7 +2524,9 @@ impl App {
                     ui.menu_button("Add", |ui| self.add_items(ui, target));
                 });
                 ui.menu_button("Add Diagram", |ui| {
-                    for (l, k) in DIAGRAM_KINDS {
+                    let sel = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f));
+                    let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, sel, k).unwrap_or(true)).collect();
+                    for (l, k) in kinds {
                         if ui.button(l).clicked() {
                             let f = self.focus;
                             self.change(|a| a.add_diagram(f, k));
@@ -2644,7 +2746,8 @@ impl App {
             });
         }
         for (field, label) in FORMAT_TOGGLES {
-            if self.flag_views(field).is_empty() {
+            // the SysML toggles are only in the menus (style-editor-view.js has none)
+            if self.flag_views(field).is_empty() || crate::sysml::SUPPRESS_FLAGS.contains(&field) {
                 continue;
             }
             let mut on = self.flag_state(field) == Some(true);
@@ -2809,7 +2912,7 @@ impl App {
     pub(crate) fn format_toggles(&mut self, ui: &mut egui::Ui) {
         for (i, (field, label)) in FORMAT_TOGGLES.into_iter().enumerate() {
             // UML display toggles after Auto Resize, Show Shadow and Inherit Style, then the Suppress ones
-            if i == 3 || field == "suppressAttributes" {
+            if i == 3 || field == "suppressAttributes" || field == "suppressPropertyValues" {
                 ui.separator();
             }
             let has = !self.flag_views(field).is_empty();
@@ -3592,7 +3695,7 @@ pub struct WorkingRow(pub Eid);
 pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 16] = [
+const FORMAT_TOGGLES: [(&str, &str); 24] = [
     ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
     ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
     ("parentStyle", "Inherit Style                     Ctrl+Shift+K"),
@@ -3609,6 +3712,15 @@ const FORMAT_TOGGLES: [(&str, &str); 16] = [
     ("suppressReceptions", "Suppress Receptions            Ctrl+Shift+E"),
     ("suppressLiterals", "Suppress Literals                 Ctrl+Shift+T"),
     ("suppressColumns", "Suppress Columns               Ctrl+Shift+U"),
+    // SysML (sysml/menus/sysml.json), between separators
+    ("suppressPropertyValues", "Suppress Property Values"),
+    ("suppressConstraints", "Suppress Constraints"),
+    ("suppressParts", "Suppress Parts"),
+    ("suppressPorts", "Suppress Ports"),
+    ("suppressReferences", "Suppress References"),
+    ("suppressValues", "Suppress Values"),
+    ("suppressProperties", "Suppress Properties"),
+    ("suppressFlowProperties", "Suppress Flow Properties"),
 ];
 
 /// The small padlock shown on a locked toolbox item.

@@ -107,6 +107,15 @@ pub const COMMANDS: &[Command] = &[
     c("format:suppress-literals", "Suppress Literals", "Ctrl+Shift+T"),
     // Format › Suppress Columns on ER entities (erd/keymaps/erd.json, erd-commands.js:183)
     c("erd:suppress-columns", "ERD: Suppress Columns", "Ctrl+Shift+U"),
+    // SysML's compartment toggles (sysml-commands.js:361-368)
+    c("format:suppress-property-values", "SysML: Suppress Property Values", ""),
+    c("format:suppress-constraints", "SysML: Suppress Constraints", ""),
+    c("format:suppress-parts", "SysML: Suppress Parts", ""),
+    c("format:suppress-ports", "SysML: Suppress Ports", ""),
+    c("format:suppress-references", "SysML: Suppress References", ""),
+    c("format:suppress-values", "SysML: Suppress Values", ""),
+    c("format:suppress-properties", "SysML: Suppress Properties", ""),
+    c("format:suppress-flow-properties", "SysML: Suppress Flow Properties", ""),
     c("alignment:send-to-back", "Send To Back", ""),
     c("alignment:bring-to-front", "Bring To Front", ""),
     c("alignment:align-left", "Align Left", ""),
@@ -234,6 +243,9 @@ impl App {
             ("format:show-namespace", "showNamespace"), ("format:show-property", "showProperty"), ("format:show-type", "showType"), ("format:show-multiplicity", "showMultiplicity"), ("format:show-operation-signature", "showOperationSignature"), ("format:show-diagram-name", "showDiagramName"),
             ("format:suppress-attributes", "suppressAttributes"), ("format:suppress-operations", "suppressOperations"), ("format:suppress-receptions", "suppressReceptions"), ("format:suppress-literals", "suppressLiterals"),
             ("erd:suppress-columns", "suppressColumns"),
+            ("format:suppress-property-values", "suppressPropertyValues"), ("format:suppress-constraints", "suppressConstraints"), ("format:suppress-parts", "suppressParts"),
+            ("format:suppress-ports", "suppressPorts"), ("format:suppress-references", "suppressReferences"), ("format:suppress-values", "suppressValues"),
+            ("format:suppress-properties", "suppressProperties"), ("format:suppress-flow-properties", "suppressFlowProperties"),
         ];
         if let Some((_, f)) = toggles.iter().find(|t| t.0 == id) {
             self.toggle_flag(f);

@@ -54,6 +54,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLSequenceDiagram" => "diagram",
         // a flowchart element's icon is its type (the shapes are drawn by key)
         t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") || t.starts_with("WF") || t.starts_with("BPMN") || crate::cloud::element_kind(t).is_some() || crate::cloud::is_diagram(t) || crate::cloud::edge_view_of(t).is_some() => crate::meta::static_name(t),
+        t if t.starts_with("SysML") => crate::sysml::icon_key(t),
         "UMLTransition" => "dependency",
         // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
         "UMLAction" => match r.str(e, "kind").as_str() {
@@ -412,6 +413,45 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             }
         }
         // C4 elements
+        // SysML elements: a requirement is a box with text lines under its name; a block a box with its
+        // compartment lines and a heavy top; a constraint property a rounded box
+        "SysMLRequirement" => {
+            rect_at(2.0, 2.5, 12.0, 11.0, Y);
+            line(&[(2.0, 6.0), (14.0, 6.0)], Y);
+            line(&[(4.5, 8.5), (11.5, 8.5)], Y);
+            line(&[(4.5, 11.0), (9.5, 11.0)], Y);
+        }
+        "SysMLBlock" => {
+            rect_at(2.0, 2.5, 12.0, 11.0, Y);
+            line(&[(2.0, 3.5), (14.0, 3.5)], Y);
+            line(&[(2.0, 7.0), (14.0, 7.0)], Y);
+            line(&[(2.0, 10.0), (14.0, 10.0)], Y);
+        }
+        "SysMLConstraintBlock" => {
+            rect_at(2.0, 2.5, 12.0, 11.0, Y);
+            line(&[(2.0, 6.0), (14.0, 6.0)], Y);
+            line(&[(5.0, 9.5), (7.0, 9.5)], Y);
+            line(&[(9.0, 9.5), (11.0, 9.5)], Y);
+            line(&[(10.0, 8.5), (10.0, 10.5)], Y);
+        }
+        "SysMLConstraintProperty" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(13.0 * s, 9.0 * s)), (2.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "SysMLConstraintParameter" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(10.0 * s, 9.0 * s)), (2.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            rect_at(9.0, 6.0, 5.0, 5.0, Y);
+        }
+        "SysMLInternalBlockDiagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            rect_at(3.5, 5.0, 4.0, 4.0, G);
+            rect_at(9.0, 8.0, 4.0, 4.0, G);
+            line(&[(7.5, 7.0), (9.0, 10.0)], G);
+        }
+        "SysMLRequirementDiagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            rect_at(4.0, 4.0, 8.0, 8.0, G);
+            line(&[(4.0, 6.5), (12.0, 6.5)], G);
+        }
         "C4Model" => {
             rect_at(1.5, 1.5, 13.0, 13.0, Y);
             p.rect_stroke(Rect::from_min_size(at(4.0, 4.0), Vec2::new(8.0 * s, 8.0 * s)), (1.5 * s) as f32, st(Y), egui::StrokeKind::Middle);

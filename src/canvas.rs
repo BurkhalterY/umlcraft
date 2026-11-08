@@ -173,6 +173,9 @@ pub fn item_buttons(r: &crate::model::Repo, host: Option<Eid>, kind: &EditKind) 
     match kind {
         EditKind::Name(m) => {
             let t = r.ty(*m);
+            if let Some(b) = crate::sysml::item_buttons(r, host, *m) {
+                return b;
+            }
             // a timing lifeline's and state's buttons (quickedits/uml.json "uml.lifeline-timing", "uml.state-timing")
             if t == "UMLLifeline" && host.map(|h| r.ty(h) == "UMLTimingLifelineView").unwrap_or(false) {
                 return vec![
@@ -350,6 +353,8 @@ pub enum ItemKey {
     InternalTransition,
     /// A state's Add Entry, Do or Exit Activity: asks which kind of behaviour
     Activity(&'static str),
+    /// A SysML element's buttons (quickedits/sysml.json)
+    SysML(crate::sysml::Quick),
 }
 
 impl App {
@@ -1492,7 +1497,7 @@ impl App {
                     let (mw, mh) = views::tool_min_size(tool.kind).unwrap_or((1.0, 1.0));
                     R { x: x1, y: y1, w: (x2 - x1).max(mw), h: (y2 - y1).max(mh) }
                 };
-                if matches!(tool.kind, "UMLPort" | "UMLPart" | "UMLInputPin" | "UMLOutputPin" | "UMLInputExpansionNode" | "UMLOutputExpansionNode" | "UMLConnectionPointReference") {
+                if matches!(tool.kind, "UMLPort" | "UMLPart" | "UMLInputPin" | "UMLOutputPin" | "UMLInputExpansionNode" | "UMLOutputExpansionNode" | "UMLConnectionPointReference") || crate::sysml::parasitic(tool.kind) {
                     // a port is placed at the point (a "point" tool), a part takes the box; both go on the
                     // classifier box under the point (toolbox/uml.json "parasitic")
                     if !self.tool_sticky {
@@ -1817,7 +1822,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || matches!(self.repo.ty(v), "ERDEntityView" | "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView" | "UMLCommMessageView" | "UMLTimingStateView" | "UMLTimingLifelineView") || crate::c4::is_node_view(self.repo.ty(v)) || crate::wireframe::has_name(self.repo.ty(v)) || crate::cloud::is_node_view(self.repo.ty(v))));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || matches!(self.repo.ty(v), "ERDEntityView" | "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView" | "UMLCommMessageView" | "UMLTimingStateView" | "UMLTimingLifelineView") || crate::c4::is_node_view(self.repo.ty(v)) || crate::wireframe::has_name(self.repo.ty(v)) || crate::cloud::is_node_view(self.repo.ty(v)) || crate::sysml::floating(self.repo.ty(v))));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
@@ -1836,6 +1841,8 @@ impl App {
                 "UMLReception" => crate::parse::name_text(&self.repo, item),
                 // a column is edited as "name: type(length)" (ERDColumn.textualNotation)
                 "ERDColumn" => crate::erd::column_text(&self.repo, item),
+                // a flow property without its direction
+                "SysMLFlowProperty" => crate::sysml::edit_text(&self.repo, iv, item),
                 _ => self.repo.str(iv, "text"),
             },
             rect: R { x: b.x - 2.0, y: b.y - 3.0, w: b.w.max(120.0) + 4.0, h: 19.0 },
@@ -2000,6 +2007,9 @@ impl App {
             EditKind::Feature(f) if self.repo.alive(f) => Some(f),
             _ => None,
         };
+        if self.sysml_item_key(host, m, item, key) {
+            return;
+        }
         match (key, item) {
             (ItemKey::Add, None) => {
                 // a literal on an enumeration, an extension point on a use case (quickedits/uml.json)
@@ -2374,6 +2384,7 @@ impl App {
         let mut edge_note: Option<Eid> = None;
         let mut edge_constraint: Option<Eid> = None;
         let mut comm_message: Option<(Eid, bool)> = None;
+        let mut item_flow: Option<Eid> = None;
         let mut add_subst: Option<Eid> = None;
         let mut picked_order: Option<(Eid, &'static str)> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
@@ -2698,6 +2709,13 @@ impl App {
                                 }
                             }
                         }
+                        // a SysML connector's Create Item Flow (quickedits/sysml.json "sysml.connector")
+                        if self.repo.ty(e) == "SysMLConnectorView" {
+                            let b = ui.add(egui::Button::new(egui::RichText::new("+ Item Flow").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Create Item Flow");
+                            if b.is_pointer_button_down_on() {
+                                item_flow = Some(*m);
+                            }
+                        }
                     }
                     // an association's Order of Ends, a property of its line (quickedits/uml.json "uml.end-order")
                     if let (Some(e), true) = (edge, self.repo.ty(*m) == "UMLAssociation") {
@@ -2729,7 +2747,7 @@ impl App {
                     ed.fresh = true;
                 }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if key.is_some() || related.is_some() || edge_note.is_some() || edge_constraint.is_some() || comm_message.is_some() || add_subst.is_some() {
+                if key.is_some() || related.is_some() || edge_note.is_some() || edge_constraint.is_some() || comm_message.is_some() || item_flow.is_some() || add_subst.is_some() {
                     commit = Some(true);
                 } else if esc {
                     commit = Some(false);
@@ -2768,6 +2786,9 @@ impl App {
             if let Some(v) = self.add_comm_message(e, forward) {
                 self.select(vec![v]);
             }
+        }
+        if let Some(c) = item_flow.filter(|c| self.repo.alive(*c)) {
+            self.ask_item_flow(c);
         }
         // the new substitution is selected in the explorer (uml-commands.js:1026-1034)
         if let Some(b) = add_subst.filter(|b| self.repo.alive(*b)) {

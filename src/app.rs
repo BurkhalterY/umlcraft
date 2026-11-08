@@ -21,6 +21,8 @@ pub enum AssocInit {
     Directed,
     Shared,
     Composite,
+    /// composite at the tail (end1): SysML's Add Composited Block (sysml-commands.js:39-62)
+    CompositeTail,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -77,6 +79,8 @@ pub enum SelectPurpose {
     /// Model › Add › Entry, Do or Exit Activity on a state, or Effect on a transition: the kind of
     /// behaviour, created in that field (uml-commands.js:109-190).
     BehaviorKind(Eid, &'static str),
+    /// A SysML connector's Create Item Flow: the direction (sysml-commands.js:175-215).
+    ItemFlow(Eid),
 }
 
 /// The behaviour kinds of an entry, do or exit activity or an effect (uml-commands.js:111-116).
@@ -632,6 +636,8 @@ impl App {
             other if other.starts_with("ERD") && other != "ERDDiagram" => &other[3..],
             // and a wireframe element "WF" (WFElement.getDisplayClassName, wireframe/elements.js:42-45)
             other if other.starts_with("WF") && other != "WFWireframeDiagram" => &other[2..],
+            // and a SysML element "SysML" (SysMLElementMixin.getDisplayClassName, sysml/elements.js:40-50)
+            other if other.starts_with("SysML") => crate::sysml::display_name(other),
             other => other.trim_start_matches("UML"),
         };
         let names: HashSet<String> = self.repo.children(parent).into_iter().map(|(_, c)| self.repo.name(c)).collect();
@@ -748,6 +754,7 @@ impl App {
                 self.expanded.insert(owner);
                 self.reveal(b);
             }
+            SelectPurpose::ItemFlow(c) if self.repo.alive(c) => self.add_item_flow(c, d.selected == 1),
             _ => {}
         }
     }
@@ -945,6 +952,9 @@ impl App {
                 self.set_container(&[v], Some(c));
             }
             return Some(v);
+        }
+        if let Some(v) = self.create_sysml_node(d, kind, rect) {
+            return v;
         }
         // a C4 element goes in the element that owns the diagram, named after its class ("C4Person1"…);
         // the container tools set its kind (c4-factory.js:70-90, toolbox/c4.json)
@@ -1388,6 +1398,7 @@ impl App {
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
             ],
             "UMLProfileDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLMetaClass", "UMLStereotype", "UMLEnumeration", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation"],
+            t if crate::sysml::accepts(t).is_some() => crate::sysml::accepts(t).unwrap_or_default(),
             _ => return true,
         };
         kinds.iter().any(|k| self.repo.kind_of(m, k))
@@ -1399,7 +1410,7 @@ impl App {
         }
         let ty = self.repo.ty(m);
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
-        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || crate::bpmn::is_node_type(ty) || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || crate::bpmn::is_node_type(ty) || crate::sysml::droppable(ty) || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
@@ -1440,6 +1451,9 @@ impl App {
         }
         if views::edge_view_of(&ty).is_some() && self.rel_ends(m).is_some() {
             return self.drop_relationship(d, m, p);
+        }
+        if let Some(res) = self.drop_sysml(d, m, p) {
+            return res;
         }
         // a classifier dropped on a sequence diagram becomes a lifeline representing a new role of that
         // type; a role of the collaboration a lifeline representing it (viewForSequenceDiagramFn,
@@ -1502,7 +1516,7 @@ impl App {
             }
             return Ok(v.into_iter().collect());
         }
-        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) && !crate::bpmn::is_node_type(&ty) && !crate::cloud::is_node_type(&ty) {
+        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) && !crate::bpmn::is_node_type(&ty) && !crate::cloud::is_node_type(&ty) && crate::sysml::view_of(&ty).is_none() {
             return Ok(vec![]);
         }
         // a hidden view of it is shown again instead of a second one
@@ -1664,6 +1678,9 @@ impl App {
             return false;
         }
         let (Some(tm), Some(hm)) = (r.refd(tail, "model"), r.refd(head, "model")) else { return false };
+        if let Some(ok) = crate::sysml::can_link(self, kind, tm, hm) {
+            return ok;
+        }
         if kind == "Containment" {
             // the tail's element goes into the head's package (shown in the explorer)
             return r.kind_of(hm, "UMLPackage") && tm != hm && (r.parent(tm) == Some(hm) || self.can_relocate(tm, hm));
@@ -1813,6 +1830,9 @@ impl App {
         if tool.kind == "AssociationClass" {
             return self.create_association_class(d, tail, head);
         }
+        if tool.kind == "SysMLConnector" {
+            return self.create_sysml_connector(d, tail, head);
+        }
         if tool.kind == "LinkObject" {
             return self.create_class_link(d, tail, head, true);
         }
@@ -1845,6 +1865,7 @@ impl App {
                 }
                 AssocInit::Shared => self.repo.set(e2, "aggregation", json!("shared")),
                 AssocInit::Composite => self.repo.set(e2, "aggregation", json!("composite")),
+                AssocInit::CompositeTail => self.repo.set(e1, "aggregation", json!("composite")),
                 AssocInit::Plain => {}
             }
             m
@@ -1972,6 +1993,9 @@ impl App {
     }
 
     pub fn add_feature(&mut self, owner: Eid, ty: &str) -> Option<Eid> {
+        if let Some(x) = self.add_sysml_feature(owner, ty) {
+            return x;
+        }
         let field = match ty {
             "UMLAttribute" => "attributes",
             "UMLOperation" => "operations",
@@ -2038,13 +2062,18 @@ impl App {
     /// they go to the part's type. Elsewhere they are refused (uml-factory.js:996-1100).
     pub fn create_feature_box(&mut self, kind: &str, at: P, rect: R) -> Result<Eid, String> {
         let d = self.diagram.ok_or_else(String::new)?;
-        let refused = format!("{} cannot be placed here.", if kind == "UMLPort" { "UMLPort" } else { "UMLAttribute" });
+        let refused = match kind {
+            // portFn and parameterFn (sysml-factory.js:116-228)
+            "SysMLPort" => "Port should be placed in a block or a part".to_string(),
+            "SysMLConstraintParameter" => "Constraint Parameter should be placed in a block or a part".to_string(),
+            _ => format!("{} cannot be placed here.", if kind == "UMLPort" { "UMLPort" } else { "UMLAttribute" }),
+        };
         let host = self
             .repo
             .list(d, "ownedViews")
             .into_iter()
             .rev()
-            .filter(|v| views::is_node(&self.repo, *v) && !matches!(self.repo.ty(*v), "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLExpansionNodeView" | "UMLConnectionPointReferenceView") && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
+            .filter(|v| views::is_node(&self.repo, *v) && !matches!(self.repo.ty(*v), "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLExpansionNodeView" | "UMLConnectionPointReferenceView") && !crate::sysml::floating(self.repo.ty(*v)) && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
             .find(|v| {
                 let b = views::node_rect(&self.repo, *v);
                 at.x >= b.x && at.y >= b.y && at.x <= b.x + b.w && at.y <= b.y + b.h
@@ -2057,6 +2086,9 @@ impl App {
     /// action's box, in the action's inputs or outputs (uml-factory.js:3827-3834).
     pub fn create_feature_on(&mut self, host: Eid, kind: &str, at: P, rect: R) -> Result<Eid, String> {
         let d = self.diagram.ok_or_else(String::new)?;
+        if crate::sysml::parasitic(kind) {
+            return self.create_sysml_feature(d, host, kind, at);
+        }
         // a connection point reference goes in the connections of the state under the point
         // (connectionPointReferenceFn, uml-factory.js:2183-2214)
         if kind == "UMLConnectionPointReference" {
@@ -2170,6 +2202,9 @@ impl App {
             self.open_diagram(d);
             self.reveal(d);
             return d;
+        }
+        if crate::sysml::is_diagram(ty) {
+            return self.add_sysml_diagram(parent, ty);
         }
         let target = match parent {
             Some(p) if self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" || self.repo.kind_of(p, "UMLClassifier") => p,
