@@ -411,6 +411,37 @@ impl App {
         None
     }
 
+    /// The view types a tool may join, when its toolbox item lists them: the sequence messages
+    /// (connectable-views, toolbox/uml.json; factory.js:249-272).
+    fn connectable_views(&self, kind: &str) -> Option<&'static [&'static str]> {
+        if self.diagram.map(|d| self.repo.ty(d)) != Some("UMLSequenceDiagram") {
+            return None;
+        }
+        match kind {
+            "UMLMessage" => Some(&["UMLSeqLifelineView", "UMLMessageEndpointView", "UMLTimeSegmentView"]),
+            "UMLSelfMessage" => Some(&["UMLSeqLifelineView"]),
+            "UMLAsyncMessage" | "UMLReplyMessage" | "UMLCreateMessage" | "UMLDeleteMessage" | "UMLAsyncSignalMessage" | "UMLFoundMessage" | "UMLLostMessage" => Some(&["UMLSeqLifelineView", "UMLMessageEndpointView"]),
+            _ => None,
+        }
+    }
+
+    /// The topmost view of one of these types under `p` (Factory.getViewByTypes).
+    fn hit_view_of(&self, p: P, types: &[&str]) -> Option<Eid> {
+        let d = self.diagram?;
+        self.repo.list(d, "ownedViews").into_iter().rev().find(|v| {
+            self.repo.alive(*v) && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))) && types.contains(&self.repo.ty(*v)) && in_rect(p, &node_rect(&self.repo, *v))
+        })
+    }
+
+    /// The view a line tool joins at `p`: one of its connectable views if it lists them, else the
+    /// topmost view.
+    fn hit_for_tool(&self, kind: &str, p: P, nodes_only: bool) -> Option<Eid> {
+        match self.connectable_views(kind) {
+            Some(types) => self.hit_view_of(p, types),
+            None => self.hit_view(p, nodes_only),
+        }
+    }
+
     pub fn hit_view(&self, p: P, nodes_only: bool) -> Option<Eid> {
         let d = self.diagram?;
         let views = self.repo.list(d, "ownedViews");
@@ -996,7 +1027,7 @@ impl App {
         if let Some(tool) = self.tool {
             if !tool.line || tool.kind == "FreeLine" {
                 self.drag = Some(Drag::CreateNode { start: p, now: p });
-            } else if let Some(tail) = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject" | "UMLForwardMessage" | "UMLReverseMessage")).or_else(|| if matches!(tool.kind, "UMLFoundMessage" | "UMLForwardMessage" | "UMLReverseMessage") { self.diagram } else { None }) {
+            } else if let Some(tail) = self.hit_for_tool(tool.kind, p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject" | "UMLForwardMessage" | "UMLReverseMessage")).or_else(|| if matches!(tool.kind, "UMLFoundMessage" | "UMLForwardMessage" | "UMLReverseMessage") { self.diagram } else { None }) {
                 // a found message may start anywhere: its endpoint is made at the press point; so may
                 // a communication message, which only needs the connector it is dropped on
                 self.drag = Some(Drag::CreateEdge { start: p, now: p, tail });
@@ -1228,7 +1259,10 @@ impl App {
             Drag::CreateEdge { now, .. } => {
                 *now = p;
                 let nodes_only = self.tool.map(|t| !matches!(t.kind, "NoteLink" | "AssociationClass" | "LinkObject")).unwrap_or(true);
-                self.hover = self.hit_view(p, nodes_only);
+                self.hover = match self.tool {
+                    Some(t) => self.hit_for_tool(t.kind, p, nodes_only),
+                    None => self.hit_view(p, nodes_only),
+                };
             }
             Drag::Move { start, orig, edges, lead, changed, .. } => {
                 let (mut dx, mut dy) = (p.x - start.x, p.y - start.y);
@@ -1503,7 +1537,7 @@ impl App {
             Drag::CreateEdge { tail, start, .. } => {
                 let Some(tool) = self.tool else { return };
                 // a self-connection tool joins the view under the release point to itself (factory.js:273-277)
-                let hit = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject" | "UMLForwardMessage" | "UMLReverseMessage" | "BPMNAssociation"));
+                let hit = self.hit_for_tool(tool.kind, p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject" | "UMLForwardMessage" | "UMLReverseMessage" | "BPMNAssociation"));
                 let selfish = matches!(tool.label, "Self Transition" | "Self Message" | "Self Connector");
                 let (tail, hit) = if selfish { (hit.unwrap_or(tail), hit) } else { (tail, hit) };
                 // a message keeps the height it is drawn at; a found message comes from an endpoint at

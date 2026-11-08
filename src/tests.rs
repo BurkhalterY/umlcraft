@@ -7412,3 +7412,26 @@ fn a_point_tool_ignores_the_drag() {
     assert_eq!((a.repo.f(v, "width"), a.repo.f(v, "height")), (w, h));
     assert!((a.repo.f(v, "left") - 100.0).abs() <= 5.0);
 }
+
+#[test]
+fn a_message_tool_looks_through_other_views_for_a_lifeline() {
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.change(|a| a.add_diagram(Some(a.repo.root), "UMLSequenceDiagram"));
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 100.0, 100.0, 300.0))).unwrap();
+    let l2 = a.change(|a| a.create_node("UMLLifeline", rect(300.0, 100.0, 100.0, 300.0))).unwrap();
+    // a note over the first lifeline's line
+    a.change(|a| a.create_node("Note", rect(60.0, 200.0, 80.0, 40.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    a.tool = Some(Tool { label: "Message", kind: "UMLMessage", icon: "", line: true, init: AssocInit::Plain });
+    a.on_press(canvas, Pos2::new(100.0, 220.0), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(350.0, 220.0));
+    a.on_release(canvas.min, Pos2::new(350.0, 220.0));
+    let e = *a.selection.first().expect("a message");
+    let tail = a.repo.refd(e, "tail").unwrap();
+    assert!(tail == l1 || a.repo.refd(l1, "linePart") == Some(tail), "the message starts on the lifeline under the note");
+    let head = a.repo.refd(e, "head").unwrap();
+    assert!(head == l2 || a.repo.refd(l2, "linePart") == Some(head));
+}
