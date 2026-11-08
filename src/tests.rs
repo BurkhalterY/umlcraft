@@ -5728,3 +5728,44 @@ fn communication_diagrams_have_lifelines_connectors_and_messages() {
     crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn sequence_diagrams_take_time_and_duration_constraints() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 100.0, 100.0, 60.0))).unwrap();
+    let l2 = a.change(|a| a.create_node("UMLLifeline", rect(300.0, 100.0, 100.0, 60.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    a.line_from = Some((crate::views::P { x: 100.0, y: 150.0 }, crate::views::P { x: 350.0, y: 150.0 }));
+    let e = a.change(|a| a.create_edge(&tool("UMLMessage", AssocInit::Plain), l1, l2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // a time constraint clicked on the message belongs to it, its label 20 px under the point, linked to it
+    assert!(a.change(|a| a.create_node("UMLTimeConstraint", rect(200.0, 300.0, 1.0, 1.0))).is_none(), "only on a message");
+    let tv = a.change(|a| a.create_node("UMLTimeConstraint", rect(200.0, 150.0, 1.0, 1.0))).unwrap();
+    let tm = a.repo.refd(tv, "model").unwrap();
+    let em = a.repo.refd(e, "model").unwrap();
+    assert_eq!((a.repo.ty(tm), a.repo.name(tm).as_str(), a.repo.parent(tm)), ("UMLTimeConstraint", "Time Constraint1", Some(em)));
+    assert_eq!(a.repo.f(tv, "top"), 170.0);
+    let link = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "UMLTimeConstraintLinkView").unwrap();
+    assert_eq!((a.repo.refd(link, "tail"), a.repo.refd(link, "head")), (Some(e), Some(tv)));
+    a.repo.set(tm, "min", json!("0"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(tv, "text"), "{0..max}");
+    let pts = crate::views::points_of(&a.repo, link);
+    assert_eq!(pts[0].y, 150.0, "the link starts on the message");
+    // a duration constraint belongs to the interaction: 14 wide, stretching down
+    let dv = a.change(|a| a.create_node("UMLDurationConstraint", rect(420.0, 140.0, 60.0, 80.0))).unwrap();
+    let dm = a.repo.refd(dv, "model").unwrap();
+    assert_eq!((a.repo.name(dm).as_str(), a.repo.parent(dm)), ("Duration Constraint1", Some(inter)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(dv, "width"), a.repo.f(dv, "height")), (14.0, 80.0));
+    let nl = a.repo.refd(dv, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "{min..max}");
+    let (lcx, lcy) = (a.repo.f(nl, "left") + a.repo.f(nl, "width") / 2.0, a.repo.f(nl, "top") + a.repo.f(nl, "height") / 2.0);
+    assert_eq!((lcx, lcy), (427.0 - 15.0, 180.0 - 15.0), "centred 20 px up and left of the middle");
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

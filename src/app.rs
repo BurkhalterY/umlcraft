@@ -831,6 +831,28 @@ impl App {
             self.apply_view_defaults(v);
             return Some(v);
         }
+        // a time constraint belongs to the message it is dropped on, its label 20 px under the point and
+        // joined to the message; a duration constraint belongs to the interaction (timeConstraintFn,
+        // durationConstraintFn, uml-factory.js:1718-1840)
+        if kind == "UMLTimeConstraint" {
+            let msg = self.repo.list(d, "ownedViews").into_iter().rev().find(|v| self.repo.ty(*v) == "UMLSeqMessageView" && crate::views::points_of(&self.repo, *v).windows(2).any(|w| crate::canvas::dist_to_seg(P { x: rect.x, y: rect.y }, w[0], w[1]) <= 5.0))?;
+            let mm = self.repo.refd(msg, "model")?;
+            let names: HashSet<String> = self.repo.children(mm).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+            let name = (1..).map(|i| format!("Time Constraint{i}")).find(|n| !names.contains(n)).unwrap();
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((mm, "ownedElements")));
+            let v = crate::sequence::create_time_views(&mut self.repo, d, m, msg, P { x: rect.x, y: rect.y + 20.0 });
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        if kind == "UMLDurationConstraint" {
+            let inter = self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLInteraction")?;
+            let names: HashSet<String> = self.repo.children(inter).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+            let name = (1..).map(|i| format!("Duration Constraint{i}")).find(|n| !names.contains(n)).unwrap();
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((inter, "ownedElements")));
+            let v = crate::sequence::create_duration_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
         // combined fragments (with one operand), continuations and interaction uses are fragments of
         // the interaction; a state invariant covers the lifeline it is dropped on and sits on its line
         // (combinedFragmentFn, stateInvariantFn, uml-factory.js:1506-1550, 1687-1716, 3736-3744)

@@ -80,6 +80,9 @@ fn build() -> HashMap<&'static str, Kind> {
     ]);
     def("UMLUndirectedRelationship", Some("UndirectedRelationship"), vec![("stereotype", n()), ("visibility", d(json!("public")))]);
     def("UMLConstraint", Some("UMLModelElement"), vec![("specification", d(json!(""))), ("constrainedElements", n())]);
+    def("UMLIntervalConstraint", Some("UMLConstraint"), vec![("min", d(json!(""))), ("max", d(json!("")))]);
+    def("UMLTimeConstraint", Some("UMLIntervalConstraint"), vec![]);
+    def("UMLDurationConstraint", Some("UMLIntervalConstraint"), vec![]);
     def("UMLPackage", Some("UMLModelElement"), vec![("importedElements", n())]);
     def("UMLModel", Some("UMLPackage"), vec![("viewpoint", d(json!("")))]);
     def("UMLProfile", Some("UMLPackage"), vec![]);
@@ -280,6 +283,9 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLLinePartView", Some("NodeView"), vec![]);
     def("UMLSeqLifelineView", Some("UMLGeneralNodeView"), vec![("linePart", n())]);
     def("UMLCommLifelineView", Some("UMLGeneralNodeView"), vec![]);
+    def("UMLTimeConstraintView", Some("LabelView"), vec![]);
+    def("UMLTimeConstraintLinkView", Some("EdgeView"), vec![]);
+    def("UMLDurationConstraintView", Some("NodeView"), vec![("nameLabel", n())]);
     def("UMLCommMessageView", Some("EdgeNodeView"), vec![("nameLabel", n()), ("stereotypeLabel", n()), ("propertyLabel", n()), ("showProperty", d(json!(true))), ("showType", d(json!(true)))]);
     def("UMLMessageEndpointView", Some("NodeView"), vec![]);
     def("UMLEndpointView", Some("UMLMessageEndpointView"), vec![]);

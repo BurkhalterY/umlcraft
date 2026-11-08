@@ -270,8 +270,8 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 31] = [
-    "C4RelationshipView", "ERDRelationshipView", "FCFlowView", "DFDDataFlowView", "MMEdgeView", "UMLExceptionHandlerView", "UMLActivityInterruptView", "UMLConnectorView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
+const KNOWN_EDGE_VIEWS: [&str; 32] = [
+    "C4RelationshipView", "ERDRelationshipView", "FCFlowView", "DFDDataFlowView", "MMEdgeView", "UMLExceptionHandlerView", "UMLActivityInterruptView", "UMLConnectorView", "UMLTimeConstraintLinkView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
@@ -429,6 +429,8 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLCombinedFragment" => (crate::sequence::FRAGMENT_MIN_W * 2.0, crate::sequence::FRAGMENT_MIN_H * 3.0),
         "UMLInteractionUse" => (crate::sequence::FRAGMENT_MIN_W * 2.0, crate::sequence::FRAGMENT_MIN_H),
         "UMLContinuation" | "UMLStateInvariant" => crate::sequence::INVARIANT_MIN,
+        "UMLTimeConstraint" => (1.0, 1.0),
+        "UMLDurationConstraint" => (crate::sequence::DURATION_MIN_W, crate::sequence::DURATION_MIN_H),
         // a click makes a flowchart node at its smallest size, as in the original (factory.js:279-292)
         _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) || kind == "ERDEntity" || crate::c4::tool(kind).is_some() || crate::wireframe::is_node_type(kind) => (1.0, 1.0),
         _ => (100.0, 60.0),
@@ -2110,6 +2112,14 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         crate::sequence::layout_fragment(r, ms, v);
         return Info { shape: "fragment", ..Default::default() };
     }
+    if t == "UMLTimeConstraintView" {
+        crate::sequence::layout_time(r, ms, v);
+        return Info { shape: "time-constraint", ..Default::default() };
+    }
+    if t == "UMLDurationConstraintView" {
+        crate::sequence::layout_duration(r, ms, v);
+        return Info { shape: "duration-constraint", ..Default::default() };
+    }
     if t == "UMLCommLifelineView" {
         crate::communication::layout_lifeline(r, ms, v);
         return Info { shape: "comm-lifeline", ..Default::default() };
@@ -2774,6 +2784,12 @@ pub fn layout_diagram(r: &mut Repo, ms: &dyn Measure, d: Eid) -> HashMap<Eid, In
     }
     if r.ty(d) == "UMLSequenceDiagram" {
         crate::sequence::layout(r, ms, d);
+        // a time constraint's link follows its message, placed by the sequence layout
+        for v in &views {
+            if r.alive(*v) && r.ty(*v) == "UMLTimeConstraintLinkView" {
+                layout_edge(r, ms, *v, &info);
+            }
+        }
     }
     for v in &views {
         if r.alive(*v) && r.ty(*v) == "UMLCommMessageView" {

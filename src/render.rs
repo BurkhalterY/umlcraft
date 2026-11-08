@@ -562,6 +562,14 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             crate::flowchart::draw(c, r, v, fill, line, fc);
             return;
         }
+        "time-constraint" => {
+            crate::sequence::draw_time(c, r, v, fc);
+            return;
+        }
+        "duration-constraint" => {
+            crate::sequence::draw_duration(c, r, v, line, fc);
+            return;
+        }
         "comm-lifeline" => {
             crate::communication::draw_lifeline(c, r, v, fill, line);
             draw_name(c, r, v);

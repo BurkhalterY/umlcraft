@@ -218,6 +218,8 @@ const SEQUENCE_GROUPS: &[Group] = &[
             node("Continuation", "UMLContinuation", "state"),
             node("Combined Fragment", "UMLCombinedFragment", "frame"),
             node("Interaction Use", "UMLInteractionUse", "frame"),
+            node("Time Constraint", "UMLTimeConstraint", "time-constraint"),
+            node("Duration Constraint", "UMLDurationConstraint", "duration-constraint"),
             node("Frame", "Frame", "frame"),
         ],
     },
@@ -1232,6 +1234,7 @@ impl App {
             "UMLInteractionOperand" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("guard", "text")],
             "UMLEvent" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("value", "text"), ("expression", "text"), ("targetOperation", "ref"), ("targetSignal", "ref")],
             "UMLAction" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("isLocallyReentrant", "bool"), ("isSynchronous", "bool"), ("language", "text")],
+            "UMLTimeConstraint" | "UMLDurationConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist"), ("min", "text"), ("max", "text")],
             "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
             "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
             // a reception names the signal it receives (uml-commands.js:1484)

@@ -821,3 +821,107 @@ impl App {
         self.repo.refd(role, "type").filter(|t| self.repo.kind_of(*t, "UMLClassifier"))
     }
 }
+
+// ------------------------------------------------------------------ time and duration constraints
+
+/// A duration constraint's smallest size and its arrowheads (elements.js:203-205).
+pub const DURATION_MIN_W: f64 = 14.0;
+pub const DURATION_MIN_H: f64 = 16.0;
+const DURATION_ARROW: f64 = 4.0;
+
+/// What a time or duration constraint shows: `{min..max}`, with "min" and "max" for empty bounds
+/// (UMLTimeConstraintView.update, UMLDurationConstraintView.update).
+pub fn interval_text(r: &Repo, m: Eid) -> String {
+    let (min, max) = (r.str(m, "min"), r.str(m, "max"));
+    format!("{{{}..{}}}", if min.is_empty() { "min" } else { &min }, if max.is_empty() { "max" } else { &max })
+}
+
+/// A duration constraint's view, with its label 20 px up and left of its centre
+/// (UMLDurationConstraintView constructor).
+pub fn create_duration_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Eid {
+    let m = r.ref_to(model);
+    let v = r.create(
+        "UMLDurationConstraintView",
+        &[("model", m.clone()), ("font", json!(views::FONT)), ("parentStyle", json!(false)), ("left", json!(rect.x)), ("top", json!(rect.y)), ("width", json!(DURATION_MIN_W)), ("height", json!(rect.h.max(DURATION_MIN_H)))],
+        Some((diagram, "ownedViews")),
+    );
+    let l = r.create(
+        "NodeLabelView",
+        &[("model", m), ("font", json!(views::FONT)), ("parentStyle", json!(true)), ("alpha", json!(3.0 * std::f64::consts::FRAC_PI_4)), ("distance", json!(20)), ("height", json!(views::LABEL_H))],
+        Some((v, "subViews")),
+    );
+    r.set_ref(v, "nameLabel", Some(l));
+    v
+}
+
+/// A time constraint's label view at `at`, joined to the message view `msg` by a plain link
+/// (timeConstraintFn, uml-factory.js:1718-1775).
+pub fn create_time_views(r: &mut Repo, diagram: Eid, model: Eid, msg: Eid, at: P) -> Eid {
+    let v = r.create(
+        "UMLTimeConstraintView",
+        &[("model", r.ref_to(model)), ("font", json!(views::FONT)), ("parentStyle", json!(true)), ("left", json!(at.x)), ("top", json!(at.y)), ("width", json!(0)), ("height", json!(views::LABEL_H))],
+        Some((diagram, "ownedViews")),
+    );
+    r.create(
+        "UMLTimeConstraintLinkView",
+        &[("model", r.ref_to(model)), ("font", json!(views::FONT)), ("parentStyle", json!(false)), ("tail", r.ref_to(msg)), ("head", r.ref_to(v)), ("lineStyle", json!(0)), ("points", json!("0:0;0:0"))],
+        Some((diagram, "ownedViews")),
+    );
+    v
+}
+
+/// Size a time constraint's label to its text.
+pub fn layout_time(r: &mut Repo, ms: &dyn Measure, v: Eid) {
+    let Some(m) = r.refd(v, "model") else { return };
+    let t = interval_text(r, m);
+    let (face, size) = views::view_font(r, v);
+    let w = views::Scaled { ms, face, size }.width(&t, 0).ceil();
+    r.set(v, "text", json!(t));
+    r.set(v, "width", json!(w));
+    r.set(v, "height", json!(size));
+}
+
+/// A duration constraint is 14 wide, stretching down only; its label sits up and left of it
+/// (sizeObject, arrangeObject; NodeParasiticView.arrange, core.js:3600-3616).
+pub fn layout_duration(r: &mut Repo, ms: &dyn Measure, v: Eid) {
+    r.set(v, "width", json!(DURATION_MIN_W));
+    let h = r.f(v, "height").max(DURATION_MIN_H);
+    r.set(v, "height", json!(h));
+    let (Some(m), Some(l)) = (r.refd(v, "model"), r.refd(v, "nameLabel")) else { return };
+    let t = interval_text(r, m);
+    let (face, size) = views::view_font(r, v);
+    let w = views::Scaled { ms, face, size }.width(&t, 0).ceil();
+    let b = rect(r, v);
+    let c = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+    let d = views::point_away_line(c, c, r.f(l, "alpha"), r.f(l, "distance"));
+    r.set(l, "text", json!(t));
+    r.set(l, "width", json!(w));
+    r.set(l, "height", json!(size));
+    r.set(l, "left", json!(d.x + c.x - w / 2.0));
+    r.set(l, "top", json!(d.y + c.y - size / 2.0));
+}
+
+/// Draw a duration constraint: a line across its top and its bottom, and a double arrow between
+/// them down its middle (UMLDurationConstraintView.drawObject); and its label.
+pub fn draw_duration(c: &mut dyn Canvas, r: &Repo, v: Eid, line: Rgba, fc: Rgba) {
+    let b = rect(r, v);
+    let (x1, y1, x2, y2) = (b.x, b.y, b.x + b.w, b.y + b.h);
+    let seg = |c: &mut dyn Canvas, a: (f64, f64), z: (f64, f64)| c.polyline(&[P { x: a.0, y: a.1 }, P { x: z.0, y: z.1 }], line, false);
+    seg(c, (x1, y1), (x2, y1));
+    seg(c, (x1, y2), (x2, y2));
+    let cx = x1 + (b.w / 2.0).round();
+    seg(c, (cx, y1), (cx, y2));
+    let a = DURATION_ARROW;
+    c.polyline(&[P { x: cx - a, y: y1 + a * 2.0 }, P { x: cx, y: y1 }, P { x: cx + a, y: y1 + a * 2.0 }], line, false);
+    c.polyline(&[P { x: cx - a, y: y2 - a * 2.0 }, P { x: cx, y: y2 }, P { x: cx + a, y: y2 - a * 2.0 }], line, false);
+    if let Some(l) = r.refd(v, "nameLabel") {
+        draw_text(c, r, l, fc);
+    }
+}
+
+/// Draw a time constraint's label.
+pub fn draw_time(c: &mut dyn Canvas, r: &Repo, v: Eid, fc: Rgba) {
+    let t = r.str(v, "text");
+    let (_, size) = views::view_font(r, v);
+    c.text(&t, rect(r, v), 2, 0, size, fc, false);
+}

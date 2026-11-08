@@ -139,7 +139,7 @@ impl Canvas for ScreenCanvas<'_> {
 fn rect_of(a: P, b: P) -> R {
     R { x: a.x.min(b.x), y: a.y.min(b.y), w: (a.x - b.x).abs(), h: (a.y - b.y).abs() }
 }
-fn dist_to_seg(p: P, a: P, b: P) -> f64 {
+pub(crate) fn dist_to_seg(p: P, a: P, b: P) -> f64 {
     let (dx, dy) = (b.x - a.x, b.y - a.y);
     let l2 = dx * dx + dy * dy;
     let t = if l2 > 0.0 { (((p.x - a.x) * dx + (p.y - a.y) * dy) / l2).clamp(0.0, 1.0) } else { 0.0 };
