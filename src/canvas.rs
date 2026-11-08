@@ -426,7 +426,9 @@ impl App {
         let hs = 6.0 / self.zoom;
         let o = 4.0 / self.zoom;
         let b = node_rect(&self.repo, v);
-        render::handle_points(&R { x: b.x - o, y: b.y - o, w: b.w + 2.0 * o, h: b.h + 2.0 * o }).iter().position(|h| (p.x - h.x).abs() <= hs && (p.y - h.y).abs() <= hs)
+        // only the handles its sizable mode allows (diagram-editor.js:1411-1454)
+        let s = views::sizable(&self.repo, v);
+        render::handle_points(&R { x: b.x - o, y: b.y - o, w: b.w + 2.0 * o, h: b.h + 2.0 * o }).iter().enumerate().position(|(i, h)| views::handle_shown(s, i) && (p.x - h.x).abs() <= hs && (p.y - h.y).abs() <= hs)
     }
 
     fn snap_v(&self, n: f64) -> f64 {
@@ -590,8 +592,13 @@ impl App {
                 c.painter.rect_stroke(r, 0.0, Stroke::new(1.0, sel), egui::StrokeKind::Middle);
                 // centred 4 screen px outside the corners and edge midpoints (graphics.js:2726-2727)
                 let o = 4.0 / c.zoom;
-                for p in render::handle_points(&R { x: b.x - o, y: b.y - o, w: b.w + 2.0 * o, h: b.h + 2.0 * o }) {
-                    handle(c, p);
+                let s = views::sizable(&self.repo, v);
+                if !self.repo.bool(v, "autoResize") {
+                    for (i, p) in render::handle_points(&R { x: b.x - o, y: b.y - o, w: b.w + 2.0 * o, h: b.h + 2.0 * o }).into_iter().enumerate() {
+                        if views::handle_shown(s, i) {
+                            handle(c, p);
+                        }
+                    }
                 }
             }
         }
@@ -892,7 +899,8 @@ impl App {
         let lines: Vec<Eid> = sel.iter().copied().filter(|v| views::is_freeline(&self.repo, *v)).collect();
         self.change(|a| {
             for v in movers {
-                a.shift_view(v, dx, dy);
+                let (mx, my) = views::movable(&a.repo, v);
+                a.shift_view(v, if mx { dx } else { 0.0 }, if my { dy } else { 0.0 });
             }
             // free lines move by their points
             for e in lines {
@@ -1175,9 +1183,11 @@ impl App {
                     dx = dx.max(-min_x.max(0.0));
                     dy = dy.max(-min_y.max(0.0));
                 }
+                // each box only along the ways it may move (diagram-editor.js:1612-1622, 1642-1674)
                 for (n, o) in orig.iter() {
-                    self.repo.set(*n, "left", crate::model::num(o.x + dx));
-                    self.repo.set(*n, "top", crate::model::num(o.y + dy));
+                    let (mx, my) = views::movable(&self.repo, *n);
+                    self.repo.set(*n, "left", crate::model::num(o.x + if mx { dx } else { 0.0 }));
+                    self.repo.set(*n, "top", crate::model::num(o.y + if my { dy } else { 0.0 }));
                 }
                 let moved: Vec<Eid> = orig.iter().map(|(n, _)| *n).collect();
                 // a communication message keeps the place it was dragged to beside its connector

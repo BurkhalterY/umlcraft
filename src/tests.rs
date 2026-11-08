@@ -5896,3 +5896,43 @@ fn timing_diagrams_have_lifelines_states_segments_and_messages() {
     crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn views_move_and_resize_only_the_ways_they_may() {
+    use crate::views::{handle_shown, sizable, Sizable};
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let l = a.change(|a| a.create_node("UMLLifeline", rect(100.0, 100.0, 100.0, 200.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // a lifeline only moves across (MM_HORZ)
+    a.select(vec![l]);
+    let (x, y) = (a.repo.f(l, "left") + 50.0, a.repo.f(l, "top") + 20.0);
+    a.on_press(canvas, Pos2::new(x as f32, y as f32), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(x as f32 + 40.0, y as f32 + 40.0));
+    a.on_release(canvas.min, Pos2::new(x as f32 + 40.0, y as f32 + 40.0));
+    assert!(a.repo.f(l, "left") > 130.0, "moved across");
+    assert_eq!(a.repo.f(l, "top"), 40.0, "not down");
+    // and so with the arrow keys
+    a.select(vec![l]);
+    a.nudge_selection(0.0, 10.0);
+    assert_eq!(a.repo.f(l, "top"), 40.0);
+    // a duration constraint stretches only down on a sequence diagram: no side or corner handles
+    let dc = a.change(|a| a.create_node("UMLDurationConstraint", rect(400.0, 100.0, 14.0, 60.0))).unwrap();
+    assert_eq!(sizable(&a.repo, dc), Sizable::Vert);
+    assert!(handle_shown(Sizable::Vert, 5) && !handle_shown(Sizable::Vert, 4) && !handle_shown(Sizable::Vert, 3));
+    a.select(vec![dc]);
+    let b = crate::views::node_rect(&a.repo, dc);
+    let corner = Pos2::new((b.x + b.w + 4.0) as f32, (b.y + b.h + 4.0) as f32);
+    a.on_press(canvas, corner, Modifiers::NONE);
+    assert!(!matches!(a.drag, Some(crate::app::Drag::Resize { .. })), "no corner handle");
+    a.on_release(canvas.min, corner);
+    // a switch has no handles at all
+    let wd = a.change(|a| a.add_diagram(Some(root), "WFWireframeDiagram"));
+    a.diagram = Some(wd);
+    let sw = a.change(|a| a.create_node("WFSwitch", rect(50.0, 50.0, 1.0, 1.0))).unwrap();
+    assert_eq!(sizable(&a.repo, sw), Sizable::None);
+}

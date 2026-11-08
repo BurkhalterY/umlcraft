@@ -2837,3 +2837,50 @@ pub fn layout_diagram(r: &mut Repo, ms: &dyn Measure, d: Eid) -> HashMap<Eid, In
     }
     info
 }
+
+/// How a box may be resized: every handle, only left and right, only top and bottom, or not at all
+/// (NodeView.sizable: SZ_FREE and SZ_RATIO, SZ_HORZ, SZ_VERT, SZ_NONE; core.js NodeView and each
+/// view's constructor).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Sizable {
+    Free,
+    Horz,
+    Vert,
+    None,
+}
+
+/// The sizable mode of a view (the constructors and update() of the views that set one).
+pub fn sizable(r: &Repo, v: Eid) -> Sizable {
+    let vertical = || r.refd(v, "model").map(|m| r.bool(m, "isVertical")).unwrap_or(false);
+    let timing = || r.parent(v).map(|d| r.ty(d) == "UMLTimingDiagram").unwrap_or(false);
+    match r.ty(v) {
+        "UMLPortView" | "UMLPinView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLConnectionPointReferenceView" | "UMLEndpointView" | "UMLGateView" | "UMLCommMessageView" | "UMLTimeConstraintView"
+        | "UMLTimingStateView" | "UMLZigZagAdornmentView" | "WFSwitchView" | "ERDColumnView" => Sizable::None,
+        "UMLTimeSegmentView" | "UMLTimeTickView" | "WFSliderView" | "EdgeLabelView" | "NodeLabelView" => Sizable::Horz,
+        "UMLActivationView" | "UMLLinePartView" | "UMLRegionView" | "UMLInteractionOperandView" => Sizable::Vert,
+        "UMLDurationConstraintView" => if timing() { Sizable::Horz } else { Sizable::Vert },
+        "WFSeparatorView" => if vertical() { Sizable::Vert } else { Sizable::Horz },
+        _ => Sizable::Free,
+    }
+}
+
+/// Whether a view moves across and down (NodeView.movable: MM_FREE, MM_HORZ, MM_VERT, MM_NONE).
+pub fn movable(r: &Repo, v: Eid) -> (bool, bool) {
+    match r.ty(v) {
+        "UMLSeqLifelineView" | "UMLTimeTickView" => (true, false),
+        "UMLTimingLifelineView" | "UMLTimingStateView" | "UMLStateInvariantView" => (false, true),
+        "ERDColumnView" | "UMLActivationView" | "UMLLinePartView" | "UMLRegionView" | "UMLInteractionOperandView" => (false, false),
+        _ => (true, true),
+    }
+}
+
+/// Whether a box shows resize handle `i` (0 top left, then clockwise to 7 left) in its sizable
+/// mode (diagram-editor.js:1411-1454).
+pub fn handle_shown(s: Sizable, i: usize) -> bool {
+    match s {
+        Sizable::Free => true,
+        Sizable::Horz => i == 3 || i == 7,
+        Sizable::Vert => i == 1 || i == 5,
+        Sizable::None => false,
+    }
+}

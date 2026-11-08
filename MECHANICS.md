@@ -182,6 +182,8 @@ File › Import › XMI Import (v2.1) puts what it reads into a new UMLModel `XM
 
 ## Editing commands
 
+* Movable and sizable modes: a view moves freely unless its type limits it (sequence lifelines and time ticks across only; timing lifelines, timing states and state invariants down only; compartment items, activations, line parts, regions and operands not at all), by mouse and by arrow keys. Resize handles follow the sizable mode: all eight for free (and ratio) views, left and right only for horizontal ones (time segments and ticks, sliders, horizontal separators, labels, duration constraints on timing diagrams), top and bottom only for vertical ones (activations, line parts, regions, operands, vertical separators, duration constraints on sequence diagrams), none for fixed ones (ports, pins, connection points, endpoints and gates, communication messages, time constraints, timing states, zig-zags, switches, columns) or auto-resized boxes (`core.js` NodeView; the constructors in `uml/elements.js`, `erd/elements.js`, `wireframe/elements.js`; `diagram-editor.js:195-300, 1411-1454, 1612-1674`).
+
 Read from the StarUML source through the feature inventory (`docs/features/`), which quotes these lines.
 
 | Rule | Source |
