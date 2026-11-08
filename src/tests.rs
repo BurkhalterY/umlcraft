@@ -8278,3 +8278,44 @@ fn mcp_server_forwards_to_the_window() {
     let out: serde_json::Value = serde_json::from_slice(&out).unwrap();
     assert_eq!(out["result"]["isError"], true);
 }
+
+#[test]
+fn tags_are_shown_on_views() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 80.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(340.0, 40.0, 160.0, 80.0))).unwrap();
+    let m1 = a.repo.refd(c1, "model").unwrap();
+    let dep = a.change(|a| a.create_edge(&tool("UMLDependency", AssocInit::Plain), c1, c2)).unwrap();
+    let dm = a.repo.refd(dep, "model").unwrap();
+    let at = a.change(|a| a.add_feature(m1, "UMLAttribute")).unwrap();
+    let op = a.change(|a| a.add_feature(m1, "UMLOperation")).unwrap();
+    a.change(|a| {
+        a.repo.set(m1, "isLeaf", json!(true));
+        a.repo.create("Tag", &[("name", json!("author")), ("value", json!("Ann"))], Some((m1, "tags")));
+        a.repo.create("Tag", &[("name", json!("version")), ("kind", json!("number")), ("number", json!(2))], Some((m1, "tags")));
+        a.repo.create("Tag", &[("name", json!("secret")), ("value", json!("x")), ("hidden", json!(true))], Some((m1, "tags")));
+        a.repo.create("Tag", &[("name", json!("pk")), ("kind", json!("boolean")), ("checked", json!(true))], Some((at, "tags")));
+        a.repo.set(op, "isQuery", json!(true));
+        let r = a.repo.ref_to(m1);
+        a.repo.create("Tag", &[("name", json!("by")), ("kind", json!("reference")), ("reference", r)], Some((dm, "tags")));
+    });
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nc = a.repo.refd(c1, "nameCompartment").unwrap();
+    let pl = a.repo.refd(nc, "propertyLabel").unwrap();
+    assert_eq!(a.repo.str(pl, "text"), "{leaf, author=\"Ann\", version=2}", "hidden tags are left out");
+    assert!(a.repo.raw(pl, "visible").is_none(), "shown");
+    assert!(crate::views::attribute_text(&a.repo, at, crate::views::Show::ALL).ends_with(" {pk=true}"));
+    assert!(crate::views::operation_text(&a.repo, op, crate::views::Show::ALL).ends_with(" {query}"));
+    let epl = a.repo.refd(dep, "propertyLabel").unwrap();
+    assert_eq!(a.repo.str(epl, "text"), "{by=Class1}");
+    // Show Property off hides the label
+    a.change(|a| a.repo.set(c1, "showProperty", json!(false)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.raw(pl, "visible"), Some(&json!(false)));
+    // a class without tags shows no property line
+    let nc2 = a.repo.refd(c2, "nameCompartment").unwrap();
+    let pl2 = a.repo.refd(nc2, "propertyLabel").unwrap();
+    assert_eq!(a.repo.raw(pl2, "visible"), Some(&json!(false)));
+}

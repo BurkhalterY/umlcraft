@@ -90,6 +90,7 @@ Read from `extensions/default/staruml-v1` (main.js, reader.js, uml-readers.js); 
 | Compartment item interval | 2 | elements.js:64 |
 | Name compartment minimum height | 25 (sample) | sample.mdj |
 | Empty list compartment height | 10 | sample.mdj |
+| Property strings: `{a, b}` from the element's flags (classifier `leaf`; attribute and end `id, readOnly, ordered, unique`; operation `query` and its return parameter's `ordered, unique`) and then its tags, each once; a tag reads `name="value"` (string), `name=Element` or `name=null` (reference), `name=true` (boolean), `name=2` (number), `name=option` (enum); hidden tags are left out. A box's property line sits under the name, right-aligned, hidden while empty or while showProperty is off | elements.js:434-459, 936-955, 1046-1066, 1197-1206, 4828-4855, 5358-5362; core.js:1220-1249 |
 | Shadow offset / alpha / colour | 7 / 0.2 / #C0C0C0 | elements.js:57-59 |
 | Line, fill, font colour | #000000 / #ffffff / #000000 | `src/core/core.js:1475` |
 | Package tab height / tab width | 15 / 2/5 of width | elements.js:87, 6760 |
@@ -198,6 +199,7 @@ File › Import › XMI Import (v2.1) puts what it reads into a new UMLModel `XM
 ## HTTP API
 
 * A local server (127.0.0.1, port 58321) starts with the window, not for command-line commands; `settings.json` keys `apiServer` and `apiServerPort` turn it off or move it. `GET /` greets; `POST /generate_diagram {code}`, `/get_all_diagrams_info`, `/get_current_diagram_info` (records `{id, type, name, description}`) and `/get_diagram_image_by_id {diagramId}` (unknown id: 500 "Diagram not found or invalid ID") (`src/main-process/api-server.js:12-154`, `main.js:33-38`). Every answer is `{success: true, data}` (`{success: true}` for generate_diagram; the image's data is the bare base64 PNG, `null` when it cannot be drawn); a body without its string field gives 400 `{success: false, error: "Invalid request body", details}` where details is zod 3's `flatten()` (`{formErrors: [], fieldErrors: {code: ["Required"]}}`, or `["Expected string, received number"]`); a failed command gives 500 `{success: false, error: "Error: <message>"}` (`api-server.js:34-146`, `window.js:164-176`, `app-context.js:795-802`, `diagram-export.js:106-170`). UMLCraft's greeting names UMLCraft.
+* MCP server (github.com/staruml/staruml-mcp-server, src/index.ts, src/utils.ts): stdio, tools `generate_diagram {code}` (answers "Diagram is successfully generated."), `get_all_diagrams_info` ("All diagrams: <JSON>"), `get_current_diagram_info` ("Current diagram: <JSON>" or "No current diagram found.") and `get_diagram_image_by_id {diagramId}` (an `image/png` content); each posts to the HTTP API on 127.0.0.1, port 58321 or `--api-port=<port>`; a failure is an `isError` result whose text is "Failed to <what>: …", with "Failed to execute command(<slug>) with args: <JSON> (<error>)" for a non-2xx answer.
 
 ## Command line: ejs and exec
 
