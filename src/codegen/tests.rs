@@ -7,7 +7,7 @@ use serde_json::json;
 
 /// Library model: core { LibraryItem (abstract), Book : LibraryItem, Lendable, Book ⇢ Lendable,
 /// Status { AVAILABLE, LOANED } }, core.people { Member → books: Book[*] }.
-fn library() -> (Repo, Eid) {
+pub(super) fn library() -> (Repo, Eid) {
     let mut r = Repo::blank();
     let root = r.root;
     let m = r.create("UMLModel", &[("name", json!("Lib"))], Some((root, "ownedElements")));
@@ -42,7 +42,7 @@ fn library() -> (Repo, Eid) {
     (r, core)
 }
 
-fn measure() -> crate::canvas::EguiMeasure {
+pub(super) fn measure() -> crate::canvas::EguiMeasure {
     let ctx = egui::Context::default();
     crate::setup_fonts(&ctx);
     let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
@@ -50,27 +50,27 @@ fn measure() -> crate::canvas::EguiMeasure {
     crate::canvas::EguiMeasure { ctx }
 }
 
-fn opts() -> GenOpts {
+pub(super) fn opts() -> GenOpts {
     GenOpts { use_tab: false, indent_spaces: 4, doc: true, dbms: "mysql".into(), quote: true, drop_table: false }
 }
 
-fn files(l: Lang) -> Vec<(String, String)> {
+pub(super) fn files(l: Lang) -> Vec<(String, String)> {
     let (r, core) = library();
     generate_files(&r, core, l, &opts()).into_iter().map(|(p, t)| (p.to_string_lossy().replace('\\', "/"), t)).collect()
 }
 
-fn file<'a>(f: &'a [(String, String)], name: &str) -> &'a str {
+pub(super) fn file<'a>(f: &'a [(String, String)], name: &str) -> &'a str {
     &f.iter().find(|x| x.0 == name).unwrap_or_else(|| panic!("no {name} in {:?}", f.iter().map(|x| &x.0).collect::<Vec<_>>())).1
 }
 
-fn has(text: &str, lines: &[&str]) {
+pub(super) fn has(text: &str, lines: &[&str]) {
     for l in lines {
         assert!(text.lines().any(|x| x.trim() == *l), "missing {l:?} in\n{text}");
     }
 }
 
 #[test]
-fn generates_java() {
+pub(super) fn generates_java() {
     let f = files(Lang::Java);
     has(file(&f, "Book.java"), &["import java.util.*;", "public class Book extends LibraryItem implements Lendable {", "private String isbn;", "public int pages(int from) {", "// TODO implement here", "return 0;", "public boolean lend(int days) {", "public Book() {"]);
     has(file(&f, "LibraryItem.java"), &["public abstract class LibraryItem {", "protected String title;", "public static int count = 0;", "* Anything that can be lent."]);
@@ -80,7 +80,7 @@ fn generates_java() {
 }
 
 #[test]
-fn generates_csharp_cpp_and_c() {
+pub(super) fn generates_csharp_cpp_and_c() {
     let f = files(Lang::CSharp);
     has(file(&f, "Book.cs"), &["public class Book : LibraryItem, Lendable {", "private string isbn;", "public int pages(int from) {", "return 0;"]);
     has(file(&f, "people/Member.cs"), &["namespace people {", "public List<Book> books;"]);
@@ -98,7 +98,7 @@ fn generates_csharp_cpp_and_c() {
 }
 
 #[test]
-fn generates_python_php_typescript_and_javascript() {
+pub(super) fn generates_python_php_typescript_and_javascript() {
     let f = files(Lang::Python);
     has(file(&f, "book.py"), &["from library_item import LibraryItem", "class Book(LibraryItem, Lendable):", "self.__isbn: str = \"\"", "def pages(self, from: int) -> int:", "pass"]);
     has(file(&f, "library_item.py"), &["from abc import ABC, abstractmethod", "class LibraryItem(ABC):", "count: int = 0", "\"\"\"Anything that can be lent.\"\"\""]);
@@ -119,41 +119,41 @@ fn generates_python_php_typescript_and_javascript() {
 }
 
 /// Reverse a source text and import it into a new model; returns the repo and the model.
-fn reverse(l: Lang, src: &str, rel: &[&str], file: &str) -> (Repo, Eid) {
+pub(super) fn reverse(l: Lang, src: &str, rel: &[&str]) -> (Repo, Eid) {
     let mut r = Repo::blank();
     let root = r.root;
     let m = r.create("UMLModel", &[("name", json!(l.reverse_model()))], Some((root, "ownedElements")));
     let rel: Vec<String> = rel.iter().map(|s| s.to_string()).collect();
-    let p = parse_source(l, src, &rel, file);
+    let p = parse_source(l, src, &rel);
     assert!(!p.errors, "{l:?} reported errors");
     import_units(&mut r, m, p.units, &RevOpts { association: true, public_only: false, type_hierarchy: false, package_overview: false, package_structure: false });
     (r, m)
 }
 
-fn find(r: &Repo, ty: &str, name: &str) -> Eid {
+pub(super) fn find(r: &Repo, ty: &str, name: &str) -> Eid {
     r.all_of(ty).into_iter().find(|e| r.name(*e) == name).unwrap_or_else(|| panic!("no {ty} {name}"))
 }
 
-fn attr(r: &Repo, c: Eid, name: &str) -> Eid {
+pub(super) fn attr(r: &Repo, c: Eid, name: &str) -> Eid {
     r.list(c, "attributes").into_iter().find(|a| r.name(*a) == name).unwrap_or_else(|| panic!("no attribute {name} in {}", r.name(c)))
 }
 
-fn op(r: &Repo, c: Eid, name: &str) -> Eid {
+pub(super) fn op(r: &Repo, c: Eid, name: &str) -> Eid {
     r.list(c, "operations").into_iter().find(|a| r.name(*a) == name).unwrap_or_else(|| panic!("no operation {name} in {}", r.name(c)))
 }
 
 /// The parameters of an operation as `name: type` (`: type` for the return).
-fn sig(r: &Repo, o: Eid) -> Vec<String> {
+pub(super) fn sig(r: &Repo, o: Eid) -> Vec<String> {
     r.list(o, "parameters").into_iter().map(|p| format!("{}: {}", r.name(p), crate::views::type_name(r, p, "type"))).collect()
 }
 
-fn generalizes(r: &Repo, child: Eid, parent: Eid, kind: &str) -> bool {
+pub(super) fn generalizes(r: &Repo, child: Eid, parent: Eid, kind: &str) -> bool {
     r.all_of(kind).into_iter().any(|g| r.refd(g, "source") == Some(child) && r.refd(g, "target") == Some(parent))
 }
 
 /// The shape the reverse tests share: Shape (abstract or interface) with area(); Circle extends or
 /// realizes it with radius: double and a list of tags; Color { RED, GREEN }.
-fn check_shapes(r: &Repo, pkg_path: &[&str], radius_ty: &str, shape_kind: &str) {
+pub(super) fn check_shapes(r: &Repo, pkg_path: &[&str], radius_ty: &str, shape_kind: &str) {
     let circle = find(r, "UMLClass", "Circle");
     let shape = find(r, shape_kind, "Shape");
     let mut p = r.parent(circle).unwrap();
@@ -173,7 +173,7 @@ fn check_shapes(r: &Repo, pkg_path: &[&str], radius_ty: &str, shape_kind: &str) 
 }
 
 #[test]
-fn reverses_java() {
+pub(super) fn reverses_java() {
     let src = r#"
 package com.acme.geo;
 
@@ -198,7 +198,7 @@ public class Circle extends Shape implements Comparable<Circle> {
 
 enum Color { RED, GREEN; Color() {} }
 "#;
-    let (r, _) = reverse(Lang::Java, src, &[], "Shapes.java");
+    let (r, _) = reverse(Lang::Java, src, &[]);
     check_shapes(&r, &["com", "acme", "geo"], "double", "UMLClass");
     let circle = find(&r, "UMLClass", "Circle");
     assert_eq!(r.str(attr(&r, circle, "radius"), "defaultValue"), "1.0");
@@ -214,7 +214,7 @@ enum Color { RED, GREEN; Color() {} }
 }
 
 #[test]
-fn reverses_csharp_cpp_and_c() {
+pub(super) fn reverses_csharp_cpp_and_c() {
     let cs = r#"
 namespace Acme.Geo {
     /// <summary>A shape.</summary>
@@ -228,7 +228,7 @@ namespace Acme.Geo {
     }
 }
 "#;
-    let (r, _) = reverse(Lang::CSharp, cs, &[], "Shapes.cs");
+    let (r, _) = reverse(Lang::CSharp, cs, &[]);
     check_shapes(&r, &["Acme", "Geo"], "double", "UMLInterface");
     assert_eq!(crate::views::type_name(&r, attr(&r, find(&r, "UMLClass", "Circle"), "Name"), "type"), "string");
     let cpp = r#"
@@ -253,7 +253,7 @@ private:
 }
 double geo::Circle::area() const { return 0; }
 "#;
-    let (r, _) = reverse(Lang::Cpp, cpp, &[], "shapes.h");
+    let (r, _) = reverse(Lang::Cpp, cpp, &[]);
     check_shapes(&r, &["geo"], "double", "UMLInterface");
     let circle = find(&r, "UMLClass", "Circle");
     assert_eq!(r.str(attr(&r, circle, "radius"), "visibility"), "private");
@@ -273,13 +273,13 @@ double Circle_area(Circle* self);
 Circle* Circle_new(double radius);
 #endif
 "#;
-    let (r, _) = reverse(Lang::C, c, &["geo"], "shapes.h");
+    let (r, _) = reverse(Lang::C, c, &["geo"]);
     check_shapes(&r, &["geo"], "double", "UMLInterface");
     assert!(r.bool(op(&r, find(&r, "UMLClass", "Circle"), "new"), "isStatic"));
 }
 
 #[test]
-fn reverses_python_php_typescript_and_javascript() {
+pub(super) fn reverses_python_php_typescript_and_javascript() {
     let py = r#"
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -310,7 +310,7 @@ class Circle(Shape):
     def unit(scale: float = 1.0) -> "Circle":
         return Circle(scale)
 "#;
-    let (r, _) = reverse(Lang::Python, py, &["geo"], "shapes.py");
+    let (r, _) = reverse(Lang::Python, py, &["geo"]);
     check_shapes(&r, &["geo"], "float", "UMLInterface");
     let circle = find(&r, "UMLClass", "Circle");
     assert_eq!(r.str(attr(&r, circle, "tags"), "visibility"), "protected");
@@ -334,7 +334,7 @@ final class Circle implements Shape {
     public static function unit(float $scale = 1.0): Circle { return new Circle(); }
 }
 "#;
-    let (r, _) = reverse(Lang::Php, php, &[], "Shapes.php");
+    let (r, _) = reverse(Lang::Php, php, &[]);
     check_shapes(&r, &["Acme", "Geo"], "float", "UMLInterface");
     let circle = find(&r, "UMLClass", "Circle");
     assert_eq!(r.str(attr(&r, circle, "name"), "visibility"), "private");
@@ -354,7 +354,7 @@ export class Circle implements Shape {
   get label(): string { return this.name }
 }
 "#;
-    let (r, _) = reverse(Lang::TypeScript, ts, &["geo"], "shapes.ts");
+    let (r, _) = reverse(Lang::TypeScript, ts, &["geo"]);
     check_shapes(&r, &["geo"], "number", "UMLInterface");
     let circle = find(&r, "UMLClass", "Circle");
     assert_eq!(r.str(attr(&r, circle, "tags"), "multiplicity"), "*");
@@ -374,7 +374,7 @@ export class Circle extends Shape {
   area() { return Math.PI * this.radius ** 2; }
 }
 "#;
-    let (r, _) = reverse(Lang::JavaScript, js, &[], "shapes.js");
+    let (r, _) = reverse(Lang::JavaScript, js, &[]);
     let circle = find(&r, "UMLClass", "Circle");
     assert!(generalizes(&r, circle, find(&r, "UMLClass", "Shape"), "UMLGeneralization"));
     attr(&r, circle, "radius");
@@ -383,7 +383,7 @@ export class Circle extends Shape {
 }
 
 #[test]
-fn ddl_round_trip() {
+pub(super) fn ddl_round_trip() {
     let mut r = Repo::blank();
     let root = r.root;
     let dm = r.create("ERDDataModel", &[("name", json!("Shop"))], Some((root, "ownedElements")));
@@ -441,7 +441,7 @@ CREATE TABLE vendor (`id` INT NOT NULL, `name` TEXT, PRIMARY KEY (`id`), UNIQUE 
 /// The whole flow through the App: files on disk, generate, then reverse them back into a new
 /// model with the diagrams.
 #[test]
-fn generate_then_reverse_through_the_app() {
+pub(super) fn generate_then_reverse_through_the_app() {
     let dir = std::env::temp_dir().join(format!("umlcraft-codegen-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let mut a = App::new(None);

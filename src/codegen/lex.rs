@@ -407,8 +407,8 @@ pub fn typed_decls(t: &[T], mods: &[&str]) -> Vec<Decl> {
         d.name = name;
         d.ty = join(&rest[..ty_end]);
         let q = close(rest, p);
-        let inner = &rest[p + 1..q.max(p + 1)];
-        d.params = Some(commas(inner).into_iter().filter_map(|pt| typed_param(pt, mods)).collect());
+        let inner = flatten_groups(&rest[p + 1..q.max(p + 1)]);
+        d.params = Some(commas(&inner).into_iter().filter_map(|pt| typed_param(pt, mods)).collect());
         d.tail = join(&rest[(q + 1).min(rest.len())..]);
         return vec![d];
     }
@@ -429,6 +429,24 @@ pub fn typed_decls(t: &[T], mods: &[&str]) -> Vec<Decl> {
             e.ty = out.first().map(|f: &Decl| f.ty.clone()).unwrap_or_default();
         }
         out.push(e);
+    }
+    out
+}
+
+/// Dart's optional parameter groups `{a, b}` and `[a, b]` opened up into a flat list.
+fn flatten_groups(t: &[T]) -> Vec<T> {
+    let mut out = vec![];
+    let mut skip_close = vec![];
+    for (i, x) in t.iter().enumerate() {
+        let group_start = x.is("{") || (x.is("[") && (i == 0 || t[i - 1].is(",")));
+        if group_start {
+            skip_close.push(close(t, i));
+            continue;
+        }
+        if skip_close.contains(&i) {
+            continue;
+        }
+        out.push(x.clone());
     }
     out
 }

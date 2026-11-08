@@ -7,6 +7,8 @@
 pub mod lex;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_pro;
 
 pub mod c;
 pub mod cpp;
@@ -222,6 +224,7 @@ impl Ty {
 /// A package to generate: its types and sub-packages, `path` from the base package.
 #[derive(Clone, Debug, Default)]
 pub struct Pkg {
+    pub name: String,
     pub path: Vec<String>,
     pub types: Vec<Ty>,
     pub subs: Vec<Pkg>,
@@ -289,7 +292,8 @@ pub fn gen_opts(prefs: &crate::prefs::Prefs, l: Lang) -> GenOpts {
     let int = |n: &str, d: i64| prefs.get(&format!("{k}.gen.{n}")).and_then(|v| v.as_i64()).unwrap_or(d);
     let st = |n: &str, d: &str| prefs.get(&format!("{k}.gen.{n}")).and_then(|v| v.as_str()).unwrap_or(d).to_string();
     GenOpts {
-        use_tab: prefs.bool(&format!("{k}.gen.useTab"), false),
+        // Go is indented with tabs (gofmt)
+        use_tab: prefs.bool(&format!("{k}.gen.useTab"), l == Lang::Go),
         indent_spaces: int("indentSpaces", l.default_indent()),
         doc: prefs.bool(&format!("{k}.gen.doc"), true),
         dbms: st("dbms", "mysql"),
@@ -408,7 +412,6 @@ impl W {
 }
 
 #[derive(Clone, Copy)]
-#[allow(dead_code)]
 pub enum DocStyle {
     Block,
     Slashes,
@@ -452,7 +455,6 @@ pub fn lc_first(s: &str) -> String {
     }
 }
 
-#[allow(dead_code)]
 pub fn uc_first(s: &str) -> String {
     let mut c = s.chars();
     match c.next() {
@@ -504,7 +506,7 @@ fn classifier_kind(ty: &str) -> Option<Kind> {
 pub fn gen_tree(r: &Repo, base: Eid) -> Pkg {
     let rels: Vec<Eid> = r.all().filter(|e| matches!(r.ty(*e), "UMLGeneralization" | "UMLInterfaceRealization" | "UMLAssociation")).collect();
     fn pkg(r: &Repo, e: Eid, path: Vec<String>, rels: &[Eid]) -> Pkg {
-        let mut p = Pkg { path: path.clone(), ..Default::default() };
+        let mut p = Pkg { name: r.name(e), path: path.clone(), ..Default::default() };
         for c in r.list(e, "ownedElements") {
             if classifier_kind(r.ty(c)).is_some() {
                 let mut t = ty_of(r, c, rels);
@@ -643,8 +645,9 @@ pub fn per_type(tree: &Pkg, file: impl Fn(&Ty) -> String, mut text: impl FnMut(&
 }
 
 /// Reverse one file's text (`rel`: its folder path from the source folder, for the languages whose
-/// namespaces are folders).
-pub fn parse_source(l: Lang, src: &str, rel: &[String], file: &str) -> Parsed {
+/// namespaces are folders: C, C++ without namespaces, Python, JavaScript, TypeScript, Rust, Ruby,
+/// Dart and Swift).
+pub fn parse_source(l: Lang, src: &str, rel: &[String]) -> Parsed {
     match l {
         Lang::Java => java::parse(src),
         Lang::Cpp => cpp::parse(src, rel),
@@ -654,7 +657,7 @@ pub fn parse_source(l: Lang, src: &str, rel: &[String], file: &str) -> Parsed {
         Lang::Php => php::parse(src),
         Lang::TypeScript => typescript::parse(src, rel, true),
         Lang::JavaScript => typescript::parse(src, rel, false),
-        Lang::Rust => rust::parse(src, rel, file),
+        Lang::Rust => rust::parse(src, rel),
         Lang::Go => go::parse(src),
         Lang::Ruby => ruby::parse(src, rel),
         Lang::Kotlin => kotlin::parse(src),
@@ -1007,14 +1010,13 @@ impl App {
             };
             let text = String::from_utf8_lossy(&bytes);
             let rel: Vec<String> = f.parent().and_then(|p| p.strip_prefix(dir).ok()).map(|p| p.iter().map(|s| s.to_string_lossy().to_string()).collect()).unwrap_or_default();
-            let file = f.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
             log.push(format!("Reading {}", f.strip_prefix(dir).unwrap_or(f).display()));
             if l == Lang::Ddl {
                 let (t, err) = ddl::parse(&text);
                 errors += err as usize;
                 tables.extend(t);
             } else {
-                let p = parse_source(l, &text, &rel, &file);
+                let p = parse_source(l, &text, &rel);
                 errors += p.errors as usize;
                 units.extend(p.units);
             }
