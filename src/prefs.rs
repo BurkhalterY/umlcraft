@@ -269,6 +269,11 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         v.push(("Flowchart", "", label, Kind::Header, Value::Null));
         v.push(("Flowchart", key, "Fill Color", Kind::Color, Value::Null));
     }
+    // ER diagrams (erd/preferences/erd.json)
+    v.push(("ERD", "", "Entity", Kind::Header, Value::Null));
+    v.push(("ERD", "erd.entity.fillColor", "Fill Color", Kind::Color, Value::Null));
+    v.push(("ERD", "", "Relationship", Kind::Header, Value::Null));
+    v.push(("ERD", "erd.relationship.lineStyle", "Line Style", Kind::LineStyle, json!(2)));
     // data flow diagrams and mind maps (dfd/preferences/dfd.json, mindmap/preferences/mindmap.json)
     v.push(("Data Flow Diagram", "", "Data Flow", Kind::Header, Value::Null));
     v.push(("Data Flow Diagram", "dfd.dataflow.lineStyle", "Line Style", Kind::LineStyle, json!(2)));
@@ -379,6 +384,7 @@ impl App {
             Some("DFDProcess") => Some("dfd.process.fillColor"),
             Some("DFDDataStore") => Some("dfd.datastore.fillColor"),
             Some("MMNode") => Some("mindmap.node.fillColor"),
+            Some("ERDEntity") => Some("erd.entity.fillColor"),
             _ => None,
         };
         if let Some(p) = own.map(|k| self.pref(k)).filter(|p| p.is_string()) {
@@ -404,6 +410,7 @@ impl App {
                 "FCFlowView" => Some("flowchart.flow.lineStyle"),
                 "DFDDataFlowView" => Some("dfd.dataflow.lineStyle"),
                 "MMEdgeView" => Some("mindmap.edge.lineStyle"),
+                "ERDRelationshipView" => Some("erd.relationship.lineStyle"),
                 _ => None,
             };
             let own = key.and_then(|k| self.pref(k).as_i64()).filter(|s| *s != 0);
@@ -438,7 +445,7 @@ impl App {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(120.0);
-                    for s in ["General", "Data Flow Diagram", "Flowchart", "Mindmap", "UML"] {
+                    for s in ["General", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "UML"] {
                         if ui.selectable_label(section == s, s).clicked() {
                             pick = Some(s.to_string());
                         }

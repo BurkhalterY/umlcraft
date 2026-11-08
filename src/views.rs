@@ -264,12 +264,13 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "FCFlow" => "FCFlowView",
         "DFDDataFlow" => "DFDDataFlowView",
         "MMEdge" => "MMEdgeView",
+        "ERDRelationship" => "ERDRelationshipView",
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 29] = [
-    "FCFlowView", "DFDDataFlowView", "MMEdgeView", "UMLExceptionHandlerView", "UMLActivityInterruptView", "UMLConnectorView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
+const KNOWN_EDGE_VIEWS: [&str; 30] = [
+    "ERDRelationshipView", "FCFlowView", "DFDDataFlowView", "MMEdgeView", "UMLExceptionHandlerView", "UMLActivityInterruptView", "UMLConnectorView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
@@ -424,7 +425,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLConnectionPointReference" => (CONNECTION_POINT_SIZE, CONNECTION_POINT_SIZE),
         "UMLNaryAssociationNode" => (NARY_MIN_W, NARY_MIN_H),
         // a click makes a flowchart node at its smallest size, as in the original (factory.js:279-292)
-        _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) => (1.0, 1.0),
+        _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) || kind == "ERDEntity" => (1.0, 1.0),
         _ => (100.0, 60.0),
     }
 }
@@ -541,6 +542,9 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
     }
     if crate::notations::is_node_type(r.ty(model)) {
         return Some(crate::notations::create_view(r, diagram, model, rect));
+    }
+    if r.ty(model) == "ERDEntity" {
+        return Some(crate::erd::create_view(r, diagram, model, rect));
     }
     let kind = node_kind(r.ty(model))?;
     let m = r.ref_to(model);
@@ -1245,6 +1249,16 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
         return Some(e);
     }
     if ty == "MMEdgeView" {
+        return Some(e);
+    }
+    // a relationship's name by its middle, and its ends' names by its ends (ERDRelationshipView,
+    // erd/elements.js:470-500)
+    if ty == "ERDRelationshipView" {
+        let p6 = std::f64::consts::FRAC_PI_6;
+        for (field, a, dist, pos) in [("nameLabel", HALF_PI, 15.0, 1), ("tailNameLabel", p6, 30.0, 2), ("headNameLabel", -p6, 30.0, 0)] {
+            let l = edge_label(r, e, Some(m), a, dist, pos, false);
+            r.set_ref(e, field, Some(l));
+        }
         return Some(e);
     }
     r.set(e, "showVisibility", json!(true));
@@ -2055,6 +2069,9 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         crate::flowchart::layout(r, ms, v);
         return Info { shape: "flowchart", ..Default::default() };
     }
+    if t == "ERDEntityView" {
+        return crate::erd::layout(r, ms, v);
+    }
     if crate::notations::is_node_view(&t) {
         crate::notations::layout(r, ms, v);
         return Info { shape: "notation", ..Default::default() };
@@ -2529,6 +2546,10 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     }
     if r.ty(m) == "MMEdge" {
         return vec![];
+    }
+    if r.ty(m) == "ERDRelationship" {
+        let end = |k: &str| r.child(m, k).map(|e| r.name(e)).unwrap_or_default();
+        return vec![("nameLabel", name), ("tailNameLabel", end("end1")), ("headNameLabel", end("end2"))];
     }
     if r.ty(m) == "UMLTransition" {
         out.push(("nameLabel", transition_text(r, m)));

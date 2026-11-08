@@ -5238,3 +5238,71 @@ fn data_flow_diagrams_and_mind_maps() {
     assert_eq!(a.repo.f(n, "width"), ms.width("MMNode1", 0).ceil() + 16.0);
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn er_diagrams_have_entities_columns_and_crows_feet() {
+    use crate::views::Measure;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "ERDDiagram"));
+    let dm = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(dm), a.repo.name(dm).as_str(), a.repo.name(d).as_str()), ("ERDDataModel", "Data Model1", "ERDDiagram1"));
+    let e1 = a.change(|a| a.create_node("ERDEntity", rect(0.0, 0.0, 1.0, 1.0))).unwrap();
+    let e2 = a.change(|a| a.create_node("ERDEntity", rect(300.0, 0.0, 1.0, 1.0))).unwrap();
+    let m1 = a.repo.refd(e1, "model").unwrap();
+    assert_eq!(a.repo.name(m1), "Entity1");
+    // Add Column (Ctrl+Enter) and its expression "name: type(length)"
+    let c = a.change(|a| a.add_feature(m1, "ERDColumn")).unwrap();
+    assert_eq!(a.repo.name(c), "Column1");
+    crate::erd::apply_column(&mut a.repo, c, "id : VARCHAR(20)");
+    assert_eq!((a.repo.name(c).as_str(), a.repo.str(c, "type").as_str(), crate::erd::column_text(&a.repo, c).as_str()), ("id", "VARCHAR", "id: VARCHAR(20)"));
+    a.repo.set(c, "primaryKey", json!(true));
+    let c2 = a.change(|a| a.add_feature(m1, "ERDColumn")).unwrap();
+    crate::erd::apply_column(&mut a.repo, c2, "note");
+    a.repo.set(c2, "nullable", json!(true));
+    assert_eq!((crate::erd::key_text(&a.repo, c).as_str(), crate::erd::key_text(&a.repo, c2).as_str()), ("PK", "N"));
+    assert_eq!(a.repo.raw(c2, "length"), Some(&json!(0)), "no length sets it to 0, as the original does");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let cc = a.repo.refd(e1, "columnCompartment").unwrap();
+    assert_eq!(a.repo.list(cc, "subViews").len(), 2);
+    assert_eq!(a.info[&e1].compartments[0].rows.len(), 2, "the columns are rows the inline edit walks");
+    let lh = ms.size();
+    assert_eq!(a.repo.f(e1, "height"), 5.0 + lh + 5.0 + 5.0 + 2.0 * lh + 2.0 + 5.0);
+    // a one-to-many relationship: the second end is 0..*
+    let t = tool("ERDRelationshipOneToMany", AssocInit::Plain);
+    assert!(a.can_connect(&t, e1, e2));
+    let rv = a.change(|a| a.create_edge(&t, e1, e2)).unwrap();
+    let rm = a.repo.refd(rv, "model").unwrap();
+    assert_eq!(a.repo.ty(rv), "ERDRelationshipView");
+    assert_eq!(a.repo.str(a.repo.child(rm, "end2").unwrap(), "cardinality"), "0..*");
+    assert_eq!(a.repo.str(a.repo.child(rm, "end1").unwrap(), "cardinality"), "1");
+    assert!(a.repo.refd(rv, "tailNameLabel").is_some());
+    // Add Many to Many on an entity's quick edit
+    let b = crate::related::actions("ERDEntity").into_iter().find(|b| b.label == "Add Many to Many").unwrap();
+    let nv = a.add_related(e2, b).unwrap();
+    assert_eq!(a.repo.ty(nv), "ERDEntityView");
+    // suppress columns hides the rows
+    a.repo.set(e1, "suppressColumns", json!(true));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.info[&e1].compartments[0].rows.is_empty());
+    assert_eq!(a.repo.f(e1, "height") >= 5.0 + lh + 5.0, true);
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("Entity1"));
+    // ERD001: a nullable primary key; ERD002: a foreign key to an entity without a relationship
+    a.repo.set(c, "nullable", json!(true));
+    let m3 = a.repo.refd(nv, "model").unwrap();
+    let fk = a.change(|a| a.add_feature(m3, "ERDColumn")).unwrap();
+    a.repo.set(fk, "foreignKey", json!(true));
+    let cr = a.repo.ref_to(c);
+    a.repo.set(fk, "referenceTo", cr);
+    let rules: Vec<&str> = crate::validate::validate(&a.repo).into_iter().map(|p| p.rule).collect();
+    assert!(rules.contains(&"ERD001") && rules.contains(&"ERD002"));
+    // File › New From Template › Data Model
+    let t = crate::templates::TEMPLATES.iter().find(|t| t.label == "Data Model").unwrap();
+    let p = crate::templates::project(t);
+    let dms: Vec<_> = p.children(p.root).into_iter().map(|(_, c)| c).collect();
+    assert_eq!(dms.len(), 1, "no UML profile");
+    assert_eq!((p.ty(dms[0]), p.name(dms[0]).as_str()), ("ERDDataModel", "Data Model"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

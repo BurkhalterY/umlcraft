@@ -9,6 +9,7 @@ mod api;
 mod app;
 mod cli;
 mod clipboard;
+mod erd;
 mod export;
 mod find;
 mod flowchart;

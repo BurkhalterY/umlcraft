@@ -562,6 +562,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             crate::flowchart::draw(c, r, v, fill, line, fc);
             return;
         }
+        "erd-entity" => {
+            crate::erd::draw(c, r, v, fill, line, fc);
+            return;
+        }
         "notation" => {
             crate::notations::draw(c, r, v, fill, line, fc);
             return;
@@ -1045,6 +1049,10 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         "UMLDependencyView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLIncludeView" | "UMLExtendView" | "UMLNoteLinkView" | "UMLComponentRealizationView" | "UMLDeploymentView" | "UMLAssociationClassLinkView" | "UMLTemplateBindingView" | "UMLConstraintLinkView" | "UMLInformationFlowView" | "UMLLinkObjectLinkView" | "UMLRoleBindingView"
     );
     let (mut head, mut tail) = (None, None);
+    // a non-identifying ERD relationship is dotted (ERDRelationshipView.update, erd/elements.js:555-560)
+    if ty == "ERDRelationshipView" && r.refd(e, "model").map(|m| !r.bool(m, "identifying")).unwrap_or(false) {
+        dashed = true;
+    }
     match ty.as_str() {
         "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLComponentRealizationView" => head = Some(End::Triangle),
         // an extension: a solid line with a filled triangle at the metaclass
@@ -1106,6 +1114,14 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     let n = pts.len();
     end_shape(c, pts[n - 1], pts[n - 2], head, line);
     end_shape(c, pts[0], pts[1], tail, line);
+    // an ERD relationship: crow's feet by each end's cardinality
+    if ty == "ERDRelationshipView" {
+        if let Some(m) = r.refd(e, "model") {
+            let card = |k: &str| r.child(m, k).map(|x| r.str(x, "cardinality")).filter(|c| !c.is_empty()).unwrap_or_else(|| "1".into());
+            crate::erd::draw_end(c, pts[0], pts[1], &card("end1"), line);
+            crate::erd::draw_end(c, pts[n - 1], pts[n - 2], &card("end2"), line);
+        }
+    }
     // the ownership dot: an end owned by the classifier at the other end (its ownerAttribute) gets a
     // small filled circle at its tip (UML 2.5; size estimated)
     if let Some(m) = r.refd(e, "model").filter(|m| r.has(*m, "end1")) {

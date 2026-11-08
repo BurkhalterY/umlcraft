@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, flowchart, data flow and mind map diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
+UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, flowchart, data flow, mind map and ER diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -96,10 +96,10 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Data Flow `dfd` | DFDDiagram | Process | ✅ | a DFDProcess: a box rounded by 10, its id in a compartment over its name (src/notations.rs:68-145, 147-190) | extensions/essential/dfd/toolbox/dfd.json |
 | Data Flow `dfd` | DFDDiagram | Data Store | ✅ | a DFDDataStore: a box open on the right, its id in a compartment on the left (src/notations.rs:68-145, 147-190) | extensions/essential/dfd/toolbox/dfd.json |
 | Data Flow `dfd` | DFDDiagram | Data Flow | ✅ | a DFDDataFlow between two DFD elements, owned by its source, a line with a filled arrow and its name by its middle (src/app.rs:1388; src/views.rs; src/render.rs) | extensions/essential/dfd/toolbox/dfd.json |
-| Entity-Relationship `erd` | ERDDiagram | Entity | ❌ | extensions/essential/erd/toolbox/erd.json |
-| Entity-Relationship `erd` | ERDDiagram | One to One Relationship | ❌ | extensions/essential/erd/toolbox/erd.json |
-| Entity-Relationship `erd` | ERDDiagram | One to Many Relationship | ❌ | extensions/essential/erd/toolbox/erd.json |
-| Entity-Relationship `erd` | ERDDiagram | Many to Many Relationship | ❌ | extensions/essential/erd/toolbox/erd.json |
+| Entity-Relationship `erd` | ERDDiagram | Entity | ✅ | an ERDEntity in the data model that owns the diagram: a box with a shadow, its bold name, and its columns under a line in key, name and type columns (src/app.rs:799-806; src/erd.rs:88-250) | extensions/essential/erd/toolbox/erd.json |
+| Entity-Relationship `erd` | ERDDiagram | One to One Relationship | ✅ | an ERDRelationship between two entities, owned by the first, with an end at each; ends drawn as crow's feet by cardinality, dotted when not identifying (src/app.rs:1404, 1455-1470; src/erd.rs:255-290; src/render.rs) | extensions/essential/erd/toolbox/erd.json |
+| Entity-Relationship `erd` | ERDDiagram | One to Many Relationship | ✅ | the same with its second end 0..* (src/app.rs:1455-1470) | extensions/essential/erd/toolbox/erd.json |
+| Entity-Relationship `erd` | ERDDiagram | Many to Many Relationship | ✅ | the same with both ends 0..* (src/app.rs:1455-1470) | extensions/essential/erd/toolbox/erd.json |
 | Flowchart `flowchart` | FCFlowchartDiagram | Flow | ✅ | an FCFlow between two flowchart nodes, owned by its source, a line with a filled arrow and its name 15 px off its middle (src/app.rs:1369; src/views.rs:1235-1240; src/render.rs:1050) | extensions/essential/flowchart/toolbox/flowchart.json |
 | Flowchart `flowchart` | FCFlowchartDiagram | Process | ✅ | an FCProcess in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
 | Flowchart `flowchart` | FCFlowchartDiagram | Terminator | ✅ | an FCTerminator in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |

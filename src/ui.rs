@@ -190,6 +190,20 @@ const MINDMAP_GROUPS: &[Group] = &[
     Group { id: "mindmap", label: "Mindmap", items: &[node("Node", "MMNode", "MMNode"), line("Edge", "MMEdge", "MMEdge", AssocInit::Plain)] },
     ANNOTATIONS,
 ];
+// an ER diagram (erd/toolbox/erd.json)
+const ERD_GROUPS: &[Group] = &[
+    Group {
+        id: "erd",
+        label: "Entity-Relationship",
+        items: &[
+            node("Entity", "ERDEntity", "ERDEntity"),
+            line("One to One Relationship", "ERDRelationship", "ERDRelationship", AssocInit::Plain),
+            line("One to Many Relationship", "ERDRelationshipOneToMany", "ERDRelationshipOneToMany", AssocInit::Plain),
+            line("Many to Many Relationship", "ERDRelationshipManyToMany", "ERDRelationshipManyToMany", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
 // a flowchart diagram (flowchart/toolbox/flowchart.json)
 const FLOWCHART_GROUPS: &[Group] = &[
     Group {
@@ -386,7 +400,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 14] = [
+const DIAGRAM_KINDS: [(&str, &str); 15] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -402,6 +416,7 @@ const DIAGRAM_KINDS: [(&str, &str); 14] = [
     // the original's labels (dfd/menus/dfd.json, mindmap/menus/mindmap.json)
     ("DataFlowDiagram", "DFDDiagram"),
     ("MindmapDiagram", "MMMindmapDiagram"),
+    ("ER Diagram", "ERDDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -639,6 +654,17 @@ impl App {
         if t == "Project" || self.repo.kind_of(e, "UMLPackage") {
             adds.push(("DataFlowModel", "DFDDataFlowModel", false));
         }
+        // ER data models in a project or package, entities in a data model, columns in an entity
+        // (erd/menus/erd.json; erd-commands.js:160-175)
+        if t == "Project" || self.repo.kind_of(e, "UMLPackage") {
+            adds.push(("Data Model", "ERDDataModel", false));
+        }
+        if t == "ERDDataModel" {
+            adds.push(("Entity", "ERDEntity", false));
+        }
+        if t == "ERDEntity" {
+            adds.push(("Column", "ERDColumn", true));
+        }
         if self.repo.kind_of(e, "DFDElement") {
             adds.extend([("ExternalEntity", "DFDExternalEntity", false), ("Process", "DFDProcess", false), ("DataStore", "DFDDataStore", false)]);
         }
@@ -743,7 +769,7 @@ impl App {
         if is_pkg || is_classifier || other {
             let dfd = self.repo.kind_of(e, "DFDElement");
             ui.menu_button("Add Diagram", |ui| {
-                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram") || (dfd && *k == "DFDDiagram")).collect();
+                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram") || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel")).collect();
                 for (l, k) in kinds {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
@@ -1637,6 +1663,7 @@ impl App {
                 Some("FCFlowchartDiagram") => self.open_groups.insert("flowchart"),
                 Some("DFDDiagram") => self.open_groups.insert("dfd"),
                 Some("MMMindmapDiagram") => self.open_groups.insert("mindmap"),
+                Some("ERDDiagram") => self.open_groups.insert("erd"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1666,6 +1693,7 @@ impl App {
             Some("FCFlowchartDiagram") => FLOWCHART_GROUPS,
             Some("DFDDiagram") => DFD_GROUPS,
             Some("MMMindmapDiagram") => MINDMAP_GROUPS,
+            Some("ERDDiagram") => ERD_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],
@@ -3133,7 +3161,7 @@ pub struct WorkingRow(pub Eid);
 pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 15] = [
+const FORMAT_TOGGLES: [(&str, &str); 16] = [
     ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
     ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
     ("parentStyle", "Inherit Style                     Ctrl+Shift+K"),
@@ -3149,6 +3177,7 @@ const FORMAT_TOGGLES: [(&str, &str); 15] = [
     ("suppressOperations", "Suppress Operations            Ctrl+Shift+O"),
     ("suppressReceptions", "Suppress Receptions            Ctrl+Shift+E"),
     ("suppressLiterals", "Suppress Literals                 Ctrl+Shift+T"),
+    ("suppressColumns", "Suppress Columns               Ctrl+Shift+U"),
 ];
 
 /// The small padlock shown on a locked toolbox item.

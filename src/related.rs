@@ -137,6 +137,17 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
                 NOTE,
             ];
         }
+        // an entity: a new entity to the right joined one to one, one to many or many to many
+        // (quickedits/erd.json "erd.entity"; erd-commands.js:60-130); a relationship: Add Note
+        "ERDEntity" => {
+            return vec![
+                r("Add One to One", "ERDEntity", "ERDRelationship", Plain, false, Right),
+                r("Add One to Many", "ERDEntity", "ERDRelationshipOneToMany", Plain, false, Right),
+                r("Add Many to Many", "ERDEntity", "ERDRelationshipManyToMany", Plain, false, Right),
+                NOTE,
+            ]
+        }
+        "ERDRelationship" => return vec![NOTE],
         // a flow: only Add Note ("fc.edge")
         "FCFlow" | "DFDDataFlow" => return vec![NOTE],
         // data flow nodes (dfd/quickedits/dfd.json; dfd-commands.js:19-118)

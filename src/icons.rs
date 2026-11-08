@@ -48,7 +48,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLPseudostate" => "initial",
         "UMLConnectionPointReference" => "connection-point",
         // a flowchart element's icon is its type (the shapes are drawn by key)
-        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") => crate::meta::static_name(t),
+        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") => crate::meta::static_name(t),
         "UMLTransition" => "dependency",
         // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
         "UMLAction" => match r.str(e, "kind").as_str() {
@@ -300,6 +300,42 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             rect_at(1.5, 5.5, 13.0, 5.0, Y);
             for x in [4.75, 8.0, 11.25] {
                 line(&[(x, 5.5), (x, 10.5)], Y);
+            }
+        }
+        // ER elements
+        "ERDDataModel" => {
+            p.add(Shape::ellipse_stroke(at(8.0, 4.0), Vec2::new(6.0 * s, 2.0 * s), st(Y)));
+            line(&[(2.0, 4.0), (2.0, 12.0)], Y);
+            line(&[(14.0, 4.0), (14.0, 12.0)], Y);
+            line(&[(2.0, 12.0), (4.0, 13.5), (8.0, 14.0), (12.0, 13.5), (14.0, 12.0)], Y);
+        }
+        "ERDDiagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            rect_at(3.5, 4.0, 4.0, 4.0, G);
+            rect_at(8.5, 8.0, 4.0, 4.0, G);
+            line(&[(7.5, 6.0), (10.5, 6.0), (10.5, 8.0)], G);
+        }
+        "ERDEntity" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, Y);
+            line(&[(1.5, 6.0), (14.5, 6.0)], Y);
+            line(&[(5.0, 6.0), (5.0, 13.5)], Y);
+        }
+        "ERDColumn" => {
+            rect_at(1.5, 5.5, 13.0, 5.0, Y);
+            line(&[(5.0, 5.5), (5.0, 10.5)], Y);
+        }
+        "ERDRelationship" | "ERDRelationshipOneToMany" | "ERDRelationshipManyToMany" => {
+            line(&[(2.0, 8.0), (14.0, 8.0)], B);
+            line(&[(4.0, 5.5), (4.0, 10.5)], B);
+            if key == "ERDRelationship" {
+                line(&[(12.0, 5.5), (12.0, 10.5)], B);
+            } else {
+                line(&[(10.0, 8.0), (14.0, 5.0)], B);
+                line(&[(10.0, 8.0), (14.0, 11.0)], B);
+            }
+            if key == "ERDRelationshipManyToMany" {
+                line(&[(6.0, 8.0), (2.0, 5.0)], B);
+                line(&[(6.0, 8.0), (2.0, 11.0)], B);
             }
         }
         // data flow and mind map elements

@@ -206,6 +206,7 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                     ("+ Join", "Add Join", "", ItemKey::Scaffold("UMLJoinNode")),
                 ],
                 "UMLUseCase" => vec![("+ Ext", "Add Extension Point", "Ctrl+Enter", ItemKey::Add)],
+                "ERDEntity" => vec![("+ Col", "Add Column", "Ctrl+Enter", ItemKey::Add)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
                 // classes, interfaces, signals, data types, components, nodes, artifacts: Add Reception
                 // too, which has no key; stereotypes have none (actors take no attributes in UMLCraft)
@@ -1460,7 +1461,10 @@ impl App {
                     let centre = if n % 2 == 0 { P { x: (pts[mi].x + pts[mi + 1].x) / 2.0, y: (pts[mi].y + pts[mi + 1].y) / 2.0 } } else { pts[mi] };
                     let dist = |q: P| (q.x - p.x).powi(2) + (q.y - p.y).powi(2);
                     let (dt, dh, dm) = (dist(pts[0]), dist(pts[n - 1]), dist(centre));
-                    let end = if dt < dh && dt < dm { Some(("end1", "tailRoleNameLabel", pts[0])) } else if dh < dt && dh < dm { Some(("end2", "headRoleNameLabel", pts[n - 1])) } else { None };
+                    // an ERD relationship names its end labels tailNameLabel and headNameLabel
+                    let erd = self.repo.ty(v) == "ERDRelationshipView";
+                    let (tl, hl) = if erd { ("tailNameLabel", "headNameLabel") } else { ("tailRoleNameLabel", "headRoleNameLabel") };
+                    let end = if dt < dh && dt < dm { Some(("end1", tl, pts[0])) } else if dh < dt && dh < dm { Some(("end2", hl, pts[n - 1])) } else { None };
                     if let Some((field, label, at)) = end {
                         if let Some(e) = self.repo.child(m, field) {
                             let rect = match self.repo.refd(v, label) {
@@ -1487,7 +1491,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v))));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || self.repo.ty(v) == "ERDEntityView"));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
@@ -1502,7 +1506,12 @@ impl App {
         self.editing = Some(Editing {
             kind: EditKind::Feature(item),
             // a reception is edited as a name expression, without its «signal» keyword
-            text: if self.repo.ty(item) == "UMLReception" { crate::parse::name_text(&self.repo, item) } else { self.repo.str(iv, "text") },
+            text: match self.repo.ty(item) {
+                "UMLReception" => crate::parse::name_text(&self.repo, item),
+                // a column is edited as "name: type(length)" (ERDColumn.textualNotation)
+                "ERDColumn" => crate::erd::column_text(&self.repo, item),
+                _ => self.repo.str(iv, "text"),
+            },
             rect: R { x: b.x - 2.0, y: b.y - 3.0, w: b.w.max(120.0) + 4.0, h: 19.0 },
             multiline: false,
             center: false,
@@ -1563,6 +1572,7 @@ impl App {
             "UMLExtensionPoint" | "UMLSlot" => None,
             "UMLEnumerationLiteral" => Some("suppressLiterals"),
             "UMLTemplateParameter" => None,
+            "ERDColumn" => Some("suppressColumns"),
             _ => Some("suppressAttributes"),
         }
     }
@@ -1670,6 +1680,8 @@ impl App {
                 let ty = match self.repo.ty(m) {
                     "UMLEnumeration" => "UMLEnumerationLiteral",
                     "UMLUseCase" => "UMLExtensionPoint",
+                    // a column on an entity (quickedits/erd.json "erd.add-column")
+                    "ERDEntity" => "ERDColumn",
                     _ if self.repo.kind_of(m, "UMLInstance") => "UMLSlot",
                     _ => "UMLAttribute",
                 };
@@ -1786,7 +1798,7 @@ impl App {
                 "UMLSlot" => Some(Grammar::Slot),
                 "UMLTemplateParameter" => Some(Grammar::TemplateParameter),
                 "UMLReception" | "UMLEnumerationLiteral" => Some(Grammar::Name),
-                "UMLExtensionPoint" => None,
+                "UMLExtensionPoint" | "ERDColumn" => None,
                 _ => Some(Grammar::Attribute),
             },
         }
@@ -1867,6 +1879,12 @@ impl App {
             EditKind::Name(m) => {
                 if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
                     self.change(|a| crate::parse::apply_name(&mut a.repo, m, &e.text));
+                }
+            }
+            EditKind::Feature(f) if self.repo.ty(f) == "ERDColumn" => {
+                if self.repo.alive(f) && crate::erd::column_text(&self.repo, f) != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| crate::erd::apply_column(&mut a.repo, f, &t));
                 }
             }
             EditKind::Feature(f) => {
@@ -2038,9 +2056,56 @@ impl App {
                     }
                     ed.fresh = true;
                 }
+                // ERD quick edits (quickedits/erd.json): a relationship end's cardinality, a relationship's
+                // Identifying, a column's Primary Key
+                let mut picked_end: Option<(&'static str, String)> = None;
+                let mut picked_flag: Option<(Eid, &'static str, bool)> = None;
+                let erd_target = match ed.kind {
+                    EditKind::Name(x) | EditKind::Feature(x) if self.repo.ty(x).starts_with("ERD") => Some(x),
+                    _ => None,
+                };
+                if let Some(x) = erd_target {
+                    let ty = self.repo.ty(x).to_string();
+                    ui.horizontal(|ui| {
+                        let menu = |ui: &mut egui::Ui, shown: &str, hint: &str, add: &mut dyn FnMut(&mut egui::Ui)| {
+                            ui.menu_button(egui::RichText::new(format!("{shown} ▾")).size(11.0).color(Color32::WHITE), |ui| add(ui)).response.on_hover_text(hint);
+                        };
+                        match ty.as_str() {
+                            "ERDRelationshipEnd" => {
+                                let cur = self.repo.str(x, "cardinality");
+                                let cur = if cur.is_empty() { "1".to_string() } else { cur };
+                                let shown = crate::erd::CARDINALITIES.iter().find(|c| c.0 == cur).map(|c| c.1).unwrap_or("One and Only One");
+                                menu(ui, shown, "Cardinality", &mut |ui| {
+                                    for (val, label) in crate::erd::CARDINALITIES {
+                                        if ui.selectable_label(cur == val, label).clicked() {
+                                            picked_end = Some(("cardinality", val.to_string()));
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                            }
+                            "ERDRelationship" | "ERDColumn" => {
+                                let (field, hint, yes, no) = if ty == "ERDColumn" { ("primaryKey", "Primary Key", "Primary Key", "Not Key") } else { ("identifying", "Identifying", "Identifying", "Non-Identifying") };
+                                let cur = if ty == "ERDColumn" { self.repo.bool(x, field) } else { self.repo.raw(x, field).and_then(|v| v.as_bool()).unwrap_or(true) };
+                                menu(ui, if cur { yes } else { no }, hint, &mut |ui| {
+                                    for (val, label) in [(true, yes), (false, no)] {
+                                        if ui.selectable_label(cur == val, label).clicked() {
+                                            picked_flag = Some((x, field, val));
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                            }
+                            _ => {}
+                        }
+                    });
+                }
+                if let Some((x, field, val)) = picked_flag {
+                    self.change(|a| a.repo.set(x, field, serde_json::json!(val)));
+                    ed.fresh = true;
+                }
                 // an association end: aggregation, navigability and multiplicity dropdowns
                 // (quickedits/uml.json "uml.association-end1/2")
-                let mut picked_end: Option<(&'static str, String)> = None;
                 let mut picked_owner: Option<Option<Eid>> = None;
                 let mut add_qualifier = false;
                 if let EditKind::Name(end) = ed.kind {
@@ -2189,7 +2254,7 @@ impl App {
                     commit = Some(false);
                 } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
                     commit = Some(true);
-                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() && picked_order.is_none() {
+                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() && picked_order.is_none() && picked_flag.is_none() {
                     commit = Some(true);
                 }
             });

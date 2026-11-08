@@ -331,6 +331,20 @@ fn build() -> HashMap<&'static str, Kind> {
     def("FCGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
     def("FCGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
     def("FCFlowView", Some("FCGeneralEdgeView"), vec![]);
+    // entity-relationship diagrams (erd/metamodel.json)
+    def("ERDElement", Some("ExtensibleModel"), vec![]);
+    def("ERDDataModel", Some("ERDElement"), vec![]);
+    def("ERDDiagram", Some("Diagram"), vec![]);
+    def("ERDColumn", Some("ERDElement"), vec![
+        ("type", d(json!(""))), ("length", d(json!(""))), ("primaryKey", d(json!(false))), ("foreignKey", d(json!(false))), ("referenceTo", n()), ("nullable", d(json!(false))), ("unique", d(json!(false))),
+    ]);
+    def("ERDEntity", Some("ERDElement"), vec![("columns", n())]);
+    def("ERDRelationshipEnd", Some("RelationshipEnd"), vec![("cardinality", d(json!("1")))]);
+    def("ERDRelationship", Some("UndirectedRelationship"), vec![("identifying", d(json!(true)))]);
+    def("ERDColumnView", Some("LabelView"), vec![]);
+    def("ERDColumnCompartmentView", Some("NodeView"), vec![]);
+    def("ERDEntityView", Some("NodeView"), vec![("suppressColumns", d(json!(false))), ("nameLabel", n()), ("columnCompartment", n())]);
+    def("ERDRelationshipView", Some("EdgeView"), vec![("nameLabel", n()), ("tailNameLabel", n()), ("headNameLabel", n())]);
     // data flow diagrams (dfd/metamodel.json): elements with an id, owned by a data flow model
     def("DFDElement", Some("ExtensibleModel"), vec![("id", d(json!("")))]);
     def("DFDDataFlowModel", Some("DFDElement"), vec![]);
@@ -424,5 +438,5 @@ pub fn static_name(ty: &str) -> &'static str {
 /// Whether an element of another notation than UML takes its name as typed, without the UML name
 /// grammar (flowcharts, data flow diagrams, mind maps: their quick edits only set the name).
 pub fn plain_named(ty: &str) -> bool {
-    ["FC", "DFD", "MM"].iter().any(|p| ty.starts_with(p))
+    ["FC", "DFD", "MM", "ERD"].iter().any(|p| ty.starts_with(p))
 }

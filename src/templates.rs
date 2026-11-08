@@ -15,7 +15,7 @@ pub struct Template {
 
 /// The UML templates, in menu order. Diagram names are the original's where the docs give them,
 /// otherwise the model's name (estimated).
-pub const TEMPLATES: [Template; 4] = [
+pub const TEMPLATES: [Template; 5] = [
     Template { label: "UML Minimal", models: &[("Model", "UMLClassDiagram", "Main")] },
     Template {
         label: "UML Conventional",
@@ -46,6 +46,9 @@ pub const TEMPLATES: [Template; 4] = [
             ("Deployment View", "UMLDeploymentDiagram", "Deployment View"),
         ],
     },
+    // the ERD template: a data model "Data Model" with the diagram "Main", without the UML profile
+    // (erd/templates/DataModel.mdj, File › New From Template › Data Model in erd/menus/erd.json)
+    Template { label: "Data Model", models: &[("Data Model", "ERDDiagram", "Main")] },
 ];
 
 /// The UML Standard Profile in its order (uml/profiles/UMLStandardProfile.mfj): the metaclasses, each
@@ -117,13 +120,17 @@ pub fn project(t: &Template) -> Repo {
     for (_, m) in r.children(root) {
         r.detach(m);
     }
+    let erd = t.models.iter().all(|m| m.1 == "ERDDiagram");
     for (i, (model, kind, diagram)) in t.models.iter().enumerate() {
-        let m = r.create("UMLModel", &[("name", json!(model))], Some((root, "ownedElements")));
+        let ty = if *kind == "ERDDiagram" { "ERDDataModel" } else { "UMLModel" };
+        let m = r.create(ty, &[("name", json!(model))], Some((root, "ownedElements")));
         let d = r.create(kind, &[("name", json!(diagram))], Some((m, "ownedElements")));
         if i == 0 {
             r.set(d, "defaultDiagram", json!(true));
         }
     }
-    add_standard_profile(&mut r);
+    if !erd {
+        add_standard_profile(&mut r);
+    }
     r
 }

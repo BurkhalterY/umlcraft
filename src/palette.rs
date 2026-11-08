@@ -105,6 +105,8 @@ pub const COMMANDS: &[Command] = &[
     c("format:suppress-operations", "Suppress Operations", "Ctrl+Shift+O"),
     c("format:suppress-receptions", "Suppress Receptions", "Ctrl+Shift+E"),
     c("format:suppress-literals", "Suppress Literals", "Ctrl+Shift+T"),
+    // Format › Suppress Columns on ER entities (erd/keymaps/erd.json, erd-commands.js:183)
+    c("erd:suppress-columns", "ERD: Suppress Columns", "Ctrl+Shift+U"),
     c("alignment:send-to-back", "Send To Back", ""),
     c("alignment:bring-to-front", "Bring To Front", ""),
     c("alignment:align-left", "Align Left", ""),
@@ -231,6 +233,7 @@ impl App {
             ("format:auto-resize", "autoResize"), ("format:show-shadow", "showShadow"), ("format:inherit-style", "parentStyle"), ("format:word-wrap", "wordWrap"), ("format:show-visibility", "showVisibility"),
             ("format:show-namespace", "showNamespace"), ("format:show-property", "showProperty"), ("format:show-type", "showType"), ("format:show-multiplicity", "showMultiplicity"), ("format:show-operation-signature", "showOperationSignature"), ("format:show-diagram-name", "showDiagramName"),
             ("format:suppress-attributes", "suppressAttributes"), ("format:suppress-operations", "suppressOperations"), ("format:suppress-receptions", "suppressReceptions"), ("format:suppress-literals", "suppressLiterals"),
+            ("erd:suppress-columns", "suppressColumns"),
         ];
         if let Some((_, f)) = toggles.iter().find(|t| t.0 == id) {
             self.toggle_flag(f);

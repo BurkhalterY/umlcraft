@@ -605,6 +605,8 @@ impl App {
             other if other.starts_with("FC") => &other[2..],
             // a data flow element drops "DFD" (DFDElement.getDisplayClassName, dfd/elements.js:42-45)
             other if other.starts_with("DFD") && other != "DFDDiagram" => &other[3..],
+            // and an ERD element "ERD" (ERDElement.getDisplayClassName, erd/elements.js:35-38)
+            other if other.starts_with("ERD") && other != "ERDDiagram" => &other[3..],
             other => other.trim_start_matches("UML"),
         };
         let names: HashSet<String> = self.repo.children(parent).into_iter().map(|(_, c)| self.repo.name(c)).collect();
@@ -790,6 +792,15 @@ impl App {
             let name = self.new_name(act, "UMLActivityPartition");
             let m = self.repo.create("UMLActivityPartition", &[("name", json!(name))], Some((act, "groups")));
             let v = views::create_swimlane_view(&mut self.repo, d, m, rect, kind == "SwimlaneVert");
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // an entity goes in the data model that owns the diagram (erd-factory.js:70-75)
+        if kind == "ERDEntity" {
+            let owner = self.repo.parent(d)?;
+            let name = self.new_name(owner, kind);
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((owner, "ownedElements")));
+            let v = crate::erd::create_view(&mut self.repo, d, m, rect);
             self.apply_view_defaults(v);
             return Some(v);
         }
@@ -1119,6 +1130,8 @@ impl App {
             "FCFlowchartDiagram" => vec!["Hyperlink", "Diagram", "FCModelElement", "FCFlow"],
             "DFDDiagram" => vec!["Hyperlink", "Diagram", "DFDExternalEntity", "DFDProcess", "DFDDataStore", "DFDDataFlow"],
             "MMMindmapDiagram" => vec!["Hyperlink", "Diagram", "MMNode", "MMEdge"],
+            // ERDDiagram.canAcceptModel (erd/elements.js:40-47)
+            "ERDDiagram" => vec!["Hyperlink", "Diagram", "ERDEntity", "ERDColumn", "ERDRelationship"],
             "UMLUseCaseDiagram" => vec![
                 "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
@@ -1198,7 +1211,7 @@ impl App {
             }
             return Ok(v.into_iter().collect());
         }
-        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) {
+        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" {
             return Ok(vec![]);
         }
         // a hidden view of it is shown again instead of a second one
@@ -1387,6 +1400,8 @@ impl App {
             // mindmap-factory.js:20-27)
             "DFDDataFlow" => r.kind_of(tm, "DFDElement") && r.kind_of(hm, "DFDElement"),
             "MMEdge" => r.ty(tm) == "MMNode" && r.ty(hm) == "MMNode",
+            // a relationship joins two entities (entityLinkPrecondition, erd-factory.js:20-26)
+            "ERDRelationship" | "ERDRelationshipOneToMany" | "ERDRelationshipManyToMany" => r.ty(tm) == "ERDEntity" && r.ty(hm) == "ERDEntity",
             "UMLControlFlow" | "UMLActivityInterrupt" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
             // an exception handler joins two actions (actionLinkPrecondition, uml-factory.js:129-135)
             "UMLExceptionHandler" => r.kind_of(tm, "UMLAction") && r.kind_of(hm, "UMLAction"),
@@ -1434,6 +1449,22 @@ impl App {
         }
         if tool.kind == "NoteLink" {
             return views::create_edge_view(&mut self.repo, d, None, tail, head);
+        }
+        // an ERD relationship, owned by its first entity, with an end at each; the one-to-many and
+        // many-to-many tools make its ends "0..*" (toolbox/erd.json "model-init")
+        if tool.kind.starts_with("ERDRelationship") {
+            let (tm, hm) = (self.repo.refd(tail, "model")?, self.repo.refd(head, "model")?);
+            let m = self.repo.create("ERDRelationship", &[], Some((tm, "ownedElements")));
+            let (r1, r2) = (self.repo.ref_to(tm), self.repo.ref_to(hm));
+            let e1 = self.repo.create("ERDRelationshipEnd", &[("reference", r1)], Some((m, "end1")));
+            let e2 = self.repo.create("ERDRelationshipEnd", &[("reference", r2)], Some((m, "end2")));
+            if tool.kind == "ERDRelationshipManyToMany" {
+                self.repo.set(e1, "cardinality", json!("0..*"));
+            }
+            if tool.kind != "ERDRelationship" {
+                self.repo.set(e2, "cardinality", json!("0..*"));
+            }
+            return views::create_edge_view(&mut self.repo, d, Some(m), tail, head);
         }
         if tool.kind == "AssociationClass" {
             return self.create_association_class(d, tail, head);
@@ -1606,6 +1637,7 @@ impl App {
             "UMLEvent" => "triggers",
             "UMLAction" => "nodes",
             "UMLInteractionOperand" => "operands",
+            "ERDColumn" => "columns",
             _ => return None,
         };
         let name = self.new_name(owner, ty);
@@ -1640,6 +1672,7 @@ impl App {
             "UMLEvent" => t == "UMLAction" || t == "UMLTransition",
             "UMLAction" => t == "UMLActivity",
             "UMLInteractionOperand" => t == "UMLCombinedFragment",
+            "ERDColumn" => t == "ERDEntity",
             "UMLExtensionPoint" => t == "UMLUseCase",
             "UMLSlot" => self.repo.kind_of(owner, "UMLInstance"),
             // template parameters on classes, interfaces and the other boxes with compartments
@@ -1783,6 +1816,8 @@ impl App {
             "FCFlowchartDiagram" => Some(("FCFlowchart", "Flowchart", "FCFlowchart")),
             "DFDDiagram" => Some(("DFDElement", "DataFlowModel", "DFDDataFlowModel")),
             "MMMindmapDiagram" => Some(("MMMindmap", "Mindmap", "MMMindmap")),
+            // an ER diagram goes in a data model, else in a new "Data Model1" (erd-factory.js:30-55)
+            "ERDDiagram" => Some(("ERDDataModel", "Data Model", "ERDDataModel")),
             _ => None,
         };
         if let Some((kind, base, new_ty)) = holder {
