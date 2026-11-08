@@ -91,10 +91,19 @@ fn parse_label(label: &str) -> Option<Stroke> {
     parse_stroke(if d == "-" { "minus" } else { &d })
 }
 
+/// Built-in bindings only macOS has (keymaps/darwin.json:6): Cmd+, opens Preferences.
+const MAC_EXTRA: [(&str, &str); 1] = [("application:preferences", "Ctrl+,")];
+
 /// The built-in keymap: the platform keys, then the UML ones, as (keystroke, command id).
 pub fn defaults() -> Vec<(Stroke, &'static str)> {
+    defaults_for(cfg!(target_os = "macos"))
+}
+
+/// The built-in keymap of macOS (`mac`) or of the other platforms.
+pub fn defaults_for(mac: bool) -> Vec<(Stroke, &'static str)> {
     let palette = crate::palette::COMMANDS.iter().map(|c| (c.key, c.id));
-    palette.chain(EXTRA.iter().map(|(id, k)| (*k, *id))).filter(|(k, _)| !k.is_empty()).filter_map(|(k, id)| Some((parse_label(k)?, id))).collect()
+    let mac_extra = MAC_EXTRA.iter().filter(|_| mac);
+    palette.chain(EXTRA.iter().chain(mac_extra).map(|(id, k)| (*k, *id))).filter(|(k, _)| !k.is_empty()).filter_map(|(k, id)| Some((parse_label(k)?, id))).collect()
 }
 
 /// A keystroke as menus show it: "Ctrl+Alt+Shift+K" in descriptor order, or on macOS the

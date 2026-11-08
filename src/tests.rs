@@ -9105,3 +9105,13 @@ fn the_explorer_shows_a_lifelines_type() {
     a.change(|a| a.repo.set_ref(role, "type", None));
     assert_eq!(a.label_of(lm), "(Lifeline)");
 }
+
+#[test]
+fn cmd_comma_opens_preferences_on_macos() {
+    use crate::keymap::defaults_for;
+    let comma = (egui::Modifiers::COMMAND, egui::Key::Comma);
+    let bound = |mac: bool| defaults_for(mac).into_iter().filter(|(s, _)| s.0.matches_exact(comma.0) && s.1 == comma.1).map(|(_, id)| id).collect::<Vec<_>>();
+    // keymaps/darwin.json:6 binds cmd-, to application:preferences; linux.json and win32.json do not
+    assert_eq!(bound(true), vec!["application:preferences"]);
+    assert!(bound(false).is_empty());
+}
