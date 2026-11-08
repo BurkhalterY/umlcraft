@@ -270,7 +270,17 @@ impl App {
             }
             "edit:undo" => self.do_undo(),
             "edit:redo" => self.do_redo(),
-            "mermaid:generate-diagram" => return self.generate_mermaid(need("Mermaid code")?, ms).map(Some),
+            // the code alone, or `{"code": …, "base": element}` for the command's optional base
+            // (mermaid/main.js:155-185)
+            "mermaid:generate-diagram" => {
+                let code = need("Mermaid code")?;
+                if let Ok(o @ Value::Object(_)) = serde_json::from_str::<Value>(code) {
+                    let code = o.get("code").and_then(|c| c.as_str()).ok_or("Mermaid code is missing")?.to_string();
+                    let base = resolve(self, o.get("base"), results)?;
+                    return self.generate_mermaid_in(&code, base, ms).map(Some);
+                }
+                return self.generate_mermaid(code, ms).map(Some);
+            }
             "diagram-generator:overview" | "diagram-generator:overview-expanded" | "diagram-generator:type-hierarchy" | "diagram-generator:package-structure" => {
                 use crate::generate::Generator;
                 let g = match id {

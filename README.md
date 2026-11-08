@@ -136,14 +136,14 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/model.rs`, `src/meta.rs` | The project and the `.mdj` element kinds, fields and defaults |
 | `src/views.rs`, `src/render.rs`, `src/export.rs` | Laying out and drawing boxes, labels and lines, on screen and into PNG, JPEG and SVG |
 | `src/layout.rs`, `src/generate.rs` | Format › Layout (the layered automatic layout) and Tools › Diagram Generator |
-| `src/mermaid.rs`, `src/mermaid_kinds.rs` | Tools › Generate Diagram by Mermaid: class diagrams, flowcharts, ER diagrams, mind maps and state diagrams from Mermaid code |
+| `src/mermaid.rs`, `src/mermaid_kinds.rs`, `src/mermaid_sequence.rs` | Tools › Generate Diagram by Mermaid: class, sequence, state, ER, requirement and mind map diagrams and flowcharts from Mermaid code |
 | `src/sequence.rs`, `src/communication.rs`, `src/timing.rs`, `src/overview.rs`, `src/flowchart.rs`, `src/notations.rs`, `src/erd.rs`, `src/c4.rs`, `src/wireframe.rs`, `src/aws.rs`, `src/azure.rs`, `src/gcp.rs` | Sequence, communication and timing diagrams, interaction overview diagrams, flowcharts, data flow diagrams and mind maps, ER diagrams, C4 diagrams, wireframes and AWS, Azure and GCP architecture diagrams: their views, layout and drawing |
 | `src/cloud.rs` | What the cloud architecture diagrams share: their boxes, the icons read from the Cloud Icon Folder preference (or placeholders), and the Icon Picker |
 | `src/bpmn.rs`, `src/bpmn_draw.rs` | BPMN diagrams: the kinds, the tools, containment and the quick edit commands; the layout, shapes, marks, line ends and icons |
 | `src/sysml.rs` | SysML requirement, block definition, internal block and parametric diagrams, the viewpoints and the Format › Suppress toggles |
 | `src/html.rs` | File › Export › HTML Docs: one page per element, an SVG and image map per diagram |
 | `src/xmi.rs` | File › Export › XMI Export and File › Import › XMI Import (v2.1): the model elements as OMG XMI 2.1, without diagrams, and a small XML reader |
-| `src/markdown.rs` | View › Markdown Documentation: the editor and a small Markdown preview |
+| `src/markdown.rs` | View › Markdown Documentation: the editor with Markdown colours, a GitHub Flavored Markdown preview (pulldown-cmark), and the Markdown reading shared with the HTML docs |
 | `src/thumbs.rs` | View › Diagram Thumbnails |
 | `src/relview.rs` | View › Relationships: the relationships of the selected element |
 | `src/input.rs` | The input dialog (Working Diagrams › Rename) |

@@ -1609,9 +1609,10 @@ impl App {
     /// «element» with Type and DocRef attributes; `contains` moves the element into the container
     /// with a containment line, `traces` is a «trace» dependency, the others the SysML relationships
     /// (createRequirementDiagram, requirement-factory.js:15-300).
-    pub fn generate_requirement(&mut self, code: &str, ms: &dyn Measure) -> Result<Eid, String> {
+    pub fn generate_requirement(&mut self, code: &str, base: Option<Eid>, ms: &dyn Measure) -> Result<Eid, String> {
         let md = parse_mermaid(code)?;
-        let base = self.focus.filter(|f| self.repo.alive(*f) && self.repo.kind_of(*f, "UMLPackage"));
+        // the base package, else a new "Package by Mermaid" in the project
+        let base = base.filter(|f| self.repo.alive(*f) && *f != self.repo.root && self.repo.kind_of(*f, "UMLPackage"));
         let undo = self.undo.len();
         let d = self.change(|a| {
             let root = a.repo.root;

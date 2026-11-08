@@ -2354,33 +2354,57 @@ fn minimap_toggle_is_remembered() {
 
 #[test]
 fn markdown_blocks_and_spans() {
-    use crate::markdown::{parse, spans, Block};
-    let b = parse("# Title\n\nSome *text*\nand more.\n\n- one\n  - two\n1. first\n> quoted\n```\nlet x = 1;\n```\n---");
+    use crate::markdown::{parse, Block, Mark, Run};
+    let t = |s: &str| Run { text: s.into(), ..Default::default() };
+    let text = |runs: Vec<Run>, depth: usize, quote: usize, mark: Option<Mark>| Block::Text { heading: None, runs, depth, quote, mark };
+    let b = parse("# Title
+
+Some *text*
+and more.
+
+- one
+  - two
+
+1. first
+
+> quoted
+
+```
+let x = 1;
+```
+---");
     assert_eq!(
         b,
         vec![
-            Block::Heading(1, "Title".into()),
-            Block::Paragraph("Some *text* and more.".into()),
-            Block::Bullet(0, "one".into()),
-            Block::Bullet(1, "two".into()),
-            Block::Numbered(0, "1".into(), "first".into()),
-            Block::Quote("quoted".into()),
-            Block::Code("let x = 1;".into()),
-            Block::Rule,
+            Block::Text { heading: Some(1), runs: vec![t("Title")], depth: 0, quote: 0, mark: None },
+            text(vec![t("Some "), Run { italic: true, ..t("text") }, t(" and more.")], 0, 0, None),
+            text(vec![t("one")], 1, 0, Some(Mark::Bullet)),
+            text(vec![t("two")], 2, 0, Some(Mark::Bullet)),
+            text(vec![t("first")], 1, 0, Some(Mark::Number(1))),
+            text(vec![t("quoted")], 0, 1, None),
+            Block::Code { text: "let x = 1;".into(), depth: 0, quote: 0 },
+            Block::Rule { quote: 0 },
         ]
     );
-    assert_eq!(
-        spans("a **b** *c* `d` snake_case"),
-        vec![
-            ("a ".into(), false, false, false),
-            ("b".into(), true, false, false),
-            (" ".into(), false, false, false),
-            ("c".into(), false, true, false),
-            (" ".into(), false, false, false),
-            ("d".into(), false, false, true),
-            (" snake_case".into(), false, false, false),
-        ]
-    );
+    // inline styles: bold, code, snake_case kept, strikethrough and links, bare addresses too
+    let b = parse("a **b** `d` snake_case ~~gone~~ [site](https://x.org) www.staruml.io");
+    let Block::Text { runs, .. } = &b[0] else { panic!() };
+    assert_eq!(runs[1], Run { strong: true, ..t("b") });
+    assert_eq!(runs[3], Run { code: true, ..t("d") });
+    assert_eq!(runs[4], t(" snake_case "));
+    assert_eq!(runs[5], Run { strike: true, ..t("gone") });
+    assert_eq!(runs[7], Run { link: Some("https://x.org".into()), ..t("site") });
+    assert_eq!(runs[9], Run { link: Some("http://www.staruml.io".into()), ..t("www.staruml.io") });
+    // GFM tables and task lists
+    let b = parse("| A | B |
+|---|:-:|
+| 1 | **2** |
+
+- [x] done
+- [ ] todo");
+    assert_eq!(b[0], Block::Table { head: vec![vec![t("A")], vec![t("B")]], rows: vec![vec![vec![t("1")], vec![Run { strong: true, ..t("2") }]]], depth: 0, quote: 0 });
+    assert_eq!(b[1], text(vec![t("done")], 1, 0, Some(Mark::Task(true))));
+    assert_eq!(b[2], text(vec![t("todo")], 1, 0, Some(Mark::Task(false))));
 }
 
 #[test]
@@ -2389,7 +2413,11 @@ fn html_docs_export() {
     assert_eq!(md5_hex(""), "d41d8cd98f00b204e9800998ecf8427e");
     assert_eq!(md5_hex("The quick brown fox jumps over the lazy dog"), "9e107d9d372bb6826bd81d3542a419d6");
     assert_eq!(md5_hex(&"a".repeat(100)), "36a92cc94a9e0fa21f625f8bfb007adf");
-    assert_eq!(markdown_html("# T\n\n- a **b**\n- c"), "<h1>T</h1><ul><li>a <strong>b</strong></li><li>c</li></ul>");
+    assert_eq!(markdown_html("# T\n\n- a **b**\n- c"), "<div class=\"prose\"><h1>T</h1>\n<ul>\n<li>a <strong>b</strong></li>\n<li>c</li>\n</ul></div>");
+    // GitHub Flavored Markdown: tables, strikethrough, task lists and bare addresses
+    let gfm = markdown_html("| a | b |\n|---|---|\n| 1 | 2 |\n\n~~old~~ see https://staruml.io.\n\n- [x] done\n- [ ] todo");
+    assert!(gfm.contains("<table>") && gfm.contains("<td>2</td>") && gfm.contains("<del>old</del>"), "{gfm}");
+    assert!(gfm.contains("<a href=\"https://staruml.io\">https://staruml.io</a>.") && gfm.contains("checked=\"\"") && gfm.contains("type=\"checkbox\""), "{gfm}");
     let ms = measure();
     let mut a = App::new(None);
     a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
@@ -2427,6 +2455,65 @@ fn html_docs_export() {
     let index = std::fs::read_to_string(dir.join("contents/element_index.html")).unwrap();
     assert!(index.contains("<h2>Tag (1)</h2>") && index.contains("reviewed"), "tags are in the index under Tag");
     let _ = (t, dep);
+    // icons: one SVG per icon shown, used by links, the header and the navigation tree
+    assert!(std::fs::read_to_string(dir.join("assets/icons/class.svg")).unwrap().starts_with("<svg") && bp.contains("<img class=\"icon\" src=\"../assets/icons/class.svg\""));
+    let nav = std::fs::read_to_string(dir.join("contents/navigation.html")).unwrap();
+    assert!(nav.contains("target=\"content\"") && nav.contains("<strong>") && nav.contains("assets/icons/project.svg"));
+    // a blank description is "none"; attribute types are links or "none"
+    assert!(bp.contains("<h2>Description</h2>"));
+    let _ = std::fs::remove_dir_all(&dir);
+
+    // behaviour, ERD and flowchart sections
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let (sm, s1, s2, tr, dm, e1, e2, rel, f1, f2, flow) = a
+        .change(|a| {
+            let r = &mut a.repo;
+            let sm = r.create("UMLStateMachine", &[("name", json!("SM"))], Some((root, "ownedElements")));
+            let region = r.create("UMLRegion", &[], Some((sm, "regions")));
+            let s1 = r.create("UMLState", &[("name", json!("Idle"))], Some((region, "vertices")));
+            let s2 = r.create("UMLState", &[("name", json!("Busy"))], Some((region, "vertices")));
+            let (x, y) = (r.ref_to(s1), r.ref_to(s2));
+            let tr = r.create("UMLTransition", &[("name", json!("go")), ("source", x), ("target", y)], Some((region, "transitions")));
+            r.create("UMLEvent", &[("name", json!("tick"))], Some((tr, "triggers")));
+            let dm = r.create("ERDDataModel", &[("name", json!("DM"))], Some((root, "ownedElements")));
+            let e1 = r.create("ERDEntity", &[("name", json!("Book"))], Some((dm, "ownedElements")));
+            let e2 = r.create("ERDEntity", &[("name", json!("Loan"))], Some((dm, "ownedElements")));
+            let id = r.create("ERDColumn", &[("name", json!("id")), ("type", json!("VARCHAR")), ("length", json!("20")), ("primaryKey", json!(true))], Some((e1, "columns")));
+            let rid = r.ref_to(id);
+            r.create("ERDColumn", &[("name", json!("book")), ("foreignKey", json!(true)), ("referenceTo", rid)], Some((e2, "columns")));
+            let rel = r.create("ERDRelationship", &[("name", json!("lends"))], Some((dm, "ownedElements")));
+            let (x, y) = (r.ref_to(e1), r.ref_to(e2));
+            r.create("ERDRelationshipEnd", &[("reference", x), ("cardinality", json!("1"))], Some((rel, "end1")));
+            r.create("ERDRelationshipEnd", &[("name", json!("loans")), ("reference", y), ("cardinality", json!("0..*"))], Some((rel, "end2")));
+            let fc = r.create("FCFlowchart", &[("name", json!("FC"))], Some((root, "ownedElements")));
+            let f1 = r.create("FCProcess", &[("name", json!("Start"))], Some((fc, "ownedElements")));
+            let f2 = r.create("FCProcess", &[("name", json!("Stop"))], Some((fc, "ownedElements")));
+            let (x, y) = (r.ref_to(f1), r.ref_to(f2));
+            let flow = r.create("FCFlow", &[("source", x), ("target", y)], Some((f1, "ownedElements")));
+            Some((sm, s1, s2, tr, dm, e1, e2, rel, f1, f2, flow))
+        })
+        .unwrap();
+    a.export_html(&dir, &ms).unwrap();
+    let page = |e: crate::model::Eid| std::fs::read_to_string(dir.join(format!("contents/{}.html", md5_hex(&a.repo.id(e))))).unwrap();
+    assert!(page(sm).contains("<h2>Regions</h2>"));
+    let p1 = page(s1);
+    assert!(p1.contains("<h2>Outgoing Transitions</h2>") && !p1.contains("<h2>Incoming Transitions</h2>"));
+    assert!(page(s2).contains("<h2>Incoming Transitions</h2>"));
+    assert!(page(tr).contains("<h2>Triggers</h2>") && page(tr).contains("tick"));
+    assert!(page(dm).contains("<h2>Entities</h2>"));
+    let b1 = page(e1);
+    assert!(b1.contains("<h2>Columns</h2>") && b1.contains("<td>VARCHAR(20)</td><td><span class=\"label\">true</span></td><td><span class=\"label\">false</span></td>"), "{b1}");
+    assert!(b1.contains("<h2>Related Entities</h2>") && b1.contains("<td>0..*</td><td>loans</td>"), "{b1}");
+    let b2 = page(e2);
+    assert!(b2.contains(" :: ") && b2.contains(">id</a>"), "the column's reference: entity :: column");
+    assert!(page(f1).contains("<h2>Outgoing Flows</h2>") && page(f2).contains("<h2>Incoming Flows</h2>"));
+    // the Properties table follows the metamodel: name, then the kind's own fields, hidden ones left out
+    let pt = page(flow);
+    assert!(pt.contains("<td>name</td>") && pt.contains("<td>source</td>") && !pt.contains("<td>documentation</td>") && !pt.contains("<td>_id</td>"));
+    let rp = page(rel);
+    assert!(rp.contains("<h2>End1</h2>") && rp.contains("<h2>End2</h2>") && rp.contains("<td>cardinality</td><td>0..*</td>"), "each end's properties");
+    let _ = e2;
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -2469,7 +2556,7 @@ fn mermaid_class_diagrams() {
     let views = a.repo.list(d, "ownedViews");
     assert_eq!(views.iter().filter(|v| a.repo.ty(**v) == "UMLClassView").count(), 4);
     assert_eq!(views.iter().filter(|v| crate::views::is_edge(&a.repo, **v)).count(), 3);
-    assert!(a.generate_mermaid("sequenceDiagram\nA->>B: hi", &ms).is_err());
+    assert!(a.generate_mermaid("gantt\n title x", &ms).is_err());
     Repo::parse(&a.repo.serialize()).unwrap();
 }
 
@@ -5605,7 +5692,7 @@ fn mermaid_makes_flowcharts_er_diagrams_mind_maps_and_statecharts() {
     }
     let er = a.repo.all().find(|e| a.repo.ty(*e) == "ERDEntity" && a.repo.name(*e) == "LOAN").unwrap();
     assert_eq!(a.repo.list(er, "columns").len(), 4);
-    assert!(a.generate_mermaid("sequenceDiagram\n A->>B: hi", &ms).is_err());
+    assert!(a.generate_mermaid("gantt\n title x", &ms).is_err());
     Repo::parse(&a.repo.serialize()).unwrap();
 }
 
@@ -7969,4 +8056,97 @@ fn exec_command_line() {
     let args: Vec<String> = ["exec", &file, "-c", "no:such"].iter().map(|s| s.to_string()).collect();
     assert_eq!(crate::cli::run(&args, || measure().ctx), Some(1));
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn mermaid_makes_sequence_diagrams() {
+    use crate::mermaid_sequence::{line, parse_sequence, SEQUENCE_SAMPLE};
+    // parsing: participants in order of appearance, aliases, activations, blocks and notes
+    let sd = parse_sequence("sequenceDiagram\n  participant A as Alice\n  A->>+B: hi\n  B-->>-A: ok\n  loop every day\n    A-)C: ping\n  end\n  Note over A,C: done\n  autonumber").unwrap();
+    let ids: Vec<(&str, &str)> = sd.actors.iter().map(|a| (a.id.as_str(), a.description.as_str())).collect();
+    assert_eq!(ids, vec![("A", "Alice"), ("B", "B"), ("C", "C")]);
+    let tys: Vec<u8> = sd.messages.iter().map(|m| m.ty).collect();
+    assert_eq!(tys, vec![line::SOLID, line::ACTIVE_START, line::DOTTED, line::ACTIVE_END, line::LOOP_START, line::SOLID_POINT, line::LOOP_END, line::NOTE, line::AUTONUMBER]);
+    assert_eq!((sd.messages[4].text.as_str(), sd.messages[7].from.as_deref(), sd.messages[7].to.as_deref()), ("every day", Some("A"), Some("C")));
+    // errors: an unclosed block, deactivating an inactive participant, a created participant without its message
+    assert!(parse_sequence("sequenceDiagram\n loop x\n A->>B: hi").is_err());
+    assert!(parse_sequence("sequenceDiagram\n A->>-B: hi").is_err());
+    assert!(parse_sequence("sequenceDiagram\n create participant C\n A->>B: hi").is_err());
+    assert!(parse_sequence("sequenceDiagram\n else x").is_err());
+
+    let ms = measure();
+    let mut a = App::new(None);
+    a.focus = None;
+    let before = a.undo.len();
+    let d = a.generate_mermaid(SEQUENCE_SAMPLE, &ms).unwrap();
+    assert_eq!(a.undo.len(), before + 1, "one undo step");
+    let r = &a.repo;
+    assert_eq!((r.ty(d), r.name(d).as_str()), ("UMLSequenceDiagram", "Sequence Diagram by Mermaid"));
+    let inter = r.parent(d).unwrap();
+    let collab = r.parent(inter).unwrap();
+    assert_eq!((r.name(inter).as_str(), r.name(collab).as_str(), r.parent(collab)), ("Interaction by Mermaid", "Collaboration by Mermaid", Some(r.root)));
+    assert!(r.bool(d, "showActivation") && !r.bool(d, "showSequenceNumber"));
+    // roles and lifelines; the actor typed onto its role, its lifeline in icon form
+    let roles: Vec<String> = r.list(collab, "attributes").into_iter().map(|x| r.name(x)).collect();
+    assert_eq!(roles, vec!["ReaderRole", "Front deskRole", "LoanRole"]);
+    let actor = r.list(collab, "ownedElements").into_iter().find(|x| r.ty(*x) == "UMLActor").unwrap();
+    assert_eq!(r.refd(r.list(collab, "attributes")[0], "type"), Some(actor));
+    let lifelines: Vec<crate::model::Eid> = r.list(d, "ownedViews").into_iter().filter(|v| r.ty(*v) == "UMLSeqLifelineView").collect();
+    assert_eq!(lifelines.len(), 3);
+    assert_eq!((r.f(lifelines[0], "left"), r.f(lifelines[1], "left"), r.f(lifelines[2], "left")), (25.0, 175.0, 325.0));
+    assert!(crate::sequence::actor_icon(r, lifelines[0]) && !crate::sequence::actor_icon(r, lifelines[1]));
+    // messages: sorts, 60 px apart from y = 110 with 30 more before a fragment
+    let msgs: Vec<crate::model::Eid> = r.list(inter, "messages");
+    let sorts: Vec<(String, String)> = msgs.iter().map(|m| (r.name(*m), r.str(*m, "messageSort"))).collect();
+    let want = [("Borrow a book", "synchCall"), ("Check the card", "synchCall"), ("Here it is", "asynchSignal"), ("Join the waiting list", "reply"), ("new", "createMessage"), ("Done", "synchCall")];
+    assert_eq!(sorts, want.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect::<Vec<_>>());
+    let mviews: Vec<crate::model::Eid> = r.list(d, "ownedViews").into_iter().filter(|v| r.ty(*v) == "UMLSeqMessageView").collect();
+    let ys: Vec<f64> = mviews.iter().map(|v| crate::views::points_of(r, *v)[0].y).collect();
+    assert_eq!(ys, vec![110.0, 170.0, 260.0, 320.0, 380.0, 500.0]);
+    // the alt fragment with its two guarded operands, around the Desk and Reader lifelines
+    let cf = r.list(inter, "fragments")[0];
+    assert_eq!(r.str(cf, "interactionOperator"), "alt");
+    let guards: Vec<String> = r.list(cf, "operands").into_iter().map(|o| r.str(o, "guard")).collect();
+    assert_eq!(guards, vec!["the book is in", "it is lent"]);
+    let fv = r.list(d, "ownedViews").into_iter().find(|v| r.ty(*v) == "UMLCombinedFragmentView").unwrap();
+    assert_eq!((r.f(fv, "left"), r.f(fv, "top"), r.f(fv, "top") + r.f(fv, "height")), (45.0, 205.0, 400.0));
+    // the note right of Loan, 100 wide, on its row
+    let n = r.list(d, "ownedViews").into_iter().find(|v| r.ty(*v) == "UMLNoteView").unwrap();
+    assert_eq!((r.str(n, "text").as_str(), r.f(n, "top"), r.f(n, "width")), ("due in 3 weeks", 440.0, 100.0));
+    // into an explicit base: a package is accepted, a diagram refused
+    let pkg = a.change(|a| Some(a.repo.create("UMLPackage", &[("name", serde_json::json!("P"))], Some((a.repo.root, "ownedElements"))))).unwrap();
+    let d2 = a.generate_mermaid_in("sequenceDiagram\n A->>B: hi", Some(pkg), &ms).unwrap();
+    assert_eq!(a.repo.parent(a.repo.parent(a.repo.parent(d2).unwrap()).unwrap()), Some(pkg));
+    assert_eq!(a.generate_mermaid_in("sequenceDiagram\n A->>B: hi", Some(d2), &ms), Err("Base element must be a package, classifer or operation".to_string()));
+    assert_eq!(a.generate_mermaid_in("classDiagram\n A <|-- B", Some(d2), &ms), Err("Base element must be a UMLPackage".to_string()));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn markdown_preview_draws_gfm() {
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.repo.set(root, "documentation", json!("# T\n\n> - [x] a ~~b~~\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n```\ncode\n```\n\n1. https://staruml.io\n\n<b>raw</b>")));
+    a.focus = Some(root);
+    a.md_preview = true;
+    for _ in 0..2 {
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| a.markdown_ui(ui));
+    }
+    assert_eq!(crate::markdown::parse(&a.md_buf).len(), 6, "heading, task, table, code, numbered item, html");
+}
+
+#[test]
+fn exec_mermaid_takes_a_base() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let pkg = a.change(|a| a.add_model(root, "UMLPackage"));
+    let id = a.repo.id(pkg);
+    let arg = json!({ "code": "classDiagram\n  class Animal", "base": { "$ref": id } }).to_string();
+    let d = a.exec_command("mermaid:generate-diagram", Some(&arg), &[], &ms).unwrap().unwrap();
+    assert_eq!(a.repo.parent(d), Some(pkg));
+    let bad = json!({ "code": "classDiagram\n  class B", "base": { "$ref": a.repo.id(d) } }).to_string();
+    assert!(a.exec_command("mermaid:generate-diagram", Some(&bad), &[], &ms).is_err());
 }
