@@ -89,6 +89,35 @@ pub const BEHAVIOR_KINDS: [(&str, &str); 4] = [("OpaqueBehavior", "UMLOpaqueBeha
 
 /// The constraint kinds of an operation and the field each goes in (uml-commands.js:185-200).
 pub const OPERATION_CONSTRAINTS: [(&str, &str); 4] = [("Typical Constraint", "ownedElements"), ("Precondition", "preconditions"), ("BodyCondition", "bodyConditions"), ("Postcondition", "postconditions")];
+/// The element type named in a placement error, and the kind the diagram's owner must be, for the
+/// toolbox kinds the original checks (uml-factory.js:91-105, 3721-3880).
+pub fn placement_precondition(kind: &str) -> Option<(&'static str, &'static str)> {
+    Some(match kind {
+        "UMLEndpoint" => ("UMLEndpoint", "UMLInteraction"),
+        "UMLGate" => ("UMLGate", "UMLInteraction"),
+        "UMLContinuation" => ("UMLContinuation", "UMLInteraction"),
+        "UMLInteractionUse" => ("UMLInteractionUse", "UMLInteraction"),
+        "UMLAction" | "SendSignal" | "AcceptSignal" | "AcceptTimeEvent" => ("UMLAction", "UMLActivity"),
+        "SwimlaneVert" | "SwimlaneHorz" => ("UMLActivityPartition", "UMLActivity"),
+        "UMLObjectNode" => ("UMLObjectNode", "UMLActivity"),
+        "UMLCentralBufferNode" => ("UMLCentralBufferNode", "UMLActivity"),
+        "UMLDataStoreNode" => ("UMLDataStoreNode", "UMLActivity"),
+        "UMLActivityParameterNode" => ("UMLActivityParameterNode", "UMLActivity"),
+        "UMLInitialNode" => ("UMLInitialNode", "UMLActivity"),
+        "UMLActivityFinalNode" => ("UMLActivityFinalNode", "UMLActivity"),
+        "UMLFlowFinalNode" => ("UMLFlowFinalNode", "UMLActivity"),
+        "UMLForkNode" => ("UMLForkNode", "UMLActivity"),
+        "UMLJoinNode" => ("UMLJoinNode", "UMLActivity"),
+        "UMLMergeNode" => ("UMLMergeNode", "UMLActivity"),
+        "UMLDecisionNode" => ("UMLDecisionNode", "UMLActivity"),
+        "UMLInterruptibleActivityRegion" => ("UMLInterruptibleActivityRegion", "UMLActivity"),
+        "UMLStructuredActivityNode" => ("UMLStructuredActivityNode", "UMLActivity"),
+        "UMLExpansionRegion" => ("UMLExpansionRegion", "UMLActivity"),
+        "UMLActivityEdgeConnector" => ("UMLActivityEdgeConnector", "UMLActivity"),
+        _ => return None,
+    })
+}
+
 /// The constraint kinds of a behaviour (uml-commands.js:203-218).
 pub const BEHAVIOR_CONSTRAINTS: [(&str, &str); 3] = [("Typical Constraint", "ownedElements"), ("Precondition", "preconditions"), ("Postcondition", "postconditions")];
 /// The constraint kinds of an action (uml-commands.js:219-234).
@@ -853,6 +882,16 @@ impl App {
 
     pub fn create_node(&mut self, kind: &str, rect: R) -> Option<Eid> {
         let d = self.diagram?;
+        // an interaction's endpoints, gates, continuations and interaction uses need a diagram owned by
+        // an interaction, an activity's nodes and groups one owned by an activity; elsewhere the error
+        // "X cannot be placed here." (interactionPrecondition, activityPrecondition, uml-factory.js:19,
+        // 91-105, 3721-3880)
+        if let Some((model_type, owner)) = placement_precondition(kind) {
+            if !self.repo.parent(d).map(|p| self.repo.kind_of(p, owner)).unwrap_or(false) {
+                self.toast_error(&format!("{model_type} cannot be placed here."));
+                return None;
+            }
+        }
         if matches!(kind, "Note" | "Text" | "TextBox" | "Rect" | "RoundRect" | "Ellipse" | "Image") {
             let ty = match kind {
                 "Note" => "UMLNoteView",
@@ -1537,6 +1576,13 @@ impl App {
                 } else {
                     a.repo.set_ref(role, "type", Some(m));
                 }
+                // on a sequence diagram, an actor, a use case, an interface, an artifact, a
+                // component, a node or anything with a stereotype icon shows as an icon
+                // (uml-factory.js:2788-2799, 2829-2840)
+                let icon = if a.repo.ty(m) == "UMLAttribute" { views::stereotype_icon(&a.repo, m).is_some() } else { crate::sequence::shown_as_icon(&a.repo, m) };
+                if !comm && !timing && icon {
+                    a.repo.set(v, "stereotypeDisplay", json!("icon"));
+                }
                 Some(v)
             });
             return Ok(v.into_iter().collect());
@@ -1576,6 +1622,44 @@ impl App {
         }
         if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) && !crate::bpmn::is_node_type(&ty) && !crate::cloud::is_node_type(&ty) && crate::sysml::view_of(&ty).is_none() {
             return Ok(vec![]);
+        }
+        // the class of an association class: when its link is shown already, that line, the class and
+        // the association are selected with an alert; when the association is shown, the link is added,
+        // with a box of the class unless one is shown (uml-factory.js:2595-2640)
+        if ty == "UMLClass" {
+            let link = self.repo.list(m, "ownedElements").into_iter().filter(|e| self.repo.ty(*e) == "UMLAssociationClassLink" && self.repo.refd(*e, "classSide") == Some(m)).last();
+            if let Some(link) = link {
+                let cv = self.shown_view(d, m);
+                let av = self.repo.refd(link, "associationSide").and_then(|a| self.shown_view(d, a));
+                if let Some(lv) = self.shown_view(d, link) {
+                    self.select([Some(lv), cv, av].into_iter().flatten().collect());
+                    return Err("AssociationClass View is already existed in this Diagram.".into());
+                }
+                if let Some(av) = av {
+                    let e = self.change(|a| {
+                        let cv = match cv {
+                            Some(cv) => cv,
+                            None => {
+                                let v = a.place_node(d, m, p)?;
+                                a.add_relationship_views(d, m, v);
+                                v
+                            }
+                        };
+                        let props = [
+                            ("model", a.repo.ref_to(link)),
+                            ("font", json!(views::FONT)),
+                            ("head", a.repo.ref_to(av)),
+                            ("tail", a.repo.ref_to(cv)),
+                            ("lineStyle", json!(views::DEFAULT_LINE_STYLE)),
+                            ("points", json!("0:0;0:0")),
+                        ];
+                        let e = a.repo.create("UMLAssociationClassLinkView", &props, Some((d, "ownedViews")));
+                        a.apply_view_defaults(e);
+                        Some(e)
+                    });
+                    return Ok(e.into_iter().collect());
+                }
+            }
         }
         // a hidden view of it is shown again instead of a second one
         let hidden = self.repo.list(d, "ownedViews").into_iter().find(|v| self.repo.refd(*v, "model") == Some(m) && matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))));
@@ -1792,10 +1876,13 @@ impl App {
             "UMLLink" => r.kind_of(tm, "UMLInstance") && r.kind_of(hm, "UMLInstance"),
             // deployment diagrams: a path joins two nodes, a deployment puts a classifier on a node and a
             // component realization realizes a component (uml-factory.js:19-146)
-            "UMLCommunicationPath" => r.ty(tm) == "UMLNode" && r.ty(hm) == "UMLNode",
-            "UMLDeployment" => classifier(tm) && r.ty(hm) == "UMLNode" && tm != hm,
-            "UMLComponentRealization" => classifier(tm) && r.ty(hm) == "UMLComponent" && tm != hm,
-            "UMLInformationFlow" => tm != hm,
+            "UMLCommunicationPath" => r.kind_of(tm, "UMLNode") && r.kind_of(hm, "UMLNode"),
+            // a classifier on a node, or an instance on a node instance (deploymentPrecondition)
+            "UMLDeployment" => ((classifier(tm) && r.kind_of(hm, "UMLNode")) || (r.kind_of(tm, "UMLInstance") && r.ty(hm) == "UMLNodeInstance")) && tm != hm,
+            "UMLComponentRealization" => classifier(tm) && r.kind_of(hm, "UMLComponent") && tm != hm,
+            // a dependency or a realization joins two UML elements (modelElementLinkPrecondition)
+            "UMLDependency" | "UMLRealization" | "UMLAbstraction" => r.kind_of(tm, "UMLModelElement") && r.kind_of(hm, "UMLModelElement"),
+            "UMLInformationFlow" => r.kind_of(tm, "UMLModelElement") && r.kind_of(hm, "UMLModelElement") && tm != hm,
             // a stereotype extends a metaclass
             "UMLExtension" => r.ty(tm) == "UMLStereotype" && r.ty(hm) == "UMLMetaClass",
             // the bound classifier points at its template

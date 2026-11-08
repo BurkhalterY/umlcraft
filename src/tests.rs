@@ -3414,6 +3414,24 @@ fn association_class_tool() {
     // it survives a save
     let text = a.repo.serialize();
     assert!(text.contains("\"_type\": \"UMLAssociationClassLinkView\""));
+    // dropping the class again: the link, the class and the association are selected, with an alert
+    assert_eq!(a.drop_model(cm, crate::views::P { x: 600.0, y: 400.0 }).unwrap_err(), "AssociationClass View is already existed in this Diagram.");
+    assert_eq!(a.selection, vec![lv, cv, av]);
+    // with the link's view gone, the drop only adds the link again
+    a.change(|a| a.repo.detach(lv));
+    let n = a.repo.list(d, "ownedViews").len();
+    let back = a.drop_model(cm, crate::views::P { x: 600.0, y: 400.0 }).unwrap();
+    assert_eq!(a.repo.ty(back[0]), "UMLAssociationClassLinkView");
+    assert_eq!(a.repo.list(d, "ownedViews").len(), n + 1, "no second class box");
+    // with neither the class's box nor the link shown, both come back
+    let link_view = back[0];
+    a.change(|a| {
+        a.repo.detach(link_view);
+        a.repo.detach(cv);
+    });
+    let again = a.drop_model(cm, crate::views::P { x: 600.0, y: 400.0 }).unwrap();
+    assert_eq!(a.repo.refd(again[0], "head"), Some(av));
+    assert_eq!(a.repo.refd(a.repo.refd(again[0], "tail").unwrap(), "model"), Some(cm));
 }
 
 #[test]
@@ -3968,6 +3986,31 @@ fn context_menus_draw() {
     let root = a.repo.root;
     let mut out = ctx.run_ui(egui::RawInput::default(), |ui| a.model_menu(ui, root));
     out.textures_delta.clear();
+}
+
+#[test]
+fn placement_and_link_preconditions() {
+    let mut a = App::new(None);
+    // an action on a class diagram, whose owner is no activity, is refused with the original's error
+    let n = a.repo.all().count();
+    assert!(a.change(|a| a.create_node("UMLAction", rect(40.0, 40.0, 100.0, 60.0))).is_none());
+    assert_eq!(a.toasts.last().map(|t| t.0.as_str()), Some("UMLAction cannot be placed here."));
+    assert!(a.change(|a| a.create_node("SwimlaneVert", rect(40.0, 40.0, 100.0, 60.0))).is_none());
+    assert_eq!(a.toasts.last().map(|t| t.0.as_str()), Some("UMLActivityPartition cannot be placed here."));
+    assert!(a.change(|a| a.create_node("UMLGate", rect(40.0, 40.0, 10.0, 10.0))).is_none());
+    assert_eq!(a.toasts.last().map(|t| t.0.as_str()), Some("UMLGate cannot be placed here."));
+    assert_eq!(a.repo.all().count(), n, "nothing created");
+    // a deployment also puts an instance on a node instance (deploymentPrecondition)
+    let t = |k: &'static str| crate::app::Tool { label: "", kind: k, icon: "", line: true, init: crate::app::AssocInit::Plain };
+    let o = a.change(|a| a.create_node("UMLComponentInstance", rect(40.0, 200.0, 100.0, 60.0))).unwrap();
+    let ni = a.change(|a| a.create_node("UMLNodeInstance", rect(300.0, 200.0, 100.0, 60.0))).unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(300.0, 400.0, 100.0, 60.0))).unwrap();
+    assert!(a.can_connect(&t("UMLDeployment"), o, ni));
+    assert!(!a.can_connect(&t("UMLDeployment"), c, ni), "a classifier goes on a node, not a node instance");
+    assert!(a.can_connect(&t("UMLDependency"), o, c));
+    // a note is no model element
+    let note = a.change(|a| a.create_node("Note", rect(500.0, 40.0, 100.0, 60.0))).unwrap();
+    assert!(!a.can_connect(&t("UMLDependency"), note, c));
 }
 
 #[test]
@@ -5988,6 +6031,30 @@ fn sequence_diagrams_have_lifelines_messages_and_activations() {
     let nl = a.repo.refd(a.repo.refd(got[0], "nameCompartment").unwrap(), "nameLabel").unwrap();
     assert!(a.repo.str(nl, "text").ends_with(": Order"));
     Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn classifiers_dropped_on_a_sequence_diagram_show_as_icons() {
+    use crate::sequence::{lifeline_icon, LifelineIcon};
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let pkg = a.change(|a| a.add_model(root, "UMLModel"));
+    let mut lifelines = vec![];
+    for (i, k) in ["UMLActor", "UMLComponent", "UMLNode", "UMLUseCase", "UMLInterface", "UMLArtifact", "UMLClass"].into_iter().enumerate() {
+        let m = a.change(|a| a.add_model(pkg, k));
+        let vs = a.drop_model(m, crate::views::P { x: 40.0 + 120.0 * i as f64, y: 40.0 }).unwrap();
+        lifelines.push(vs[0]);
+    }
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(lifeline_icon(&a.repo, lifelines[0]), Some(LifelineIcon::Actor));
+    for v in &lifelines[1..6] {
+        assert_eq!(a.repo.str(*v, "stereotypeDisplay"), "icon");
+        assert!(matches!(lifeline_icon(&a.repo, *v), Some(LifelineIcon::Icon(..))));
+    }
+    assert!(lifeline_icon(&a.repo, lifelines[6]).is_none(), "a class keeps the box");
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap();
 }
 
 #[test]
