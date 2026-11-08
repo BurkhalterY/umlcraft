@@ -670,7 +670,21 @@ impl App {
                     }
                 }
             }
-            Some(Drag::Move { changed: true, .. }) => {
+            Some(Drag::Move { changed: true, orig, .. }) => {
+                // a group drag shows one band around the union of the selected boxes
+                // (diagram-editor.js:681-695, 914-931)
+                let sel_nodes: Vec<Eid> = self.selection.iter().copied().filter(|v| self.repo.alive(*v) && is_node(&self.repo, *v) && orig.iter().any(|(o, _)| o == v)).collect();
+                if sel_nodes.len() > 1 {
+                    let bs: Vec<R> = sel_nodes.iter().map(|v| node_rect(&self.repo, *v)).collect();
+                    let x1 = bs.iter().map(|b| b.x).fold(f64::INFINITY, f64::min);
+                    let y1 = bs.iter().map(|b| b.y).fold(f64::INFINITY, f64::min);
+                    let x2 = bs.iter().map(|b| b.x + b.w).fold(f64::NEG_INFINITY, f64::max);
+                    let y2 = bs.iter().map(|b| b.y + b.h).fold(f64::NEG_INFINITY, f64::max);
+                    let pts = [c.pos(P { x: x1, y: y1 }), c.pos(P { x: x2, y: y1 }), c.pos(P { x: x2, y: y2 }), c.pos(P { x: x1, y: y2 }), c.pos(P { x: x1, y: y1 })];
+                    for s in Shape::dashed_line(&pts, Stroke::new(1.0, sel), 3.0, 3.0) {
+                        c.painter.add(s);
+                    }
+                }
                 // the prospective container, else the current one (diagram-editor.js:429-474)
                 let current = self.container_group().and_then(|g| g.1);
                 if let Some(cv) = self.hover.or(current) {
