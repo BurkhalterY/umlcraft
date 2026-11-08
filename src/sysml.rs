@@ -1480,3 +1480,208 @@ pub fn suppress_prefs(view_ty: &str) -> &'static [(&'static str, &'static str)] 
         _ => &[],
     }
 }
+
+// ------------------------------------------------------------------ Mermaid requirement diagrams
+
+/// The Mermaid dialog's requirement example (UMLCraft's own).
+pub const MERMAID_SAMPLE: &str = "requirementDiagram
+    requirement brakes {
+        id: 1
+        text: \"The car stops within 40 m from 100 km/h.\"
+        risk: high
+        verifymethod: test
+    }
+    functionalRequirement abs {
+        id: 1.1
+        text: \"The wheels do not lock.\"
+        risk: medium
+        verifymethod: analysis
+    }
+    element brake_test {
+        type: simulation
+        docref: tests/brakes.md
+    }
+    brakes - contains -> abs
+    brake_test - verifies -> brakes
+";
+
+/// A Mermaid requirement or element block: its name, kind and fields.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MBlock {
+    pub name: String,
+    /// the requirement type ("requirement", "functionalRequirement"…), or "element"
+    pub kind: String,
+    pub id: String,
+    pub text: String,
+    pub risk: String,
+    pub verify: String,
+    pub ty: String,
+    pub docref: String,
+}
+
+/// A Mermaid requirement diagram: its blocks, its relations (kind, source, destination) and its
+/// direction.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct MRequirements {
+    pub blocks: Vec<MBlock>,
+    pub rels: Vec<(String, String, String)>,
+    pub direction: String,
+}
+
+const REQUIREMENT_TYPES: [&str; 6] = ["requirement", "functionalRequirement", "interfaceRequirement", "performanceRequirement", "physicalRequirement", "designConstraint"];
+const RELATIONS: [&str; 7] = ["contains", "copies", "derives", "satisfies", "verifies", "refines", "traces"];
+
+/// Read Mermaid's requirement diagram syntax (requirementDiagram.jison, requirementDb.js): blocks of
+/// `id`, `text`, `risk` and `verifymethod` (an element's `type` and `docref`), relations written
+/// `a - satisfies -> b` or `b <- satisfies - a`, and `direction`; styles and classes are ignored.
+pub fn parse_mermaid(code: &str) -> Result<MRequirements, String> {
+    let fail = || "Failed to parse requirement diagram".to_string();
+    let mut out = MRequirements { direction: "TB".into(), ..Default::default() };
+    let lines = crate::mermaid_kinds::lines(code);
+    let mut it = lines.iter().map(|l| l.trim()).filter(|l| !l.is_empty());
+    if !it.next().map(|l| l.starts_with("requirementDiagram")).unwrap_or(false) {
+        return Err(fail());
+    }
+    let mut cur: Option<MBlock> = None;
+    let unq = crate::mermaid_kinds::unquote;
+    for l in it {
+        if let Some(b) = cur.as_mut() {
+            if l == "}" {
+                let b = cur.take().unwrap_or_default();
+                if !out.blocks.iter().any(|x| x.name == b.name) {
+                    out.blocks.push(b);
+                }
+                continue;
+            }
+            let (k, v) = l.split_once(':').ok_or_else(fail)?;
+            let v = unq(v);
+            // the lexer's keywords, matched without regard to case
+            let cap = |v: &str, words: &[&str]| words.iter().find(|w| w.eq_ignore_ascii_case(v)).map(|w| w.to_string()).unwrap_or_else(|| v.to_string());
+            match k.trim().to_ascii_lowercase().as_str() {
+                "id" => b.id = v,
+                "text" => b.text = v,
+                "risk" => b.risk = cap(&v, &["Low", "Medium", "High"]),
+                "verifymethod" => b.verify = cap(&v, &["Analysis", "Demonstration", "Inspection", "Test"]),
+                "type" => b.ty = v,
+                "docref" => b.docref = v,
+                _ => return Err(fail()),
+            }
+            continue;
+        }
+        if let Some(d) = l.strip_prefix("direction") {
+            out.direction = d.trim().to_string();
+            continue;
+        }
+        if ["style ", "classDef ", "class ", "accTitle", "accDescr", "title "].iter().any(|p| l.starts_with(p)) {
+            continue;
+        }
+        // a block: `<kind> <name> {`
+        if let Some(head) = l.strip_suffix('{') {
+            let (kind, name) = head.trim().split_once(char::is_whitespace).ok_or_else(fail)?;
+            let kind = REQUIREMENT_TYPES.iter().chain(["element"].iter()).find(|k| k.eq_ignore_ascii_case(kind)).ok_or_else(fail)?;
+            cur = Some(MBlock { name: unq(name), kind: kind.to_string(), ..Default::default() });
+            continue;
+        }
+        // a relation
+        let rel = |s: &str| RELATIONS.iter().find(|r| r.eq_ignore_ascii_case(s.trim())).map(|r| r.to_string());
+        if let Some((a, rest)) = l.split_once("<-") {
+            let (kind, b) = rest.rsplit_once('-').ok_or_else(fail)?;
+            out.rels.push((rel(kind).ok_or_else(fail)?, unq(b), unq(a)));
+            continue;
+        }
+        if let Some((left, b)) = l.split_once("->") {
+            let (a, kind) = left.split_once('-').ok_or_else(fail)?;
+            out.rels.push((rel(kind).ok_or_else(fail)?, unq(a), unq(b)));
+            continue;
+        }
+        return Err(fail());
+    }
+    if cur.is_some() {
+        return Err(fail());
+    }
+    Ok(out)
+}
+
+impl App {
+    /// A Mermaid requirement diagram: "Requirement Diagram by Mermaid" in the selected package or
+    /// a new "Package by Mermaid", without a frame; requirements with their id and text, their risk
+    /// and verify method in the documentation and their type as a stereotype; elements as classes
+    /// «element» with Type and DocRef attributes; `contains` moves the element into the container
+    /// with a containment line, `traces` is a «trace» dependency, the others the SysML relationships
+    /// (createRequirementDiagram, requirement-factory.js:15-300).
+    pub fn generate_requirement(&mut self, code: &str, ms: &dyn Measure) -> Result<Eid, String> {
+        let md = parse_mermaid(code)?;
+        let base = self.focus.filter(|f| self.repo.alive(*f) && self.repo.kind_of(*f, "UMLPackage"));
+        let undo = self.undo.len();
+        let d = self.change(|a| {
+            let root = a.repo.root;
+            let pkg = base.unwrap_or_else(|| a.repo.create("UMLPackage", &[("name", json!("Package by Mermaid"))], Some((root, "ownedElements"))));
+            let d = a.repo.create("SysMLRequirementDiagram", &[("name", json!("Requirement Diagram by Mermaid"))], Some((pkg, "ownedElements")));
+            let mut made: Vec<(String, Eid, Eid)> = vec![];
+            // requirements first, then elements (requirement-factory.js:52-62)
+            let blocks = md.blocks.iter().filter(|b| b.kind != "element").chain(md.blocks.iter().filter(|b| b.kind == "element"));
+            for (i, b) in blocks.enumerate() {
+                let at = R { x: 10.0 + i as f64, y: 10.0, w: 1.0, h: 1.0 };
+                let (m, v) = if b.kind == "element" {
+                    let m = a.repo.create("UMLClass", &[("name", json!(b.name)), ("stereotype", json!("element"))], Some((pkg, "ownedElements")));
+                    for (n, val) in [("Type", &b.ty), ("DocRef", &b.docref)] {
+                        a.repo.create("UMLAttribute", &[("name", json!(n)), ("defaultValue", json!(val))], Some((m, "attributes")));
+                    }
+                    let v = views::create_node_view(&mut a.repo, d, m, at);
+                    if let Some(v) = v {
+                        a.repo.set(v, "suppressOperations", json!(true));
+                    }
+                    (m, v)
+                } else {
+                    let m = a.repo.create("SysMLRequirement", &[("name", json!(b.name)), ("id", json!(b.id)), ("text", json!(b.text))], Some((pkg, "ownedElements")));
+                    let mut doc = String::new();
+                    if !b.risk.is_empty() {
+                        doc += &format!("Risk: {}\n", b.risk);
+                    }
+                    if !b.verify.is_empty() {
+                        doc += &format!("VerifyMethod: {}\n", b.verify);
+                    }
+                    a.repo.set(m, "documentation", json!(doc));
+                    if b.kind != "requirement" {
+                        a.repo.set(m, "stereotype", json!(b.kind));
+                    }
+                    (m, create_view(&mut a.repo, d, m, at, false))
+                };
+                if let Some(v) = v {
+                    a.apply_view_defaults(v);
+                    made.push((b.name.clone(), m, v));
+                }
+            }
+            for (kind, src, dst) in &md.rels {
+                let (Some(s), Some(t)) = (made.iter().find(|x| x.0 == *src).cloned(), made.iter().find(|x| x.0 == *dst).cloned()) else { continue };
+                if kind == "contains" {
+                    if a.repo.parent(t.1) != Some(s.1) {
+                        a.repo.relocate(t.1, s.1, "ownedElements");
+                    }
+                    let props = [("font", json!(views::FONT)), ("head", a.repo.ref_to(s.2)), ("tail", a.repo.ref_to(t.2)), ("lineStyle", json!(views::DEFAULT_LINE_STYLE)), ("points", json!("0:0;0:0"))];
+                    let e = a.repo.create("UMLContainmentView", &props, Some((d, "ownedViews")));
+                    a.apply_view_defaults(e);
+                    continue;
+                }
+                let ty = match kind.as_str() {
+                    "satisfies" => "SysMLSatisfy",
+                    "copies" => "SysMLCopy",
+                    "derives" => "SysMLDeriveReqt",
+                    "verifies" => "SysMLVerify",
+                    "refines" => "SysMLRefine",
+                    _ => "UMLDependency",
+                };
+                let (rs, rt) = (a.repo.ref_to(s.1), a.repo.ref_to(t.1));
+                let m = a.repo.create(ty, &[("source", rs), ("target", rt)], Some((s.1, "ownedElements")));
+                if kind == "traces" {
+                    a.repo.set(m, "stereotype", json!("trace"));
+                }
+                if let Some(e) = views::create_edge_view(&mut a.repo, d, Some(m), s.2, t.2) {
+                    a.apply_view_defaults(e);
+                }
+            }
+            d
+        });
+        Ok(self.finish_mermaid(d, undo, crate::mermaid_kinds::dir(&md.direction, true), ms))
+    }
+}

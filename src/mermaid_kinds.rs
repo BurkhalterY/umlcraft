@@ -61,7 +61,7 @@ pub const STATE_SAMPLE: &str = "stateDiagram-v2
 /// Mermaid's direction, read the way StarUML lays it out: its layout puts the head of a line above
 /// its tail, so the directions of flowcharts, ER and state diagrams are reversed (utils.js
 /// reverseDirection), while class diagrams and mind maps keep theirs.
-fn dir(d: &str, reverse: bool) -> Dir {
+pub(crate) fn dir(d: &str, reverse: bool) -> Dir {
     let d = match (d, reverse) {
         ("TB" | "TD", true) => "BT",
         ("BT", true) => "TB",
@@ -77,11 +77,11 @@ fn dir(d: &str, reverse: bool) -> Dir {
     }
 }
 
-fn lines(code: &str) -> Vec<String> {
+pub(crate) fn lines(code: &str) -> Vec<String> {
     code.lines().map(|l| l.split("%%").next().unwrap_or("").trim_end().to_string()).collect()
 }
 
-fn unquote(s: &str) -> String {
+pub(crate) fn unquote(s: &str) -> String {
     let s = s.trim();
     s.strip_prefix('"').and_then(|x| x.strip_suffix('"')).unwrap_or(s).to_string()
 }
@@ -587,7 +587,7 @@ impl App {
     }
 
     /// Lay the new diagram out with Mermaid's separations (50 each) and keep it as one undo step.
-    fn finish_mermaid(&mut self, d: Eid, undo: usize, direction: Dir, ms: &dyn Measure) -> Eid {
+    pub(crate) fn finish_mermaid(&mut self, d: Eid, undo: usize, direction: Dir, ms: &dyn Measure) -> Eid {
         self.open_diagram(d);
         self.info = views::layout_diagram(&mut self.repo, ms, d);
         self.layout_diagram_with(direction, Seps { node: 50.0, edge: 50.0, rank: 50.0 });

@@ -6213,3 +6213,34 @@ fn sysml_viewpoints_and_compartment_toggles() {
     assert!(a.repo.raw(a.repo.refd(b, "partCompartment").unwrap(), "visible").is_none());
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn mermaid_requirement_diagrams_become_sysml_requirements() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let md = crate::sysml::parse_mermaid(crate::sysml::MERMAID_SAMPLE).unwrap();
+    assert_eq!(md.blocks.len(), 3);
+    assert_eq!((md.blocks[0].risk.as_str(), md.blocks[0].verify.as_str()), ("High", "Test"));
+    assert_eq!(md.rels[1], ("verifies".to_string(), "brake_test".to_string(), "brakes".to_string()));
+    let back = crate::sysml::parse_mermaid("requirementDiagram\n  requirement a {\n  id: 1\n  }\n  requirement b {\n  }\n  b <- refines - a\n").unwrap();
+    assert_eq!(back.rels[0], ("refines".to_string(), "a".to_string(), "b".to_string()));
+    assert!(crate::sysml::parse_mermaid("requirementDiagram\n  requirement a {\n  colour: red\n  }\n").is_err());
+    let d = a.generate_mermaid(crate::sysml::MERMAID_SAMPLE, &ms).unwrap();
+    assert_eq!((a.repo.ty(d), a.repo.name(d).as_str()), ("SysMLRequirementDiagram", "Requirement Diagram by Mermaid"));
+    let pkg = a.repo.parent(d).unwrap();
+    assert_eq!(a.repo.name(pkg), "Package by Mermaid");
+    let reqs = a.repo.all_of("SysMLRequirement");
+    let brakes = reqs.iter().copied().find(|r| a.repo.name(*r) == "brakes").unwrap();
+    let abs = reqs.iter().copied().find(|r| a.repo.name(*r) == "abs").unwrap();
+    assert_eq!((a.repo.str(brakes, "id").as_str(), a.repo.str(brakes, "documentation").as_str()), ("1", "Risk: High\nVerifyMethod: Test\n"));
+    assert_eq!(crate::views::type_name(&a.repo, abs, "stereotype"), "functionalRequirement");
+    assert_eq!(a.repo.parent(abs), Some(brakes), "contains moves the requirement into its container");
+    let el = a.repo.all_of("UMLClass").into_iter().find(|c| a.repo.name(*c) == "brake_test").unwrap();
+    let attrs: Vec<(String, String)> = a.repo.list(el, "attributes").iter().map(|x| (a.repo.name(*x), a.repo.str(*x, "defaultValue"))).collect();
+    assert_eq!(attrs, vec![("Type".to_string(), "simulation".to_string()), ("DocRef".to_string(), "tests/brakes.md".to_string())]);
+    let v = a.repo.all_of("SysMLVerify")[0];
+    assert_eq!((a.repo.refd(v, "source"), a.repo.refd(v, "target")), (Some(el), Some(brakes)));
+    let views: Vec<String> = a.repo.list(d, "ownedViews").iter().map(|x| a.repo.ty(*x).to_string()).collect();
+    assert!(views.contains(&"UMLContainmentView".to_string()) && views.contains(&"SysMLVerifyView".to_string()) && !views.contains(&"UMLFrameView".to_string()));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

@@ -4,7 +4,7 @@
 //! UMLCraft reads Mermaid's class diagram syntax itself: classes (with labels, generics and
 //! annotations), members, namespaces, relations with cardinalities and labels, lollipop interfaces,
 //! notes and `direction`. Flowcharts, ER diagrams, mind maps and state diagrams are made by
-//! mermaid_kinds.rs; sequence and requirement diagrams are refused.
+//! mermaid_kinds.rs, requirement diagrams by sysml.rs; sequence diagrams are refused.
 
 use crate::app::{App, AssocInit, Tool};
 use crate::layout::{Dir, Seps};
@@ -314,6 +314,7 @@ impl App {
             "er" => return self.generate_er(code, ms),
             "mindmap" => return self.generate_mindmap(code, ms),
             "state" => return self.generate_state(code, ms),
+            "requirement" => return self.generate_requirement(code, ms),
             "class" => {}
             _ => return Err(format!("UMLCraft cannot generate {ty} diagrams from Mermaid yet.")),
         }
@@ -477,6 +478,7 @@ impl App {
                         ("State Diagram", crate::mermaid_kinds::STATE_SAMPLE),
                         ("Flowchart", crate::mermaid_kinds::FLOWCHART_SAMPLE),
                         ("Entity Relationship Diagram", crate::mermaid_kinds::ER_SAMPLE),
+                        ("Requirement Diagram", crate::sysml::MERMAID_SAMPLE),
                         ("Mindmap", crate::mermaid_kinds::MINDMAP_SAMPLE),
                     ] {
                         if ui.button(label).clicked() {

@@ -429,7 +429,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | mermaid-example-dropdown | State Diagram | `mermaid:example-state-diagram` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:473-487; src/mermaid_kinds.rs:14-60) |
 | mermaid-example-dropdown | Flowchart | `mermaid:example-flowchart` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:473-487; src/mermaid_kinds.rs:14-60) |
 | mermaid-example-dropdown | Entity Relationship Diagram | `mermaid:example-er-diagram` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:473-487; src/mermaid_kinds.rs:14-60) |
-| mermaid-example-dropdown | Requirement Diagram | `mermaid:example-requirement-diagram` | ❌ |  |
+| mermaid-example-dropdown | Requirement Diagram | `mermaid:example-requirement-diagram` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:481; src/sysml.rs:1487-1506) |
 | mermaid-example-dropdown | Mindmap | `mermaid:example-mindmap` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:473-487; src/mermaid_kinds.rs:14-60) |
 | #relationship-view div.listview | Select Related Element | `relationship-view:select-related-element` | ✅ | the Relationships panel row's context menu selects the element at the other end (src/relview.rs:85-89) |
 | #relationship-view div.listview | Select Relationship | `relationship-view:select-relationship` | ✅ | the Relationships panel row's context menu selects the relationship (src/relview.rs:90-93) |
