@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER and C4 diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
+UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER, C4 and BPMN diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -24,54 +24,54 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Azure `azure.elements` | AzureDiagram | Azure Service | ❌ | extensions/essential/azure/toolbox/azure.json |
 | Azure `azure.elements` | AzureDiagram | Azure Callout | ❌ | extensions/essential/azure/toolbox/azure.json |
 | Azure `azure.elements` | AzureDiagram | Azure Connector | ❌ | extensions/essential/azure/toolbox/azure.json |
-| BPMN Basic `bpmn.basic` | BPMNDiagram | Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Basic `bpmn.basic` | BPMNDiagram | Gateway | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Basic `bpmn.basic` | BPMNDiagram | Start Event | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Basic `bpmn.basic` | BPMNDiagram | End Event | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Basic `bpmn.basic` | BPMNDiagram | Sequence Flow | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Artifact `bpmn.artifact` | BPMNDiagram | Text Annotation | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Artifact `bpmn.artifact` | BPMNDiagram | Group | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Artifact `bpmn.artifact` | BPMNDiagram | Association | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Pool | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Pool (Vert) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Lane | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Lane (Vert) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Send Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Receive Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Service Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | User Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Manual Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Business Rule Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Script Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Call Activity | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Sub Process | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Ad-Hoc Sub Process | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Transaction | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Exclusive) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Event-Based) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Inclusive) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Complex) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Parallel) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Events `bpmn.events` | BPMNDiagram | Start Event | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Events `bpmn.events` | BPMNDiagram | Intermediate Event (Throw) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Events `bpmn.events` | BPMNDiagram | Intermediate Event (Catch) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Events `bpmn.events` | BPMNDiagram | Boundary Event | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Events `bpmn.events` | BPMNDiagram | End Event | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Data `bpmn.data` | BPMNDiagram | Data Object | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Data `bpmn.data` | BPMNDiagram | Data Store | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Data `bpmn.data` | BPMNDiagram | Data Input | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Data `bpmn.data` | BPMNDiagram | Data Output | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Data `bpmn.data` | BPMNDiagram | Data Association | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Message `bpmn.message` | BPMNDiagram | Message | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Message `bpmn.message` | BPMNDiagram | Message Flow | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Choreography `bpmn.choreography` | BPMNDiagram | Choreography Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Choreography `bpmn.choreography` | BPMNDiagram | Sub Choreography | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Choreography `bpmn.choreography` | BPMNDiagram | Message Link | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Conversation | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Sub Conversation | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Call Conversation | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Conversation Link | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Basic `bpmn.basic` | BPMNDiagram | Task | ✅ | a BPMNTask ("BPMNTask1"…) in the diagram's process, or in the lane or pool it is drawn in; a box rounded by 10 at least its name plus 5 px around, with its marks (src/bpmn.rs:252-292, 605-633); drawn by src/bpmn_draw.rs:485-504 | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Basic `bpmn.basic` | BPMNDiagram | Gateway | ✅ | an exclusive gateway: an empty diamond at least 32 × 32, its name floating 36 px below (src/bpmn_draw.rs:828-866) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Basic `bpmn.basic` | BPMNDiagram | Start Event | ✅ | a thin circle at least 32 across, dashed in a sub-process when not interrupting, its name below (src/bpmn_draw.rs:699-735) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Basic `bpmn.basic` | BPMNDiagram | End Event | ✅ | a circle with a 3 px border (src/bpmn_draw.rs:699-735) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Basic `bpmn.basic` | BPMNDiagram | Sequence Flow | ✅ | solid with a filled arrow, a slash at the tail when it is its gateway's default, a diamond when it leaves an activity with a condition; rounded rectilinear by default (src/bpmn_draw.rs:941-962) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Artifact `bpmn.artifact` | BPMNDiagram | Text Annotation | ✅ | its text's lines from the top left, wrapped, with a bracket on the left; at least 10 × 10 (src/bpmn_draw.rs:58-76, 870-896) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Artifact `bpmn.artifact` | BPMNDiagram | Group | ✅ | a filled box with a dashed border, put behind the other views (estimated: the original makes it on top) (src/bpmn.rs:508-521) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Artifact `bpmn.artifact` | BPMNDiagram | Association | ✅ | dotted, with a stick arrow at one end or both by its direction; it may end on a line (src/bpmn.rs:363-375; src/bpmn_draw.rs:969-979) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Pool | ✅ | a BPMNParticipant: a box with its name up the left side and a line beside it, three bars when its maximum is over 1; it lines up its lanes from the top; a plain click gives 600 × 150 (estimated) (src/bpmn_draw.rs:99-118, 192-217, 899-938) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Pool (Vert) | ✅ | the same with `isVertical`: the name across the top, the lanes side by side (src/bpmn.rs:252-258) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Lane | ✅ | a BPMNLane in the pool it is drawn in (its model in the participant), or on its own; a line along its bottom (src/bpmn.rs:276-283; src/bpmn_draw.rs:899-938) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Lane (Vert) | ✅ | the same lying the other way; a lane takes its pool's direction (src/bpmn_draw.rs:87-96) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Task | ✅ | as in BPMN Basic; loop, multi-instance and compensation marks at the bottom (src/bpmn_draw.rs:328-393) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Send Task | ✅ | a filled envelope in the top left corner (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Receive Task | ✅ | an outlined envelope, in a circle when it instantiates (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Service Task | ✅ | a gear (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | User Task | ✅ | a head and shoulders (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Manual Task | ✅ | a hand (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Business Rule Task | ✅ | a table (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Script Task | ✅ | a scroll (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Call Activity | ✅ | a 3 px border, the mark of the task it calls, the sub-process mark when it calls one (src/bpmn_draw.rs:372-393, 475-510) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Sub Process | ✅ | the plus-in-a-box mark at the bottom (src/bpmn_draw.rs:372-393) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Ad-Hoc Sub Process | ✅ | the sub-process mark and a tilde (src/bpmn_draw.rs:328-393) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Transaction | ✅ | a second border 3 px inside, rounded by 8, and the sub-process mark (src/bpmn_draw.rs:485-504) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Exclusive) | ✅ | an empty diamond, as in the original (src/bpmn_draw.rs:828-866) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Event-Based) | ✅ | a pentagon in two circles; one circle when it instantiates, a cross when it instantiates in parallel (src/bpmn_draw.rs:828-866) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Inclusive) | ✅ | a thick circle (src/bpmn_draw.rs:828-866) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Complex) | ✅ | a thick star (src/bpmn_draw.rs:828-866) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Parallel) | ✅ | a thick plus (src/bpmn_draw.rs:828-866) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Events `bpmn.events` | BPMNDiagram | Start Event | ✅ | as in BPMN Basic, with the mark of its definition (src/bpmn_draw.rs:699-826) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Events `bpmn.events` | BPMNDiagram | Intermediate Event (Throw) | ✅ | a double circle; its definition's mark filled (src/bpmn_draw.rs:699-826) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Events `bpmn.events` | BPMNDiagram | Intermediate Event (Catch) | ✅ | a double circle; its definition's mark outlined (src/bpmn_draw.rs:699-826) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Events `bpmn.events` | BPMNDiagram | Boundary Event | ✅ | on the box under the point, which owns it; it sits on the activity's border, 32 × 32, double, dashed unless it cancels the activity, and does not change container (src/bpmn.rs:605-633; src/bpmn_draw.rs:134-147, 220-245) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Events `bpmn.events` | BPMNDiagram | End Event | ✅ | as in BPMN Basic; two definitions or more make a pentagon, or a cross when parallel (src/bpmn_draw.rs:699-826) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Data `bpmn.data` | BPMNDiagram | Data Object | ✅ | a page with a folded corner at least 32 × 40, three bars when it is a collection (src/bpmn_draw.rs:545-574) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Data `bpmn.data` | BPMNDiagram | Data Store | ✅ | a cylinder with its name inside (src/bpmn_draw.rs:575-583, 603-622) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Data `bpmn.data` | BPMNDiagram | Data Input | ✅ | a data object with a hollow arrow (src/bpmn_draw.rs:545-574) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Data `bpmn.data` | BPMNDiagram | Data Output | ✅ | a data object with a filled arrow (src/bpmn_draw.rs:545-574) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Data `bpmn.data` | BPMNDiagram | Data Association | ✅ | dotted with a stick arrow (src/bpmn_draw.rs:980-983) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Message `bpmn.message` | BPMNDiagram | Message | ✅ | an envelope at least 32 × 24, its name below (src/bpmn_draw.rs:520-528) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Message `bpmn.message` | BPMNDiagram | Message Flow | ✅ | dashed, a small circle at its start and a hollow arrow at its end (src/bpmn_draw.rs:963-967, 996-1018) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Choreography `bpmn.choreography` | BPMNDiagram | Choreography Task | ✅ | a rounded box with a band per upper and lower participant, the initiating one grey, and its loop marks (src/bpmn_draw.rs:625-697) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Choreography `bpmn.choreography` | BPMNDiagram | Sub Choreography | ✅ | the same with the sub-process mark (src/bpmn_draw.rs:625-697) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Choreography `bpmn.choreography` | BPMNDiagram | Message Link | ✅ | dotted, no ends (src/bpmn_draw.rs:984) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Conversation | ✅ | a hexagon at least 38 × 32, its name below (src/bpmn_draw.rs:529-544) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Sub Conversation | ✅ | the hexagon with the sub-process mark (src/bpmn_draw.rs:529-544) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Call Conversation | ✅ | a 3 px hexagon, with the sub-process mark when it calls a collaboration (src/bpmn_draw.rs:529-544) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Conversation Link | ✅ | a 3 px line without ends (src/bpmn_draw.rs:968) | extensions/essential/bpmn/toolbox/bpmn.json |
 | C4 Model `c4` | C4Diagram | Person | ✅ | a C4Person ("C4Person1"…) in the element that owns the diagram: a head a third of its width over a rounded body, its bold name, "[Person]" and its description (src/app.rs:800-813; src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
 | C4 Model `c4` | C4Diagram | Software System | ✅ | a C4SoftwareSystem, a box rounded by 6 with its name, "[Software System: technology]" and description (src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
 | C4 Model `c4` | C4Diagram | Container | ✅ | a C4Container of kind etc, "[Container: technology]" (src/app.rs:800-813; src/c4.rs) | extensions/essential/c4/toolbox/c4.json |

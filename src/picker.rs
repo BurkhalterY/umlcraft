@@ -110,6 +110,14 @@ impl App {
     pub fn apply_picked(&mut self, obj: Eid, field: &str, chosen: Option<Eid>) {
         let field = field.to_string();
         self.change(|a| match chosen {
+            // Assign Participant adds to a choreography's participants (bpmn-commands.js:90-103)
+            Some(c) if matches!(field.as_str(), "upperParticipants" | "lowerParticipants") => {
+                let mut list = a.repo.ref_list(obj, &field);
+                if !list.contains(&c) {
+                    list.push(c);
+                }
+                a.repo.set_ref_list(obj, &field, &list);
+            }
             Some(c) => a.repo.set_ref(obj, &field, Some(c)),
             None if field == "type" => a.repo.set_raw(obj, "type", serde_json::json!("")),
             None => a.repo.remove(obj, &field),

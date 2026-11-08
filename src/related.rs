@@ -148,6 +148,8 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             ]
         }
         "ERDRelationship" => return vec![NOTE],
+        // every BPMN quick edit but a text annotation's adds a text annotation (quickedits/bpmn.json)
+        t if t.starts_with("BPMN") => return crate::bpmn::related(t),
         // C4 elements and relationships: Add Note (quickedits/c4.json)
         t if t.starts_with("C4") => return vec![NOTE],
         // a flow: only Add Note ("fc.edge")
@@ -266,6 +268,12 @@ impl App {
             let n = app.create_node(a.kind, rect)?;
             if a.kind == "Note" {
                 app.repo.set(n, "text", json!(""));
+            }
+            // a BPMN text annotation says so (bpmn-commands.js:196)
+            if a.kind == "BPMNTextAnnotation" {
+                if let Some(m) = app.repo.refd(n, "model") {
+                    app.repo.set(m, "text", json!(crate::bpmn::ANNOTATION_TEXT));
+                }
             }
             let tool = Tool { label: "", kind: a.rel, icon: "", line: true, init: a.init };
             let (tail, head) = if a.from_new { (n, v) } else { (v, n) };

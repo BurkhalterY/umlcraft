@@ -5936,3 +5936,227 @@ fn views_move_and_resize_only_the_ways_they_may() {
     let sw = a.change(|a| a.create_node("WFSwitch", rect(50.0, 50.0, 1.0, 1.0))).unwrap();
     assert_eq!(sizable(&a.repo, sw), Sizable::None);
 }
+
+#[test]
+fn bpmn_diagrams_have_tasks_events_gateways_and_flows() {
+    use crate::views::Measure;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    // a BPMN diagram outside a process gets a new one (bpmn-factory.js:28-57)
+    let d = a.change(|a| a.add_diagram(Some(root), "BPMNDiagram"));
+    let pr = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(pr), a.repo.name(pr).as_str(), a.repo.name(d).as_str()), ("BPMNProcess", "BPMNProcess1", "BPMNDiagram1"));
+    // inside a process it goes in it
+    let d2 = a.change(|a| a.add_diagram(Some(pr), "BPMNDiagram"));
+    assert_eq!((a.repo.parent(d2), a.repo.name(d2).as_str()), (Some(pr), "BPMNDiagram2"));
+    a.diagram = Some(d);
+    // a click makes a task at its smallest size: its name plus 5 px around
+    let t = a.change(|a| a.create_node("BPMNSendTask", rect(100.0, 100.0, 1.0, 1.0))).unwrap();
+    let tm = a.repo.refd(t, "model").unwrap();
+    assert_eq!((a.repo.ty(t), a.repo.ty(tm), a.repo.name(tm).as_str(), a.repo.parent(tm)), ("BPMNTaskView", "BPMNSendTask", "BPMNSendTask1", Some(pr)));
+    let ev = a.change(|a| a.create_node("BPMNStartEvent", rect(10.0, 100.0, 1.0, 1.0))).unwrap();
+    let gw = a.change(|a| a.create_node("BPMNExclusiveGateway", rect(300.0, 100.0, 1.0, 1.0))).unwrap();
+    let end = a.change(|a| a.create_node("BPMNEndEvent", rect(400.0, 100.0, 1.0, 1.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let w = (ms.width("BPMNSendTask1", 0).ceil() + 10.0, ms.size() + 10.0);
+    assert_eq!((a.repo.f(t, "width"), a.repo.f(t, "height")), w);
+    assert_eq!((a.repo.f(ev, "width"), a.repo.f(ev, "height"), a.repo.f(gw, "width")), (32.0, 32.0, 32.0));
+    // a floating name 36 px below the event's centre
+    let nl = a.repo.refd(ev, "nameLabel").unwrap();
+    assert_eq!(a.repo.ty(nl), "NodeLabelView");
+    let label_mid = a.repo.f(nl, "top") + a.repo.f(nl, "height") / 2.0;
+    assert!((label_mid - (100.0 + 16.0 + 36.0)).abs() < 1.0, "{label_mid}");
+    assert_eq!(a.repo.str(nl, "text"), "BPMNStartEvent1");
+    // flows: a sequence flow belongs to its source, rounded rectilinear by default
+    let sf = tool("BPMNSequenceFlow", AssocInit::Plain);
+    assert!(a.can_connect(&sf, ev, t));
+    let f1 = a.change(|a| a.create_edge(&sf, ev, t)).unwrap();
+    let f1m = a.repo.refd(f1, "model").unwrap();
+    assert_eq!((a.repo.ty(f1), a.repo.parent(f1m), a.repo.f(f1, "lineStyle")), ("BPMNSequenceFlowView", a.repo.refd(ev, "model"), 2.0));
+    a.change(|a| a.create_edge(&sf, t, gw)).unwrap();
+    let f3 = a.change(|a| a.create_edge(&sf, gw, end)).unwrap();
+    // the gateway's default flow, and a message flow between two of them
+    let gm = a.repo.refd(gw, "model").unwrap();
+    let f3m = a.repo.refd(f3, "model");
+    a.repo.set_ref(gm, "default", f3m);
+    let mf = a.change(|a| a.create_edge(&tool("BPMNMessageFlow", AssocInit::Plain), t, end)).unwrap();
+    assert_eq!(a.repo.ty(mf), "BPMNMessageFlowView");
+    // a note is not a sequence flow's end
+    let note = a.change(|a| a.create_node("Note", rect(500.0, 300.0, 60.0, 40.0))).unwrap();
+    assert!(!a.can_connect(&sf, note, gw));
+    // event definitions go in the event's definitions
+    let em = a.repo.refd(end, "model").unwrap();
+    let labels: Vec<&str> = crate::canvas::item_buttons(&a.repo, Some(end), &crate::app::EditKind::Name(em)).into_iter().map(|b| b.1).collect();
+    assert_eq!(labels.len(), 10);
+    assert_eq!(labels[0], "Add Compensate Event Definition");
+    a.bpmn_quick(end, crate::bpmn::Quick::AddEventDefinition("BPMNErrorEventDefinition"));
+    let defs = a.repo.list(em, "eventDefinitions");
+    assert_eq!((defs.len(), a.repo.name(defs[0]).as_str()), (1, "BPMNErrorEventDefinition1"));
+    let kinds: Vec<&str> = crate::bpmn::add_kinds(&a.repo, pr).into_iter().map(|k| k.1).collect();
+    assert!(kinds.contains(&"BPMNStartEvent") && kinds.contains(&"BPMNGateway") && !kinds.contains(&"BPMNProcess"));
+    let g2 = a.change(|a| a.add_model(pr, "BPMNGateway"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let saved = a.repo.serialize();
+    assert!(saved.contains("\"gatewayDirection\": \"unspecified\""), "the direction has no default");
+    assert!(saved.contains("\"_type\": \"BPMNErrorEventDefinition\""));
+    assert_eq!(a.repo.name(g2), "BPMNGateway1");
+    // every kind of view draws, in a picture
+    for ty in [
+        "BPMNTask", "BPMNReceiveTask", "BPMNServiceTask", "BPMNUserTask", "BPMNManualTask", "BPMNBusinessRuleTask", "BPMNScriptTask", "BPMNCallActivity", "BPMNSubProcess",
+        "BPMNAdHocSubProcess", "BPMNTransaction", "BPMNEventBasedGateway", "BPMNInclusiveGateway", "BPMNComplexGateway", "BPMNParallelGateway", "BPMNIntermediateThrowEvent",
+        "BPMNIntermediateCatchEvent", "BPMNMessage", "BPMNConversation", "BPMNSubConversation", "BPMNGroup", "BPMNTextAnnotation", "BPMNSubChoreography",
+    ] {
+        a.change(|a| a.create_node(ty, rect(50.0, 500.0, 1.0, 1.0))).unwrap();
+    }
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap();
+    let back = Repo::parse(&saved).unwrap();
+    assert_eq!(back.serialize(), saved);
+}
+
+#[test]
+fn bpmn_pools_hold_lanes_and_lanes_hold_flow_elements() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "BPMNDiagram"));
+    let pr = a.repo.parent(d).unwrap();
+    let task0 = a.change(|a| a.create_node("BPMNTask", rect(700.0, 400.0, 1.0, 1.0))).unwrap();
+    let pool = a.change(|a| a.create_node("BPMNParticipant", rect(0.0, 0.0, 600.0, 300.0))).unwrap();
+    let pm = a.repo.refd(pool, "model").unwrap();
+    assert_eq!((a.repo.ty(pool), a.repo.ty(pm), a.repo.name(pm).as_str()), ("BPMNPoolView", "BPMNParticipant", "BPMNParticipant1"));
+    // the pool goes behind what was there
+    assert_eq!(a.repo.list(d, "ownedViews")[0], pool);
+    // Add Lane, twice: the lanes stack from the top, right of the name
+    let l1 = a.change(|a| a.add_lane(pool)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let l2 = a.change(|a| a.add_lane(pool)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let l1m = a.repo.refd(l1, "model").unwrap();
+    assert_eq!((a.repo.ty(l1m), a.repo.parent(l1m), a.repo.name(l1m).as_str()), ("BPMNLane", Some(pm), "BPMNLane1"));
+    let left = 5.0 + 13.0 + 5.0;
+    assert_eq!((a.repo.f(l1, "left"), a.repo.f(l1, "top"), a.repo.f(l1, "width")), (left, 0.0, 600.0 - left));
+    assert_eq!(a.repo.f(l2, "top"), a.repo.f(l1, "height"));
+    assert_eq!(a.repo.refd(l2, "containerView"), Some(pool));
+    // a task drawn in a lane belongs to it (container-views)
+    let t = a.change(|a| a.create_node("BPMNTask", rect(100.0, 10.0, 1.0, 1.0))).unwrap();
+    let tm = a.repo.refd(t, "model").unwrap();
+    assert_eq!((a.repo.parent(tm), a.repo.refd(t, "containerView")), (Some(l1m), Some(l1)));
+    // a task moved into the pool's lane goes into it, and out again to the process
+    assert!(a.can_contain_view(l2, task0));
+    a.change(|a| a.set_container(&[task0], Some(l2)));
+    assert_eq!(a.repo.parent(a.repo.refd(task0, "model").unwrap()), a.repo.refd(l2, "model"));
+    a.change(|a| a.set_container(&[task0], None));
+    assert_eq!(a.repo.parent(a.repo.refd(task0, "model").unwrap()), Some(pr));
+    // pools and lanes stay behind the boxes
+    let order = a.repo.list(d, "ownedViews");
+    assert_eq!(&order[..3], &[pool, l1, l2]);
+    // a boundary event on the task sits on its border and belongs to it
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let tb = crate::views::node_rect(&a.repo, t);
+    let be = a.change(|a| a.create_node("BPMNBoundaryEvent", rect(tb.x + tb.w - 4.0, tb.y + tb.h / 2.0, 1.0, 1.0))).unwrap();
+    assert_eq!(a.repo.parent(a.repo.refd(be, "model").unwrap()), Some(tm));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let tb = crate::views::node_rect(&a.repo, t);
+    let bb = crate::views::node_rect(&a.repo, be);
+    assert_eq!((bb.w, bb.h), (32.0, 32.0));
+    assert!(((bb.x + 16.0) - (tb.x + tb.w)).abs() <= 1.0, "on the right border: {bb:?} {tb:?}");
+    assert!(!a.repo.bool(be, "containerChangeable"));
+    // Add Boundary Event puts one on the border too
+    let be2 = a.change(|a| a.add_boundary_event(t)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let b2 = crate::views::node_rect(&a.repo, be2);
+    let (cx, cy) = (b2.x + 16.0, b2.y + 16.0);
+    let on = |v: f64, e: f64| (v - e).abs() <= 1.0;
+    assert!(on(cx, tb.x) || on(cx, tb.x + tb.w) || on(cy, tb.y) || on(cy, tb.y + tb.h), "{b2:?} {tb:?}");
+    // a vertical pool and its lanes
+    let vp = a.change(|a| a.create_node("BPMNParticipantVert", rect(800.0, 0.0, 300.0, 500.0))).unwrap();
+    assert!(a.repo.bool(vp, "isVertical"));
+    let vl = a.change(|a| a.create_node("BPMNLaneVert", rect(810.0, 50.0, 100.0, 300.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.refd(vl, "containerView"), a.repo.f(vl, "left")), (Some(vp), 800.0));
+    assert!(a.repo.bool(vl, "isVertical"));
+    // the quick edit's Add Lane and Add Text Annotation
+    let labels: Vec<&str> = crate::canvas::item_buttons(&a.repo, Some(pool), &crate::app::EditKind::Name(pm)).into_iter().map(|b| b.1).collect();
+    assert_eq!(labels, ["Add Lane"]);
+    assert_eq!(crate::related::actions("BPMNParticipant")[0].label, "Add Text Annotation");
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn bpmn_choreographies_messages_conversations_and_annotations() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "BPMNDiagram"));
+    let pr = a.repo.parent(d).unwrap();
+    let c = a.change(|a| a.create_node("BPMNChoreographyTask", rect(200.0, 200.0, 120.0, 100.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    // Create Participant (Upper) and (Lower), then make the upper one initiating
+    a.bpmn_quick(c, crate::bpmn::Quick::CreateParticipant(true));
+    a.bpmn_quick(c, crate::bpmn::Quick::CreateParticipant(false));
+    let up = a.repo.ref_list(cm, "upperParticipants");
+    assert_eq!((up.len(), a.repo.name(up[0]).as_str(), a.repo.parent(up[0])), (1, "Participant", Some(pr)));
+    a.apply_picked(cm, "initiatingParticipant", Some(up[0]));
+    // Assign Participant adds to the list
+    a.apply_picked(cm, "lowerParticipants", Some(up[0]));
+    assert_eq!(a.repo.ref_list(cm, "lowerParticipants").len(), 2);
+    // the initiating message above, the return message below and grey, each with a rectilinear link
+    a.bpmn_quick(c, crate::bpmn::Quick::Message(true));
+    a.bpmn_quick(c, crate::bpmn::Quick::Message(false));
+    let links: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| a.repo.ty(*v) == "BPMNMessageLinkView").collect();
+    assert_eq!(links.len(), 2);
+    for l in &links {
+        assert_eq!((a.repo.f(*l, "lineStyle"), a.repo.refd(*l, "head")), (0.0, Some(c)));
+    }
+    let msgs: Vec<_> = links.iter().map(|l| a.repo.refd(*l, "tail").unwrap()).collect();
+    assert!(a.repo.f(msgs[0], "top") + a.repo.f(msgs[0], "height") <= 200.0);
+    assert!(a.repo.f(msgs[1], "top") >= 300.0);
+    assert_eq!(a.repo.str(msgs[1], "fillColor"), crate::bpmn::INITIATING_FILL);
+    assert_eq!(a.repo.ty(a.repo.refd(msgs[0], "model").unwrap()), "BPMNMessage");
+    // conversations: a hexagon, joined by a conversation link
+    let cv = a.change(|a| a.create_node("BPMNCallConversation", rect(500.0, 50.0, 1.0, 1.0))).unwrap();
+    let pool = a.change(|a| a.create_node("BPMNParticipant", rect(450.0, 300.0, 400.0, 150.0))).unwrap();
+    let link = a.change(|a| a.create_edge(&tool("BPMNConversationLink", AssocInit::Plain), cv, pool)).unwrap();
+    assert_eq!(a.repo.ty(link), "BPMNConversationLinkView");
+    // data: an object, a store, an input and an output, joined by a data association
+    let dob = a.change(|a| a.create_node("BPMNDataObject", rect(50.0, 400.0, 1.0, 1.0))).unwrap();
+    let ds = a.change(|a| a.create_node("BPMNDataStore", rect(150.0, 400.0, 1.0, 1.0))).unwrap();
+    a.change(|a| a.create_node("BPMNDataInput", rect(250.0, 400.0, 1.0, 1.0))).unwrap();
+    a.change(|a| a.create_node("BPMNDataOutput", rect(350.0, 400.0, 1.0, 1.0))).unwrap();
+    a.change(|a| a.create_edge(&tool("BPMNDataAssociation", AssocInit::Plain), dob, ds)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(dob, "width"), a.repo.f(dob, "height")), (32.0, 40.0));
+    assert_eq!((a.repo.f(cv, "width"), a.repo.f(cv, "height")), (38.0, 32.0));
+    // Add Text Annotation: "Text annotation" below, with an association from it
+    let ann = a.add_related(c, crate::bpmn::ANNOTATION).unwrap();
+    let am = a.repo.refd(ann, "model").unwrap();
+    assert_eq!((a.repo.ty(am), a.repo.str(am, "text").as_str()), ("BPMNTextAnnotation", "Text annotation"));
+    let assoc = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "BPMNAssociationView").unwrap();
+    assert_eq!((a.repo.refd(assoc, "tail"), a.repo.refd(assoc, "head")), (Some(ann), Some(c)));
+    // and on a flow
+    let t1 = a.change(|a| a.create_node("BPMNTask", rect(50.0, 600.0, 1.0, 1.0))).unwrap();
+    let t2 = a.change(|a| a.create_node("BPMNTask", rect(300.0, 600.0, 1.0, 1.0))).unwrap();
+    let f = a.change(|a| a.create_edge(&tool("BPMNSequenceFlow", AssocInit::Plain), t1, t2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let ann2 = a.add_annotation_to_edge(f).unwrap();
+    assert!(a.repo.list(d, "ownedViews").into_iter().any(|v| a.repo.ty(v) == "BPMNAssociationView" && a.repo.refd(v, "tail") == Some(ann2) && a.repo.refd(v, "head") == Some(f)));
+    // the text annotation's edit is its text
+    let e = a.bpmn_edit(ann).unwrap().unwrap();
+    assert!(e.multiline && e.text == "Text annotation");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    // the template: a process "Business Process" with its "BPMN Diagram", no UML profile
+    let tp = crate::templates::TEMPLATES.iter().find(|t| t.label == "BPMN Business Process Modeling").unwrap();
+    let p = crate::templates::project(tp);
+    let kids = p.children(p.root);
+    assert_eq!(kids.len(), 1);
+    let bp = kids[0].1;
+    assert_eq!((p.ty(bp), p.name(bp).as_str()), ("BPMNProcess", "Business Process"));
+    let bd = p.list(bp, "ownedElements")[0];
+    assert_eq!((p.ty(bd), p.name(bd).as_str(), p.bool(bd, "defaultDiagram")), ("BPMNDiagram", "BPMN Diagram", true));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

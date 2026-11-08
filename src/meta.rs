@@ -472,6 +472,7 @@ fn build() -> HashMap<&'static str, Kind> {
     ] {
         def(name, Some("FCGeneralNodeView"), vec![]);
     }
+    crate::bpmn::defs(&mut t);
     t
 }
 
@@ -530,5 +531,5 @@ pub fn static_name(ty: &str) -> &'static str {
 /// Whether an element of another notation than UML takes its name as typed, without the UML name
 /// grammar (flowcharts, data flow diagrams, mind maps: their quick edits only set the name).
 pub fn plain_named(ty: &str) -> bool {
-    ["FC", "DFD", "MM", "ERD", "C4", "WF"].iter().any(|p| ty.starts_with(p))
+    ["FC", "DFD", "MM", "ERD", "C4", "WF", "BPMN"].iter().any(|p| ty.starts_with(p))
 }

@@ -53,7 +53,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLGate" => "gate",
         "UMLSequenceDiagram" => "diagram",
         // a flowchart element's icon is its type (the shapes are drawn by key)
-        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") || t.starts_with("WF") => crate::meta::static_name(t),
+        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") || t.starts_with("WF") || t.starts_with("BPMN") => crate::meta::static_name(t),
         "UMLTransition" => "dependency",
         // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
         "UMLAction" => match r.str(e, "kind").as_str() {
@@ -117,6 +117,10 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
     let folder = |c: Color32| line(&[(1.5, 3.5), (6.5, 3.5), (7.5, 5.0), (14.5, 5.0), (14.5, 13.5), (1.5, 13.5), (1.5, 3.5)], c);
     let arrow_up = |c: Color32| line(&[(5.0, 5.5), (8.0, 2.5), (11.0, 5.5)], c);
     let triangle_up = |c: Color32| line(&[(8.0, 2.0), (11.5, 6.5), (4.5, 6.5), (8.0, 2.0)], c);
+    // BPMN elements and tools (bpmn_draw.rs)
+    if crate::bpmn_draw::icon(p, rect, key, Y, G, B) {
+        return;
+    }
     match key {
         "project" => {
             line(&[(8.0, 1.5), (13.5, 4.5), (13.5, 11.5), (8.0, 14.5), (2.5, 11.5), (2.5, 4.5), (8.0, 1.5)], RED);

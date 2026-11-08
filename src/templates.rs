@@ -15,7 +15,7 @@ pub struct Template {
 
 /// The UML templates, in menu order. Diagram names are the original's where the docs give them,
 /// otherwise the model's name (estimated).
-pub const TEMPLATES: [Template; 7] = [
+pub const TEMPLATES: [Template; 8] = [
     Template { label: "UML Minimal", models: &[("Model", "UMLClassDiagram", "Main")] },
     Template {
         label: "UML Conventional",
@@ -54,6 +54,9 @@ pub const TEMPLATES: [Template; 7] = [
     // the wireframe template: a wireframe with its "Wireframe Diagram" showing a phone frame
     // (wireframe/templates/WireframeModel.mdj)
     Template { label: "Wireframe Model", models: &[("Wireframe", "WFWireframeDiagram", "Wireframe Diagram")] },
+    // the BPMN template: a process "Business Process" with its "BPMN Diagram"
+    // (bpmn/templates/BusinessProcessModel.mdj)
+    Template { label: "BPMN Business Process Modeling", models: &[("Business Process", "BPMNDiagram", "BPMN Diagram")] },
 ];
 
 /// The UML Standard Profile in its order (uml/profiles/UMLStandardProfile.mfj): the metaclasses, each
@@ -125,12 +128,13 @@ pub fn project(t: &Template) -> Repo {
     for (_, m) in r.children(root) {
         r.detach(m);
     }
-    let erd = t.models.iter().all(|m| matches!(m.1, "ERDDiagram" | "C4Diagram" | "WFWireframeDiagram"));
+    let erd = t.models.iter().all(|m| matches!(m.1, "ERDDiagram" | "C4Diagram" | "WFWireframeDiagram" | "BPMNDiagram"));
     for (i, (model, kind, diagram)) in t.models.iter().enumerate() {
         let ty = match *kind {
             "ERDDiagram" => "ERDDataModel",
             "C4Diagram" => "C4Model",
             "WFWireframeDiagram" => "WFWireframe",
+            "BPMNDiagram" => "BPMNProcess",
             _ => "UMLModel",
         };
         let m = r.create(ty, &[("name", json!(model))], Some((root, "ownedElements")));

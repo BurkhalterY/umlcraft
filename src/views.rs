@@ -266,6 +266,7 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "MMEdge" => "MMEdgeView",
         "ERDRelationship" => "ERDRelationshipView",
         "C4Relationship" => "C4RelationshipView",
+        t if t.starts_with("BPMN") => return crate::bpmn::edge_view_of(t),
         _ => return None,
     })
 }
@@ -431,6 +432,8 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLContinuation" | "UMLStateInvariant" => crate::sequence::INVARIANT_MIN,
         "UMLTimeConstraint" => (1.0, 1.0),
         "UMLDurationConstraint" => (crate::sequence::DURATION_MIN_W, crate::sequence::DURATION_MIN_H),
+        // a BPMN element at its smallest size, but pools, lanes and groups (bpmn/elements.js:44-55)
+        _ if crate::bpmn::click_size(kind).is_some() => crate::bpmn::click_size(kind).unwrap_or((1.0, 1.0)),
         // a click makes a flowchart node at its smallest size, as in the original (factory.js:279-292)
         _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) || kind == "ERDEntity" || crate::c4::tool(kind).is_some() || crate::wireframe::is_node_type(kind) => (1.0, 1.0),
         _ => (100.0, 60.0),
@@ -555,6 +558,9 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
     }
     if r.ty(model) == "ERDEntity" {
         return Some(crate::erd::create_view(r, diagram, model, rect));
+    }
+    if crate::bpmn::is_node_type(r.ty(model)) {
+        return crate::bpmn::create_view(r, diagram, model, rect, false);
     }
     if crate::c4::is_node_type(r.ty(model)) {
         return Some(crate::c4::create_view(r, diagram, model, rect));
@@ -1260,6 +1266,11 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
     props.push(("points", json!("0:0;0:0")));
     let e = r.create(ty, &props, Some((diagram, "ownedViews")));
     let Some(m) = model else { return Some(e) };
+    // a BPMN flow's name 15 px off its middle; the other BPMN lines have no label (elements.js:935-968)
+    if ty.starts_with("BPMN") {
+        crate::bpmn::edge_labels(r, e, m);
+        return Some(e);
+    }
     // a flow has only its name, 15 px off its middle (FCGeneralEdgeView, flowchart/elements.js:197-215)
     // and so does a data flow (DFDGeneralEdgeView, dfd/elements.js:335-350); a mind map edge has no
     // label (MMEdgeView, mindmap/elements.js:103-115)
@@ -2115,6 +2126,10 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
     if t == "ERDEntityView" {
         return crate::erd::layout(r, ms, v);
     }
+    if crate::bpmn::is_node_view(&t) {
+        crate::bpmn_draw::layout(r, ms, v);
+        return Info { shape: "bpmn", ..Default::default() };
+    }
     if matches!(t.as_str(), "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView") {
         crate::sequence::layout_fragment(r, ms, v);
         return Info { shape: "fragment", ..Default::default() };
@@ -2641,6 +2656,9 @@ pub(crate) fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> 
     if r.ty(m) == "MMEdge" {
         return vec![];
     }
+    if r.ty(m).starts_with("BPMN") {
+        return crate::bpmn::edge_label_texts(r, m);
+    }
     if r.ty(m) == "UMLMessage" {
         let show_type = r.raw(e, "showType").and_then(|v| v.as_bool()).unwrap_or(true);
         let text = r.parent(e).map(|d| crate::sequence::message_text(r, d, m, show_type)).unwrap_or_default();
@@ -2798,7 +2816,7 @@ pub fn layout_diagram(r: &mut Repo, ms: &dyn Measure, d: Eid) -> HashMap<Eid, In
     }
     for v in &views {
         // only line kinds UMLCraft knows are re-routed; others keep the points they were saved with
-        if r.alive(*v) && KNOWN_EDGE_VIEWS.contains(&r.ty(*v)) && is_edge(r, *v) {
+        if r.alive(*v) && (KNOWN_EDGE_VIEWS.contains(&r.ty(*v)) || crate::bpmn::is_edge_view(r.ty(*v))) && is_edge(r, *v) {
             layout_edge(r, ms, *v, &info);
         }
     }

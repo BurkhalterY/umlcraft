@@ -124,29 +124,29 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | File › New From Template › Azure Architecture | `azure:new-from-template` |  | ❌ | no templates | extensions/essential/azure/menus/azure.json |
 | Model › Add Diagram › Azure Architecture Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/azure/menus/azure.json |
 | Model › Add › Azure Model | `factory:create-model` |  | ❌ |  | extensions/essential/azure/menus/azure.json |
-| File › New From Template › BPMN Business Process Modeling | `bpmn:new-from-template` |  | ❌ | no templates | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add Diagram › BPMN Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Business Process | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Collaboration | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Choreography | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Global Conversation | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Task | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Sub Process | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Gateway | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Start Event | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Intermediate Event (Throw) | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Intermediate Event (Catch) | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › End Event | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Compensate Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Cancel Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Error Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Link Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Signal Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Timer Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Escalation Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Message Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Terminate Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| Model › Add › Conditional Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
+| File › New From Template › BPMN Business Process Modeling | `bpmn:new-from-template` |  | ✅ | a process "Business Process" with its "BPMN Diagram", without the UML profile (src/templates.rs:56-59) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add Diagram › BPMN Diagram | `factory:create-diagram` |  | ✅ | in the selected BPMN root element or activity, or in a new "BPMNProcess1" there (src/ui.rs:660; src/bpmn.rs:642-654) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Business Process | `factory:create-model` |  | ✅ | under any element that is not a BPMN one (src/bpmn.rs:469-494) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Collaboration | `factory:create-model` |  | ✅ | under a BPMN element (src/bpmn.rs:469-494) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Choreography | `factory:create-model` |  | ✅ | under a BPMN element (src/bpmn.rs:469-494) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Global Conversation | `factory:create-model` |  | ✅ | under a BPMN element (src/bpmn.rs:469-494) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Task | `factory:create-model` |  | ✅ | under a BPMN element (src/bpmn.rs:469-494) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Sub Process | `factory:create-model` |  | ✅ | under a BPMN element (src/bpmn.rs:469-494) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Gateway | `factory:create-model` |  | ✅ | a BPMNGateway with its direction "unspecified", under a BPMN element (src/bpmn.rs:469-506) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Start Event | `factory:create-model` |  | ✅ | under a process or sub-process (src/bpmn.rs:469-494) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Intermediate Event (Throw) | `factory:create-model` |  | ✅ | under a process or sub-process (src/bpmn.rs:469-494) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Intermediate Event (Catch) | `factory:create-model` |  | ✅ | under a process or sub-process (src/bpmn.rs:469-494) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › End Event | `factory:create-model` |  | ✅ | under a process or sub-process (src/bpmn.rs:469-494) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Compensate Event Definition | `factory:create-model` |  | ✅ | in the event definitions of the selected event (src/bpmn.rs:469-506) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Cancel Event Definition | `factory:create-model` |  | ✅ | in the event definitions of the selected event (src/bpmn.rs:469-506) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Error Event Definition | `factory:create-model` |  | ✅ | in the event definitions of the selected event (src/bpmn.rs:469-506) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Link Event Definition | `factory:create-model` |  | ✅ | in the event definitions of the selected event (src/bpmn.rs:469-506) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Signal Event Definition | `factory:create-model` |  | ✅ | in the event definitions of the selected event (src/bpmn.rs:469-506) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Timer Event Definition | `factory:create-model` |  | ✅ | in the event definitions of the selected event (src/bpmn.rs:469-506) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Escalation Event Definition | `factory:create-model` |  | ✅ | in the event definitions of the selected event (src/bpmn.rs:469-506) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Message Event Definition | `factory:create-model` |  | ✅ | in the event definitions of the selected event (src/bpmn.rs:469-506) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Terminate Event Definition | `factory:create-model` |  | ✅ | in the event definitions of the selected event (src/bpmn.rs:469-506) | extensions/essential/bpmn/menus/bpmn.json |
+| Model › Add › Conditional Event Definition | `factory:create-model` |  | ✅ | in the event definitions of the selected event (src/bpmn.rs:469-506) | extensions/essential/bpmn/menus/bpmn.json |
 | File › New From Template › C4 Model | `c4:new-from-template` |  | ✅ | a C4 model "C4Model" with its "System Context Diagram" (src/templates.rs:53) | extensions/essential/c4/menus/c4.json |
 | Model › Add Diagram › C4 Diagram | `factory:create-diagram` |  | ✅ | in the selected C4 element, or in a new "C4Model1" in the project (src/ui.rs:440; src/app.rs:1839-1856) | extensions/essential/c4/menus/c4.json |
 | Model › Add › C4 Model | `factory:create-model` |  | ✅ | under the project (src/ui.rs:681) | extensions/essential/c4/menus/c4.json |
