@@ -8046,6 +8046,10 @@ fn exec_factory_and_engine_commands() {
     let attr = run(&mut a, "factory:create-model", &format!(r#"{{"id": "UMLAttribute", "parent": {{"$ref": "{m1_id}"}}, "model-init": {{"name": "size"}}}}"#), &mut res).unwrap().unwrap();
     assert_eq!(a.repo.list(m1, "attributes"), vec![attr]);
     assert_eq!(a.repo.name(attr), "size");
+    // a view is no place for a model element (factory.js:421-426)
+    let v_id = a.repo.id(e);
+    let err = run(&mut a, "factory:create-model", &format!(r#"{{"id": "UMLClass", "parent": "{v_id}"}}"#), &mut res).unwrap_err();
+    assert_eq!(err, "UMLClass cannot be placed here.");
     run(&mut a, "engine:set-property", r#"{"model": "$2", "set-model": "model", "property": "isAbstract", "value": true}"#, &mut res).unwrap();
     assert!(a.repo.bool(m1, "isAbstract"));
     assert!(run(&mut a, "factory:create-model-and-view", r#"{"id": "Nope", "diagram": "$1"}"#, &mut res).unwrap_err().contains("No such function"));
