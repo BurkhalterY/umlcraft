@@ -574,14 +574,16 @@ impl App {
             // a fixed 620×440 body, as the window it replaces had
             ui.allocate_ui_with_layout(egui::Vec2::new(620.0, 440.0), egui::Layout::left_to_right(egui::Align::Min), |ui| {
                 ui.set_min_size(egui::Vec2::new(620.0, 440.0));
-                ui.vertical(|ui| {
+                // the notations', then the languages' code generation and reverse options, scrolled
+                egui::ScrollArea::vertical().id_salt("prefs-sections").max_height(440.0).show(ui, |ui| ui.vertical(|ui| {
                     ui.set_width(120.0);
-                    for s in ["General", "AWS", "Azure", "BPMN", "C4 Model", "GCP", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "SysML", "UML"] {
+                    let langs = crate::codegen::pref_sections();
+                    for s in ["General", "AWS", "Azure", "BPMN", "C4 Model", "GCP", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "SysML", "UML"].into_iter().chain(langs) {
                         if ui.selectable_label(section == s, s).clicked() {
                             pick = Some(s.to_string());
                         }
                     }
-                });
+                }));
                 ui.separator();
                 egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| ui.vertical(|ui| {
                     egui::Grid::new("prefs-grid").num_columns(2).spacing([16.0, 6.0]).show(ui, |ui| {
@@ -609,6 +611,7 @@ impl App {
                             ui.end_row();
                         }
                     });
+                    crate::codegen::prefs_section_ui(ui, &mut self.prefs, &section);
                     ui.add_space(8.0);
                     if ui.button("Restore Default Settings").clicked() {
                         for (sec, key, ..) in items() {
@@ -616,6 +619,7 @@ impl App {
                                 self.prefs.values.remove(key);
                             }
                         }
+                        crate::codegen::restore_defaults(&mut self.prefs, &section);
                     }
                 }));
             });

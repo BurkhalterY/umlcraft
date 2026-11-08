@@ -170,7 +170,7 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
             }
         }
     }
-    Parsed { units: vec![Unit { ns: rel.to_vec(), types }], errors: !lex::balanced(&t) }
+    Parsed { units: vec![Unit { ns: rel.to_vec(), types, ..Default::default() }], errors: !lex::balanced(&t) }
 }
 
 /// The kind word of a type declaration (`class` as a modifier of `class func` is not one).
@@ -203,8 +203,9 @@ fn read_type(head: &[T], body: Option<&[T]>) -> Option<Ty> {
     if h[k].is("struct") || h[k].is("actor") {
         t.stereotype = h[k].s.clone();
     }
-    let (g, mut i) = lex::generics(h, k + 2);
-    t.generics = g;
+    let (g, mut i) = lex::generic_params(h, k + 2);
+    t.generics = g.iter().map(|p| p.0.clone()).collect();
+    t.gen_bounds = g.into_iter().map(|p| (p.1, p.2)).collect();
     while i < h.len() && h[i].is(".") {
         i += 2;
     }
@@ -276,7 +277,7 @@ fn read_type(head: &[T], body: Option<&[T]>) -> Option<Ty> {
                 let e = mh[s..].iter().position(|x| x.is("where")).map(|e| e + s).unwrap_or(mh.len());
                 lex::join(&mh[s..e])
             }).unwrap_or_default();
-            t.methods.push(Method { name: n.s.clone(), params, ret, vis, is_static, is_abstract: kind == Kind::Interface && st.block.is_none(), doc });
+            t.methods.push(Method { name: n.s.clone(), params, ret, vis, is_static, is_abstract: kind == Kind::Interface && st.block.is_none(), doc , ..Default::default() });
         }
     }
     let _ = extension;

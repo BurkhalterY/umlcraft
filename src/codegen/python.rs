@@ -48,10 +48,20 @@ fn many(t: &str) -> (&str, &'static str) {
     }
 }
 
+/// A class's module name: snake_case (python.gen.lowerCase, PEP 8), else the class name.
+fn module_name(n: &str, o: &GenOpts) -> String {
+    if o.lower_case { snake(&ident(n)) } else { ident(n) }
+}
+
 pub fn generate(tree: &Pkg, o: &GenOpts) -> Vec<OutFile> {
     let paths = tree.type_paths();
-    let mut out = per_type(tree, |t| format!("{}.py", snake(&ident(&t.name))), |p, t| {
+    let mut out = per_type(tree, |t| format!("{}.py", module_name(&t.name, o)), |p, t| {
         let mut w = W::new(o);
+        // the interpreter line (python.gen.installPath)
+        if !o.install_path.trim().is_empty() {
+            w.line(o.install_path.trim());
+            w.blank();
+        }
         let interface = t.kind == Kind::Interface;
         let abs = interface || t.is_abstract || t.methods.iter().any(|m| m.is_abstract);
         if abs {
@@ -62,7 +72,7 @@ pub fn generate(tree: &Pkg, o: &GenOpts) -> Vec<OutFile> {
         }
         for n in t.supers.iter().chain(t.reals.iter()) {
             if let Some((tn, tp)) = paths.iter().find(|x| &x.0 == n) {
-                let module: Vec<String> = tp.iter().map(|s| ident(s)).chain([snake(&ident(tn))]).collect();
+                let module: Vec<String> = tp.iter().map(|s| ident(s)).chain([module_name(tn, o)]).collect();
                 w.line(&format!("from {} import {}", module.join("."), ident(tn)));
             }
         }
@@ -366,8 +376,75 @@ fn docstring(s: &str) -> Option<String> {
     None
 }
 
-pub fn parse(src: &str, rel: &[String]) -> Parsed {
+/// `class Box[T, U: Item = Book]` and `def f[T](…)` (PEP 695): the name before the brackets and
+/// the type parameters as (name, bound, default).
+fn pep695(head: &str) -> (&str, Vec<(String, String, String)>) {
+    let head = head.trim();
+    let paren = head.find('(').unwrap_or(head.len());
+    let Some(open) = head[..paren].find('[') else { return (head[..paren].trim(), vec![]) };
+    let close = head[..paren].rfind(']').unwrap_or(paren);
+    let ps = split_commas(&head[open + 1..close.max(open + 1)])
+        .into_iter()
+        .map(|p| {
+            let (left, default) = match find_eq(&p) {
+                Some(i) => (p[..i].trim().to_string(), p[i + 1..].trim().to_string()),
+                None => (p.trim().to_string(), String::new()),
+            };
+            let (n, bound) = match left.split_once(':') {
+                Some((n, b)) => (n.trim().to_string(), b.trim().to_string()),
+                None => (left.clone(), String::new()),
+            };
+            (n.trim_start_matches('*').to_string(), bound, default)
+        })
+        .collect();
+    (head[..open].trim(), ps)
+}
+
+/// `import a.b`, `import a.b as c`, `from a.b import C, D as E` and `from .m import C`: the
+/// imported names, with module paths (a relative import starts from the file's folder).
+fn imports_of(text: &str, rel: &[String]) -> Vec<Import> {
+    let module_path = |m: &str| -> Vec<String> {
+        let dots = m.chars().take_while(|c| *c == '.').count();
+        let mut p: Vec<String> = if dots > 0 { rel[..rel.len().saturating_sub(dots - 1)].to_vec() } else { vec![] };
+        p.extend(m.trim_start_matches('.').split('.').filter(|s| !s.is_empty()).map(|s| s.to_string()));
+        p
+    };
+    let alias_of = |s: &str| -> (String, String) {
+        match s.split_once(" as ") {
+            Some((n, a)) => (n.trim().to_string(), a.trim().to_string()),
+            None => (s.trim().to_string(), s.trim().rsplit('.').next().unwrap_or("").to_string()),
+        }
+    };
+    let mut out = vec![];
+    if let Some(rest) = text.strip_prefix("from ") {
+        let Some((m, names)) = rest.split_once(" import ") else { return out };
+        let base = module_path(m.trim());
+        for n in split_commas(names.trim().trim_start_matches('(').trim_end_matches(')')) {
+            if n == "*" {
+                out.push(Import { path: base.clone(), wildcard: true, module: true, ..Default::default() });
+                continue;
+            }
+            let (real, alias) = alias_of(&n);
+            let mut path = base.clone();
+            path.push(real);
+            out.push(Import { path, alias, wildcard: false, module: true });
+        }
+    } else if let Some(rest) = text.strip_prefix("import ") {
+        for n in split_commas(rest) {
+            let (real, alias) = alias_of(&n);
+            let path = module_path(&real);
+            // `import a.b` is known as `a`, then `a.b.C`; `import a.b as c` as `c`
+            let alias = if n.contains(" as ") { alias } else { path.first().cloned().unwrap_or_default() };
+            let path = if n.contains(" as ") { path } else { path.into_iter().take(1).collect() };
+            out.push(Import { path, alias, wildcard: false, module: true });
+        }
+    }
+    out
+}
+
+pub fn parse(src: &str, rel: &[String], o: &RevOpts) -> Parsed {
     let (lines, broken) = logical_lines(src);
+    let mut imports = vec![];
     let mut types: Vec<(Ty, Option<usize>)> = vec![];
     let mut stack: Vec<(usize, Ctx)> = vec![];
     let mut decorators: Vec<String> = vec![];
@@ -397,17 +474,24 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
             continue;
         }
         just_opened = false;
+        if text.starts_with("import ") || (text.starts_with("from ") && text.contains(" import ")) {
+            imports.extend(imports_of(text, rel));
+            continue;
+        }
         if let Some(d) = text.strip_prefix('@') {
             decorators.push(d.split('(').next().unwrap_or("").trim().to_string());
             continue;
         }
         if let Some(rest) = text.strip_prefix("class ") {
             let head = rest.trim_end_matches(':').trim();
-            let (name, bases) = match head.find('(') {
-                Some(p) => (head[..p].trim(), head[p + 1..].trim_end_matches(')').to_string()),
-                None => (head, String::new()),
+            let (name, tps) = pep695(head);
+            let bases = match head.find('(') {
+                Some(p) => head[p + 1..].trim_end_matches(')').to_string(),
+                None => String::new(),
             };
             let mut t = Ty::new(Kind::Class, name);
+            t.generics = tps.iter().map(|p| p.0.clone()).collect();
+            t.gen_bounds = tps.into_iter().map(|p| (p.1, p.2)).collect();
             let mut abc = false;
             for b in split_commas(&bases) {
                 if b.contains('=') {
@@ -417,12 +501,21 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
                 let simple = base_name(&b);
                 match simple.as_str() {
                     "Enum" | "IntEnum" | "StrEnum" | "Flag" | "IntFlag" => t.kind = Kind::Enum,
-                    "Protocol" => t.kind = Kind::Interface,
+                    "Protocol" => {
+                        t.kind = Kind::Interface;
+                        if let Some((_, inner)) = b.split_once('[') {
+                            if t.generics.is_empty() {
+                                t.generics = split_commas(inner.trim_end_matches(']'));
+                            }
+                        }
+                    }
                     "ABC" => abc = true,
                     "object" => {}
                     "Generic" => {
                         let inner = b.split_once('[').map(|x| x.1.trim_end_matches(']')).unwrap_or("");
-                        t.generics = split_commas(inner);
+                        if t.generics.is_empty() {
+                            t.generics = split_commas(inner);
+                        }
                     }
                     _ => t.supers.push(b.split('[').next().unwrap_or(&b).trim().to_string()),
                 }
@@ -445,10 +538,24 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
                 continue;
             };
             let p = rest.find('(').unwrap_or(rest.len());
-            let raw_name = rest[..p].trim();
+            let (raw_name, mtps) = pep695(&rest[..p]);
+            let mgen: Vec<String> = mtps.into_iter().map(|x| x.0).collect();
             let close = rest.rfind(')').unwrap_or(rest.len());
             let params_text = if p < close { &rest[p + 1..close] } else { "" };
-            let ret = rest[close.min(rest.len())..].split("->").nth(1).map(|r| r.trim().trim_end_matches(':').trim().to_string()).unwrap_or_default();
+            // the return hint runs to the `:` that opens the body (`-> T: ...` on one line)
+            let ret = rest[close.min(rest.len())..].split_once("->").map(|(_, r)| {
+                let mut depth = 0;
+                let end = r.char_indices().find(|(_, c)| {
+                    match c {
+                        '[' | '(' => depth += 1,
+                        ']' | ')' => depth -= 1,
+                        _ => {}
+                    }
+                    *c == ':' && depth == 0
+                });
+                r[..end.map(|e| e.0).unwrap_or(r.len())].trim().to_string()
+            });
+            let ret = ret.unwrap_or_default();
             let is_static = decs.iter().any(|d| d == "staticmethod" || d == "classmethod");
             let is_init = raw_name == "__init__";
             stack.push((l.indent, Ctx::Def(ci, is_init)));
@@ -460,12 +567,14 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
                 }
                 continue;
             }
-            if raw_name.starts_with("__") && raw_name.ends_with("__") {
+            // magic methods (`__repr__`, `__init__`…) are skipped unless asked (python.rev.skipMagicMethods)
+            if raw_name.starts_with("__") && raw_name.ends_with("__") && o.skip_magic {
                 continue;
             }
             let mut params = vec![];
             for (k, ps) in split_commas(params_text).into_iter().enumerate() {
-                if k == 0 && !decs.iter().any(|d| d == "staticmethod") && (ps == "self" || ps == "cls") {
+                // the self parameter is skipped unless asked (python.rev.skipSelfParam)
+                if k == 0 && !decs.iter().any(|d| d == "staticmethod") && (ps == "self" || ps == "cls") && o.skip_self {
                     continue;
                 }
                 if ps == "*" || ps == "/" {
@@ -482,7 +591,7 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
                 params.push(Param { name: n.trim_start_matches('*').to_string(), ty, default: def });
             }
             let (n, vis) = py_name(raw_name);
-            types[ci].0.methods.push(Method { name: n, params, ret, vis, is_static, is_abstract: decs.iter().any(|d| d.ends_with("abstractmethod")), ..Default::default() });
+            types[ci].0.methods.push(Method { name: n, params, ret, vis, is_static, is_abstract: decs.iter().any(|d| d.ends_with("abstractmethod")), generics: mgen, ..Default::default() });
             just_opened = true;
             continue;
         }
@@ -497,8 +606,11 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
                     types[ci].0.literals.push(name);
                 } else {
                     let (n, vis) = py_name(&name);
-                    // an annotated class attribute is an instance field (dataclass style); a plain one is static
-                    types[ci].0.fields.push(Field { name: n, ty, vis, is_static: !annotated, default: value, ..Default::default() });
+                    // an annotated class attribute is an instance field (dataclass style); a plain one,
+                    // or one hinted `ClassVar[…]`, is static; `Final[…]` is read-only
+                    let head = ty.split('[').next().unwrap_or("").rsplit('.').next().unwrap_or("").trim().to_string();
+                    let is_static = !annotated || head == "ClassVar";
+                    types[ci].0.fields.push(Field { name: n, ty, vis, is_static, read_only: head == "Final", default: value, ..Default::default() });
                 }
             }
             continue;
@@ -539,5 +651,5 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
         }
     }
     let top: Vec<Ty> = slots.into_iter().flatten().collect();
-    Parsed { units: vec![Unit { ns: rel.to_vec(), types: top }], errors: broken }
+    Parsed { units: vec![Unit { ns: rel.to_vec(), types: top, imports }], errors: broken }
 }

@@ -231,6 +231,7 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
 }
 
 fn module(t: &[T], ns: Vec<String>, units: &mut Vec<Unit>) {
+    let mut imports: Vec<Import> = vec![];
     let mut types: Vec<Ty> = vec![];
     let mut impls: Vec<Ty> = vec![];
     for st in lex::statements(t, false) {
@@ -244,6 +245,27 @@ fn module(t: &[T], ns: Vec<String>, units: &mut Vec<Unit>) {
         let Some(kw) = h.get(i) else { continue };
         let name = h.get(i + 1).map(|x| x.s.clone()).unwrap_or_default();
         match kw.s.as_str() {
+            "use" => {
+                // `use crate::a::B;`, `use a::{B, C as D};`, `use a::*;` (module paths: a file is a module)
+                let prefix: Vec<T> = h[i + 1..].iter().filter(|x| !x.is("crate") && !x.is("self") && !x.is("super")).cloned().collect();
+                let prefix = lex::join(&prefix);
+                let items: Vec<String> = match st.block {
+                    Some(b) => lex::commas(b).into_iter().map(|p| format!("{prefix}{}", lex::join(p))).collect(),
+                    None => vec![prefix],
+                };
+                for it in items {
+                    let (path, alias) = match it.split_once(" as ") {
+                        Some((p, a)) => (p.to_string(), Some(a.trim().to_string())),
+                        None => (it.clone(), None),
+                    };
+                    let mut imp = Import::of(&path, &["::"]);
+                    imp.module = true;
+                    if let Some(a) = alias {
+                        imp.alias = a;
+                    }
+                    imports.push(imp);
+                }
+            }
             "mod" => {
                 if let Some(b) = st.block {
                     let mut sub = ns.clone();
@@ -255,7 +277,9 @@ fn module(t: &[T], ns: Vec<String>, units: &mut Vec<Unit>) {
                 let mut ty = Ty::new(Kind::Class, &name);
                 ty.vis = v;
                 ty.doc = doc;
-                ty.generics = lex::generics(h, i + 2).0;
+                let g = lex::generic_params(h, i + 2).0;
+                ty.generics = g.iter().map(|p| p.0.clone()).collect();
+                ty.gen_bounds = g.into_iter().map(|p| (p.1, p.2)).collect();
                 if let Some(b) = st.block {
                     for f in lex::commas(b) {
                         let f = skip_attrs(f);
@@ -288,8 +312,9 @@ fn module(t: &[T], ns: Vec<String>, units: &mut Vec<Unit>) {
                 let mut ty = Ty::new(Kind::Interface, &name);
                 ty.vis = v;
                 ty.doc = doc;
-                let (g, j) = lex::generics(h, i + 2);
-                ty.generics = g;
+                let (g, j) = lex::generic_params(h, i + 2);
+                ty.generics = g.iter().map(|p| p.0.clone()).collect();
+                ty.gen_bounds = g.into_iter().map(|p| (p.1, p.2)).collect();
                 if j < h.len() && h[j].is(":") {
                     let end = h[j..].iter().position(|x| x.is("where")).map(|p| p + j).unwrap_or(h.len());
                     for part in h[j + 1..end].split(|x| x.is("+")) {
@@ -364,7 +389,7 @@ fn module(t: &[T], ns: Vec<String>, units: &mut Vec<Unit>) {
             None => types.push(im),
         }
     }
-    units.push(Unit { ns, types });
+    units.push(Unit { ns, types, imports });
 }
 
 /// `[pub] [const] [async] [unsafe] fn name<T>(params) -> Ret`: static when there is no `self`.

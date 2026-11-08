@@ -88,9 +88,19 @@ fn write_type(w: &mut W, t: &Ty, o: &GenOpts) {
                 s.push_str("readonly ");
             }
         }
+        // an auto-property instead of a field, when asked (csharp.gen.propertiesByDefault)
+        let property = o.properties && t.kind == Kind::Class && !s.contains("const ");
+        if property {
+            s = s.replace("readonly ", "");
+        }
         s.push_str(&format!("{} {}", map_type(&f.ty, &f.mult), ident(&f.name)));
         if t.kind == Kind::Interface {
             s.push_str(" { get; set; }");
+        } else if property {
+            s.push_str(if f.read_only { " { get; }" } else { " { get; set; }" });
+            if !f.default.is_empty() {
+                s.push_str(&format!(" = {};", f.default));
+            }
         } else if !f.default.is_empty() {
             s.push_str(&format!(" = {};", f.default));
         } else {
@@ -155,20 +165,35 @@ const KINDS: [&str; 5] = ["class", "interface", "enum", "struct", "record"];
 pub fn parse(src: &str) -> Parsed {
     let t = lex::lex(src, Cfg::default());
     let mut units = vec![];
-    space(&t, vec![], &mut units);
+    space(&t, vec![], &[], &mut units);
     Parsed { units, errors: !lex::balanced(&t) }
 }
 
-fn space(t: &[T], ns: Vec<String>, units: &mut Vec<Unit>) {
-    let mut unit = Unit { ns: ns.clone(), types: vec![] };
+fn space(t: &[T], ns: Vec<String>, outer: &[Import], units: &mut Vec<Unit>) {
+    let mut unit = Unit { ns: ns.clone(), types: vec![], imports: outer.to_vec() };
     let mut file_ns = ns.clone();
     for st in lex::statements(t, false) {
-        let h = lex::skip_annotations(st.head);
+        let mut h = lex::skip_annotations(st.head);
+        if h.first().map(|x| x.is("global")).unwrap_or(false) {
+            h = &h[1..];
+        }
+        if h.first().map(|x| x.is("using")).unwrap_or(false) && st.block.is_none() && !h.get(1).map(|x| x.is("static") || x.is("(") || x.is("var")).unwrap_or(false) {
+            // `using A.B;` opens a namespace; `using N = A.B.C;` names a type or a namespace
+            match lex::find_top(h, "=", true) {
+                Some(e) => {
+                    let mut i = Import::of(&lex::join(&h[e + 1..]), &[]);
+                    i.alias = h.get(1).map(|x| x.s.clone()).unwrap_or_default();
+                    unit.imports.push(i);
+                }
+                None => unit.imports.push(Import { wildcard: true, ..Import::of(&lex::join(&h[1..]), &[]) }),
+            }
+            continue;
+        }
         if h.first().map(|x| x.is("namespace")).unwrap_or(false) {
             let mut sub = ns.clone();
             sub.extend(lex::join(&h[1..]).split('.').map(|s| s.trim().to_string()));
             match st.block {
-                Some(b) => space(b, sub, units),
+                Some(b) => space(b, sub, &unit.imports.clone(), units),
                 // a file-scoped namespace holds the rest of the file
                 None => {
                     file_ns = sub;
@@ -206,11 +231,13 @@ fn read_type(h: &[T], k: usize, body: &[T]) -> Ty {
     t.doc = clean_xml_doc(&lex::doc_of(h));
     t.vis = vis_of(&mods, "package");
     t.is_abstract = mods.iter().any(|m| m == "abstract");
+    t.is_leaf = mods.iter().any(|m| m == "sealed");
     if h[k].is("struct") {
         t.stereotype = "struct".into();
     }
-    let (g, mut i) = lex::generics(h, k2 + 2);
-    t.generics = g;
+    let (g, mut i) = lex::generic_params(h, k2 + 2);
+    t.generics = g.iter().map(|p| p.0.clone()).collect();
+    t.gen_bounds = where_bounds(h, &t.generics);
     if i < h.len() && h[i].is("(") {
         // a positional record's parameters are its properties
         let j = lex::close(h, i);
@@ -274,7 +301,14 @@ fn read_type(h: &[T], k: usize, body: &[T]) -> Ty {
                     if d.ty.is_empty() && d.name != t.name && d.name.trim_start_matches('~') != t.name {
                         continue;
                     }
+                    let ctor = d.ty.is_empty() && d.name == t.name;
                     t.methods.push(Method {
+                        stereotype: if ctor { "constructor".into() } else { String::new() },
+                        generics: d.generics.clone(),
+                        raises: vec![],
+                        is_leaf: d.mods.iter().any(|m| m == "sealed"),
+                        concurrent: false,
+                        tags: vec![],
                         name: d.name,
                         params: ps.into_iter().map(|(n, ty, def)| Param { name: n, ty, default: def }).collect(),
                         ret: d.ty,
@@ -289,6 +323,22 @@ fn read_type(h: &[T], k: usize, body: &[T]) -> Ty {
         }
     }
     t
+}
+
+/// The constraints of `where T : A, new() where U : B` for each generic, as (bound, default).
+fn where_bounds(h: &[T], names: &[String]) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = names.iter().map(|_| (String::new(), String::new())).collect();
+    let starts: Vec<usize> = h.iter().enumerate().filter(|(_, x)| x.is("where")).map(|(i, _)| i).collect();
+    for (k, &s) in starts.iter().enumerate() {
+        let end = starts.get(k + 1).copied().unwrap_or(h.len());
+        let part = &h[s + 1..end];
+        if let (Some(n), Some(c)) = (part.first(), lex::find_top(part, ":", true)) {
+            if let Some(i) = names.iter().position(|x| *x == n.s) {
+                out[i].0 = lex::join(&part[c + 1..]);
+            }
+        }
+    }
+    out
 }
 
 /// `<summary>text</summary>` → text.

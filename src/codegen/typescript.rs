@@ -210,8 +210,19 @@ pub fn parse(src: &str, rel: &[String], typed: bool) -> Parsed {
 }
 
 fn space(t: &[T], ns: Vec<String>, typed: bool, units: &mut Vec<Unit>) {
-    let mut unit = Unit { ns: ns.clone(), types: vec![] };
-    for st in lex::statements(t, true) {
+    let mut unit = Unit { ns: ns.clone(), types: vec![], ..Default::default() };
+    let sts = lex::statements(t, true);
+    let mut skip_from = false;
+    for (si, st) in sts.iter().enumerate() {
+        if let Some(imps) = imports_of(&sts, si) {
+            unit.imports.extend(imps);
+            // `import { A } from 'm'`: the `from 'm'` is the next statement
+            skip_from = st.block.is_some();
+            continue;
+        }
+        if std::mem::take(&mut skip_from) && st.head.first().map(|x| x.is("from")).unwrap_or(false) {
+            continue;
+        }
         let mut h = lex::skip_annotations(st.head);
         while !h.is_empty() && h[0].id() && ["export", "default", "declare", "abstract", "const"].contains(&h[0].s.as_str()) && h.len() > 1 {
             h = &h[1..];
@@ -246,8 +257,9 @@ fn read_type(head: &[T], body: &[T], typed: bool) -> Option<Ty> {
     let mut t = Ty::new(kind, &name);
     t.doc = lex::doc_of(head);
     t.is_abstract = h[..k].iter().any(|x| x.is("abstract"));
-    let (g, i) = lex::generics(h, k + 2);
-    t.generics = g;
+    let (g, i) = lex::generic_params(h, k + 2);
+    t.generics = g.iter().map(|p| p.0.clone()).collect();
+    t.gen_bounds = g.into_iter().map(|p| (p.1, p.2)).collect();
     let (s, r) = super_lists(&h[i.min(h.len())..], &["extends"], &["implements"], &[]);
     t.supers = s;
     t.reals = r;
@@ -297,8 +309,11 @@ fn member(t: &mut Ty, head: &[T], block: Option<&[T]>, typed: bool) {
     if i < h.len() && h[i].is("?") {
         i += 1;
     }
+    let mut mg = vec![];
     if i < h.len() && h[i].is("<") {
-        i = lex::close(h, i) + 1;
+        let (g, j) = lex::generics(h, i);
+        mg = g;
+        i = j;
     }
     if i < h.len() && h[i].is("(") {
         let q = lex::close(h, i);
@@ -344,7 +359,7 @@ fn member(t: &mut Ty, head: &[T], block: Option<&[T]>, typed: bool) {
             return;
         }
         let is_abstract = mods.iter().any(|m| m == "abstract");
-        t.methods.push(Method { name, params: ps, ret, vis, is_static, is_abstract, doc });
+        t.methods.push(Method { name, params: ps, ret, vis, is_static, is_abstract, doc, generics: mg, ..Default::default() });
         return;
     }
     // a field: name[?][!][: T][= v]
@@ -359,5 +374,67 @@ fn member(t: &mut Ty, head: &[T], block: Option<&[T]>, typed: bool) {
         read_only: mods.iter().any(|m| m == "readonly"),
         default: d,
         doc,
+        ..Default::default()
     });
+}
+
+/// The imports of the statement at `si`, when it is one: `import { A, B as C } from './m'`,
+/// `import D from './d'`, `import * as ns from './m'` and `import type …` (the braces read as a
+/// block, so the module comes in the next statement). Their paths are module paths.
+fn imports_of(sts: &[lex::Stmt<'_>], si: usize) -> Option<Vec<Import>> {
+    let h = sts[si].head;
+    if !h.first().map(|x| x.is("import")).unwrap_or(false) {
+        return None;
+    }
+    let mut names: Vec<(String, String)> = vec![];
+    let mut rest = &h[1..];
+    if rest.first().map(|x| x.is("type")).unwrap_or(false) {
+        rest = &rest[1..];
+    }
+    let module_tok = |t: &[T]| t.iter().position(|x| x.is("from")).and_then(|f| t.get(f + 1)).filter(|x| x.k == K::Str).map(|x| x.s.trim_matches(['"', '\'', '`']).to_string());
+    let mut module = module_tok(rest);
+    // a default or namespace import before `from` or `,`
+    let mut i = 0;
+    while i < rest.len() && !rest[i].is("from") {
+        if rest[i].is("*") && rest.get(i + 1).map(|x| x.is("as")).unwrap_or(false) {
+            if let Some(n) = rest.get(i + 2) {
+                names.push((String::new(), n.s.clone()));
+            }
+            i += 3;
+            continue;
+        }
+        if rest[i].id() {
+            names.push((rest[i].s.clone(), rest[i].s.clone()));
+        }
+        i += 1;
+    }
+    if let Some(b) = sts[si].block {
+        for p in lex::commas(b) {
+            let p: Vec<&T> = p.iter().filter(|x| !x.is("type")).collect();
+            match p.iter().position(|x| x.is("as")) {
+                Some(a) if a > 0 && a + 1 < p.len() => names.push((p[a - 1].s.clone(), p[a + 1].s.clone())),
+                _ => {
+                    if let Some(n) = p.first().filter(|x| x.id()) {
+                        names.push((n.s.clone(), n.s.clone()));
+                    }
+                }
+            }
+        }
+        if module.is_none() {
+            module = sts.get(si + 1).and_then(|n| module_tok(n.head));
+        }
+    }
+    let path: Vec<String> = module.unwrap_or_default().split('/').filter(|s| !s.is_empty() && *s != "." && *s != "..").map(|s| s.to_string()).collect();
+    Some(
+        names
+            .into_iter()
+            .map(|(real, alias)| {
+                let mut p = path.clone();
+                if !real.is_empty() {
+                    p.push(real);
+                }
+                Import { path: p, alias, wildcard: false, module: true }
+            })
+            .collect(),
+    )
 }

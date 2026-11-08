@@ -263,7 +263,7 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
     fn push_type(units: &mut Vec<Unit>, ns: Vec<String>, t: Ty) {
         match units.iter_mut().find(|u| u.ns == ns) {
             Some(u) => u.types.push(t),
-            None => units.push(Unit { ns, types: vec![t] }),
+            None => units.push(Unit { ns, types: vec![t], ..Default::default() }),
         }
     }
     for raw in src.lines() {
@@ -450,7 +450,7 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
         }
     }
     if units.is_empty() {
-        units.push(Unit { ns: rel.to_vec(), types: vec![] });
+        units.push(Unit { ns: rel.to_vec(), types: vec![], ..Default::default() });
     }
     Parsed { units, errors }
 }

@@ -7,9 +7,17 @@
 use super::lex::{self, Cfg, K, T};
 use super::*;
 
-pub fn map_type(t: &str, mult: &str) -> String {
+/// A type for a multiplicity: many is `std::vector<T>`, or `T*` without the vector option
+/// (cpp.gen.useVector).
+fn map_type_v(t: &str, mult: &str, vector: bool) -> String {
     let t = if t.is_empty() { "void*".to_string() } else { primitive(t, "std::string", "int", "bool", "double") };
-    if is_many(mult) { format!("std::vector<{t}>") } else { t }
+    if !is_many(mult) {
+        t
+    } else if vector {
+        format!("std::vector<{t}>")
+    } else {
+        format!("{t}*")
+    }
 }
 
 fn default_return(t: &str) -> &'static str {
@@ -29,16 +37,24 @@ fn many(t: &str) -> (&str, &'static str) {
     }
 }
 
-fn params(m: &Method) -> String {
+fn params(m: &Method, o: &GenOpts) -> String {
     m.params.iter().map(|p| {
         let (pt, pm) = many(&p.ty);
-        format!("{} {}", map_type(pt, pm), ident(&p.name))
+        format!("{} {}", map_type_v(pt, pm, o.use_vector), ident(&p.name))
     }).collect::<Vec<_>>().join(", ")
 }
 
-fn ret(m: &Method) -> String {
+fn ret(m: &Method, o: &GenOpts) -> String {
     let (rt, rm) = many(&m.ret);
-    if m.ret.is_empty() { "void".into() } else { map_type(rt, rm) }
+    if m.ret.is_empty() { "void".into() } else { map_type_v(rt, rm, o.use_vector) }
+}
+
+/// The project's header comment, first in each file (cpp.gen.includeHeader).
+fn header(w: &mut W, o: &GenOpts) {
+    if o.include_header && !o.header.is_empty() {
+        w.line(o.header.trim_end());
+        w.blank();
+    }
 }
 
 pub fn generate(tree: &Pkg, o: &GenOpts) -> Vec<OutFile> {
@@ -49,6 +65,7 @@ pub fn generate(tree: &Pkg, o: &GenOpts) -> Vec<OutFile> {
             let name = ident(&t.name);
             let guard = format!("_{}_H", name.to_uppercase());
             let mut h = W::new(o);
+            header(&mut h, o);
             h.line(&format!("#ifndef {guard}"));
             h.line(&format!("#define {guard}"));
             h.blank();
@@ -77,14 +94,16 @@ pub fn generate(tree: &Pkg, o: &GenOpts) -> Vec<OutFile> {
             h.blank();
             h.line(&format!("#endif //{guard}"));
             out.push((dir.join(format!("{name}.h")), h.out));
-            if t.kind != Kind::Class || t.methods.iter().all(|m| m.is_abstract) {
+            // a source file per class, unless only headers are asked (cpp.gen.genCpp)
+            if t.kind != Kind::Class || t.methods.iter().all(|m| m.is_abstract) || !o.gen_cpp {
                 continue;
             }
             let mut c = W::new(o);
+            header(&mut c, o);
             c.line(&format!("#include \"{name}.h\""));
             c.blank();
             open_ns(&mut c, &p.path);
-            write_bodies(&mut c, t, &name);
+            write_bodies(&mut c, t, &name, o);
             close_ns(&mut c, &p.path);
             out.push((dir.join(format!("{name}.cpp")), c.out));
         }
@@ -151,7 +170,7 @@ fn write_decl(w: &mut W, t: &Ty, o: &GenOpts) {
             if f.read_only {
                 s.push_str("const ");
             }
-            s.push_str(&format!("{} {}", map_type(&f.ty, &f.mult), ident(&f.name)));
+            s.push_str(&format!("{} {}", map_type_v(&f.ty, &f.mult, o.use_vector), ident(&f.name)));
             if !f.default.is_empty() && !(f.is_static && !f.read_only) {
                 s.push_str(&format!(" = {}", f.default));
             }
@@ -161,7 +180,7 @@ fn write_decl(w: &mut W, t: &Ty, o: &GenOpts) {
             w.doc(o, &m.doc, DocStyle::Block);
             let abs = m.is_abstract || interface;
             let pre = if m.is_static { "static " } else if abs { "virtual " } else { "" };
-            w.line(&format!("{pre}{} {}({}){};", ret(m), ident(&m.name), params(m), if abs { " = 0" } else { "" }));
+            w.line(&format!("{pre}{} {}({}){};", ret(m, o), ident(&m.name), params(m, o), if abs { " = 0" } else { "" }));
         }
         w.dec();
     }
@@ -182,18 +201,18 @@ fn sec(v: &str) -> &'static str {
     }
 }
 
-fn write_bodies(w: &mut W, t: &Ty, name: &str) {
+fn write_bodies(w: &mut W, t: &Ty, name: &str, o: &GenOpts) {
     w.line(&format!("{name}::{name}() {{"));
     w.line("}");
     for f in t.fields.iter().filter(|f| f.is_static && !f.read_only) {
         w.blank();
         let def = if f.default.is_empty() { String::new() } else { format!(" = {}", f.default) };
-        w.line(&format!("{} {name}::{}{def};", map_type(&f.ty, &f.mult), ident(&f.name)));
+        w.line(&format!("{} {name}::{}{def};", map_type_v(&f.ty, &f.mult, o.use_vector), ident(&f.name)));
     }
     for m in t.methods.iter().filter(|m| !m.is_abstract) {
         w.blank();
-        let r = ret(m);
-        w.line(&format!("{r} {name}::{}({}) {{", ident(&m.name), params(m)));
+        let r = ret(m, o);
+        w.line(&format!("{r} {name}::{}({}) {{", ident(&m.name), params(m, o)));
         w.inc();
         w.line("// TODO implement here");
         if !m.ret.is_empty() {
@@ -235,13 +254,20 @@ pub fn strip_preprocessor(src: &str) -> String {
 
 fn space(t: &[T], ns: Vec<String>, rel: &[String], units: &mut Vec<Unit>) {
     let path = if ns.is_empty() { rel.to_vec() } else { ns.clone() };
-    let mut unit = Unit { ns: path, types: vec![] };
+    let mut unit = Unit { ns: path, types: vec![], ..Default::default() };
     for st in lex::statements(t, false) {
         let mut h = st.head;
         if h.first().map(|x| x.is("inline")).unwrap_or(false) {
             h = &h[1..];
         }
-        if h.first().map(|x| x.is("namespace")).unwrap_or(false) {
+        if h.first().map(|x| x.is("using")).unwrap_or(false) && st.block.is_none() {
+            // `using namespace a::b;` opens a namespace, `using a::B;` names a type
+            if h.get(1).map(|x| x.is("namespace")).unwrap_or(false) {
+                unit.imports.push(Import { wildcard: true, ..Import::of(&lex::join(&h[2..]), &["::"]) });
+            } else if lex::find_top(h, "=", true).is_none() {
+                unit.imports.push(Import::of(&lex::join(&h[1..]), &["::"]));
+            }
+        } else if h.first().map(|x| x.is("namespace")).unwrap_or(false) {
             if let Some(b) = st.block {
                 let mut sub = ns.clone();
                 sub.extend(lex::join(&h[1..]).split("::").map(|s| s.trim().to_string()).filter(|s| !s.is_empty()));
@@ -263,7 +289,7 @@ pub fn type_of(h: &[T], body: &[T]) -> Option<Ty> {
     let mut h = h;
     let mut generics = vec![];
     if h.first().map(|x| x.is("template")).unwrap_or(false) && h.get(1).map(|x| x.is("<")).unwrap_or(false) {
-        let (g, i) = lex::generics(h, 1);
+        let (g, i) = lex::generic_params(h, 1);
         generics = g;
         h = &h[i.min(h.len())..];
     }
@@ -280,12 +306,14 @@ pub fn type_of(h: &[T], body: &[T]) -> Option<Ty> {
         i += 1;
     }
     // attributes and export macros before the name are skipped: the name is the last identifier
-    // before `:`, `final` or the end
+    // before `:`, `final`, a specialization's `<…>` or the end
     let end = h[i..].iter().position(|x| x.is(":")).map(|p| p + i).unwrap_or(h.len());
-    let name = h[i..end].iter().rev().find(|x| x.id() && !x.is("final") && !x.is("alignas")).map(|x| x.s.clone()).unwrap_or_default();
+    let name_end = h[i..end].iter().position(|x| x.is("<")).map(|p| p + i).unwrap_or(end);
+    let name = h[i..name_end].iter().rev().find(|x| x.id() && !x.is("final") && !x.is("alignas")).map(|x| x.s.clone()).unwrap_or_default();
     let kind = if h[k].is("enum") { Kind::Enum } else { Kind::Class };
     let mut t = Ty::new(kind, &name);
-    t.generics = generics;
+    t.generics = generics.iter().map(|g| g.0.clone()).collect();
+    t.gen_bounds = generics.into_iter().map(|g| (g.1, g.2)).collect();
     t.doc = lex::doc_of(h);
     if h[k].is("struct") || h[k].is("union") {
         t.stereotype = h[k].s.clone();
@@ -329,6 +357,13 @@ pub fn type_of(h: &[T], body: &[T]) -> Option<Ty> {
             continue;
         }
         let doc = lex::doc_of(head);
+        // a member template: `template <typename U> void f(U u);`
+        let mut mg = vec![];
+        if head.len() > 1 && head[0].is("template") && head[1].is("<") {
+            let (g, j) = lex::generics(head, 1);
+            mg = g;
+            head = &head[j.min(head.len())..];
+        }
         for d in lex::typed_decls(head, &MODS) {
             if d.name.is_empty() {
                 continue;
@@ -343,7 +378,14 @@ pub fn type_of(h: &[T], body: &[T]) -> Option<Ty> {
                     if d.ty.is_empty() && d.name.trim_start_matches('~') != t.name {
                         continue;
                     }
+                    let ctor = d.ty.is_empty() && d.name == t.name;
                     t.methods.push(Method {
+                        stereotype: if ctor { "constructor".into() } else { String::new() },
+                        generics: mg.clone(),
+                        raises: vec![],
+                        is_leaf: d.tail.split_whitespace().any(|w| w == "final"),
+                        concurrent: false,
+                        tags: vec![],
                         name: d.name,
                         params: ps.into_iter().filter(|p| !(p.0.is_empty() && p.1 == "void")).map(|(n, ty, def)| Param { name: n, ty, default: def }).collect(),
                         ret: d.ty.trim_start_matches("virtual ").to_string(),

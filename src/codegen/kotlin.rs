@@ -181,6 +181,14 @@ pub fn parse(src: &str) -> Parsed {
         let h = lex::skip_annotations(st.head);
         if h.first().map(|x| x.is("package")).unwrap_or(false) {
             unit.ns = lex::join(&h[1..]).split('.').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+        } else if h.first().map(|x| x.is("import")).unwrap_or(false) {
+            // `import a.b.C`, `import a.b.*`, `import a.b.C as D`
+            let as_at = h.iter().position(|x| x.is("as"));
+            let mut i = Import::of(&lex::join(&h[1..as_at.unwrap_or(h.len())]), &[]);
+            if let Some(a) = as_at.and_then(|a| h.get(a + 1)) {
+                i.alias = a.s.clone();
+            }
+            unit.imports.push(i);
         } else if let Some(ty) = read_type(h, st.block) {
             unit.types.push(ty);
         }
@@ -214,8 +222,9 @@ fn read_type(h: &[T], body: Option<&[T]>) -> Option<Ty> {
     } else if mods.iter().any(|m| m == "data") {
         t.stereotype = "data".into();
     }
-    let (g, mut i) = lex::generics(h, k + 2);
-    t.generics = g;
+    let (g, mut i) = lex::generic_params(h, k + 2);
+    t.generics = g.iter().map(|p| p.0.clone()).collect();
+    t.gen_bounds = g.into_iter().map(|p| (p.1, p.2)).collect();
     // the primary constructor: `[private] [constructor] (val a: Int, …)`
     while i < h.len() && h[i].id() && (MODS.contains(&h[i].s.as_str()) || h[i].is("constructor")) {
         i += 1;
@@ -322,7 +331,7 @@ fn members(t: &mut Ty, body: &[T], is_static: bool, interface: bool) {
                 String::new()
             };
             let is_abstract = mods.iter().any(|m| m == "abstract") || (interface && st.block.is_none() && !h.iter().any(|x| x.is("=")));
-            t.methods.push(Method { name, params, ret, vis, is_static, is_abstract, doc });
+            t.methods.push(Method { name, params, ret, vis, is_static, is_abstract, doc , ..Default::default() });
         }
     }
 }
