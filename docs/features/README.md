@@ -29,8 +29,8 @@ StarUML quirks and bugs are kept in the list and marked as such, so a port can d
 | [Diagram canvas and editing](4-canvas.md) | 233 | 3 | 0 | 8 | 244 |
 | [Panels, views and dialogs](5-panels-and-dialogs.md) | 176 | 1 | 0 | 42 | 219 |
 | [Engine, files, export, CLI, validation and bundled extensions](6-engine-and-extensions.md) | 302 | 41 | 8 | 20 | 371 |
-| [Website and documentation](7-website-and-docs.md) | 179 | 54 | 24 | 58 | 315 |
-| **All StarUML features** | **1793** | **112** | **32** | **137** | **2074** |
+| [Website and documentation](7-website-and-docs.md) | 184 | 55 | 18 | 58 | 315 |
+| **All StarUML features** | **1798** | **113** | **26** | **137** | **2074** |
 | [Beyond StarUML](8-beyond-staruml.md): UMLCraft's own features, not counted above | 1 | 1 | 0 | 0 | 2 |
 
 Recount after editing (prints one line per mark). Use `[1-7]` for the StarUML totals, and `8` for UMLCraft's own features:

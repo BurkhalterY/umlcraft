@@ -2431,6 +2431,10 @@ impl App {
                     ui.close();
                 }
                 ui.separator();
+                if ui.add(self.key_button("Export Image...", "project:export-image")).clicked() {
+                    self.open_export_image();
+                    ui.close();
+                }
                 ui.menu_button("Export Diagram As", |ui| {
                     use crate::export::Format;
                     for f in [Format::Png, Format::Jpeg, Format::Svg] {
@@ -2472,6 +2476,10 @@ impl App {
                     }
                     if ui.button("XMI Export (v2.1)...").clicked() {
                         self.export_xmi_dialog();
+                        ui.close();
+                    }
+                    if ui.button("StarUML V7...").clicked() {
+                        self.export_v7_dialog(&measure);
                         ui.close();
                     }
                 });
@@ -3099,6 +3107,8 @@ impl App {
         match clip {
             // Ctrl+Shift+C also arrives as a Copy event
             Some(egui::Event::Copy) if shift => self.cmd_copy_diagram_image(ctx),
+            // Ctrl+Shift+X (Suppress Receptions, StarUML 8's keymap) arrives as a Cut event
+            Some(egui::Event::Cut) if shift && ctx.input(|i| i.modifiers.command) => self.toggle_flag("suppressReceptions"),
             Some(egui::Event::Copy) => self.cmd_copy(Some(ctx)),
             Some(egui::Event::Cut) => self.cmd_cut(Some(ctx)),
             Some(egui::Event::Paste(t)) => self.paste_text(&t),
@@ -3254,6 +3264,20 @@ impl App {
         }
     }
 
+    /// File › Export › StarUML V7...: a copy of the project for StarUML 7, colour variables replaced by
+    /// their light-theme colours (https://docs.staruml.io/user-guide/managing-project/).
+    fn export_v7_dialog(&mut self, ms: &EguiMeasure) {
+        let stem = self.filename.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| self.repo.name(self.repo.root));
+        let Some(mut p) = rfd::FileDialog::new().set_title("Export StarUML V7").set_file_name(format!("{stem}-v7.mdj")).add_filter("Models", &["mdj"]).save_file() else { return };
+        if p.extension().map(|e| e != "mdj").unwrap_or(true) {
+            p.set_extension("mdj");
+        }
+        let text = self.v7_json(ms);
+        if let Err(e) = std::fs::write(&p, text) {
+            self.message = Some(("Failed to export the file.".into(), e.to_string()));
+        }
+    }
+
     fn cmd_open(&mut self, ms: &EguiMeasure) {
         if !self.confirm_discard(ms) {
             return;
@@ -3336,6 +3360,8 @@ impl App {
             || self.input_dialog.is_some()
             || self.mermaid_code.is_some()
             || self.print_open
+            || self.color_prompt
+            || self.export_image_open
     }
 
     pub(crate) fn dialogs(&mut self, ctx: &egui::Context) {
@@ -3375,6 +3401,8 @@ impl App {
         self.select_one_ui(ctx);
         self.delete_prompt_ui(ctx);
         self.print_dialog_ui(ctx);
+        self.color_prompt_ui(ctx);
+        self.export_image_ui(ctx);
         self.element_picker_ui(ctx);
         self.icon_picker_ui(ctx);
         self.input_dialog_ui(ctx);
@@ -3497,12 +3525,33 @@ impl App {
                         let [r, g, b, a] = c.to_srgba_unmultiplied();
                         d.color = crate::render::Rgba(r, g, b, a);
                         d.text = crate::style::hex(d.color);
+                        d.var = None;
                     }
-                    let r = ui.add(egui::TextEdit::singleline(&mut d.text).desired_width(120.0).font(egui::TextStyle::Monospace));
+                    let r = ui.add(egui::TextEdit::singleline(&mut d.text).desired_width(120.0).font(egui::TextStyle::Monospace)).on_hover_text("#rrggbb, #rrggbbaa or a color variable ($blue9)");
                     if r.changed() {
-                        if let Some(c) = crate::style::parse_hex(&d.text) {
-                            d.color = c;
-                        }
+                        d.take_text();
+                    }
+                });
+                // StarUML 8's palette: background, foreground and transparent, then 12 steps of each
+                // hue, in the current theme's colours; hovering shows the variable's name
+                // (https://docs.staruml.io/user-guide/formatting-diagram/)
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::splat(2.0);
+                    let names = crate::colorvars::names();
+                    let (first, hues) = names.split_at(3);
+                    for row in std::iter::once(first).chain(hues.chunks(12)) {
+                        ui.horizontal(|ui| {
+                            for n in row {
+                                let c = crate::render::parse_color(n, crate::render::WHITE);
+                                let r = swatch(ui, Color32::from_rgba_unmultiplied(c.0, c.1, c.2, c.3), Vec2::splat(14.0));
+                                if d.var.as_deref() == Some(n.as_str()) {
+                                    ui.painter().rect_stroke(r.rect.expand(1.0), 0.0, Stroke::new(1.5, ACCENT()), egui::StrokeKind::Outside);
+                                }
+                                if r.on_hover_text(n.as_str()).clicked() {
+                                    d.pick_var(n, self.color_vars);
+                                }
+                            }
+                        });
                     }
                 });
                 ui.vertical(|ui| {
@@ -3513,6 +3562,7 @@ impl App {
                                 if swatch(ui, Color32::from_rgb(c.0, c.1, c.2), Vec2::splat(14.0)).on_hover_text(crate::style::hex(*c)).clicked() {
                                     d.color = *c;
                                     d.text = crate::style::hex(*c);
+                                    d.var = None;
                                 }
                             }
                         });
@@ -3522,6 +3572,7 @@ impl App {
                         if swatch(ui, Color32::TRANSPARENT, Vec2::splat(14.0)).on_hover_text("rgba(255, 255, 255, 0)").clicked() {
                             d.color = crate::render::Rgba(255, 255, 255, 0);
                             d.text = crate::style::hex(d.color);
+                            d.var = None;
                         }
                         ui.label("Transparent");
                     });
@@ -3537,10 +3588,7 @@ impl App {
         });
         if ok {
             self.style_edit = None;
-            if Some(d.color) != self.color_state(d.field) {
-                self.set_color(d.field, d.color);
-            }
-            self.style_edit = None;
+            self.apply_color_dialog(&d);
             self.color_dialog = None;
         } else if cancel || self.color_views(d.field).is_empty() {
             self.color_dialog = None;

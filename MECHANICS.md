@@ -134,6 +134,9 @@ Read from `extensions/default/staruml-v1` (main.js, reader.js, uml-readers.js); 
 | SVG size and background | grown bounds, no extra, no background | `diagram-export.js:178-189` getSVGImageData |
 | Native side | `toPNG` 0xec2c6e/0x101d688 and `image/png` are Electron API table entries only; no function to follow | native_strings_find ev_b82b90eb… |
 | UMLCraft | draws the SVG off-screen with resvg for PNG export, so scrolled-out parts and the grid do not matter; trial watermarks of the original are not copied | `src/render.rs` to_png, to_svg_sized |
+| Export Image dialog (StarUML 8) | `Ctrl+Shift+E`; Range current / all, Format PNG / JPEG / SVG, Fill background (the theme's background colour; JPEG always filled), Scale 1x / 2x (not SVG), Margin 0-32 px; Export..., Export All... (a folder), Copy to Clipboard; stays open; options remembered | https://docs.staruml.io/user-guide/managing-project/ |
+| Export Image picture | the bounds grown by the margin, no extra width (unlike StarUML 7's +30), drawn at the chosen scale, not the screen's; defaults current, PNG, no fill, 1x, 10 px (not documented) | UMLCraft's choice; `src/export.rs` render_with |
+| Suppress Receptions key | StarUML 8 moved it to `Ctrl+Shift+X` and gave `Ctrl+Shift+E` to Export Image; UMLCraft keeps StarUML 7.1.1's `Ctrl+Shift+E`, its reference, so existing habits do not break, and Export Image has no key | extensions/essential/uml/keymaps/uml.json; https://docs.staruml.io/user-guide/keyboard-shortcuts/ |
 
 ## Dialogs
 
@@ -193,6 +196,29 @@ File › Import › XMI Import (v2.1) puts what it reads into a new UMLModel `XM
 | Fonts | every font file of the FontManager is registered with PDFKit; each character is set in the first font that has it | `diagram-export.js:321-324`, `src/engine/pdf-graphics.js:102-140, 990-1060` |
 | Page sizes | PDFKit's: 4A0, 2A0, A0–A10, B0–B10, C0–C10, RA0–RA4, SRA0–SRA4, Executive, Folio, Legal, Letter, Tabloid | `static/html-contents/print-dialog.html` |
 | UMLCraft | writes the PDF itself, in vector shapes drawn by the same code as the screen and SVG; text in subsets of the diagram faces, then egui's fallback fonts, then a fontconfig font that has the character, as Type0 fonts (Identity-H, ToUnicode); only TrueType-outline faces are embedded; the caption is set in the diagram face at 10 pt rather than Helvetica, so any character prints; an SVG picture becomes an image drawn at 4 times its printed size | `src/pdf.rs`, `src/pdf_font.rs` |
+
+## Colour variables (StarUML 8)
+
+StarUML 8 stores view colours as variables drawn in the colours of the current theme. Only its docs and
+release notes describe them (StarUML 7.1.1, the reference code, has none), so the rules come from there;
+the colour values are not published and were chosen by UMLCraft. Implemented in `src/colorvars.rs`.
+
+| Rule | Value | Source |
+|---|---|---|
+| Names | `$background`, `$foreground` (the default colours of views), `$transparent`, and `$<hue><1-12>` for slate, gray, red, pink, purple, blue, cyan, green, brown, orange, yellow, lime, mint | https://docs.staruml.io/user-guide/formatting-diagram/ |
+| Light `$background` / `$foreground` | white / black | same page |
+| Dark `$background` / `$foreground` | #191919 / #eeeeee (gray 2 and gray 12 of the dark gray scale) | UMLCraft's choice |
+| Hue steps | the Radix Colors 12-step scales of the same 13 names (@radix-ui/colors 3.0.0, MIT licence): light scales in the light theme, dark scales in the dark theme; step 9 is the solid colour, 12 the darkest (light) or lightest (dark) text colour | UMLCraft's choice (StarUML's values are not published) |
+| `$transparent` | fully transparent; written for StarUML 7 as `#ffffff00` | UMLCraft's choice |
+| Unknown variable | drawn in the field's default colour | UMLCraft rule |
+| Older files | a file whose views hold no variable asks "Convert" (each colour becomes its most similar variable) or "Keep Colors" (nothing changes) | https://docs.staruml.io/user-guide/managing-project/, StarUML 8.0 release notes |
+| Most similar variable | the smallest "redmean" weighted RGB distance to the light-theme value of `$background`, `$foreground` and the 156 hue steps; fully transparent gives `$transparent`; a partly transparent colour stays as it is | UMLCraft's choice |
+| New views | variables (fixed defaults turned into their nearest variable) only in a project that holds variables (converted, or saved by StarUML 8); otherwise `#rrggbb`, so that StarUML 7 still opens the file | UMLCraft rule (StarUML 8 always uses variables) |
+| File › Export › StarUML V7... | a copy with every variable replaced by its light-theme colour; the working project and its file are not changed; reopening the copy asks to convert again | https://docs.staruml.io/user-guide/managing-project/ |
+| Color dialog | first row `$background`, `$foreground`, `$transparent`, then one row of 12 steps per hue, drawn in the current theme; hover shows the name; the field takes `#rrggbb` or a name | formatting-diagram and user-interface pages |
+| Palette click in a plain project | writes the variable's light-theme `#rrggbb` (a typed name writes the variable) | UMLCraft rule, for StarUML 7 |
+| Canvas | a project with variables is drawn on `$background` with a `$gray4` grid while the background and grid colour preferences keep their defaults | UMLCraft's choice |
+| Pictures and print | exports use the current theme; Print to PDF always uses the light theme (white paper) | managing-project page; PDF: UMLCraft's choice |
 
 ## Window (dark theme, the default)
 

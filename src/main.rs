@@ -18,6 +18,7 @@ mod dialogs;
 mod clipboard;
 mod cloud;
 mod ejs;
+mod colorvars;
 mod erd;
 mod exec;
 mod export;

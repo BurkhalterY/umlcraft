@@ -28,6 +28,45 @@ pub struct ColorDialog {
     pub field: &'static str,
     pub color: Rgba,
     pub text: String,
+    /// The colour variable chosen (StarUML 8's palette, or typed as `$name`); OK writes it in place
+    /// of the colour.
+    pub var: Option<String>,
+}
+
+impl ColorDialog {
+    /// Take what the hex field holds: `#rrggbb`, `#rrggbbaa` or a variable name.
+    pub fn take_text(&mut self) {
+        let t = self.text.trim();
+        if crate::colorvars::is_var(t) {
+            if let Some(c) = crate::colorvars::resolve(t, crate::colorvars::dark()) {
+                self.color = c;
+                self.var = Some(t.to_ascii_lowercase());
+            }
+        } else if let Some(c) = parse_hex(t) {
+            self.color = c;
+            self.var = None;
+        }
+    }
+
+    /// A click on a swatch of the variables palette. A project drawn with variables gets the variable;
+    /// any other gets its light-theme colour as `#rrggbb`, so that StarUML 7 still draws it (UMLCraft
+    /// rule; typing the name writes the variable all the same).
+    pub fn pick_var(&mut self, name: &str, project_vars: bool) {
+        if project_vars {
+            self.color = crate::colorvars::resolve(name, crate::colorvars::dark()).unwrap_or(self.color);
+            self.var = Some(name.to_string());
+            self.text = name.to_string();
+        } else {
+            self.color = crate::colorvars::resolve(name, false).unwrap_or(self.color);
+            self.var = None;
+            self.text = hex(self.color);
+        }
+    }
+
+    /// The value OK writes.
+    pub fn value(&self) -> String {
+        self.var.clone().unwrap_or_else(|| hex(self.color))
+    }
 }
 
 /// The Color dialog's preset palette: 16 columns, a grey ramp then four shades of 16 hues
@@ -80,7 +119,31 @@ impl App {
         }
         let def = if field == "fillColor" { Rgba(255, 255, 255, 255) } else { Rgba(0, 0, 0, 255) };
         let color = self.color_state(field).unwrap_or(def);
-        self.color_dialog = Some(ColorDialog { field, color, text: hex(color) });
+        let var = self.color_text(field).filter(|t| crate::colorvars::is_var(t));
+        let text = var.clone().unwrap_or_else(|| hex(color));
+        self.color_dialog = Some(ColorDialog { field, color, text, var });
+    }
+
+    /// The colour value every selected view shares, as written (a variable stays a variable).
+    pub fn color_text(&self, field: &str) -> Option<String> {
+        let vs = self.color_views(field);
+        let first = self.repo.str(*vs.first()?, field);
+        vs.iter().all(|v| self.repo.str(*v, field) == first).then_some(first)
+    }
+
+    /// The Color dialog's OK: write its value (a colour or a variable) to every selected view that has
+    /// the field, as one undo step, unless they all hold it already.
+    pub fn apply_color_dialog(&mut self, d: &ColorDialog) {
+        let value = d.value();
+        let vs = self.color_views(d.field);
+        if vs.is_empty() || self.color_text(d.field).as_deref() == Some(value.as_str()) {
+            return;
+        }
+        self.change(|a| {
+            for v in vs {
+                a.repo.set(v, d.field, json!(value));
+            }
+        });
     }
 
     /// The selected views that have this colour field.

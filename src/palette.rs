@@ -38,6 +38,7 @@ pub const COMMANDS: &[Command] = &[
     c("project:open", "Open...", "Ctrl+O"),
     c("project:save", "Save", "Ctrl+S"),
     c("project:save-as", "Save As...", "Ctrl+Shift+S"),
+    c("project:export-image", "Export Image...", ""),
     c("project:export-diagram-to-png", "Export Diagram As PNG...", ""),
     c("project:export-diagram-to-jpeg", "Export Diagram As JPEG...", ""),
     c("project:export-diagram-to-svg", "Export Diagram As SVG...", ""),
@@ -249,6 +250,7 @@ impl App {
             "project:save-as" => {
                 self.save_as(&ms);
             }
+            "project:export-image" => self.open_export_image(),
             "project:export-diagram-to-png" => self.export_current(ctx, Format::Png),
             "project:export-diagram-to-jpeg" => self.export_current(ctx, Format::Jpeg),
             "project:export-diagram-to-svg" => self.export_current(ctx, Format::Svg),

@@ -1653,6 +1653,9 @@ fn command_palette_and_quick_find() {
     assert!(matching("view:fit").iter().any(|c| c.name == "Fit To Window"), "the id matches too");
     let mut a = App::new(None);
     a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    // the file has fixed colours: answer the Convert / Keep Colors question first
+    assert!(a.color_prompt && a.modal_open());
+    a.keep_colors();
     let hits = a.find_hits("loan");
     let Hit::Model(m) = hits[0] else { panic!() };
     assert!(a.repo.name(m).to_lowercase().contains("loan"));
@@ -3419,13 +3422,15 @@ fn receptions_show_when_not_suppressed() {
     assert_eq!(rows.len(), 1);
     assert_eq!(a.repo.str(rows[0], "text"), format!("«signal» +{}", a.repo.name(rcp)));
     assert!(a.repo.f(v, "height") >= h0);
-    // Ctrl+Shift+E toggles it back
+    // Ctrl+Shift+E toggles it back (StarUML 7.1.1's key; StarUML 8 moved it to Ctrl+Shift+X)
     let ctx = egui::Context::default();
     crate::setup_fonts(&ctx);
-    let ev = egui::Event::Key { key: egui::Key::E, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::COMMAND | egui::Modifiers::SHIFT };
-    let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+    let cs = egui::Modifiers::COMMAND | egui::Modifiers::SHIFT;
+    let ev = egui::Event::Key { key: egui::Key::E, physical_key: None, pressed: true, repeat: false, modifiers: cs };
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![egui::Event::ModifiersChanged(cs), ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
     out.textures_delta.clear();
-    assert!(a.repo.bool(v, "suppressReceptions"));
+    assert!(a.repo.bool(v, "suppressReceptions"), "suppressed again");
+    assert!(!a.export_image_open);
 }
 
 #[test]
@@ -8509,4 +8514,196 @@ fn property_editor_numbers_references_and_autocomplete() {
     a.tree_cleared = true;
     a.reveal(book);
     assert!(!a.tree_cleared, "Select In Explorer highlights it again");
+}
+
+#[test]
+fn colour_variables_follow_the_theme() {
+    use crate::colorvars::{nearest, resolve, with_theme};
+    use crate::render::{parse_color, Rgba, BLACK};
+    assert_eq!(resolve("$background", false), Some(Rgba(255, 255, 255, 255)));
+    assert_eq!(resolve("$foreground", false), Some(BLACK));
+    assert_eq!(resolve("$transparent", true).map(|c| c.3), Some(0));
+    assert_eq!(resolve("$blue9", false), Some(Rgba(0x00, 0x90, 0xff, 255)));
+    assert_eq!(resolve("$Gray12", true), Some(Rgba(0xee, 0xee, 0xee, 255)));
+    assert_eq!(resolve("$blue13", false), None);
+    assert_eq!(resolve("$teal3", false), None);
+    assert_eq!(crate::colorvars::names().len(), 3 + 13 * 12);
+    // drawing follows the theme; an unknown variable falls back to the default
+    assert_eq!(with_theme(false, || parse_color("$background", BLACK)), Rgba(255, 255, 255, 255));
+    assert_eq!(with_theme(true, || parse_color("$background", BLACK)), crate::colorvars::DARK_BACKGROUND);
+    assert_eq!(with_theme(true, || parse_color("$nope", BLACK)), BLACK);
+    // the most similar variable, by light-theme colour
+    assert_eq!(nearest(Rgba(255, 255, 255, 255)).as_deref(), Some("$background"));
+    assert_eq!(nearest(BLACK).as_deref(), Some("$foreground"));
+    assert_eq!(nearest(Rgba(0x00, 0x91, 0xfe, 255)).as_deref(), Some("$blue9"));
+    assert_eq!(nearest(Rgba(255, 255, 255, 0)).as_deref(), Some("$transparent"));
+    assert_eq!(nearest(Rgba(255, 0, 0, 128)), None, "partly transparent colours stay fixed");
+}
+
+#[test]
+fn convert_or_keep_colours_and_export_for_staruml_7() {
+    let ms = measure();
+    let ex = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj");
+    // Keep Colors leaves the file as it was, and new views keep plain colours
+    let mut a = App::new(None);
+    a.open_path(ex.clone());
+    assert!(a.color_prompt && !a.color_vars);
+    a.keep_colors();
+    assert!(!a.color_prompt && !a.modified);
+    let c = a.change(|a| a.create_node("UMLClass", rect(600.0, 40.0, 100.0, 60.0))).unwrap();
+    assert!(!crate::colorvars::is_var(&a.repo.str(c, "fillColor")));
+    assert!(!crate::colorvars::uses_vars(&a.repo));
+
+    // Convert turns every colour into a variable, as one undo step
+    let mut a = App::new(None);
+    a.open_path(ex.clone());
+    let views = a.repo.all_of("View");
+    a.convert_colors();
+    assert!(a.color_vars && a.modified && !a.color_prompt);
+    for v in &views {
+        for f in crate::colorvars::COLOR_FIELDS {
+            if crate::meta::order_of(a.repo.ty(*v), f).is_some() {
+                assert!(crate::colorvars::is_var(&a.repo.str(*v, f)), "{} {f} = {}", a.repo.ty(*v), a.repo.str(*v, f));
+            }
+        }
+    }
+    let class = views.iter().copied().find(|v| a.repo.ty(*v) == "UMLClassView").unwrap();
+    assert_eq!(a.repo.str(class, "lineColor"), "$foreground");
+    // new views get variables, as StarUML 8 stores them
+    let c = a.change(|a| a.create_node("UMLClass", rect(600.0, 40.0, 100.0, 60.0))).unwrap();
+    assert_eq!(a.repo.str(c, "fillColor"), "$background");
+    assert_eq!(a.repo.str(c, "fontColor"), "$foreground");
+    a.do_undo();
+    a.do_undo();
+    assert!(!crate::colorvars::uses_vars(&a.repo), "undo brings the fixed colours back");
+    a.do_redo();
+
+    // the picture follows the theme
+    let d = a.diagram.unwrap();
+    let info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let light = crate::colorvars::with_theme(false, || crate::render::to_svg(&a.repo, d, &info, &ms).unwrap());
+    let dark = crate::colorvars::with_theme(true, || crate::render::to_svg(&a.repo, d, &info, &ms).unwrap());
+    assert!(light.contains("stroke=\"#000000\"") && !light.contains("stroke=\"#eeeeee\""));
+    assert!(dark.contains("stroke=\"#eeeeee\"") && dark.contains("fill=\"#191919\""));
+
+    // the saved project keeps its variables; the StarUML 7 copy has none and leaves the project as it was
+    let saved = a.repo.serialize();
+    assert!(saved.contains("\"$foreground\""));
+    let v7 = a.v7_json(&ms);
+    let back = Repo::parse(&v7).unwrap();
+    assert!(!crate::colorvars::uses_vars(&back), "no colour variable is left for StarUML 7");
+    assert!(crate::colorvars::uses_vars(&a.repo));
+    let cv = back.all_of("UMLClassView")[0];
+    assert!(!back.str(cv, "fillColor").starts_with('$'));
+    // reopening the copy asks again
+    let dir = std::env::temp_dir().join(format!("umlcraft-v7-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let f = dir.join("v7.mdj");
+    std::fs::write(&f, &v7).unwrap();
+    let mut b = App::new(None);
+    b.open_path(f);
+    assert!(b.color_prompt);
+    // a converted file opens without the question and keeps drawing with variables
+    let f2 = dir.join("v8.mdj");
+    std::fs::write(&f2, &saved).unwrap();
+    let mut b = App::new(None);
+    b.open_path(f2);
+    assert!(!b.color_prompt && b.color_vars);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn colour_dialog_offers_the_variables() {
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    a.select(vec![c]);
+    // in a plain project a palette click gives the variable's light colour, so StarUML 7 still draws it
+    a.open_color_dialog("fillColor");
+    let mut d = a.color_dialog.clone().unwrap();
+    d.pick_var("$blue3", a.color_vars);
+    assert_eq!((d.var.as_deref(), d.value().as_str()), (None, "#e6f4fe"));
+    a.apply_color_dialog(&d);
+    assert_eq!(a.repo.str(c, "fillColor"), "#e6f4fe");
+    // typing a variable name writes the variable
+    d.text = "$Green9".into();
+    d.take_text();
+    assert_eq!(d.var.as_deref(), Some("$green9"));
+    let undo = a.undo.len();
+    a.apply_color_dialog(&d);
+    assert_eq!(a.repo.str(c, "fillColor"), "$green9");
+    assert_eq!(a.undo.len(), undo + 1);
+    // the dialog opens on the variable; OK with nothing changed does nothing
+    a.open_color_dialog("fillColor");
+    let d = a.color_dialog.clone().unwrap();
+    assert_eq!((d.var.as_deref(), d.text.as_str()), (Some("$green9"), "$green9"));
+    a.apply_color_dialog(&d);
+    assert_eq!(a.undo.len(), undo + 1);
+    // a project drawn with variables gets the variable from a click
+    a.color_vars = true;
+    let mut d = d;
+    d.pick_var("$red9", a.color_vars);
+    a.apply_color_dialog(&d);
+    assert_eq!(a.repo.str(c, "fillColor"), "$red9");
+    // a typed colour is kept as it is
+    d.text = "#123456".into();
+    d.take_text();
+    a.apply_color_dialog(&d);
+    assert_eq!(a.repo.str(c, "fillColor"), "#123456");
+}
+
+#[test]
+fn export_image_dialog_options() {
+    use crate::export::{render_with, Format, ImageOptions};
+    let ms = measure();
+    let dir = std::env::temp_dir().join(format!("umlcraft-export-image-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut a = App::new(None);
+    a.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    a.keep_colors();
+    // the defaults, then remembered options
+    assert_eq!(a.image_options(), ImageOptions::default());
+    let o = ImageOptions { all: true, format: Format::Jpeg, fill: false, scale: 2, margin: 32 };
+    a.set_image_options(&o);
+    let mut b = App::new(None);
+    b.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
+    assert_eq!(b.image_options(), o);
+    // margin and scale set the size; no 30 px extra as File › Export Diagram As has
+    let d = a.diagram.unwrap();
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let bx = crate::render::bounds(&a.repo, d).unwrap();
+    let png = |a: &mut App, o: ImageOptions| image::load_from_memory(&render_with(a, d, &ms, &o).unwrap()).unwrap().to_rgba8();
+    let img = png(&mut a, ImageOptions { format: Format::Png, fill: false, scale: 1, margin: 0, all: false });
+    assert_eq!(img.width(), bx.w.ceil() as u32);
+    assert_eq!(img.get_pixel(0, img.height() - 1).0[3], 0, "transparent without Fill background");
+    let img = png(&mut a, ImageOptions { format: Format::Png, fill: true, scale: 2, margin: 32, all: false });
+    assert_eq!(img.width(), ((bx.w + 64.0) * 2.0).ceil() as u32);
+    // Fill background uses the theme's background colour
+    let corner = |a: &mut App, dark: bool| crate::colorvars::with_theme(dark, || png(a, ImageOptions { format: Format::Png, fill: true, scale: 1, margin: 20, all: false })).get_pixel(1, 1).0;
+    assert_eq!(corner(&mut a, false), [255, 255, 255, 255]);
+    assert_eq!(corner(&mut a, true), [0x19, 0x19, 0x19, 255]);
+    // JPEG is always filled; SVG gets a background rectangle only when asked
+    let jpg = crate::colorvars::with_theme(true, || render_with(&mut a, d, &ms, &ImageOptions { format: Format::Jpeg, fill: false, scale: 1, margin: 20, all: false }).unwrap());
+    let p = image::load_from_memory(&jpg).unwrap().to_rgb8().get_pixel(1, 1).0;
+    assert!(p.iter().all(|c| *c < 0x30), "a dark JPEG background ({p:?})");
+    let svg = |a: &mut App, fill: bool| String::from_utf8(crate::colorvars::with_theme(false, || render_with(a, d, &ms, &ImageOptions { format: Format::Svg, fill, scale: 2, margin: 0, all: false })).unwrap()).unwrap();
+    assert!(svg(&mut a, true).contains("<rect x="));
+    assert!(!svg(&mut a, false).contains("<rect x="));
+    // Export All with the options
+    let n = a.export_all_with(&dir, &ms, &ImageOptions { format: Format::Svg, ..ImageOptions::default() }).unwrap();
+    assert_eq!(n, std::fs::read_dir(dir.join("svg")).unwrap().count());
+    assert!(n >= 1);
+    // File › Export Image... opens the dialog; Esc closes it
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    a.open_export_image();
+    assert!(a.export_image_open && a.modal_open());
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| a.dialogs(ui.ctx()));
+    out.textures_delta.clear();
+    assert!(a.export_image_open, "the dialog stays open");
+    let esc = egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![esc], ..Default::default() }, |ui| a.dialogs(ui.ctx()));
+    out.textures_delta.clear();
+    assert!(!a.export_image_open);
+    let _ = std::fs::remove_dir_all(dir);
 }

@@ -481,7 +481,12 @@ impl App {
     /// corner and scaled by min(width / box right, height / box bottom) of the room inside the
     /// margins, never enlarged; the path name goes 8 pt above that room, in the diagram font at
     /// 10 pt (the original sets it in Helvetica 10; diagram-export.js:318-362).
+    /// Colour variables take their light-theme colours, since the page is white paper.
     pub fn pdf_of(&mut self, diagrams: &[Eid], o: &PrintOptions, ms: &dyn Measure) -> Result<Vec<u8>, String> {
+        crate::colorvars::with_theme(false, || self.pdf_pages(diagrams, o, ms))
+    }
+
+    fn pdf_pages(&mut self, diagrams: &[Eid], o: &PrintOptions, ms: &dyn Measure) -> Result<Vec<u8>, String> {
         let diagrams = diagrams.to_vec();
         if diagrams.is_empty() {
             return Err("No current diagram.".into());
