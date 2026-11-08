@@ -54,7 +54,14 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
             "timeEvent" => "time-event",
             _ => "action",
         },
-        "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLActivityParameterNode" => "object-node",
+        "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" => "object-node",
+        "UMLActivityParameterNode" => "param-node",
+        "UMLStructuredActivityNode" => "structured",
+        "UMLExpansionRegion" => "expansion-region",
+        "UMLInterruptibleActivityRegion" => "interruptible",
+        "UMLActivityEdgeConnector" => "edge-connector",
+        "UMLExpansionNode" => "expansion-node",
+        "UMLExceptionHandler" | "UMLActivityInterrupt" => "interrupt",
         "UMLInitialNode" => "initial",
         "UMLActivityFinalNode" => "final",
         "UMLFlowFinalNode" => "flow-final",
@@ -273,6 +280,30 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             rect_at(1.5, 1.5, 13.0, 13.0, Y);
             line(&[(5.0, 1.5), (5.0, 14.5)], Y);
         }
+        "param-node" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, Y);
+            rect_at(10.0, 5.0, 4.5, 6.0, Y);
+        }
+        "structured" | "interruptible" => {
+            let pts = [(1.5, 3.0), (14.5, 3.0), (14.5, 13.0), (1.5, 13.0), (1.5, 3.0)];
+            dashed(&pts, Y);
+        }
+        "expansion-region" => {
+            dashed(&[(3.0, 3.0), (14.5, 3.0), (14.5, 14.5), (3.0, 14.5), (3.0, 3.0)], Y);
+            rect_at(1.0, 5.0, 4.0, 8.0, Y);
+            line(&[(1.0, 9.0), (5.0, 9.0)], Y);
+        }
+        "expansion-node" => {
+            rect_at(1.5, 5.5, 13.0, 5.0, Y);
+            for x in [4.75, 8.0, 11.25] {
+                line(&[(x, 5.5), (x, 10.5)], Y);
+            }
+        }
+        "edge-connector" => {
+            p.circle_stroke(at(8.0, 8.0), (6.0 * s) as f32, st(Y));
+            line(&[(6.0, 11.0), (8.0, 5.0), (10.0, 11.0)], Y);
+        }
+        "interrupt" => line(&[(2.0, 3.0), (12.0, 3.0), (4.0, 10.0), (14.0, 10.0), (11.0, 13.0)], B),
         "pin" => {
             rect_at(1.5, 3.5, 9.0, 9.0, Y);
             rect_at(10.5, 6.0, 4.0, 4.0, Y);

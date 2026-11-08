@@ -530,6 +530,39 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             }
             return;
         }
+        "structured" => {
+            // a filled rounded box with a dashed border (UMLStructuredActivityNodeView.drawObject,
+            // elements.js:10891-10925)
+            let mut pts = round_rect(b, 10.0);
+            c.polygon(&pts, Some(fill), None);
+            pts.push(pts[0]);
+            dashes(c, &pts, line, 3.0, 3.0);
+            if r.refd(v, "model").and_then(|m| r.refd(m, "subactivity")).is_some() {
+                let (x2, y2) = (b.x + b.w, b.y + b.h);
+                c.ellipse(P { x: x2 - 23.0, y: y2 - 13.0 }, 3.0, 3.0, None, Some(line));
+                c.polyline(&[P { x: x2 - 20.0, y: y2 - 13.0 }, P { x: x2 - 14.0, y: y2 - 13.0 }], line, false);
+                c.ellipse(P { x: x2 - 11.0, y: y2 - 13.0 }, 3.0, 3.0, None, Some(line));
+            }
+            draw_name(c, r, v);
+            return;
+        }
+        "interruptible" => {
+            // a dashed rounded box, not filled (UMLInterruptibleActivityRegionView.drawObject,
+            // elements.js:10799-10808)
+            let mut pts = round_rect(b, 10.0);
+            pts.push(pts[0]);
+            dashes(c, &pts, line, 3.0, 3.0);
+            return;
+        }
+        "edge-connector" => {
+            // a circle with its name in the middle (UMLActivityEdgeConnectorView.drawObject, elements.js:10820-10828)
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+            c.ellipse(ctr, b.w / 2.0, b.h / 2.0, Some(fill), Some(line));
+            let size = views::view_font(r, v).1;
+            let t = r.refd(v, "model").map(|m| r.name(m)).unwrap_or_default();
+            c.text(&t, R { x: b.x, y: ctr.y - size / 2.0, w: b.w, h: size }, 2, 0, size, fc, false);
+            return;
+        }
         "object-node" => {
             // a plain box with its name (elements.js:10244-10247)
             c.rect(b, Some(fill), Some(line));
@@ -578,6 +611,24 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             // a square on the action's border with an arrow pointing into the action for an input
             // pin and out of it for an output pin (elements.js:9790-9840)
             c.rect(b, Some(fill), Some(line));
+            if r.ty(v) == "UMLExpansionNodeView" {
+                // an expansion node: a box split into four cells along its border (elements.js:9848-9895)
+                let s = views::PIN_SIZE;
+                for i in 1..4 {
+                    let k = i as f64 * s;
+                    match views::pin_side(r, v) {
+                        "top" | "bottom" => c.polyline(&[P { x: b.x + k, y: b.y }, P { x: b.x + k, y: b.y + b.h }], line, false),
+                        "left" | "right" => c.polyline(&[P { x: b.x, y: b.y + k }, P { x: b.x + b.w, y: b.y + k }], line, false),
+                        _ => {}
+                    }
+                }
+                for f in ["stereotypeLabel", "nameLabel", "propertyLabel"] {
+                    if let Some(lv) = r.refd(v, f) {
+                        draw_label(c, r, lv, fc);
+                    }
+                }
+                return;
+            }
             let input = r.ty(v) == "UMLInputPinView";
             let dir = match (views::pin_side(r, v), input) {
                 ("top", true) | ("bottom", false) => Some("down"),
@@ -962,7 +1013,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         "UMLGeneralizationView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLComponentRealizationView" => head = Some(End::Triangle),
         // an extension: a solid line with a filled triangle at the metaclass
         "UMLExtensionView" => head = Some(End::FilledTriangle),
-        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" | "UMLTransitionView" | "UMLControlFlowView" | "UMLObjectFlowView" => head = Some(End::Arrow),
+        "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" | "UMLTransitionView" | "UMLControlFlowView" | "UMLObjectFlowView" | "UMLExceptionHandlerView" | "UMLActivityInterruptView" => head = Some(End::Arrow),
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
             if let Some(m) = r.refd(e, "model") {
@@ -1032,6 +1083,13 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     for sv in r.list(e, "subViews") {
         if r.kind_of(sv, "LabelView") || r.ty(sv) == "EdgeLabelView" {
             draw_label(c, r, sv, fc);
+        }
+        // the zig-zag of an exception handler or interrupt (UMLZigZagAdornmentView.drawObject, elements.js:10576-10596)
+        if r.ty(sv) == "UMLZigZagAdornmentView" && r.val(sv, "visible").and_then(|x| x.as_bool()) != Some(false) {
+            let z = node_rect(r, sv);
+            let (x1, y1, x2, y2) = (z.x, z.y, z.x + z.w, z.y + z.h);
+            c.polyline(&[P { x: x1, y: y1 }, P { x: x2, y: y1 }, P { x: x1, y: y2 - 5.0 }, P { x: x2, y: y2 - 5.0 }], line, false);
+            c.polyline(&[P { x: x2 - 5.0, y: y2 }, P { x: x2, y: y2 - 5.0 }, P { x: x2 - 5.0, y: y2 - 10.0 }], line, false);
         }
     }
     // the order of the ends: a filled triangle beside the name, pointing from end1 to end2 (forward)

@@ -223,6 +223,12 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         "UMLObjectNode" => k("UMLObjectNodeView", false, false, false),
         "UMLCentralBufferNode" => k("UMLCentralBufferNodeView", false, false, false),
         "UMLDataStoreNode" => k("UMLDataStoreNodeView", false, false, false),
+        "UMLActivityParameterNode" => k("UMLActivityParameterNodeView", false, false, false),
+        "UMLStructuredActivityNode" => k("UMLStructuredActivityNodeView", false, false, false),
+        "UMLExpansionRegion" => k("UMLExpansionRegionView", false, false, false),
+        // plain NodeViews without a name compartment (elements.js:10782-10830)
+        "UMLInterruptibleActivityRegion" => k("UMLInterruptibleActivityRegionView", false, false, false),
+        "UMLActivityEdgeConnector" => k("UMLActivityEdgeConnectorView", false, false, false),
         "UMLInitialNode" | "UMLActivityFinalNode" | "UMLFlowFinalNode" | "UMLForkNode" | "UMLJoinNode" | "UMLMergeNode" | "UMLDecisionNode" => k("UMLControlNodeView", false, false, false),
         "UMLArtifactInstance" => k("UMLArtifactInstanceView", false, false, false),
         "UMLComponentInstance" => k("UMLComponentInstanceView", false, false, false),
@@ -252,12 +258,14 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "UMLTransition" => "UMLTransitionView",
         "UMLControlFlow" => "UMLControlFlowView",
         "UMLObjectFlow" => "UMLObjectFlowView",
+        "UMLExceptionHandler" => "UMLExceptionHandlerView",
+        "UMLActivityInterrupt" => "UMLActivityInterruptView",
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 24] = [
-    "UMLConnectorView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
+const KNOWN_EDGE_VIEWS: [&str; 26] = [
+    "UMLExceptionHandlerView", "UMLActivityInterruptView", "UMLConnectorView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
@@ -268,6 +276,11 @@ const KNOWN_EDGE_VIEWS: [&str; 24] = [
 /// Statechart marks (sizes estimated): pseudostates are 20 px circles or diamonds, a final state 26 px.
 pub const PSEUDO_SIZE: f64 = 20.0;
 pub const FINAL_SIZE: f64 = 26.0;
+
+/// An activity edge connector is a circle at least 26 across (elements.js:176); an interruptible
+/// region at least 30 × 30 (elements.js:10794-10797).
+pub const EDGE_CONNECTOR_SIZE: f64 = 26.0;
+pub const REGION_MIN: f64 = 30.0;
 
 /// Swimlanes (elements.js:179-187): a vertical lane is at least 50 wide and 300 high (a horizontal
 /// one the other way round), its name 4 px from the top (left) and 10 px from the sides.
@@ -376,7 +389,10 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         // activities: the minimum sizes, which a plain click makes (elements.js:155-175)
         "UMLAction" | "SendSignal" | "AcceptSignal" => (ACTION_MIN_W, ACTION_MIN_H),
         "AcceptTimeEvent" => (24.0, 24.0 + NAME_MIN_H),
-        "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" => (ACTION_MIN_W, ACTION_MIN_H),
+        "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLActivityParameterNode" => (ACTION_MIN_W, ACTION_MIN_H),
+        // the regions take a roomier box on a plain click (estimated)
+        "UMLStructuredActivityNode" | "UMLExpansionRegion" | "UMLInterruptibleActivityRegion" => (200.0, 150.0),
+        "UMLActivityEdgeConnector" => (EDGE_CONNECTOR_SIZE, EDGE_CONNECTOR_SIZE),
         "UMLInitialNode" => (PSEUDO_SIZE, PSEUDO_SIZE),
         "UMLActivityFinalNode" | "UMLFlowFinalNode" => (FINAL_SIZE, FINAL_SIZE),
         "UMLForkNode" | "UMLJoinNode" => (BAR_LENGTH, BAR_THICK),
@@ -518,8 +534,9 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
         r.set(v, "suppressAttributes", json!(true));
         r.set(v, "suppressOperations", json!(true));
     }
-    // a control node is a NodeView without a name (elements.js:10288)
-    if kind.view == "UMLControlNodeView" {
+    // a control node is a NodeView without a name (elements.js:10288), and so are an interruptible
+    // region and an edge connector (elements.js:10782-10830)
+    if matches!(kind.view, "UMLControlNodeView" | "UMLInterruptibleActivityRegionView" | "UMLActivityEdgeConnectorView") {
         return Some(v);
     }
     let nc = name_compartment(r, v, model);
@@ -629,6 +646,34 @@ fn layout_activity_box(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
     grow(r, v, min_w, min_h.max(nh));
 }
 
+/// The keyword over a structured activity's name: «structured», or an expansion region's mode
+/// (UMLStructuredActivityNodeView.getStereotypeLabelText, UMLExpansionRegionView, elements.js:10843,
+/// 10927-10940).
+pub fn structured_keyword(r: &Repo, m: Eid) -> &'static str {
+    if r.ty(m) != "UMLExpansionRegion" {
+        return "structured";
+    }
+    match r.str(m, "mode").as_str() {
+        "parallel" => "parallel",
+        "stream" => "stream",
+        _ => "iterative",
+    }
+}
+
+/// A structured activity or an expansion region: its keyword, left-aligned, and name on top of a
+/// box that holds activity nodes (UMLStructuredActivityNodeView.update, elements.js:10857-10866).
+fn layout_structured(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    let kw = Some(structured_keyword(r, m));
+    if let Some(st) = r.refd(v, "nameCompartment").and_then(|nc| r.refd(nc, "stereotypeLabel")) {
+        r.set(st, "horizontalAlignment", json!(0));
+    }
+    let min_w = name_min_width(r, ms, v, m, kw, false).max(ACTION_MIN_W);
+    grow(r, v, min_w, ACTION_MIN_H);
+    let (x, y, w) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"));
+    let nh = layout_name(r, ms, v, m, x, y, w, kw, false);
+    grow(r, v, min_w, ACTION_MIN_H.max(nh));
+}
+
 /// A control node keeps at least its mark's size; a fork or join bar is horizontal unless it is
 /// taller than wide, and keeps its thickness (UMLControlNodeView.sizeObject, elements.js:10296-10343).
 fn layout_control_node(r: &mut Repo, v: Eid, m: Eid) {
@@ -707,7 +752,11 @@ pub fn create_port_view(r: &mut Repo, diagram: Eid, model: Eid, host: Eid, at: P
 /// `host` (UMLInputPinView, UMLOutputPinView, elements.js:9662-9800).
 pub fn create_pin_view(r: &mut Repo, diagram: Eid, model: Eid, host: Eid, at: P) -> Eid {
     let m = r.ref_to(model);
-    let ty = if r.ty(model) == "UMLInputPin" { "UMLInputPinView" } else { "UMLOutputPinView" };
+    let ty = match r.ty(model) {
+        "UMLInputPin" => "UMLInputPinView",
+        "UMLExpansionNode" => "UMLExpansionNodeView",
+        _ => "UMLOutputPinView",
+    };
     let h = PIN_SIZE / 2.0;
     let v = r.create(
         ty,
@@ -743,6 +792,19 @@ pub fn pin_side(r: &Repo, v: Eid) -> &'static str {
     }
 }
 
+/// A pin's size: 18 × 18; an expansion node is four cells long along the border it sits on
+/// (UMLExpansionNodeView.sizeObject, elements.js:9832-9846).
+fn pin_size(r: &Repo, v: Eid) -> (f64, f64) {
+    if r.ty(v) != "UMLExpansionNodeView" {
+        return (PIN_SIZE, PIN_SIZE);
+    }
+    match pin_side(r, v) {
+        "top" | "bottom" => (PIN_SIZE * 4.0, PIN_SIZE),
+        "left" | "right" => (PIN_SIZE, PIN_SIZE * 4.0),
+        _ => (r.f(v, "width").max(PIN_SIZE), r.f(v, "height").max(PIN_SIZE)),
+    }
+}
+
 /// A pin: just outside its action's border, where the line from the action's centre through the
 /// pin meets it; the text `name: Type[mult]` floats by it (UMLPinView.arrange and update,
 /// elements.js:9668-9680, 9741-9765).
@@ -752,15 +814,17 @@ fn layout_pin(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
         let b = node_rect(r, v);
         let p = port_junction(c, center(&b));
         let inside = b.x <= p.x && p.x <= b.x + b.w && b.y <= p.y && p.y <= b.y + b.h;
+        let (w, h) = pin_size(r, v);
         if !inside {
-            let x = if c.x < p.x { p.x } else { p.x - PIN_SIZE + 1.0 };
-            let y = if c.y < p.y { p.y } else { p.y - PIN_SIZE + 1.0 };
+            let x = if c.x < p.x { p.x } else { p.x - w + 1.0 };
+            let y = if c.y < p.y { p.y } else { p.y - h + 1.0 };
             r.set(v, "left", num(x));
             r.set(v, "top", num(y));
         }
     }
-    r.set(v, "width", num(PIN_SIZE));
-    r.set(v, "height", num(PIN_SIZE));
+    let (w, h) = pin_size(r, v);
+    r.set(v, "width", num(w));
+    r.set(v, "height", num(h));
     let show = Show { vis: false, mult: true, sig: true, ty: true, prop: true };
     let text = attribute_text(r, m, show);
     let st = stereotype_text(r, m);
@@ -1093,6 +1157,18 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
         let l = edge_label(r, e, Some(m), -std::f64::consts::FRAC_PI_6, 30.0, 0, false);
         r.set_ref(e, "roleNameLabel", Some(l));
     }
+    // an exception handler or activity interrupt: the zig-zag mark 20 px off the middle of the line
+    // (UMLZigZagAdornmentView, elements.js:10537-10560)
+    if matches!(ty, "UMLExceptionHandlerView" | "UMLActivityInterruptView") {
+        let z = r.create("UMLZigZagAdornmentView", &[("model", r.ref_to(m)), ("font", json!(FONT)), ("parentStyle", json!(true))], Some((e, "subViews")));
+        r.set(z, "width", json!(ZIGZAG_W));
+        r.set(z, "height", json!(ZIGZAG_H));
+        r.set(z, "alpha", json!(HALF_PI));
+        r.set(z, "distance", json!(20));
+        r.set_ref(z, "hostEdge", Some(e));
+        r.set(z, "edgePosition", json!(1));
+        r.set_ref(e, "adornment", Some(z));
+    }
     // associations and links have end labels; only associations have qualifiers
     if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" || r.ty(m) == "UMLConnector" {
         r.set_raw(e, "showEndOrder", json!("hide")); // as the original writes it (sample.mdj)
@@ -1327,6 +1403,26 @@ struct NameParts {
     st_text: String,
     show_st: bool,
     ns_text: String,
+    /// shown whatever showNamespace says: an action's called operation or an object node's states
+    force_ns: bool,
+}
+
+/// The namespace line an activity box shows in place of "(from …)": a named action calling an
+/// operation shows "(Class::operation)", an object node in states shows "[s1, s2]"
+/// (UMLActionView.update, UMLObjectNodeView.update, elements.js:9917-9925, 10232-10241).
+fn activity_ns(r: &Repo, m: Eid) -> Option<String> {
+    if r.kind_of(m, "UMLAction") && r.str(m, "kind") == "callOperation" && !r.name(m).trim().is_empty() {
+        let op = r.refd(m, "target").filter(|t| r.ty(*t) == "UMLOperation")?;
+        let owner = r.parent(op).map(|p| r.name(p)).unwrap_or_default();
+        return Some(format!("({owner}::{})", r.name(op)));
+    }
+    if r.kind_of(m, "UMLObjectNode") {
+        let states: Vec<String> = r.ref_list(m, "inStates").into_iter().map(|x| r.name(x)).collect();
+        if !states.is_empty() {
+            return Some(format!("[{}]", states.join(", ")));
+        }
+    }
+    None
 }
 
 fn name_parts(r: &Repo, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) -> Option<NameParts> {
@@ -1342,6 +1438,7 @@ fn name_parts(r: &Repo, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) ->
     // (UMLGeneralNodeView.sizeObject, elements.js:4860-4883)
     let show_st = !st_text.is_empty() && (display == "label" || display == "decoration-label" || display == "icon-label") && !hide_st;
     let parent = r.parent(m).map(|p| r.name(p)).unwrap_or_default();
+    let forced = activity_ns(r, m);
     Some(NameParts {
         nc,
         st: r.refd(nc, "stereotypeLabel"),
@@ -1349,7 +1446,8 @@ fn name_parts(r: &Repo, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) ->
         ns: r.refd(nc, "namespaceLabel"),
         st_text,
         show_st,
-        ns_text: format!("(from {parent})"),
+        force_ns: forced.is_some(),
+        ns_text: forced.unwrap_or_else(|| format!("(from {parent})")),
     })
 }
 
@@ -1371,9 +1469,15 @@ pub fn display_name(r: &Repo, m: Eid) -> String {
 /// "name: Type". Other boxes show their display name.
 fn box_name(r: &Repo, m: Eid) -> String {
     let name = r.name(m);
-    if r.ty(m) == "UMLAction" {
+    if r.kind_of(m, "UMLAction") {
         if let Some(sub) = r.refd(m, "subactivity").filter(|s| r.ty(*s) == "UMLActivity") {
             return format!("{name}:{}", r.name(sub));
+        }
+        // calling an operation without a name of its own: the operation's name
+        if r.str(m, "kind") == "callOperation" && name.trim().is_empty() {
+            if let Some(t) = r.refd(m, "target").filter(|t| r.ty(*t) == "UMLOperation") {
+                return r.name(t);
+            }
         }
         if r.str(m, "kind") == "callBehavior" && name.trim().is_empty() {
             if let Some(t) = r.refd(m, "target").filter(|t| r.kind_of(*t, "UMLBehavior")) {
@@ -1381,6 +1485,13 @@ fn box_name(r: &Repo, m: Eid) -> String {
             }
         }
         return name;
+    }
+    // an unnamed activity parameter node shows its parameter (UMLActivityParameterNodeView.update,
+    // elements.js:10272-10283)
+    if r.ty(m) == "UMLActivityParameterNode" && name.trim().is_empty() {
+        if let Some(p) = r.refd(m, "parameter").filter(|p| r.alive(*p)) {
+            return attribute_text(r, p, Show { vis: false, mult: true, sig: true, ty: true, prop: true });
+        }
     }
     if r.kind_of(m, "UMLObjectNode") {
         let ty = match r.refd(m, "type") {
@@ -1423,7 +1534,7 @@ fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64, y: f64, w
     }
     if let Some(ns) = p.ns {
         set_label_font(r, ms, ns, None);
-        let show = r.bool(v, "showNamespace");
+        let show = r.bool(v, "showNamespace") || p.force_ns;
         r.set(ns, "text", json!(p.ns_text));
         if show {
             r.remove(ns, "visible");
@@ -1455,6 +1566,9 @@ fn name_min_width(r: &Repo, ms: &dyn Measure, v: Eid, m: Eid, keyword: Option<&s
     if let Some(p) = name_parts(r, v, m, keyword, hide_st) {
         if p.show_st {
             w = w.max(width(&p.st_text, 0));
+        }
+        if p.force_ns {
+            w = w.max(width(&p.ns_text, 0));
         }
     }
     w.ceil() + 2.0 * PAD
@@ -1874,7 +1988,7 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         }
         return Info::default();
     }
-    if t == "UMLInputPinView" || t == "UMLOutputPinView" {
+    if t == "UMLInputPinView" || t == "UMLOutputPinView" || t == "UMLExpansionNodeView" {
         if let Some(m) = m {
             layout_pin(r, ms, v, m);
         }
@@ -1927,7 +2041,21 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         }
         return Info { shape: if t == "UMLFinalStateView" { "final" } else { "pseudostate" }, ..Default::default() };
     }
-    if t == "UMLActionView" || t == "UMLObjectNodeView" || t == "UMLCentralBufferNodeView" || t == "UMLDataStoreNodeView" {
+    if t == "UMLStructuredActivityNodeView" || t == "UMLExpansionRegionView" {
+        if let Some(m) = m {
+            layout_structured(r, ms, v, m);
+        }
+        return Info { shape: "structured", ..Default::default() };
+    }
+    if t == "UMLInterruptibleActivityRegionView" {
+        grow(r, v, REGION_MIN, REGION_MIN);
+        return Info { shape: "interruptible", ..Default::default() };
+    }
+    if t == "UMLActivityEdgeConnectorView" {
+        grow(r, v, EDGE_CONNECTOR_SIZE, EDGE_CONNECTOR_SIZE);
+        return Info { shape: "edge-connector", ..Default::default() };
+    }
+    if t == "UMLActionView" || t == "UMLObjectNodeView" || t == "UMLCentralBufferNodeView" || t == "UMLDataStoreNodeView" || t == "UMLActivityParameterNodeView" {
         if let Some(m) = m {
             layout_activity_box(r, ms, v, m);
         }
@@ -2338,9 +2466,20 @@ pub fn label_polar(p1: P, p2: P, c: P) -> (f64, f64) {
     (phi - th, dist)
 }
 
+pub const ZIGZAG_W: f64 = 25.0;
+pub const ZIGZAG_H: f64 = 20.0;
+
 fn layout_edge_labels(r: &mut Repo, ms: &dyn Measure, e: Eid, pts: &[P]) {
     if pts.len() < 2 {
         return;
+    }
+    if let Some(z) = r.refd(e, "adornment").filter(|z| r.alive(*z)) {
+        r.set(z, "width", json!(ZIGZAG_W));
+        r.set(z, "height", json!(ZIGZAG_H));
+        let (p1, p2) = label_anchor(r, z, pts);
+        let d = point_away_line(p1, p2, r.f(z, "alpha"), r.f(z, "distance"));
+        r.set(z, "left", num(d.x + p1.x - (ZIGZAG_W / 2.0).floor()));
+        r.set(z, "top", num(d.y + p1.y - (ZIGZAG_H / 2.0).floor()));
     }
     let (face, size) = view_font(r, e);
     let scaled = Scaled { ms, face, size };

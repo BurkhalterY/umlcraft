@@ -65,6 +65,8 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLPin", Some("UMLStructuralFeature"), vec![]);
     def("UMLInputPin", Some("UMLPin"), vec![]);
     def("UMLOutputPin", Some("UMLPin"), vec![]);
+    // an expansion region's input or output (elements.js:3095)
+    def("UMLExpansionNode", Some("UMLPin"), vec![]);
     def("UMLParameter", Some("UMLStructuralFeature"), vec![("direction", d(json!("in")))]);
     def("UMLBehavioralFeature", Some("UMLFeature"), vec![("parameters", n()), ("raisedExceptions", n()), ("concurrency", d(json!("sequential")))]);
     def("UMLAttribute", Some("UMLStructuralFeature"), vec![("isDerived", d(json!(false))), ("aggregation", d(json!("none"))), ("isID", d(json!(false)))]);
@@ -144,6 +146,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLObjectNode", Some("UMLActivityNode"), vec![("type", n()), ("isControlType", d(json!(false))), ("ordering", d(json!("FIFO"))), ("inStates", n())]);
     def("UMLCentralBufferNode", Some("UMLObjectNode"), vec![]);
     def("UMLDataStoreNode", Some("UMLCentralBufferNode"), vec![]);
+    def("UMLActivityParameterNode", Some("UMLObjectNode"), vec![("parameter", n())]);
     def("UMLControlNode", Some("UMLActivityNode"), vec![]);
     def("UMLInitialNode", Some("UMLControlNode"), vec![]);
     def("UMLFinalNode", Some("UMLControlNode"), vec![]);
@@ -155,9 +158,17 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLDecisionNode", Some("UMLControlNode"), vec![]);
     def("UMLActivityGroup", Some("UMLModelElement"), vec![("subgroups", n()), ("nodes", n()), ("edges", n())]);
     def("UMLActivityPartition", Some("UMLActivityGroup"), vec![]);
+    def("UMLInterruptibleActivityRegion", Some("UMLActivityGroup"), vec![]);
+    // a structured activity is an action holding nodes and edges; an expansion region one with a mode
+    // (elements.js:3469-3527)
+    def("UMLStructuredActivityNode", Some("UMLAction"), vec![("mustIsolate", d(json!(false))), ("nodes", n()), ("edges", n())]);
+    def("UMLExpansionRegion", Some("UMLStructuredActivityNode"), vec![("mode", d(json!("iterative")))]);
+    def("UMLExceptionHandler", Some("UMLDirectedRelationship"), vec![("exceptionTypes", n()), ("handlerBody", n())]);
+    def("UMLActivityEdgeConnector", Some("UMLActivityNode"), vec![]);
     def("UMLActivityEdge", Some("UMLDirectedRelationship"), vec![("guard", d(json!(""))), ("weight", d(json!("")))]);
     def("UMLControlFlow", Some("UMLActivityEdge"), vec![]);
     def("UMLObjectFlow", Some("UMLActivityEdge"), vec![]);
+    def("UMLActivityInterrupt", Some("UMLActivityEdge"), vec![]);
     def("UMLActivity", Some("UMLBehavior"), vec![("isReadOnly", d(json!(false))), ("isSingleExecution", d(json!(false))), ("nodes", n()), ("edges", n()), ("groups", n())]);
     def("UMLTemplateParameterSubstitution", Some("UMLModelElement"), vec![("formal", n()), ("actual", n())]);
     def("UMLExtensionPoint", Some("UMLModelElement"), vec![("location", d(json!("")))]);
@@ -240,6 +251,11 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLCentralBufferNodeView", Some("UMLObjectNodeView"), vec![]);
     def("UMLDataStoreNodeView", Some("UMLObjectNodeView"), vec![]);
     def("UMLControlNodeView", Some("NodeView"), vec![]);
+    def("UMLActivityParameterNodeView", Some("UMLObjectNodeView"), vec![]);
+    def("UMLInterruptibleActivityRegionView", Some("NodeView"), vec![]);
+    def("UMLActivityEdgeConnectorView", Some("NodeView"), vec![]);
+    def("UMLStructuredActivityNodeView", Some("UMLGeneralNodeView"), vec![]);
+    def("UMLExpansionRegionView", Some("UMLStructuredActivityNodeView"), vec![]);
     def("UMLSwimlaneView", Some("NodeView"), vec![("nameLabel", n()), ("isVertical", d(json!(true)))]);
     def("UMLCollaborationUseView", Some("UMLGeneralNodeView"), vec![]);
     def("UMLPartView", Some("UMLGeneralNodeView"), vec![("showMultiplicity", d(json!(true)))]);
@@ -265,6 +281,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLPinView", Some("UMLFloatingNodeView"), vec![]);
     def("UMLInputPinView", Some("UMLPinView"), vec![]);
     def("UMLOutputPinView", Some("UMLPinView"), vec![]);
+    def("UMLExpansionNodeView", Some("UMLPinView"), vec![]);
     def("UMLPortView", Some("UMLFloatingNodeView"), vec![("showVisibility", d(json!(false))), ("showType", d(json!(true))), ("showMultiplicity", d(json!(true)))]);
     def("HyperlinkView", Some("NodeView"), vec![("nameLabel", n()), ("typeLabel", n())]);
     def("UMLCustomTextView", Some("NodeView"), vec![("text", d(json!(""))), ("wordWrap", d(json!(true))), ("horzAlign", d(json!(0))), ("vertAlign", d(json!(3)))]);
@@ -290,6 +307,12 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLAssociationView", Some("UMLUndirectedRelationshipView"), vec![("tailQualifiersCompartment", n()), ("headQualifiersCompartment", n())]);
     for name in ["UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView", "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLComponentRealizationView", "UMLDeploymentView", "UMLTemplateBindingView", "UMLInformationFlowView", "UMLExtensionView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView"] {
         def(name, Some("UMLGeneralEdgeView"), vec![]);
+    }
+    // an exception handler and an activity interrupt carry a zig-zag mark in their middle (elements.js:10537-10657)
+    def("EdgeNodeView", Some("EdgeParasiticView"), vec![]);
+    def("UMLZigZagAdornmentView", Some("EdgeNodeView"), vec![]);
+    for name in ["UMLExceptionHandlerView", "UMLActivityInterruptView"] {
+        def(name, Some("UMLGeneralEdgeView"), vec![("adornment", n())]);
     }
     def("UMLCommunicationPathView", Some("UMLAssociationView"), vec![]);
     def("UMLLinkView", Some("UMLUndirectedRelationshipView"), vec![]);

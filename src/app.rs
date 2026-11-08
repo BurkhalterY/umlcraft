@@ -787,20 +787,35 @@ impl App {
             self.apply_view_defaults(v);
             return Some(v);
         }
+        // an interruptible region is a group of the activity (uml-factory.js:3836-3840)
+        if kind == "UMLInterruptibleActivityRegion" {
+            let act = self.diagram_activity(d)?;
+            let name = self.new_name(act, kind);
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((act, "groups")));
+            let v = views::create_node_view(&mut self.repo, d, m, rect)?;
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
         let action = views::action_kind(kind);
-        if action.is_some() || matches!(kind, "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLInitialNode" | "UMLActivityFinalNode" | "UMLFlowFinalNode" | "UMLForkNode" | "UMLJoinNode" | "UMLMergeNode" | "UMLDecisionNode") {
+        if action.is_some()
+            || matches!(
+                kind,
+                "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLActivityParameterNode" | "UMLInitialNode" | "UMLActivityFinalNode" | "UMLFlowFinalNode" | "UMLForkNode" | "UMLJoinNode" | "UMLMergeNode" | "UMLDecisionNode" | "UMLStructuredActivityNode" | "UMLExpansionRegion" | "UMLActivityEdgeConnector"
+            )
+        {
             let act = self.diagram_activity(d)?;
             let ty = if action.is_some() { "UMLAction" } else { kind };
-            let name = self.new_name(act, ty);
+            // an edge connector is named "A" (uml-factory.js:3872-3880)
+            let name = if kind == "UMLActivityEdgeConnector" { "A".to_string() } else { self.new_name(act, ty) };
             let m = self.repo.create(ty, &[("name", json!(name))], Some((act, "nodes")));
             if let Some(k) = action.filter(|k| *k != "opaque") {
                 self.repo.set(m, "kind", json!(k));
             }
             let v = views::create_node_view(&mut self.repo, d, m, rect)?;
             self.apply_view_defaults(v);
-            // drawn inside a swimlane: it goes in that lane's partition
-            let lane = self.repo.list(d, "ownedViews").into_iter().rev().find(|c| self.repo.ty(*c) == "UMLSwimlaneView" && { let b = views::node_rect(&self.repo, *c); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h });
-            if let Some(c) = lane {
+            // drawn inside a swimlane, region or structured activity: it goes in that container
+            let holder = self.repo.list(d, "ownedViews").into_iter().rev().find(|c| *c != v && self.can_contain_view(*c, v) && { let b = views::node_rect(&self.repo, *c); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h });
+            if let Some(c) = holder {
                 self.set_container(&[v], Some(c));
             }
             return Some(v);
@@ -900,9 +915,23 @@ impl App {
         }
         // a swimlane holds actions, control nodes and object nodes (UMLSwimlaneView.canContainViewKind,
         // elements.js:10574-10581)
-        if ct == "UMLSwimlaneView" {
+        // and so does an interruptible region; a structured activity or expansion region also holds
+        // structured activities (elements.js:10783-10790, 10845-10853)
+        if matches!(ct, "UMLSwimlaneView" | "UMLInterruptibleActivityRegionView" | "UMLStructuredActivityNodeView" | "UMLExpansionRegionView") {
             let vt = self.repo.ty(v);
-            return matches!(vt, "UMLActionView" | "UMLControlNodeView" | "UMLObjectNodeView" | "UMLCentralBufferNodeView" | "UMLDataStoreNodeView" | "UMLFinalStateView");
+            let structured = matches!(vt, "UMLStructuredActivityNodeView" | "UMLExpansionRegionView");
+            if structured && !matches!(ct, "UMLStructuredActivityNodeView" | "UMLExpansionRegionView") {
+                return false;
+            }
+            // not itself or a box that holds it
+            let mut c = Some(container);
+            while let Some(x) = c {
+                if x == v {
+                    return false;
+                }
+                c = self.repo.refd(x, "containerView");
+            }
+            return structured || matches!(vt, "UMLActionView" | "UMLControlNodeView" | "UMLObjectNodeView" | "UMLCentralBufferNodeView" | "UMLDataStoreNodeView" | "UMLActivityParameterNodeView" | "UMLActivityEdgeConnectorView" | "UMLFinalStateView");
         }
         if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView" || ct == "UMLStateView") || !views::is_node(&self.repo, v) {
             return false;
@@ -976,7 +1005,7 @@ impl App {
             // activity when released (uml/main.js:24-41; engine.js:1158-1166)
             if let Some(vm) = self.repo.refd(v, "model").filter(|m| self.repo.kind_of(*m, "UMLActivityNode")) {
                 let target = match to.and_then(|c| self.repo.refd(c, "model")) {
-                    Some(pm) if self.repo.kind_of(pm, "UMLActivityGroup") => Some(pm),
+                    Some(pm) if self.repo.kind_of(pm, "UMLActivityGroup") || self.repo.kind_of(pm, "UMLStructuredActivityNode") => Some(pm),
                     _ => self.diagram_activity(d),
                 };
                 if let Some(t) = target.filter(|t| self.repo.parent(vm) != Some(*t) && self.repo.field_of(vm).as_deref() == Some("nodes")) {
@@ -1305,7 +1334,9 @@ impl App {
             // a transition joins two vertices: states and pseudostates
             "UMLTransition" => r.kind_of(tm, "UMLVertex") && r.kind_of(hm, "UMLVertex"),
             // a control or object flow joins two activity nodes (uml-factory.js:119-127)
-            "UMLControlFlow" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
+            "UMLControlFlow" | "UMLActivityInterrupt" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
+            // an exception handler joins two actions (actionLinkPrecondition, uml-factory.js:129-135)
+            "UMLExceptionHandler" => r.kind_of(tm, "UMLAction") && r.kind_of(hm, "UMLAction"),
             // an object flow may also end on a pin (UMLObjectFlowView.canConnectTo, elements.js:10528)
             "UMLObjectFlow" => {
                 let ok = |m: Eid| r.kind_of(m, "UMLActivityNode") || r.kind_of(m, "UMLPin");
@@ -1333,6 +1364,20 @@ impl App {
             let out = self.create_feature_on(tail, "UMLOutputPin", views::port_junction(tb, hc), R::default()).ok()?;
             let inp = self.create_feature_on(head, "UMLInputPin", views::port_junction(hb, tc), R::default()).ok()?;
             return self.create_edge_inner(tool, out, inp);
+        }
+        // an exception handler ends on a new input pin of the handler action, where the line meets it;
+        // the action is its handler body (exceptionHandlerFn, uml-factory.js:2367-2425)
+        if tool.kind == "UMLExceptionHandler" {
+            let (tm, hm) = (self.repo.refd(tail, "model")?, self.repo.refd(head, "model")?);
+            let (tb, hb) = (views::node_rect(&self.repo, tail), views::node_rect(&self.repo, head));
+            let tc = P { x: tb.x + tb.w / 2.0, y: tb.y + tb.h / 2.0 };
+            let pin = self.create_feature_on(head, "UMLInputPin", views::port_junction(hb, tc), R::default()).ok()?;
+            let pm = self.repo.refd(pin, "model")?;
+            let owner = self.diagram_activity(d).unwrap_or(tm);
+            let field = if self.repo.ty(owner) == "UMLActivity" { "edges" } else { "ownedElements" };
+            let (s, t, hb) = (self.repo.ref_to(tm), self.repo.ref_to(pm), self.repo.ref_to(hm));
+            let m = self.repo.create("UMLExceptionHandler", &[("source", s), ("target", t), ("handlerBody", hb)], Some((owner, field)));
+            return views::create_edge_view(&mut self.repo, d, Some(m), tail, pin);
         }
         if tool.kind == "NoteLink" {
             return views::create_edge_view(&mut self.repo, d, None, tail, head);
@@ -1381,7 +1426,7 @@ impl App {
             let owner = match self.repo.parent(tm) {
                 Some(rg) if tool.kind == "UMLTransition" && self.repo.ty(rg) == "UMLRegion" => (rg, "transitions"),
                 // a flow belongs to the edges of the diagram's activity (uml-factory.js:2253-2300)
-                _ if matches!(tool.kind, "UMLControlFlow" | "UMLObjectFlow") && self.diagram_activity(d).is_some() => (self.diagram_activity(d)?, "edges"),
+                _ if matches!(tool.kind, "UMLControlFlow" | "UMLObjectFlow" | "UMLActivityInterrupt") && self.diagram_activity(d).is_some() => (self.diagram_activity(d)?, "edges"),
                 _ => (tm, "ownedElements"),
             };
             self.repo.create(tool.kind, &[("source", s), ("target", t)], Some(owner))
@@ -1561,7 +1606,7 @@ impl App {
             .list(d, "ownedViews")
             .into_iter()
             .rev()
-            .filter(|v| views::is_node(&self.repo, *v) && !matches!(self.repo.ty(*v), "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView") && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
+            .filter(|v| views::is_node(&self.repo, *v) && !matches!(self.repo.ty(*v), "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLExpansionNodeView") && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
             .find(|v| {
                 let b = views::node_rect(&self.repo, *v);
                 at.x >= b.x && at.y >= b.y && at.x <= b.x + b.w && at.y <= b.y + b.h
@@ -1574,12 +1619,16 @@ impl App {
     /// action's box, in the action's inputs or outputs (uml-factory.js:3827-3834).
     pub fn create_feature_on(&mut self, host: Eid, kind: &str, at: P, rect: R) -> Result<Eid, String> {
         let d = self.diagram.ok_or_else(String::new)?;
-        if kind == "UMLInputPin" || kind == "UMLOutputPin" {
+        if matches!(kind, "UMLInputPin" | "UMLOutputPin" | "UMLInputExpansionNode" | "UMLOutputExpansionNode") {
             let refused = format!("{kind} cannot be placed here.");
-            let hm = self.repo.refd(host, "model").filter(|m| self.repo.ty(*m) == "UMLAction").ok_or(refused)?;
-            let name = self.new_name(hm, kind);
-            let field = if kind == "UMLInputPin" { "inputs" } else { "outputs" };
-            let m = self.repo.create(kind, &[("name", json!(name))], Some((hm, field)));
+            let hm = self.repo.refd(host, "model").filter(|m| self.repo.kind_of(*m, "UMLAction")).ok_or(refused)?;
+            // an expansion node is an unnamed UMLExpansionNode (uml-factory.js:3849-3866)
+            let (ty, name) = match kind {
+                "UMLInputExpansionNode" | "UMLOutputExpansionNode" => ("UMLExpansionNode", String::new()),
+                _ => (kind, self.new_name(hm, kind)),
+            };
+            let field = if matches!(kind, "UMLInputPin" | "UMLInputExpansionNode") { "inputs" } else { "outputs" };
+            let m = self.repo.create(ty, &[("name", json!(name))], Some((hm, field)));
             let v = views::create_pin_view(&mut self.repo, d, m, host, at);
             self.apply_view_defaults(v);
             return Ok(v);

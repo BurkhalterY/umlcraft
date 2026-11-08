@@ -277,7 +277,7 @@ const STATECHART_GROUPS: &[Group] = &[
     },
     ANNOTATIONS,
 ];
-// activity diagrams (uml.json "uml.activity", "uml.activity-adv"): the advanced tools UMLCraft has
+// activity diagrams (uml.json "uml.activity", "uml.activity-adv")
 const ACTIVITY_GROUPS: &[Group] = &[
     Group {
         id: "activity",
@@ -299,6 +299,8 @@ const ACTIVITY_GROUPS: &[Group] = &[
         items: &[
             node("Swimlane (Vertical)", "SwimlaneVert", "swimlane-vert"),
             node("Swimlane (Horizontal)", "SwimlaneHorz", "swimlane-horz"),
+            node("Interruptible Activity Region", "UMLInterruptibleActivityRegion", "interruptible"),
+            node("Structured Activity", "UMLStructuredActivityNode", "structured"),
             node("Input Pin", "UMLInputPin", "pin"),
             node("Output Pin", "UMLOutputPin", "pin"),
             node("Send Signal", "SendSignal", "send-signal"),
@@ -308,8 +310,15 @@ const ACTIVITY_GROUPS: &[Group] = &[
             node("Object Node", "UMLObjectNode", "object-node"),
             node("Central Buffer", "UMLCentralBufferNode", "object-node"),
             node("Datastore", "UMLDataStoreNode", "object-node"),
+            node("Activity Parameter Node", "UMLActivityParameterNode", "param-node"),
+            node("Expansion Region", "UMLExpansionRegion", "expansion-region"),
+            node("Input Expansion Node", "UMLInputExpansionNode", "expansion-node"),
+            node("Output Expansion Node", "UMLOutputExpansionNode", "expansion-node"),
             node("Frame", "Frame", "frame"),
             line("Object Flow", "UMLObjectFlow", "dependency", AssocInit::Plain),
+            line("Exception Handler", "UMLExceptionHandler", "interrupt", AssocInit::Plain),
+            line("Activity Interrupt", "UMLActivityInterrupt", "interrupt", AssocInit::Plain),
+            node("Activity Edge Connector", "UMLActivityEdgeConnector", "edge-connector"),
         ],
     },
     ANNOTATIONS,

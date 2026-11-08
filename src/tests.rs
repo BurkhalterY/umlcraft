@@ -4982,3 +4982,98 @@ fn swimlanes_hold_the_activity_nodes_drawn_in_them() {
     assert!(svg.contains("rotate(-90"), "a horizontal lane's name reads upwards");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn advanced_activity_tools_make_their_elements() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let act = a.repo.parent(d).unwrap();
+    // a structured activity holds the actions drawn in it, in its own nodes
+    let sv = a.change(|a| a.create_node("UMLStructuredActivityNode", rect(0.0, 0.0, 300.0, 200.0))).unwrap();
+    let sm = a.repo.refd(sv, "model").unwrap();
+    assert_eq!(a.repo.ty(sv), "UMLStructuredActivityNodeView");
+    let inner = a.change(|a| a.create_node("UMLAction", rect(20.0, 60.0, 60.0, 40.0))).unwrap();
+    let im = a.repo.refd(inner, "model").unwrap();
+    assert_eq!(a.repo.parent(im), Some(sm));
+    assert_eq!(a.repo.field_of(im).as_deref(), Some("nodes"));
+    // an expansion region shows its mode; expansion nodes sit on its border
+    let ev = a.change(|a| a.create_node("UMLExpansionRegion", rect(400.0, 0.0, 200.0, 150.0))).unwrap();
+    let em = a.repo.refd(ev, "model").unwrap();
+    assert_eq!(a.repo.str(em, "mode"), "iterative");
+    let en = a.change(|a| a.create_feature_box("UMLInputExpansionNode", crate::views::P { x: 500.0, y: 0.0 }, rect(0.0, 0.0, 0.0, 0.0)).ok()).unwrap();
+    assert_eq!(a.repo.ty(en), "UMLExpansionNodeView");
+    let enm = a.repo.refd(en, "model").unwrap();
+    assert_eq!((a.repo.ty(enm), a.repo.name(enm).as_str()), ("UMLExpansionNode", ""));
+    assert_eq!(a.repo.list(em, "inputs"), vec![enm]);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let b = crate::views::node_rect(&a.repo, en);
+    assert_eq!(crate::views::pin_side(&a.repo, en), "top");
+    assert_eq!((b.w, b.h), (72.0, 18.0), "four cells along the top border");
+    let st = a.repo.refd(ev, "nameCompartment").and_then(|nc| a.repo.refd(nc, "stereotypeLabel")).unwrap();
+    assert_eq!(a.repo.str(st, "text"), "«iterative»");
+    // an interruptible region is a group; an edge connector is named "A"
+    let iv = a.change(|a| a.create_node("UMLInterruptibleActivityRegion", rect(0.0, 300.0, 10.0, 10.0))).unwrap();
+    let ig = a.repo.refd(iv, "model").unwrap();
+    assert!(a.repo.list(act, "groups").contains(&ig));
+    let cv = a.change(|a| a.create_node("UMLActivityEdgeConnector", rect(700.0, 300.0, 26.0, 26.0))).unwrap();
+    assert_eq!(a.repo.name(a.repo.refd(cv, "model").unwrap()), "A");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(iv, "width"), a.repo.f(iv, "height")), (30.0, 30.0));
+    // an exception handler ends on a new input pin of the handler and carries a zig-zag
+    let h1 = a.change(|a| a.create_node("UMLAction", rect(100.0, 500.0, 60.0, 40.0))).unwrap();
+    let h2 = a.change(|a| a.create_node("UMLAction", rect(400.0, 500.0, 60.0, 40.0))).unwrap();
+    let t = tool("UMLExceptionHandler", AssocInit::Plain);
+    assert!(a.can_connect(&t, h1, h2));
+    let eh = a.change(|a| a.create_edge(&t, h1, h2)).unwrap();
+    let ehm = a.repo.refd(eh, "model").unwrap();
+    assert_eq!(a.repo.ty(eh), "UMLExceptionHandlerView");
+    assert_eq!(a.repo.refd(ehm, "handlerBody"), a.repo.refd(h2, "model"));
+    assert_eq!(a.repo.ty(a.repo.refd(ehm, "target").unwrap()), "UMLInputPin");
+    assert_eq!(a.repo.ty(a.repo.refd(eh, "head").unwrap()), "UMLInputPinView");
+    assert!(a.repo.list(act, "edges").contains(&ehm));
+    let ai = a.change(|a| a.create_edge(&tool("UMLActivityInterrupt", AssocInit::Plain), h1, h2)).unwrap();
+    assert_eq!(a.repo.ty(a.repo.refd(ai, "model").unwrap()), "UMLActivityInterrupt");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let z = a.repo.refd(ai, "adornment").unwrap();
+    assert_eq!((a.repo.ty(z), a.repo.f(z, "width"), a.repo.f(z, "height")), ("UMLZigZagAdornmentView", 25.0, 20.0));
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("A</text>"));
+    let text = a.repo.serialize();
+    Repo::parse(&text).unwrap();
+}
+
+#[test]
+fn activity_boxes_show_called_operations_and_states() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let class = a.repo.create("UMLClass", &[("name", serde_json::json!("Order"))], Some((root, "ownedElements")));
+    let op = a.repo.create("UMLOperation", &[("name", serde_json::json!("place"))], Some((class, "operations")));
+    let v = a.change(|a| a.create_node("UMLAction", rect(0.0, 0.0, 60.0, 40.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    a.repo.set(m, "kind", serde_json::json!("callOperation"));
+    let opr = a.repo.ref_to(op);
+    a.repo.set(m, "target", opr);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nc = a.repo.refd(v, "nameCompartment").unwrap();
+    let ns = a.repo.refd(nc, "namespaceLabel").unwrap();
+    assert_eq!(a.repo.str(ns, "text"), "(Order::place)");
+    assert_ne!(a.repo.raw(ns, "visible"), Some(&serde_json::json!(false)));
+    // unnamed, it shows the operation's name
+    a.repo.set(m, "name", serde_json::json!(""));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nm = a.repo.refd(nc, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nm, "text"), "place");
+    // an object node in states
+    let o = a.change(|a| a.create_node("UMLObjectNode", rect(200.0, 0.0, 60.0, 40.0))).unwrap();
+    let om = a.repo.refd(o, "model").unwrap();
+    let st = a.repo.create("UMLState", &[("name", serde_json::json!("Paid"))], Some((root, "ownedElements")));
+    let sr = a.repo.ref_to(st);
+    a.repo.set(om, "inStates", serde_json::json!([sr]));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let ons = a.repo.refd(a.repo.refd(o, "nameCompartment").unwrap(), "namespaceLabel").unwrap();
+    assert_eq!(a.repo.str(ons, "text"), "[Paid]");
+}
