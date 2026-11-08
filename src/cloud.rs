@@ -23,9 +23,26 @@ pub const ICON_FOLDER_PREF: &str = "cloud.iconFolder";
 
 // ------------------------------------------------------------------ the notations
 
+/// The notation of a type, by its prefix.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Notation {
+    Aws,
+    Azure,
+}
+
+pub fn notation(ty: &str) -> Option<Notation> {
+    if ty.starts_with("AWS") {
+        Some(Notation::Aws)
+    } else if ty.starts_with("Azure") {
+        Some(Notation::Azure)
+    } else {
+        None
+    }
+}
+
 /// Whether a model type is a box on a cloud diagram.
 pub fn is_node_type(ty: &str) -> bool {
-    crate::aws::is_node_type(ty)
+    crate::aws::is_node_type(ty) || crate::azure::is_node_type(ty)
 }
 
 /// Whether a view type is the view of such a box.
@@ -37,26 +54,27 @@ pub fn is_node_view(ty: &str) -> bool {
 pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
     match model_ty {
         "AWSArrow" => Some("AWSArrowView"),
+        "AzureConnector" => Some("AzureConnectorView"),
         _ => None,
     }
 }
 
 pub fn is_edge_view(ty: &str) -> bool {
-    matches!(ty, "AWSArrowView")
+    matches!(ty, "AWSArrowView" | "AzureConnectorView")
 }
 
-/// The common kind of a notation's elements, by the prefix of a type ("AWSService" → "AWSElement").
+/// The common kind of a notation's elements ("AWSService" → "AWSElement").
 pub fn element_kind(ty: &str) -> Option<&'static str> {
-    if ty.starts_with("AWS") {
-        Some("AWSElement")
-    } else {
-        None
-    }
+    Some(match notation(ty)? {
+        Notation::Aws => "AWSElement",
+        Notation::Azure => "AzureElement",
+    })
 }
 
 /// The diagram kinds, their models and their Model › Add Diagram and Model › Add labels
-/// (aws/menus/aws.json): (diagram, model, diagram label, model label).
-pub const DIAGRAMS: [(&str, &str, &str, &str); 1] = [("AWSDiagram", "AWSModel", "AWS Architecture Diagram", "AWS Model")];
+/// (aws/menus/aws.json, azure/menus/azure.json): (diagram, model, diagram label, model label).
+pub const DIAGRAMS: [(&str, &str, &str, &str); 2] =
+    [("AWSDiagram", "AWSModel", "AWS Architecture Diagram", "AWS Model"), ("AzureDiagram", "AzureModel", "Azure Architecture Diagram", "Azure Model")];
 
 pub fn is_diagram(ty: &str) -> bool {
     DIAGRAMS.iter().any(|d| d.0 == ty)
@@ -69,20 +87,22 @@ pub fn model_of(diagram_ty: &str) -> Option<&'static str> {
 
 /// The folder (under the icon folder) a model type takes its icon from, and the field Set Icon
 /// renames from the icon's file name (`__assetBaseDir` of each class; aws-commands.js:31-60,
-/// gcp-commands.js:31-80). Types without one have no icon picker.
+/// azure-commands.js:31-50, gcp-commands.js:31-80). Types without one have no icon picker.
 pub fn icon_base(model_ty: &str) -> Option<(&'static str, &'static str)> {
-    crate::aws::icon_base(model_ty)
+    crate::aws::icon_base(model_ty).or_else(|| crate::azure::icon_base(model_ty))
 }
 
 /// The icon a new element starts with (the constructors in each elements.js).
 pub fn default_icon(model_ty: &str) -> Option<&'static str> {
-    crate::aws::default_icon(model_ty)
+    crate::aws::default_icon(model_ty).or_else(|| crate::azure::default_icon(model_ty))
 }
 
-/// What a diagram takes a view of (canAcceptModel of each diagram, aws/elements.js:105-115).
+/// What a diagram takes a view of (canAcceptModel of each diagram, aws/elements.js:105-115,
+/// azure/elements.js:100-110).
 pub fn accepted(diagram_ty: &str) -> &'static [&'static str] {
     match diagram_ty {
         "AWSDiagram" => &["Hyperlink", "Diagram", "AWSElement", "AWSArrow"],
+        "AzureDiagram" => &["Hyperlink", "Diagram", "AzureElement", "AzureConnector"],
         _ => &[],
     }
 }
@@ -97,7 +117,7 @@ pub fn init_model(r: &mut Repo, m: Eid) {
 /// Whether a box can hold another: a group or zone holds the other boxes of its notation
 /// (canContainViewKind of each group view).
 pub fn can_contain(container_ty: &str, view_ty: &str) -> bool {
-    crate::aws::can_contain(container_ty, view_ty)
+    crate::aws::can_contain(container_ty, view_ty) || crate::azure::can_contain(container_ty, view_ty)
 }
 
 /// A new element's view: a general box with a word-wrapped name label, or an icon with its name
@@ -134,14 +154,15 @@ pub fn create_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Eid {
 }
 
 /// The colours a view's constructor sets, over the preferred ones: a callout is black with white
-/// text (AWSCalloutView constructor).
+/// text (AWSCalloutView, AzureCalloutView constructors).
 pub fn init_view(r: &mut Repo, v: Eid) {
     crate::aws::init_view(r, v);
+    crate::azure::init_view(r, v);
 }
 
-/// Whether a view is an icon with a floating name (AWSIconNodeView).
+/// Whether a view is an icon with a floating name (AWSIconNodeView, AzureIconNodeView).
 pub fn is_icon_view(view_ty: &str) -> bool {
-    crate::aws::is_icon_view(view_ty)
+    crate::aws::is_icon_view(view_ty) || crate::azure::is_icon_view(view_ty)
 }
 
 /// A general box's label alignment (Canvas.AL_LEFT 0, AL_CENTER 2).
@@ -158,7 +179,11 @@ pub fn layout(r: &mut Repo, ms: &dyn Measure, v: Eid) {
     if !r.refd(v, "model").map(|m| r.alive(m)).unwrap_or(false) {
         return;
     }
-    crate::aws::layout(r, ms, v);
+    match notation(r.ty(v)) {
+        Some(Notation::Aws) => crate::aws::layout(r, ms, v),
+        Some(Notation::Azure) => crate::azure::layout(r, ms, v),
+        None => {}
+    }
 }
 
 /// Draw a box.
@@ -166,15 +191,26 @@ pub fn draw(c: &mut dyn Canvas, r: &Repo, v: Eid, fill: Rgba, line: Rgba, fc: Rg
     if r.refd(v, "model").is_none() {
         return;
     }
-    crate::aws::draw(c, r, v, fill, line, fc);
+    match notation(r.ty(v)) {
+        Some(Notation::Aws) => crate::aws::draw(c, r, v, fill, line, fc),
+        Some(Notation::Azure) => crate::azure::draw(c, r, v, fill, line, fc),
+        None => {}
+    }
 }
 
 /// What a line's update sets on its view, saved with it.
 pub fn update_edge(_r: &mut Repo, _e: Eid) {}
 
+/// Whether a line is drawn dotted: an Azure connector when `dashed` (AzureConnectorView.update,
+/// LM_DOT).
+pub fn edge_dotted(r: &Repo, e: Eid) -> bool {
+    let Some(m) = r.refd(e, "model") else { return false };
+    r.ty(m) == "AzureConnector" && r.bool(m, "dashed")
+}
+
 /// The quick edit's dropdowns of an element: (field, hint, options as (value, label)).
-pub fn dropdowns(_r: &Repo, _m: Eid) -> Vec<(&'static str, &'static str, Vec<(Value, &'static str)>)> {
-    vec![]
+pub fn dropdowns(r: &Repo, m: Eid) -> Vec<(&'static str, &'static str, Vec<(Value, &'static str)>)> {
+    crate::azure::dropdowns(r.ty(m))
 }
 
 /// The attributes the Properties panel shows (the `visible` ones of each metamodel.json; the icon
@@ -185,18 +221,19 @@ pub fn fields(ty: &str) -> Vec<(&'static str, &'static str)> {
         f.extend([("source", "ref"), ("target", "ref")]);
     }
     match ty {
-        "AWSGenericGroup" => f.push(("dashed", "bool")),
+        "AWSGenericGroup" | "AzureConnector" => f.push(("dashed", "bool")),
+        "AzureGroup" => f.extend([("dashed", "bool"), ("rounded", "bool")]),
         _ => {}
     }
     f
 }
 
-/// The icon button's hint in the quick edit ("AWS Icon"; quickedits/aws.json).
+/// The icon button's hint in the quick edit ("AWS Icon"; quickedits/aws.json, azure.json).
 pub fn icon_hint(model_ty: &str) -> &'static str {
-    if model_ty.starts_with("AWS") {
-        "AWS Icon"
-    } else {
-        "Icon"
+    match notation(model_ty) {
+        Some(Notation::Aws) => "AWS Icon",
+        Some(Notation::Azure) => "Azure Icon",
+        None => "Icon",
     }
 }
 

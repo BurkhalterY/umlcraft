@@ -239,6 +239,8 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
     // the cloud diagrams' line styles (aws/preferences/aws.json)
     v.push(("AWS", "", "Arrow", Kind::Header, Value::Null));
     v.push(("AWS", "aws.arrow.lineStyle", "Line Style", Kind::LineStyle, json!(2)));
+    v.push(("Azure", "", "Arrow", Kind::Header, Value::Null));
+    v.push(("Azure", "azure.arrow.lineStyle", "Line Style", Kind::LineStyle, json!(2)));
     // per element kind: fill colour (null = the general one), stereotype display and compartments
     let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 29] = [
         ("Package", "package", None),
@@ -442,6 +444,7 @@ impl App {
                 "ERDRelationshipView" => Some("erd.relationship.lineStyle"),
                 "C4RelationshipView" => Some("c4.relationship.lineStyle"),
                 "AWSArrowView" => Some("aws.arrow.lineStyle"),
+                "AzureConnectorView" => Some("azure.arrow.lineStyle"),
                 _ => None,
             };
             let own = key.and_then(|k| self.pref(k).as_i64()).filter(|s| *s != 0);
@@ -476,7 +479,7 @@ impl App {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(120.0);
-                    for s in ["General", "AWS", "C4 Model", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "UML"] {
+                    for s in ["General", "AWS", "Azure", "C4 Model", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "UML"] {
                         if ui.selectable_label(section == s, s).clicked() {
                             pick = Some(s.to_string());
                         }

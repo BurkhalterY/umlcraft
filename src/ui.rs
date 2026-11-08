@@ -331,6 +331,20 @@ const AWS_GROUPS: &[Group] = &[
     },
     ANNOTATIONS,
 ];
+// an Azure architecture diagram (azure/toolbox/azure.json)
+const AZURE_GROUPS: &[Group] = &[
+    Group {
+        id: "azure.elements",
+        label: "Azure",
+        items: &[
+            node("Azure Group", "AzureGroup", "AzureGroup"),
+            node("Azure Service", "AzureService", "AzureService"),
+            node("Azure Callout", "AzureCallout", "AzureCallout"),
+            line("Azure Connector", "AzureConnector", "AzureConnector", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
 // a C4 diagram (c4/toolbox/c4.json)
 const C4_GROUPS: &[Group] = &[
     Group {
@@ -561,7 +575,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 22] = [
+const DIAGRAM_KINDS: [(&str, &str); 23] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -585,6 +599,7 @@ const DIAGRAM_KINDS: [(&str, &str); 22] = [
     ("C4 Diagram", "C4Diagram"),
     ("Wireframe Diagram", "WFWireframeDiagram"),
     ("AWS Architecture Diagram", "AWSDiagram"),
+    ("Azure Architecture Diagram", "AzureDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -1881,6 +1896,7 @@ impl App {
                 Some("ERDDiagram") => self.open_groups.insert("erd"),
                 Some("C4Diagram") => self.open_groups.insert("c4"),
                 Some("AWSDiagram") => self.open_groups.insert("aws.elements"),
+                Some("AzureDiagram") => self.open_groups.insert("azure.elements"),
                 // both groups open on a wireframe diagram ("auto-expands")
                 Some("WFWireframeDiagram") => self.open_groups.insert("wireframe.frames") | self.open_groups.insert("wireframe.components"),
                 Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
@@ -1919,6 +1935,7 @@ impl App {
             Some("ERDDiagram") => ERD_GROUPS,
             Some("C4Diagram") => C4_GROUPS,
             Some("AWSDiagram") => AWS_GROUPS,
+            Some("AzureDiagram") => AZURE_GROUPS,
             Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
             Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
             Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,

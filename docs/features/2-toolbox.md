@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER, C4 and AWS architecture diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
+UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER, C4, AWS and Azure architecture diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -20,10 +20,10 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | AWS `aws.elements` | AWSDiagram | AWS General Resource | 🟡 | an AWSGeneralResource with the icon Users.svg, drawn as a service is (src/aws.rs). The AWS icon sets are not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/aws/toolbox/aws.json |
 | AWS `aws.elements` | AWSDiagram | AWS Callout | ✅ | an AWSCallout named "1": a black circle, at least 24 × 24, with its number in white (src/aws.rs; src/cloud.rs) | extensions/essential/aws/toolbox/aws.json |
 | AWS `aws.elements` | AWSDiagram | AWS Arrow | ✅ | an AWSArrow between two AWS elements, owned by the first: an open arrow head, its name 15 px off its middle, in the `aws.arrow.lineStyle` style (src/render.rs; src/app.rs) | extensions/essential/aws/toolbox/aws.json |
-| Azure `azure.elements` | AzureDiagram | Azure Group | ❌ | extensions/essential/azure/toolbox/azure.json |
-| Azure `azure.elements` | AzureDiagram | Azure Service | ❌ | extensions/essential/azure/toolbox/azure.json |
-| Azure `azure.elements` | AzureDiagram | Azure Callout | ❌ | extensions/essential/azure/toolbox/azure.json |
-| Azure `azure.elements` | AzureDiagram | Azure Connector | ❌ | extensions/essential/azure/toolbox/azure.json |
+| Azure `azure.elements` | AzureDiagram | Azure Group | ✅ | an AzureGroup ("AzureGroup1"): a filled box with its name at the top, square or rounded by 10, solid or dashed (3, 3) by its `rounded` and `dashed`; it holds the Azure boxes drawn or dropped in it (src/azure.rs; src/app.rs:915) | extensions/essential/azure/toolbox/azure.json |
+| Azure `azure.elements` | AzureDiagram | Azure Service | 🟡 | an AzureService with the icon App-Services.svg, at least 48 × 48, its name 42 under its centre (src/azure.rs; src/cloud.rs). The Azure icon set is not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/azure/toolbox/azure.json |
+| Azure `azure.elements` | AzureDiagram | Azure Callout | ✅ | an AzureCallout named "1": a black circle, at least 24 × 24, with its number in white (src/azure.rs; src/cloud.rs) | extensions/essential/azure/toolbox/azure.json |
+| Azure `azure.elements` | AzureDiagram | Azure Connector | ✅ | an AzureConnector between two Azure elements: a filled arrow head, dotted when `dashed`, in the `azure.arrow.lineStyle` style. Its name is shown 15 px off its middle, which the original's update (it skips EdgeView.update) leaves out: an upstream quirk not copied (src/render.rs; src/cloud.rs `edge_dotted`) | extensions/essential/azure/toolbox/azure.json |
 | BPMN Basic `bpmn.basic` | BPMNDiagram | Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
 | BPMN Basic `bpmn.basic` | BPMNDiagram | Gateway | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
 | BPMN Basic `bpmn.basic` | BPMNDiagram | Start Event | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |

@@ -6028,3 +6028,47 @@ fn cloud_icons_come_from_the_icon_folder() {
     assert!(icon_url(&dir, "aws/service-icons", "Missing.svg").is_none());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn azure_diagrams_have_groups_services_callouts_and_connectors() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "AzureDiagram"));
+    let model = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(model), a.repo.name(model).as_str(), a.repo.name(d).as_str()), ("AzureModel", "AzureModel1", "AzureDiagram1"));
+    let g = a.change(|a| a.create_node("AzureGroup", rect(0.0, 0.0, 300.0, 200.0))).unwrap();
+    let gm = a.repo.refd(g, "model").unwrap();
+    assert_eq!(a.repo.name(gm), "AzureGroup1");
+    let s = a.change(|a| a.create_node("AzureService", rect(40.0, 60.0, 1.0, 1.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    assert_eq!((a.repo.parent(sm), a.repo.str(sm, "icon").as_str()), (Some(gm), "App-Services.svg"));
+    let s2 = a.change(|a| a.create_node("AzureService", rect(400.0, 60.0, 1.0, 1.0))).unwrap();
+    let c = a.change(|a| a.create_node("AzureCallout", rect(400.0, 200.0, 1.0, 1.0))).unwrap();
+    assert_eq!(a.repo.name(a.repo.refd(c, "model").unwrap()), "1");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(s, "width"), a.repo.f(s, "height")), (48.0, 48.0));
+    // the group's quick edit has Dashed and Rounded; the choice is saved on the group
+    let menus = crate::cloud::dropdowns(&a.repo, gm);
+    assert_eq!(menus.iter().map(|m| m.1).collect::<Vec<_>>(), vec!["Dashed", "Rounded"]);
+    a.repo.set(gm, "rounded", json!(true));
+    assert!(a.repo.serialize().contains("\"rounded\": true"));
+    // a connector: a filled arrow, dotted when dashed
+    let t = tool("AzureConnector", AssocInit::Plain);
+    assert!(a.can_connect(&t, s, s2));
+    let e = a.change(|a| a.create_edge(&t, s, s2)).unwrap();
+    assert_eq!((a.repo.ty(e), a.repo.val(e, "lineStyle")), ("AzureConnectorView", Some(json!(2))));
+    let em = a.repo.refd(e, "model").unwrap();
+    assert!(!crate::cloud::edge_dotted(&a.repo, e));
+    assert_eq!(crate::cloud::dropdowns(&a.repo, em)[0].0, "dashed");
+    a.repo.set(em, "dashed", json!(true));
+    assert!(crate::cloud::edge_dotted(&a.repo, e));
+    assert_eq!(crate::cloud::icon_hint("AzureService"), "Azure Icon");
+    let back = Repo::parse(&a.repo.serialize()).unwrap();
+    assert_eq!(back.all_of("AzureConnector").len(), 1);
+    let tp = crate::templates::TEMPLATES.iter().find(|t| t.label == "Azure Architecture").unwrap();
+    let pr = crate::templates::project(tp);
+    let m0 = pr.children(pr.root)[0].1;
+    assert_eq!((pr.ty(m0), pr.name(m0).as_str()), ("AzureModel", "Azure Architecture"));
+    assert_eq!(pr.name(pr.children(m0)[0].1), "Main");
+}

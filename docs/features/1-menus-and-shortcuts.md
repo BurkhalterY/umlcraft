@@ -119,11 +119,11 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | View › Relationships | `relationship-view:toggle` | `ctrl-alt-r` | ✅ | check item in the View menu; the panel's visibility is kept in `view.relationships.visibility` (src/ui.rs:1970; src/prefs.rs:93, 120) | extensions/default/relationship-view/menus/relationship-view.json |
 | File › Import › StarUML 1 File (.uml)... | `staruml-v1:import` |  | ❌ |  | extensions/default/staruml-v1/menus/staruml-v1.json |
 | File › New From Template › AWS Architecture | `aws:new-from-template` |  | ✅ | an AWSModel "AWS Architecture" with its default diagram "Main", without the UML profile (src/templates.rs:58) | extensions/essential/aws/menus/aws.json |
-| Model › Add Diagram › AWS Architecture Diagram | `factory:create-diagram` |  | ✅ | under any element ("AWSDiagram1"); under the project, in a new "AWSModel1" (src/ui.rs:587; src/app.rs:2210) | extensions/essential/aws/menus/aws.json |
-| Model › Add › AWS Model | `factory:create-model` |  | ✅ | "AWSModel1" under any element, as the menu is not filtered (src/ui.rs:851) | extensions/essential/aws/menus/aws.json |
-| File › New From Template › Azure Architecture | `azure:new-from-template` |  | ❌ | no templates | extensions/essential/azure/menus/azure.json |
-| Model › Add Diagram › Azure Architecture Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/azure/menus/azure.json |
-| Model › Add › Azure Model | `factory:create-model` |  | ❌ |  | extensions/essential/azure/menus/azure.json |
+| Model › Add Diagram › AWS Architecture Diagram | `factory:create-diagram` |  | ✅ | under any element ("AWSDiagram1"); under the project, in a new "AWSModel1" (src/ui.rs:601; src/app.rs:2210) | extensions/essential/aws/menus/aws.json |
+| Model › Add › AWS Model | `factory:create-model` |  | ✅ | "AWSModel1" under any element, as the menu is not filtered (src/ui.rs:866) | extensions/essential/aws/menus/aws.json |
+| File › New From Template › Azure Architecture | `azure:new-from-template` |  | ✅ | an AzureModel "Azure Architecture" with its default diagram "Main", without the UML profile (src/templates.rs:59) | extensions/essential/azure/menus/azure.json |
+| Model › Add Diagram › Azure Architecture Diagram | `factory:create-diagram` |  | ✅ | under any element ("AzureDiagram1"); under the project, in a new "AzureModel1" (src/ui.rs:602; src/app.rs:2210) | extensions/essential/azure/menus/azure.json |
+| Model › Add › Azure Model | `factory:create-model` |  | ✅ | "AzureModel1" under any element, as the menu is not filtered (src/ui.rs:866) | extensions/essential/azure/menus/azure.json |
 | File › New From Template › BPMN Business Process Modeling | `bpmn:new-from-template` |  | ❌ | no templates | extensions/essential/bpmn/menus/bpmn.json |
 | Model › Add Diagram › BPMN Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/bpmn/menus/bpmn.json |
 | Model › Add › Business Process | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |

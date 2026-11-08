@@ -8,8 +8,8 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 
 | Section | Key | Label | Default | UMLCraft | Source |
 |---|---|---|---|---|---|
-| AWS | `aws.arrow.lineStyle` | Line Style | 2 | ✅ | in Preferences › AWS; a new arrow takes it, or the general one when it is Rectilinear (0) (src/prefs.rs:241, 444) | extensions/essential/aws/preferences/aws.json |
-| Azure | `azure.arrow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/azure/preferences/azure.json |
+| AWS | `aws.arrow.lineStyle` | Line Style | 2 | ✅ | in Preferences › AWS; a new arrow takes it, or the general one when it is Rectilinear (0) (src/prefs.rs:241, 446) | extensions/essential/aws/preferences/aws.json |
+| Azure | `azure.arrow.lineStyle` | Line Style | 2 | ✅ | in Preferences › Azure; a new connector takes it, or the general one when it is Rectilinear (0) (src/prefs.rs:243, 447) | extensions/essential/azure/preferences/azure.json |
 | BPMN | `bpmn.activity.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
 | BPMN | `bpmn.event.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
 | BPMN | `bpmn.message.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |

@@ -1134,6 +1134,12 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         }
         // an AWS arrow ends in an open arrow head (AWSArrowView, aws/elements.js:650-660)
         "AWSArrowView" => head = Some(End::Arrow),
+        // an Azure connector ends in a filled arrow head, dotted when dashed (AzureConnectorView,
+        // azure/elements.js:420-445)
+        "AzureConnectorView" => {
+            head = Some(End::SolidArrow);
+            dashed = crate::cloud::edge_dotted(r, e);
+        }
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
             if let Some(m) = r.refd(e, "model") {
