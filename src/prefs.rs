@@ -196,12 +196,63 @@ impl App {
 pub enum Kind {
     Header,
     Check,
-    Number,
-    Text,
     Color,
     LineStyle,
     StereotypeDisplay,
     Theme,
+    /// A font face: an editable field plus a list of the faces UMLCraft knows (preference-dialog.js:113-130).
+    Font,
+    /// A number typed or picked from a list, kept as an integer (preference-dialog.js:46-75).
+    Combo,
+}
+
+/// The choices of a combo preference (resources/default/preferences/default.json).
+fn combo_options(key: &str) -> &'static [i64] {
+    match key {
+        "view.fontSize" => &[8, 9, 10, 11, 12, 13, 14, 16, 20, 24, 28, 32],
+        "diagramEditor.gridSize" => &[2, 4, 6, 8, 10, 12, 14, 16, 18, 20],
+        _ => &[],
+    }
+}
+
+/// The line under a preference's name (the `description` of the preference schemas): the General
+/// ones by key, the per-kind ones as "<Setting> of <kind>." under their section header.
+pub fn description(key: &str, label: &str, header: &str) -> String {
+    let fixed = match key {
+        "general.working-file" => "Load the latest working file automatically when app launch",
+        "general.auto-backup" => "Backup working model automatically",
+        "theme.default" => "Default theme of UI.",
+        "view.font" => "Default font face of view elements.",
+        "view.fontSize" => "Default font size of view elements.",
+        "view.fillColor" => "Default fill color of view elements.",
+        "view.lineColor" => "Default line color of view elements.",
+        "view.fontColor" => "Default font color of view elements.",
+        "view.lineStyle" => "Default line style of edge-type view elements.",
+        "view.showShadow" => "Default showing shadow of view elements.",
+        "diagramEditor.showGrid" => "Show grid on diagram editor.",
+        "diagramEditor.snapToGrid" => "Snap to grid on diagram editor.",
+        "diagramEditor.gridSize" => "Default size (width and height) of grid.",
+        "diagramEditor.backgroundColor" => "Background color of diagram editor.",
+        "diagramEditor.gridColor" => "Grid color of diagram editor.",
+        "validation.validateModel" => "Validate model asynchronously when opening or saving files.",
+        _ => "",
+    };
+    if !fixed.is_empty() {
+        return fixed.to_string();
+    }
+    if key.ends_with(".stereotypeDisplay") {
+        return format!("Default stereotype display of {header}.");
+    }
+    // "Fill Color" of Class -> "Fill color of Class."
+    let mut words = label.split(' ');
+    let first = words.next().unwrap_or("");
+    let rest: Vec<String> = words.map(|w| w.to_lowercase()).collect();
+    let mut s = first.to_string();
+    for w in rest {
+        s.push(' ');
+        s.push_str(&w);
+    }
+    format!("{s} of {header}.")
 }
 
 /// The preferences UMLCraft uses, by section, with StarUML's keys, labels and defaults
@@ -213,8 +264,8 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("General", "general.auto-backup", "Auto backup", Kind::Check, json!(true)),
         ("General", "theme.default", "Default Theme", Kind::Theme, json!("dark")),
         ("General", "", "View", Kind::Header, Value::Null),
-        ("General", "view.font", "Font Face", Kind::Text, json!("Arial")),
-        ("General", "view.fontSize", "Font Size", Kind::Number, json!(13)),
+        ("General", "view.font", "Font Face", Kind::Font, json!("Arial")),
+        ("General", "view.fontSize", "Font Size", Kind::Combo, json!(13)),
         ("General", "view.fillColor", "Fill Color", Kind::Color, json!("#ffffff")),
         ("General", "view.lineColor", "Line Color", Kind::Color, json!("#000000")),
         ("General", "view.fontColor", "Font Color", Kind::Color, json!("#000000")),
@@ -223,7 +274,7 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("General", "", "Diagram Editor", Kind::Header, Value::Null),
         ("General", "diagramEditor.showGrid", "Show Grid", Kind::Check, json!(true)),
         ("General", "diagramEditor.snapToGrid", "Snap to Grid", Kind::Check, json!(true)),
-        ("General", "diagramEditor.gridSize", "Grid Size", Kind::Number, json!(8)),
+        ("General", "diagramEditor.gridSize", "Grid Size", Kind::Combo, json!(8)),
         ("General", "diagramEditor.backgroundColor", "Background Color", Kind::Color, json!("#ffffff")),
         ("General", "diagramEditor.gridColor", "Grid Color", Kind::Color, json!("#e0e0e0")),
         ("General", "", "Validation", Kind::Header, Value::Null),
@@ -477,7 +528,8 @@ impl App {
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !egui::Popup::is_any_open(ctx) {
             open = false;
         }
-        egui::Window::new("Preferences").open(&mut open).collapsible(false).resizable(true).default_size([620.0, 460.0]).anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO).show(ctx, |ui| {
+        crate::dialogs::dialog(ctx, "preferences", "Preferences", |ui| {
+            ui.set_min_width(620.0);
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(120.0);
@@ -490,6 +542,7 @@ impl App {
                 ui.separator();
                 egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| ui.vertical(|ui| {
                     egui::Grid::new("prefs-grid").num_columns(2).spacing([16.0, 6.0]).show(ui, |ui| {
+                        let mut header = "";
                         for (sec, key, label, kind, def) in items() {
                             if sec != section {
                                 continue;
@@ -497,9 +550,14 @@ impl App {
                             if kind == Kind::Header {
                                 ui.label(egui::RichText::new(label).strong());
                                 ui.end_row();
+                                header = label;
                                 continue;
                             }
-                            ui.label(label);
+                            // the name, with its description under it (preference-dialog-item-*.html)
+                            ui.vertical(|ui| {
+                                ui.label(label);
+                                ui.label(egui::RichText::new(description(key, label, header)).small().weak());
+                            });
                             let cur = self.prefs.get(key).cloned().unwrap_or(def.clone());
                             if let Some(new) = pref_widget(ui, key, kind, &cur) {
                                 self.prefs.set(key, new);
@@ -517,6 +575,13 @@ impl App {
                     }
                 }));
             });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                let close = ui.button("Close");
+                crate::ui::focus_primary(ui, &close);
+                if close.clicked() {
+                    open = false;
+                }
+            });
         });
         // Show Grid and Snap to Grid are the same settings as the View menu's
         self.show_grid = self.pref("diagramEditor.showGrid").as_bool().unwrap_or(true);
@@ -531,13 +596,38 @@ fn pref_widget(ui: &mut egui::Ui, key: &str, kind: Kind, cur: &Value) -> Option<
             let mut b = cur.as_bool().unwrap_or(false);
             ui.checkbox(&mut b, "").changed().then(|| json!(b))
         }
-        Kind::Number => {
-            let mut n = cur.as_f64().unwrap_or(0.0);
-            ui.add(egui::DragValue::new(&mut n).range(1.0..=200.0).speed(0.2)).changed().then(|| json!(n.round() as i64))
-        }
-        Kind::Text => {
+        Kind::Font => {
             let mut t = cur.as_str().unwrap_or("").to_string();
-            ui.add(egui::TextEdit::singleline(&mut t).desired_width(160.0)).changed().then(|| json!(t))
+            let mut out = None;
+            ui.horizontal(|ui| {
+                if ui.add(egui::TextEdit::singleline(&mut t).desired_width(140.0)).changed() {
+                    out = Some(json!(t));
+                }
+                if let Some(f) = crate::style::font_face_menu(ui, key) {
+                    out = Some(json!(f));
+                }
+            });
+            out
+        }
+        Kind::Combo => {
+            // typed text is kept as an integer, as the default is a number
+            let mut t = cur.as_i64().map(|n| n.to_string()).unwrap_or_default();
+            let mut out = None;
+            ui.horizontal(|ui| {
+                if ui.add(egui::TextEdit::singleline(&mut t).desired_width(48.0)).changed() {
+                    if let Ok(n) = t.trim().parse::<i64>() {
+                        out = Some(json!(n));
+                    }
+                }
+                egui::ComboBox::from_id_salt(("combo", key)).selected_text("").width(20.0).show_ui(ui, |ui| {
+                    for n in combo_options(key) {
+                        if ui.selectable_label(cur.as_i64() == Some(*n), n.to_string()).clicked() {
+                            out = Some(json!(n));
+                        }
+                    }
+                });
+            });
+            out
         }
         Kind::Color => {
             let c = cur.as_str().map(|s| crate::render::parse_color(s, crate::render::Rgba(255, 255, 255, 255)));
@@ -548,7 +638,7 @@ fn pref_widget(ui: &mut egui::Ui, key: &str, kind: Kind, cur: &Value) -> Option<
                     out = Some(json!(crate::style::hex(crate::render::Rgba(col.r(), col.g(), col.b(), 255))));
                 }
                 // a per-kind colour can go back to "use the general colour"
-                if key.starts_with("uml.") && cur.is_string() && ui.small_button("Default").clicked() {
+                if key.starts_with("uml.") && cur.is_string() && ui.small_button("Use Default").clicked() {
                     out = Some(Value::Null);
                 }
             });

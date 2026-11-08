@@ -479,10 +479,15 @@ fn select_in_diagram_and_scroll_per_diagram() {
     let v2 = a.change(|a| a.create_view_of(m, rect(40.0, 40.0, 100.0, 60.0))).unwrap();
     a.focus = Some(m);
     a.select_in_diagram();
-    assert_eq!(a.diagram_picker.as_ref().map(|p| p.0.clone()), Some(vec![v1, v2]));
+    assert_eq!(a.list_picker.as_ref().map(|p| (p.title.as_str(), p.items.clone(), p.action.clone())), Some(("Select Diagram to show", vec![d1, d2], crate::dialogs::ListAction::ShowView(vec![v1, v2]))));
+    // OK on the second row shows its view; "Do not specify" shows nothing
+    let mut p = a.list_picker.take().unwrap();
+    p.chosen = Some(1);
+    a.list_picker_ok(p);
+    assert_eq!((a.diagram, a.selection.clone()), (Some(d2), vec![v2]));
 
     // shown nowhere: a toast
-    a.diagram_picker = None;
+    a.list_picker = None;
     let other = a.change(|a| a.add_model(a.repo.root, "UMLClass"));
     a.focus = Some(other);
     a.select_in_diagram();
@@ -2177,7 +2182,7 @@ fn diagram_generator() {
     // without a package selected, an alert
     a.focus = None;
     assert!(a.generate_diagram(Generator::Overview, &ms).is_none());
-    assert_eq!(a.message.take().map(|m| m.0), Some("To generate Overview diagram, select a Package.".to_string()));
+    assert_eq!(a.boxes.pop(), Some((crate::dialogs::BoxKind::Info, "To generate overview diagram, select a Package.".to_string())));
     let pkg = a.repo.all().find(|e| a.repo.ty(*e) == "UMLModel").unwrap();
     let classes = a.repo.list(pkg, "ownedElements").into_iter().filter(|e| a.repo.ty(*e) == "UMLClass").count();
     a.focus = Some(pkg);
@@ -3018,6 +3023,13 @@ fn ownership_dot() {
     let asc = a.repo.refd(e, "model").unwrap();
     let end2 = a.repo.child(asc, "end2").unwrap();
     let before = String::from_utf8(crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap()).unwrap();
+    // Select Owner Attribute lists the attributes of the classifier at the other end
+    a.select_owner_attribute(end2);
+    let p = a.list_picker.take().unwrap();
+    assert_eq!((p.title.as_str(), p.items.clone()), ("Select Owner Attribute", vec![at]));
+    a.list_picker_ok(crate::dialogs::ListPicker { chosen: Some(0), ..p });
+    assert_eq!(a.repo.refd(end2, "ownerAttribute"), Some(at));
+    a.repo.set_ref(end2, "ownerAttribute", None);
     a.repo.set_ref(end2, "ownerAttribute", Some(at));
     let after = String::from_utf8(crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap()).unwrap();
     assert_eq!(after.matches("<ellipse").count(), before.matches("<ellipse").count() + 1, "one dot");
@@ -5774,6 +5786,20 @@ fn lifeline_and_message_quick_edits() {
     a.apply_input(crate::input::InputAction::CreateMessageOperation(reply), "done".into());
     let op = a.repo.refd(reply, "signature").unwrap();
     assert_eq!((a.repo.ty(op), a.repo.parent(op)), ("UMLOperation", Some(shop)));
+    // Select Operation: the list picker over the type's operations, inherited ones first
+    let base = a.change(|a| a.add_model(a.repo.parent(shop).unwrap(), "UMLClass"));
+    let inherited = a.change(|a| a.add_feature(base, "UMLOperation")).unwrap();
+    let g = a.change(|a| a.add_model(shop, "UMLGeneralization"));
+    a.repo.set_ref(g, "source", Some(shop));
+    a.repo.set_ref(g, "target", Some(base));
+    a.select_message_operation(reply);
+    let p = a.list_picker.clone().unwrap();
+    assert_eq!((p.title.as_str(), p.items.clone()), ("Select Operation", vec![inherited, op]));
+    a.list_picker_ok(crate::dialogs::ListPicker { chosen: Some(0), ..p });
+    assert_eq!(a.repo.refd(reply, "signature"), Some(inherited));
+    // to a lifeline without a type: the alert "Lifeline should have a type."
+    a.item_key(msgs[0], EditKind::Name(mm), ItemKey::MessageSignature(false, false));
+    assert_eq!(a.boxes.pop(), Some((crate::dialogs::BoxKind::Alert, "Lifeline should have a type.".to_string())));
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     Repo::parse(&a.repo.serialize()).unwrap();
 }
@@ -7102,4 +7128,17 @@ fn bpmn_choreographies_messages_conversations_and_annotations() {
     let bd = p.list(bp, "ownedElements")[0];
     assert_eq!((p.ty(bd), p.name(bd).as_str(), p.bool(bd, "defaultDiagram")), ("BPMNDiagram", "BPMN Diagram", true));
     Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn preference_descriptions_and_font_faces() {
+    use crate::prefs::description;
+    assert_eq!(description("view.font", "Font Face", "View"), "Default font face of view elements.");
+    assert_eq!(description("uml.class.fillColor", "Fill Color", "Class"), "Fill color of Class.");
+    assert_eq!(description("uml.class.suppressAttributes", "Suppress Attributes", "Class"), "Suppress attributes of Class.");
+    assert_eq!(description("uml.class.stereotypeDisplay", "Stereotype Display", "Class"), "Default stereotype display of Class.");
+    // the faces are sorted, as the original lists them
+    let mut sorted = crate::style::FONT_FACES.to_vec();
+    sorted.sort();
+    assert_eq!(sorted, crate::style::FONT_FACES.to_vec());
 }

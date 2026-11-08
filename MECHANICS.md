@@ -135,6 +135,15 @@ Read from `extensions/default/staruml-v1` (main.js, reader.js, uml-readers.js); 
 | Native side | `toPNG` 0xec2c6e/0x101d688 and `image/png` are Electron API table entries only; no function to follow | native_strings_find ev_b82b90eb… |
 | UMLCraft | draws the SVG off-screen with resvg for PNG export, so scrolled-out parts and the grid do not matter; trial watermarks of the original are not copied | `src/render.rs` to_png, to_svg_sized |
 
+## Dialogs
+
+* Every dialog is a modal, centred, pinned (not movable, not resizable) window; its primary button takes the focus; Tab and Shift+Tab stay inside it; Enter presses the primary button (Ctrl+Enter in a text area, never in a `use-enter-key` field) and Esc cancels (`dialogs/dialog-manager.js:99-180, 242-313`).
+* The message boxes are native: Information (`info`, OK), Alert (`warning`, OK), Confirmation (`question`, OK/Cancel), Save Changes (Save, Don't Save, Cancel) and the error box (title and content) (`dialogs/dialog-manager.js:649-845`, `main-process/application.js:392-399`). "No diagram to export.", "Lifeline should have a type." and the diagram generators' "To generate … diagram, select a Package." are boxes, not toasts (`engine/default-commands.js:383`, `uml-commands.js:2543`, `diagram-generator/main.js:209`).
+* The Element List Picker rows read `label (path)`, the path being the names from the top-level element down to the element itself, `::`-joined (`dialogs/element-list-picker-dialog.js:49-56`, `core/core.js:1128-1135`). Select Operation lists the operations the target lifeline's type inherits (generalizations and interface realizations, transitively) and then its own (`uml-commands.js:2525-2546`, `elements.js:1215-1267, 1357-1378`).
+* Font faces offered by the Style editor, the Font dialog and Preferences are the fonts loaded from `resources/fonts`, sorted: Arial, Courier, Courier New, Gloria Hallelujah, Helvetica, Inter, Lato, Roboto, Source Code Pro, Source Sans Pro, Times, Times New Roman (`engine/font-manager.js`, `resources/fonts/*/font.json`).
+* Preference combos (Font Size 8–32, Grid Size 2–20) take a typed number as an integer; each item shows its description under its name; per-kind descriptions read "<Setting> of <Kind>." (`dialogs/preference-dialog.js:37-153`, `resources/default/preferences/default.json`, `uml/preferences/uml.json`).
+* Not taken over: the Don't Save shortcuts (Cmd+D, N) only act in an HTML dialog that has a Don't Save button, and none has one (the save prompt is a native box); the Text and Select Dropdown dialogs and the warning toast are only called by extensions (`dialogs/dialog-manager.js:166-180, 409-476`, `ui/toast-manager.js:42-49`).
+
 ## Element Picker and type names
 
 * A name typed into a `type` or `stereotype` property is looked up among elements of the field's type (UMLClassifier or UMLStereotype): first the owner's namespace, then each enclosing namespace, then the whole project; a match is stored as a reference, otherwise the text (`views/property-editor-view.js:604-622`, `core/repository.js:2353-2361`).

@@ -1995,13 +1995,13 @@ impl App {
                     } else {
                         self.open_typed_picker(m, "signature", "UMLSignal");
                     }
+                } else if !create {
+                    // the list picker over the target type's operations, inherited ones included
+                    self.select_message_operation(m);
                 } else if self.message_target_type(m).is_none() {
-                    self.toast_error("Lifeline should have a type.");
-                } else if create {
-                    self.input_dialog = Some(crate::input::InputDialog { message: "Enter an operation name to create".into(), text: String::new(), action: crate::input::InputAction::CreateMessageOperation(m), fresh: true });
+                    self.alert("Lifeline should have a type.");
                 } else {
-                    // the original lists the operations of the target's type, inherited ones included
-                    self.open_typed_picker(m, "signature", "UMLOperation");
+                    self.input_dialog = Some(crate::input::InputDialog { message: "Enter an operation name to create".into(), text: String::new(), action: crate::input::InputAction::CreateMessageOperation(m), fresh: true });
                 }
             }
             (ItemKey::ReplyMessage, _) => {
@@ -2454,7 +2454,7 @@ impl App {
                 }
                 // an association end: aggregation, navigability and multiplicity dropdowns
                 // (quickedits/uml.json "uml.association-end1/2")
-                let mut picked_owner: Option<Option<Eid>> = None;
+                let mut pick_owner = false;
                 let mut add_qualifier = false;
                 if let EditKind::Name(end) = ed.kind {
                     if self.repo.ty(end) == "UMLAssociationEnd" || self.repo.ty(end) == "UMLLinkEnd" {
@@ -2480,22 +2480,11 @@ impl App {
                             }
                             // Select Owner Attribute: an attribute of the classifier at the other end
                             if self.repo.ty(end) == "UMLAssociationEnd" {
-                                let cur = self.repo.refd(end, "ownerAttribute");
-                                let shown = cur.map(|c| self.repo.name(c)).unwrap_or_else(|| "—".to_string());
-                                ui.menu_button(egui::RichText::new(format!("{shown} ▾")).size(11.0).color(Color32::WHITE), |ui| {
-                                    if ui.selectable_label(cur.is_none(), "(none)").clicked() {
-                                        picked_owner = Some(None);
-                                        ui.close();
-                                    }
-                                    for a in self.owner_attribute_options(end) {
-                                        if ui.selectable_label(cur == Some(a), self.repo.name(a)).clicked() {
-                                            picked_owner = Some(Some(a));
-                                            ui.close();
-                                        }
-                                    }
-                                })
-                                .response
-                                .on_hover_text("Owner Attribute");
+                                // the button opens the Element List Picker (uml-commands.js:1465-1476)
+                                let b = ui.add(egui::Button::new(egui::RichText::new("Owner…").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Select Owner Attribute");
+                                if b.clicked() {
+                                    pick_owner = true;
+                                }
                                 // Add Qualifier: a new attribute in the end's qualifiers (quickedits/uml.json "uml.association-end1/2")
                                 let b = ui.add(egui::Button::new(egui::RichText::new("+ Qual").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Qualifier");
                                 if b.clicked() {
@@ -2511,10 +2500,9 @@ impl App {
                     self.reveal(q);
                     ed.fresh = true;
                 }
-                if let (Some(owner), EditKind::Name(end)) = (picked_owner, &ed.kind) {
+                if let (true, EditKind::Name(end)) = (pick_owner, &ed.kind) {
                     let end = *end;
-                    self.change(|a| a.repo.set_ref(end, "ownerAttribute", owner));
-                    ed.fresh = true;
+                    self.select_owner_attribute(end);
                 }
                 if let (Some((field, value)), EditKind::Name(end)) = (picked_end.clone(), &ed.kind) {
                     let end = *end;
@@ -2617,7 +2605,7 @@ impl App {
                     commit = Some(false);
                 } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
                     commit = Some(true);
-                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() && picked_order.is_none() && picked_flag.is_none() {
+                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && !pick_owner && picked_order.is_none() && picked_flag.is_none() {
                     commit = Some(true);
                 }
             });

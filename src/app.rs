@@ -193,8 +193,10 @@ pub struct App {
     /// Short notices shown at the bottom of the diagram area, with the time they appeared.
     /// Toasts: text, when shown, and whether it is an error (red) rather than information.
     pub toasts: Vec<(String, std::time::Instant, bool)>,
-    /// Select In Diagram with several diagrams: the views to choose from and the chosen row.
-    pub diagram_picker: Option<(Vec<Eid>, Option<usize>)>,
+    /// The Element List Picker (Select In Diagram with several diagrams, Select Operation…).
+    pub list_picker: Option<crate::dialogs::ListPicker>,
+    /// Information and alert boxes waiting to be shown (dialog-manager.js:675-703).
+    pub boxes: Vec<(crate::dialogs::BoxKind, String)>,
     /// The last text UMLCraft put on the clipboard, used when the system clipboard cannot be read.
     pub clipboard: Option<String>,
     /// The system clipboard, kept open: on Linux an image copied to it is served while it lives.
@@ -334,7 +336,8 @@ impl App {
             scrolls: HashMap::new(),
             centre_pending: None,
             toasts: vec![],
-            diagram_picker: None,
+            list_picker: None,
+            boxes: vec![],
             clipboard: None,
             sys_clipboard: None,
             style_edit: None,
@@ -412,7 +415,7 @@ impl App {
         self.problems.clear();
         self.validated = false;
         self.centre_pending = None;
-        self.diagram_picker = None;
+        self.list_picker = None;
         self.expanded.clear();
         let root = self.repo.root;
         self.expanded.insert(root);
@@ -706,13 +709,8 @@ impl App {
         if self.repo.all().any(|x| self.repo.ty(x) == "UMLStereotype" && self.repo.name(x) == st) {
             return true;
         }
-        let ok = self.screenshot.is_none()
-            && rfd::MessageDialog::new()
-                .set_title("UMLCraft")
-                .set_description(format!("{kind} requires UML Standard Profile. Do you want to apply?"))
-                .set_buttons(rfd::MessageButtons::OkCancel)
-                .show()
-                == rfd::MessageDialogResult::Ok;
+        // a confirmation box (robustness/main.js:41-67); screenshots do not ask
+        let ok = self.screenshot.is_none() && self.confirm(&format!("{kind} requires UML Standard Profile. Do you want to apply?"));
         if ok {
             self.apply_standard_profile();
         }
@@ -2626,7 +2624,10 @@ impl App {
         match views.len() {
             0 => self.toast("No diagrams to show"),
             1 => self.show_view(views[0]),
-            _ => self.diagram_picker = Some((views, None)),
+            _ => {
+                let items: Vec<Eid> = views.iter().filter_map(|v| self.repo.parent(*v)).collect();
+                self.list_picker = Some(crate::dialogs::ListPicker { title: "Select Diagram to show".into(), items, chosen: None, action: crate::dialogs::ListAction::ShowView(views) });
+            }
         }
     }
 

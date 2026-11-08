@@ -3,6 +3,7 @@
 
 use crate::app::{App, Area, AssocInit, Tool};
 use crate::canvas::EguiMeasure;
+use crate::dialogs::dialog;
 use crate::icons;
 use crate::model::Eid;
 use crate::render;
@@ -1643,8 +1644,8 @@ impl App {
                         }
                     }
                     if set && single && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("×")).on_hover_text("Delete the image").clicked() {
-                        let ok = rfd::MessageDialog::new().set_description("Do you want to delete this image?").set_buttons(rfd::MessageButtons::OkCancel).show();
-                        if ok == rfd::MessageDialogResult::Ok {
+                        // a confirmation box (property-editor-view.js:365)
+                        if self.confirm("Do you want to delete this image?") {
                             let f = field.clone();
                             self.change(|a| a.repo.remove(obj, &f));
                         }
@@ -2485,12 +2486,16 @@ impl App {
         let (face, size) = self.font_state();
         // while the selection inherits its parent's style, font and colours are disabled (style-editor-view.js:741-764)
         let inherit = self.flag_state("parentStyle") == Some(true);
-        ui.add_enabled_ui(!inherit, |ui| {
+        let disabled = ui.add_enabled_ui(!inherit, |ui| {
             ui.horizontal(|ui| {
                 let mut f = face.clone().unwrap_or_default();
-                let r = ui.add(egui::TextEdit::singleline(&mut f).hint_text("—").desired_width(110.0).font(FontId::proportional(12.0)));
+                let r = ui.add(egui::TextEdit::singleline(&mut f).hint_text("—").desired_width(90.0).font(FontId::proportional(12.0)));
                 if r.lost_focus() && !f.trim().is_empty() && Some(f.trim().to_string()) != face {
                     self.set_font(Some(f.trim()), None);
+                }
+                // the list of faces: a pick is copied into the field and applied (style-editor-view.js:180-201)
+                if let Some(f) = crate::style::font_face_menu(ui, "style-face") {
+                    self.set_font(Some(&f), None);
                 }
                 let label = size.map(|s| format!("{s}")).unwrap_or_else(|| "—".into());
                 egui::ComboBox::from_id_salt("style-size").selected_text(label).width(60.0).show_ui(ui, |ui| {
@@ -2502,6 +2507,10 @@ impl App {
                 });
             });
             ui.horizontal(|ui| {
+                // inheriting, the colour icons are drawn at 30% (egui's disabled 50%, times 0.6)
+                if inherit {
+                    ui.multiply_opacity(0.6);
+                }
                 for (field, label) in crate::style::COLORS {
                     if self.color_views(field).is_empty() {
                         continue;
@@ -2512,6 +2521,10 @@ impl App {
                 }
             });
         });
+        // and the pointer over them is "not allowed" (style-editor-view.js:741-764)
+        if inherit && ui.rect_contains_pointer(disabled.response.rect) {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::NotAllowed);
+        }
         if !self.flag_views("stereotypeDisplay").is_empty() {
             // the stereotype display dropdown, empty when mixed (style-editor-view.js)
             let cur = self.stereotype_display_state();
@@ -3038,10 +3051,10 @@ impl App {
     }
 
     /// Export the current diagram as PNG, JPEG or SVG. The selection is cleared first; with no diagram
-    /// open the toast "No diagram to export." appears (default-commands.js:360-445).
+    /// open the alert "No diagram to export." appears (default-commands.js:360-445).
     pub(crate) fn export_current(&mut self, ctx: &egui::Context, f: crate::export::Format) {
         let Some(d) = self.diagram else {
-            self.toast("No diagram to export.");
+            self.alert("No diagram to export.");
             return;
         };
         self.select(vec![]);
@@ -3059,7 +3072,7 @@ impl App {
     /// Export every diagram into a folder the person picks (default-commands.js:452-535).
     pub(crate) fn export_all_cmd(&mut self, ctx: &egui::Context, f: crate::export::Format) {
         if self.repo.all_of("Diagram").is_empty() {
-            self.toast("No diagram to export.");
+            self.alert("No diagram to export.");
             return;
         }
         let Some(folder) = rfd::FileDialog::new().set_title("Select a folder where all diagrams to be exported").pick_folder() else { return };
@@ -3083,7 +3096,8 @@ impl App {
     pub fn modal_open(&self) -> bool {
         self.about_open
             || self.message.is_some()
-            || self.diagram_picker.is_some()
+            || self.list_picker.is_some()
+            || !self.boxes.is_empty()
             || self.color_dialog.is_some()
             || self.list_editor.is_some()
             || self.select_one.is_some()
@@ -3103,9 +3117,7 @@ impl App {
             // the app icon, name and version, and a link to the third-party software (about-dialog.js:31-47)
             let icon = app_icon(ctx);
             // a modal window: a backdrop keeps the rest of the window out of reach (dialog-manager.js:242-313)
-            egui::Modal::new(egui::Id::new("about-dialog")).show(ctx, |ui| {
-                ui.label(egui::RichText::new("About UMLCraft").strong());
-                ui.add_space(4.0);
+            dialog(ctx, "about", "About UMLCraft", |ui| {
                 ui.horizontal(|ui| {
                     if let Some(t) = &icon {
                         ui.add(egui::Image::new((t.id(), Vec2::splat(64.0))));
@@ -3131,7 +3143,7 @@ impl App {
                 }
             });
         }
-        self.diagram_picker_ui(ctx);
+        self.list_picker_ui(ctx);
         self.color_dialog_ui(ctx);
         self.list_editor_ui(ctx);
         self.select_one_ui(ctx);
@@ -3145,73 +3157,7 @@ impl App {
         self.palette_ui(ctx);
         self.find_dialog_ui(ctx);
         self.font_dialog_ui(ctx);
-        if let Some((title, detail)) = self.message.clone() {
-            egui::Modal::new(egui::Id::new("message-dialog")).show(ctx, |ui| {
-                ui.set_max_width(420.0);
-                ui.label(egui::RichText::new(title).strong());
-                ui.add_space(4.0);
-                ui.label(detail);
-                ui.add_space(6.0);
-                let ok = ui.button("OK");
-                focus_primary(ui, &ok);
-                if ok.clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
-                    self.message = None;
-                }
-            });
-        }
-    }
-
-    /// The Element List Picker as Select In Diagram uses it: "Select Diagram to show", one row per
-    /// diagram with its icon, name and (path); "Do not specify" until a row is picked; double-click is OK
-    /// (element-list-picker-dialog.js:73-131).
-    fn diagram_picker_ui(&mut self, ctx: &egui::Context) {
-        let Some((views, mut chosen)) = self.diagram_picker.clone() else { return };
-        let mut close = false;
-        let mut ok = false;
-        egui::Window::new("Select Diagram to show").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
-            ui.set_min_width(320.0);
-            for (i, v) in views.iter().enumerate() {
-                let Some(d) = self.repo.parent(*v).filter(|d| self.repo.alive(*d)) else { continue };
-                let mut owners = self.repo.path(d);
-                owners.pop();
-                let path: Vec<String> = owners.into_iter().map(|p| self.repo.name(p)).filter(|n| !n.is_empty()).collect();
-                let text = format!("{}  ({})", self.repo.name(d), path.join("::"));
-                ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                    icons::draw(ui.painter(), r, icons::key_for(&self.repo, d));
-                    let resp = ui.selectable_label(chosen == Some(i), text);
-                    if resp.clicked() {
-                        chosen = Some(i);
-                    }
-                    if resp.double_clicked() {
-                        chosen = Some(i);
-                        ok = true;
-                    }
-                });
-            }
-            let mut none = chosen.is_none();
-            if ui.checkbox(&mut none, "Do not specify").changed() && none {
-                chosen = None;
-            }
-            ui.horizontal(|ui| {
-                if ui.button("OK").clicked() {
-                    ok = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    close = true;
-                }
-            });
-        });
-        if ok {
-            self.diagram_picker = None;
-            if let Some(v) = chosen.and_then(|i| views.get(i)).copied().filter(|v| self.repo.alive(*v)) {
-                self.show_view(v);
-            }
-        } else if close {
-            self.diagram_picker = None;
-        } else {
-            self.diagram_picker = Some((views, chosen));
-        }
+        self.message_boxes_ui(ctx);
     }
 
     pub(crate) fn open_font_dialog(&mut self) {
@@ -3229,10 +3175,16 @@ impl App {
     fn font_dialog_ui(&mut self, ctx: &egui::Context) {
         let Some((mut face, mut size, mut color)) = self.font_dialog.clone() else { return };
         let (mut ok, mut cancel) = (false, false);
-        egui::Window::new("Font").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        dialog(ctx, "font", "Font", |ui| {
             egui::Grid::new("font-grid").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| {
                 ui.label("Face");
-                ui.add(egui::TextEdit::singleline(&mut face).hint_text("—").desired_width(160.0));
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut face).hint_text("—").desired_width(136.0));
+                    // the loaded faces: a pick is copied into the field (dialog-manager.js:560-567)
+                    if let Some(f) = crate::style::font_face_menu(ui, "font-dialog") {
+                        face = f;
+                    }
+                });
                 ui.end_row();
                 ui.label("Size");
                 ui.horizontal(|ui| {
@@ -3307,7 +3259,7 @@ impl App {
     fn color_dialog_ui(&mut self, ctx: &egui::Context) {
         let Some(mut d) = self.color_dialog.clone() else { return };
         let (mut ok, mut cancel) = (false, false);
-        egui::Window::new("Color").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        dialog(ctx, "color", "Color", |ui| {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     let mut c = Color32::from_rgba_unmultiplied(d.color.0, d.color.1, d.color.2, d.color.3);
@@ -3372,7 +3324,7 @@ impl App {
     fn select_one_ui(&mut self, ctx: &egui::Context) {
         let Some(mut d) = self.select_one.clone() else { return };
         let (mut ok, mut cancel) = (false, false);
-        egui::Window::new("Select One").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        dialog(ctx, "select-one", "Select One", |ui| {
             ui.label(&d.message);
             ui.add_space(4.0);
             for (i, o) in d.options.iter().enumerate() {
@@ -3403,7 +3355,7 @@ impl App {
             return;
         }
         let (mut views, mut models, mut cancel) = (false, false, false);
-        egui::Window::new("Delete Views Only").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        dialog(ctx, "delete-views", "Delete Views Only", |ui| {
             ui.label("Do you want to delete views only?");
             ui.add_space(6.0);
             ui.horizontal(|ui| {
@@ -3802,7 +3754,7 @@ fn scroll_shadow(p: &egui::Painter, r: Rect) {
 
 /// Give a dialog's primary button the keyboard when nothing else has it, as the original does when a
 /// dialog opens (dialog-manager.js:242-313).
-fn focus_primary(ui: &egui::Ui, button: &egui::Response) {
+pub(crate) fn focus_primary(ui: &egui::Ui, button: &egui::Response) {
     if ui.memory(|m| m.focused().is_none()) {
         button.request_focus();
     }

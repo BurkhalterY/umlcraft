@@ -206,7 +206,7 @@ impl App {
         } else {
             "Select Element"
         };
-        egui::Window::new(title).id(egui::Id::new("element-picker")).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        crate::dialogs::dialog(ctx, "element-picker", title, |ui| {
             ui.set_width(360.0);
             let r = ui.add(egui::TextEdit::singleline(&mut p.search).hint_text("Quick search").desired_width(f32::INFINITY));
             // Enter is OK, except in the search box (`use-enter-key`)
@@ -287,7 +287,7 @@ impl App {
         let items = self.repo.ref_list(obj, field);
         let title = format!("{}.{}", self.repo.name(obj), field);
         let (mut add, mut remove, mut up, mut down, mut close) = (false, false, false, false, false);
-        egui::Window::new(title).id(egui::Id::new("list-editor")).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        crate::dialogs::dialog(ctx, "list-editor", &title, |ui| {
             ui.set_min_width(360.0);
             egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
                 if items.is_empty() {

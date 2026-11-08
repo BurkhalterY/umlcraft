@@ -122,6 +122,25 @@ impl App {
 /// Font sizes offered by the Style editor and the Font dialog (style-editor-view.html).
 pub const SIZES: [f64; 14] = [8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 16.0, 18.0, 20.0, 24.0, 28.0, 36.0, 42.0];
 
+/// The font faces the Style editor, the Font dialog and Preferences list: the names of the fonts the
+/// original loads from resources/fonts (its "default" fallback faces aside), sorted
+/// (font-manager.js; style-editor-view.js:795-805; dialog-manager.js:535-541). UMLCraft stores the
+/// chosen name; diagrams are drawn with the Arial-compatible face whatever it is.
+pub const FONT_FACES: [&str; 12] = ["Arial", "Courier", "Courier New", "Gloria Hallelujah", "Helvetica", "Inter", "Lato", "Roboto", "Source Code Pro", "Source Sans Pro", "Times", "Times New Roman"];
+
+/// The drop-down beside a font face field: picking a face returns it, to copy into the field.
+pub fn font_face_menu(ui: &mut egui::Ui, id: &str) -> Option<String> {
+    let mut out = None;
+    egui::ComboBox::from_id_salt(("font-faces", id)).selected_text("").width(20.0).show_ui(ui, |ui| {
+        for f in FONT_FACES {
+            if ui.selectable_label(false, f).clicked() {
+                out = Some(f.to_string());
+            }
+        }
+    });
+    out
+}
+
 impl App {
     fn font_views(&self) -> Vec<Eid> {
         self.selection.iter().copied().filter(|v| self.repo.alive(*v) && crate::meta::is_kind_of(self.repo.ty(*v), "View")).collect()
