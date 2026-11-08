@@ -268,6 +268,7 @@ fn main() -> eframe::Result {
                         a.api_rx = api::start(port, cc.egui_ctx.clone());
                     }
                 }
+                a.validate_in_background = Some(cc.egui_ctx.clone());
             }
             match file {
                 Some(f) => {

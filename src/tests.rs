@@ -8341,3 +8341,18 @@ fn staruml1_import_links_the_standard_profile() {
     assert_eq!(b.repo.str(order, "stereotype"), "entity");
     assert!(!b.repo.all().any(|e| b.repo.ty(e) == "UMLProfile"));
 }
+
+#[test]
+fn validation_runs_in_the_background_with_a_window() {
+    let mut a = App::new(None);
+    a.validate_in_background = Some(egui::Context::default());
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    assert!(a.validation_rx.is_some(), "running on a thread");
+    let start = std::time::Instant::now();
+    while a.validation_rx.is_some() && start.elapsed().as_secs() < 10 {
+        a.poll_validation();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(a.validated);
+    assert_eq!(a.problems.len(), 2, "the example's two elements named Member");
+}

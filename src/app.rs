@@ -235,6 +235,11 @@ pub struct App {
     /// Validation: the problems found, whether the model was validated, and the results panel.
     pub problems: Vec<crate::validate::Problem>,
     pub validated: bool,
+    /// With a window: validation after open and save runs on a thread of its own, which wakes this
+    /// context when done (the main process's `validate`, application.js:316-320).
+    pub validate_in_background: Option<egui::Context>,
+    /// The results of the validation running in the background.
+    pub validation_rx: Option<std::sync::mpsc::Receiver<Vec<crate::validate::Problem>>>,
     pub show_validation: bool,
     /// Panel sizes changed by dragging a splitter (see splitter.rs).
     pub panel_sizes: std::collections::HashMap<String, f32>,
@@ -362,6 +367,8 @@ impl App {
             find_results: None,
             problems: vec![],
             validated: false,
+            validate_in_background: None,
+            validation_rx: None,
             show_validation: false,
             panel_sizes: Default::default(),
             split_drag: None,
@@ -418,6 +425,8 @@ impl App {
         // closing a project clears the validation errors (validation-panel.js:136-142)
         self.problems.clear();
         self.validated = false;
+        // the results of the previous project's validation are dropped
+        self.validation_rx = None;
         self.centre_pending = None;
         self.diagram_picker = None;
         self.expanded.clear();

@@ -3819,6 +3819,7 @@ impl App {
         }
         self.handle_close(&ctx);
         self.api_poll(&ctx);
+        self.poll_validation();
         // remember the window's bounds and maximized state (window.js:26-94); they are written with
         // the other preferences when they change
         if self.screenshot.is_none() {
