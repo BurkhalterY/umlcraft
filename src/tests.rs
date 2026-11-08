@@ -3052,6 +3052,25 @@ fn component_and_deployment_diagrams() {
     assert!(a.repo.child(pm, "end1").is_some() && a.repo.child(pm, "end2").is_some());
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     assert_eq!(a.info.get(&art).map(|i| i.shape), Some("artifact"));
+    // the component's box form: the name right of the two tabs (COMPONENT_STATIC_MARGIN, elements.js:114)
+    assert_eq!(a.repo.str(comp, "stereotypeDisplay"), "label");
+    let name_of = |a: &App, v| a.repo.refd(a.repo.refd(v, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    let nl = name_of(&a, comp);
+    assert!(a.repo.f(nl, "left") >= a.repo.f(comp, "left") + 20.0, "{} {}", a.repo.f(nl, "left"), a.repo.f(comp, "left"));
+    // in decoration display, a plain box with the component's small icon: the name starts at the left
+    a.change(|a| a.repo.set(comp, "stereotypeDisplay", json!("decoration")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.repo.f(nl, "left") < a.repo.f(comp, "left") + 20.0);
+    // as an icon, the component icon above the name, at least 50 × 45
+    a.change(|a| a.repo.set(comp, "stereotypeDisplay", json!("icon")));
+    a.change(|a| a.repo.set(comp, "width", json!(1)));
+    a.change(|a| a.repo.set(comp, "height", json!(1)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info.get(&comp).map(|i| i.shape), Some("component"));
+    assert!(a.repo.f(comp, "width") >= 50.0 && a.repo.f(comp, "height") >= 45.0 + crate::views::NAME_MIN_H);
+    // an artifact shown as an icon is at least 40 × 50 (elements.js:103-104)
+    assert!(a.repo.f(art, "width") >= 40.0 && a.repo.f(art, "height") >= 50.0);
+    assert!(crate::views::kind_icon("UMLArtifactView", "decoration").is_some() && crate::views::kind_icon("UMLClassView", "decoration").is_none());
     let st = a.repo.refd(dep, "stereotypeLabel").unwrap();
     assert_eq!(a.repo.str(st, "text"), "«deploy»");
     let svg = String::from_utf8(crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap()).unwrap();
