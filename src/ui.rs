@@ -1968,9 +1968,11 @@ impl App {
         ui.add_space(4.0);
         ui.vertical_centered(|ui| {
             ui.spacing_mut().item_spacing.y = 3.0;
-            for (key, tip) in [("zoomIn", "Zoom In"), ("zoomOut", "Zoom Out"), ("fit", "Fit To Window"), ("grid", "Show Grid"), ("image", "Export Diagram as PNG")] {
+            for (key, tip) in [("zoomIn", "Zoom In"), ("zoomOut", "Zoom Out"), ("fit", "Fit To Window"), ("grid", "Show Grid"), ("image", "Export Diagram as PNG"), ("markdown", "Markdown Documentation")] {
                 let (r, resp) = ui.allocate_exact_size(Vec2::splat(24.0), Sense::click());
-                if resp.hovered() {
+                // a panel's button stays selected while its panel shows (markdown/main.js:66-80)
+                let selected = key == "markdown" && self.show_markdown;
+                if resp.hovered() || selected {
                     ui.painter().rect_filled(r, CornerRadius::same(2), TOOL_HOVER());
                 }
                 icons::draw(ui.painter(), r.shrink(3.0), key);
@@ -1980,6 +1982,7 @@ impl App {
                         "zoomOut" => self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP),
                         "fit" => self.fit(),
                         "grid" => self.show_grid = !self.show_grid,
+                        "markdown" => self.show_markdown = !self.show_markdown,
                         _ => self.export_current(&ui.ctx().clone(), crate::export::Format::Png),
                     }
                 }

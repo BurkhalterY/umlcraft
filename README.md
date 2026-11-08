@@ -140,7 +140,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/sequence.rs`, `src/communication.rs`, `src/timing.rs`, `src/overview.rs`, `src/flowchart.rs`, `src/notations.rs`, `src/erd.rs`, `src/c4.rs`, `src/wireframe.rs` | Sequence, communication and timing diagrams, interaction overview diagrams, flowcharts, data flow diagrams and mind maps, ER diagrams, C4 diagrams and wireframes: their views, layout and drawing |
 | `src/html.rs` | File › Export › HTML Docs: one page per element, an SVG and image map per diagram |
 | `src/xmi.rs` | File › Export › XMI Export and File › Import › XMI Import (v2.1): the model elements as OMG XMI 2.1, without diagrams, and a small XML reader |
-| `src/markdown.rs` | View › Markdown Documentation: the editor and a small Markdown preview |
+| `src/markdown.rs` | View › Markdown Documentation: the editor with Markdown colours, a GitHub Flavored Markdown preview (pulldown-cmark), and the Markdown reading shared with the HTML docs |
 | `src/thumbs.rs` | View › Diagram Thumbnails |
 | `src/relview.rs` | View › Relationships: the relationships of the selected element |
 | `src/input.rs` | The input dialog (Working Diagrams › Rename) |

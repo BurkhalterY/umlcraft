@@ -2354,33 +2354,57 @@ fn minimap_toggle_is_remembered() {
 
 #[test]
 fn markdown_blocks_and_spans() {
-    use crate::markdown::{parse, spans, Block};
-    let b = parse("# Title\n\nSome *text*\nand more.\n\n- one\n  - two\n1. first\n> quoted\n```\nlet x = 1;\n```\n---");
+    use crate::markdown::{parse, Block, Mark, Run};
+    let t = |s: &str| Run { text: s.into(), ..Default::default() };
+    let text = |runs: Vec<Run>, depth: usize, quote: usize, mark: Option<Mark>| Block::Text { heading: None, runs, depth, quote, mark };
+    let b = parse("# Title
+
+Some *text*
+and more.
+
+- one
+  - two
+
+1. first
+
+> quoted
+
+```
+let x = 1;
+```
+---");
     assert_eq!(
         b,
         vec![
-            Block::Heading(1, "Title".into()),
-            Block::Paragraph("Some *text* and more.".into()),
-            Block::Bullet(0, "one".into()),
-            Block::Bullet(1, "two".into()),
-            Block::Numbered(0, "1".into(), "first".into()),
-            Block::Quote("quoted".into()),
-            Block::Code("let x = 1;".into()),
-            Block::Rule,
+            Block::Text { heading: Some(1), runs: vec![t("Title")], depth: 0, quote: 0, mark: None },
+            text(vec![t("Some "), Run { italic: true, ..t("text") }, t(" and more.")], 0, 0, None),
+            text(vec![t("one")], 1, 0, Some(Mark::Bullet)),
+            text(vec![t("two")], 2, 0, Some(Mark::Bullet)),
+            text(vec![t("first")], 1, 0, Some(Mark::Number(1))),
+            text(vec![t("quoted")], 0, 1, None),
+            Block::Code { text: "let x = 1;".into(), depth: 0, quote: 0 },
+            Block::Rule { quote: 0 },
         ]
     );
-    assert_eq!(
-        spans("a **b** *c* `d` snake_case"),
-        vec![
-            ("a ".into(), false, false, false),
-            ("b".into(), true, false, false),
-            (" ".into(), false, false, false),
-            ("c".into(), false, true, false),
-            (" ".into(), false, false, false),
-            ("d".into(), false, false, true),
-            (" snake_case".into(), false, false, false),
-        ]
-    );
+    // inline styles: bold, code, snake_case kept, strikethrough and links, bare addresses too
+    let b = parse("a **b** `d` snake_case ~~gone~~ [site](https://x.org) www.staruml.io");
+    let Block::Text { runs, .. } = &b[0] else { panic!() };
+    assert_eq!(runs[1], Run { strong: true, ..t("b") });
+    assert_eq!(runs[3], Run { code: true, ..t("d") });
+    assert_eq!(runs[4], t(" snake_case "));
+    assert_eq!(runs[5], Run { strike: true, ..t("gone") });
+    assert_eq!(runs[7], Run { link: Some("https://x.org".into()), ..t("site") });
+    assert_eq!(runs[9], Run { link: Some("http://www.staruml.io".into()), ..t("www.staruml.io") });
+    // GFM tables and task lists
+    let b = parse("| A | B |
+|---|:-:|
+| 1 | **2** |
+
+- [x] done
+- [ ] todo");
+    assert_eq!(b[0], Block::Table { head: vec![vec![t("A")], vec![t("B")]], rows: vec![vec![vec![t("1")], vec![Run { strong: true, ..t("2") }]]], depth: 0, quote: 0 });
+    assert_eq!(b[1], text(vec![t("done")], 1, 0, Some(Mark::Task(true))));
+    assert_eq!(b[2], text(vec![t("todo")], 1, 0, Some(Mark::Task(false))));
 }
 
 #[test]
@@ -7005,4 +7029,19 @@ fn mermaid_makes_sequence_diagrams() {
     assert_eq!(a.generate_mermaid_in("sequenceDiagram\n A->>B: hi", Some(d2), &ms), Err("Base element must be a package, classifer or operation".to_string()));
     assert_eq!(a.generate_mermaid_in("classDiagram\n A <|-- B", Some(d2), &ms), Err("Base element must be a UMLPackage".to_string()));
     Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn markdown_preview_draws_gfm() {
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.repo.set(root, "documentation", json!("# T\n\n> - [x] a ~~b~~\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n```\ncode\n```\n\n1. https://staruml.io\n\n<b>raw</b>")));
+    a.focus = Some(root);
+    a.md_preview = true;
+    for _ in 0..2 {
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| a.markdown_ui(ui));
+    }
+    assert_eq!(crate::markdown::parse(&a.md_buf).len(), 6, "heading, task, table, code, numbered item, html");
 }
