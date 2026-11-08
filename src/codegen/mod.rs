@@ -31,6 +31,8 @@ use crate::model::{Eid, Repo};
 use crate::views::{self, Measure};
 use serde_json::json;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
 
 // ------------------------------------------------------------------ languages
 
@@ -973,57 +975,38 @@ impl App {
         out
     }
 
+    #[cfg(test)]
     /// Write the base package's code into `out`: existing files are overwritten. Returns the
     /// files written, relative to `out`.
     pub fn generate_code(&mut self, l: Lang, base: Eid, out: &Path) -> Result<Vec<PathBuf>, String> {
         let o = gen_opts(&self.prefs, l);
         let files = generate_files(&self.repo, base, l, &o);
-        let mut done = vec![];
-        for (rel, text) in files {
-            let p = out.join(&rel);
-            if let Some(d) = p.parent() {
-                std::fs::create_dir_all(d).map_err(|e| format!("{}: {e}", d.display()))?;
-            }
-            std::fs::write(&p, text).map_err(|e| format!("{}: {e}", p.display()))?;
-            done.push(rel);
-        }
-        Ok(done)
+        let never = AtomicBool::new(false);
+        Ok(write_files(files, out, &never, &mut |_| {})?.unwrap_or_default())
     }
 
+    #[cfg(test)]
     /// Reverse a source folder into `target` (or a new model `<Lang>Reverse` in the project), as
     /// one undo step, with the diagrams the options ask for; the imported package is selected.
     /// Returns the log lines.
     pub fn reverse_code(&mut self, l: Lang, target: Option<Eid>, dir: &Path, ms: &dyn Measure) -> Result<Vec<String>, String> {
-        let o = rev_opts(&self.prefs, l);
-        let files = source_files(dir, l);
-        if files.is_empty() {
-            return Err(format!("No {} source files found in {}.", l.label(), dir.display()));
-        }
+        let never = AtomicBool::new(false);
         let mut log = vec![];
-        let mut errors = 0;
-        let mut units = vec![];
-        let mut tables = vec![];
-        for f in &files {
-            let Ok(bytes) = std::fs::read(f) else {
-                errors += 1;
-                continue;
-            };
-            let text = String::from_utf8_lossy(&bytes);
-            let rel: Vec<String> = f.parent().and_then(|p| p.strip_prefix(dir).ok()).map(|p| p.iter().map(|s| s.to_string_lossy().to_string()).collect()).unwrap_or_default();
-            log.push(format!("Reading {}", f.strip_prefix(dir).unwrap_or(f).display()));
-            if l == Lang::Ddl {
-                let (t, err) = ddl::parse(&text);
-                errors += err as usize;
-                tables.extend(t);
-            } else {
-                let p = parse_source(l, &text, &rel);
-                errors += p.errors as usize;
-                units.extend(p.units);
-            }
-        }
+        let src = read_sources(l, dir, &never, &mut |s| log.push(s))?.unwrap_or_default();
+        log.extend(self.import_sources(l, target, src, ms));
+        Ok(log)
+    }
+
+    /// The second half of a reverse, on the main thread: what `read_sources` read goes into
+    /// `target` (or a new model) as one undo step, then the diagrams. Returns the log lines.
+    pub fn import_sources(&mut self, l: Lang, target: Option<Eid>, src: Sources, ms: &dyn Measure) -> Vec<String> {
+        let o = rev_opts(&self.prefs, l);
+        let mut log = vec![];
+        let target = target.filter(|t| self.repo.alive(*t));
         let undo = self.undo.len();
         let root = self.repo.root;
         let made_new = target.is_none();
+        let (units, tables) = (src.units, src.tables);
         let (pkg, count) = self.change(|a| {
             let pkg = match target {
                 Some(t) => t,
@@ -1037,9 +1020,9 @@ impl App {
                 (pkg, n)
             }
         });
-        log.push(format!("{} files analyzed, {count} {} imported.", files.len(), if l == Lang::Ddl { "tables" } else { "types" }));
-        if errors > 0 {
-            log.push(format!("{errors} files had syntax errors; the rest of them was analyzed."));
+        log.push(format!("{} files analyzed, {count} {} imported.", src.files, if l == Lang::Ddl { "tables" } else { "types" }));
+        if src.errors > 0 {
+            log.push(format!("{} files had syntax errors; the rest of them was analyzed.", src.errors));
         }
         // the diagrams the options ask for
         if l == Lang::Ddl {
@@ -1072,7 +1055,172 @@ impl App {
         self.undo.truncate(undo + 1);
         self.focus = Some(pkg);
         self.reveal(pkg);
-        Ok(log)
+        log
+    }
+}
+
+/// Write generated files under `out` (existing ones are overwritten), logging each one; stops
+/// between two files when `cancel` is set (`Ok(None)`). Returns the files written, relative to
+/// `out`. Runs on the dialog's worker thread.
+pub fn write_files(files: Vec<OutFile>, out: &Path, cancel: &AtomicBool, log: &mut dyn FnMut(String)) -> Result<Option<Vec<PathBuf>>, String> {
+    let mut done = vec![];
+    for (rel, text) in files {
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(None);
+        }
+        let p = out.join(&rel);
+        if let Some(d) = p.parent() {
+            std::fs::create_dir_all(d).map_err(|e| format!("{}: {e}", d.display()))?;
+        }
+        std::fs::write(&p, text).map_err(|e| format!("{}: {e}", p.display()))?;
+        log(format!("Generated {}", rel.display()));
+        done.push(rel);
+    }
+    Ok(Some(done))
+}
+
+/// What a reverse read from a source folder, before it goes into the model.
+#[derive(Default)]
+pub struct Sources {
+    pub files: usize,
+    pub errors: usize,
+    pub units: Vec<Unit>,
+    pub tables: Vec<ddl::Table>,
+}
+
+/// The first half of a reverse, on the dialog's worker thread: every source file of the folder is
+/// read and parsed, with a log line each; stops between two files when `cancel` is set (`Ok(None)`).
+pub fn read_sources(l: Lang, dir: &Path, cancel: &AtomicBool, log: &mut dyn FnMut(String)) -> Result<Option<Sources>, String> {
+    let files = source_files(dir, l);
+    if files.is_empty() {
+        return Err(format!("No {} source files found in {}.", l.label(), dir.display()));
+    }
+    let mut s = Sources { files: files.len(), ..Default::default() };
+    for f in &files {
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(None);
+        }
+        let Ok(bytes) = std::fs::read(f) else {
+            s.errors += 1;
+            continue;
+        };
+        let text = String::from_utf8_lossy(&bytes);
+        let rel: Vec<String> = f.parent().and_then(|p| p.strip_prefix(dir).ok()).map(|p| p.iter().map(|s| s.to_string_lossy().to_string()).collect()).unwrap_or_default();
+        log(format!("Reading {}", f.strip_prefix(dir).unwrap_or(f).display()));
+        if l == Lang::Ddl {
+            let (t, err) = ddl::parse(&text);
+            s.errors += err as usize;
+            s.tables.extend(t);
+        } else {
+            let p = parse_source(l, &text, &rel);
+            s.errors += p.errors as usize;
+            s.units.extend(p.units);
+        }
+    }
+    Ok(Some(s))
+}
+
+/// A Generate or a Reverse running on a worker thread: its messages, and the flag that stops it
+/// (the Cancel button, or closing the dialog).
+pub struct Job {
+    pub cancel: Arc<AtomicBool>,
+    rx: mpsc::Receiver<JobMsg>,
+    out: PathBuf,
+    target: Option<Eid>,
+}
+
+enum JobMsg {
+    Log(String),
+    Generated(Result<Option<Vec<PathBuf>>, String>),
+    Read(Result<Option<Sources>, String>),
+}
+
+impl Job {
+    /// Start a Generate: the files' text is made from a copy of the model, then written, on the
+    /// worker thread.
+    pub fn generate(repo: Repo, l: Lang, base: Eid, o: GenOpts, out: PathBuf, ctx: Option<egui::Context>) -> Job {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let (tx, rx) = mpsc::channel();
+        let (c, dir) = (cancel.clone(), out.clone());
+        std::thread::spawn(move || {
+            let files = generate_files(&repo, base, l, &o);
+            let t2 = tx.clone();
+            let ctx2 = ctx.clone();
+            let res = write_files(files, &dir, &c, &mut |s| {
+                let _ = t2.send(JobMsg::Log(s));
+                if let Some(x) = &ctx2 {
+                    x.request_repaint();
+                }
+            });
+            let _ = tx.send(JobMsg::Generated(res));
+            if let Some(x) = &ctx {
+                x.request_repaint();
+            }
+        });
+        Job { cancel, rx, out, target: None }
+    }
+
+    /// Start a Reverse: the files are read and parsed on the worker thread; the import into the
+    /// model happens on the main thread when they are all read.
+    pub fn reverse(l: Lang, dir: PathBuf, target: Option<Eid>, ctx: Option<egui::Context>) -> Job {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let (tx, rx) = mpsc::channel();
+        let c = cancel.clone();
+        let d2 = dir.clone();
+        std::thread::spawn(move || {
+            let t2 = tx.clone();
+            let ctx2 = ctx.clone();
+            let res = read_sources(l, &d2, &c, &mut |s| {
+                let _ = t2.send(JobMsg::Log(s));
+                if let Some(x) = &ctx2 {
+                    x.request_repaint();
+                }
+            });
+            let _ = tx.send(JobMsg::Read(res));
+            if let Some(x) = &ctx {
+                x.request_repaint();
+            }
+        });
+        Job { cancel, rx, out: dir, target }
+    }
+}
+
+impl App {
+    /// Take a running job's news into the dialog's log; when the job is over, finish it (a
+    /// Reverse is imported here) and return true.
+    pub fn poll_codegen_job(&mut self, d: &mut Dialog, ms: &dyn Measure) -> bool {
+        let Some(job) = d.job.as_ref() else { return false };
+        let mut end = None;
+        loop {
+            match job.rx.try_recv() {
+                Ok(JobMsg::Log(s)) => d.log.push(s),
+                Ok(m) => {
+                    end = Some(m);
+                    break;
+                }
+                Err(mpsc::TryRecvError::Empty) => break,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    end = Some(JobMsg::Read(Err("the job stopped unexpectedly".into())));
+                    break;
+                }
+            }
+        }
+        let Some(end) = end else { return false };
+        let job = d.job.take().unwrap();
+        match end {
+            JobMsg::Generated(Ok(Some(files))) => {
+                d.log.push(format!("{} files generated in {}.", files.len(), job.out.display()));
+                d.last_out = Some(job.out);
+            }
+            JobMsg::Read(Ok(Some(src))) => {
+                let lines = self.import_sources(d.lang, job.target, src, ms);
+                d.log.extend(lines);
+            }
+            JobMsg::Generated(Ok(None)) | JobMsg::Read(Ok(None)) => d.log.push("Cancelled.".into()),
+            JobMsg::Generated(Err(e)) | JobMsg::Read(Err(e)) => d.log.push(format!("Error: {e}")),
+            JobMsg::Log(_) => {}
+        }
+        true
     }
 }
 
@@ -1094,6 +1242,8 @@ pub struct Dialog {
     pub src_dir: String,
     pub log: Vec<String>,
     pub last_out: Option<PathBuf>,
+    /// the Generate or Reverse running on its worker thread
+    pub job: Option<Job>,
 }
 
 impl App {
@@ -1105,12 +1255,19 @@ impl App {
         // the selected package when there is one, else the first
         let base = self.focus.filter(|f| bases.contains(f)).or_else(|| bases.first().copied());
         let target = self.focus.filter(|f| self.repo.alive(*f) && self.repo.kind_of(*f, if l == Lang::Ddl { "ERDDataModel" } else { "UMLPackage" }));
-        self.codegen = Some(Dialog { lang: l, tab: Tab::Generate, base, target, out_dir: folder(self, "lastOutputFolder"), src_dir: folder(self, "lastSourceFolder"), log: vec![], last_out: None });
+        self.codegen = Some(Dialog { lang: l, tab: Tab::Generate, base, target, out_dir: folder(self, "lastOutputFolder"), src_dir: folder(self, "lastSourceFolder"), log: vec![], last_out: None, job: None });
     }
 
     pub fn codegen_ui(&mut self, ctx: &egui::Context) {
         let Some(mut d) = self.codegen.take() else { return };
         let l = d.lang;
+        let ms = crate::canvas::EguiMeasure { ctx: ctx.clone() };
+        self.poll_codegen_job(&mut d, &ms);
+        let running = d.job.is_some();
+        if running {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
+        let mut cancel = false;
         let mut g = gen_opts(&self.prefs, l);
         let mut ro = rev_opts(&self.prefs, l);
         let (g0, r0) = (format!("{g:?}"), format!("{ro:?}"));
@@ -1121,91 +1278,94 @@ impl App {
         let label = |a: &App, e: Eid| views::display_name(&a.repo, e);
         egui::Window::new(l.label()).id(egui::Id::new("codegen-dialog")).open(&mut open).collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO).show(ctx, |ui| {
             ui.set_width(520.0);
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut d.tab, Tab::Generate, "Generate");
-                ui.selectable_value(&mut d.tab, Tab::Reverse, "Reverse");
-            });
-            ui.separator();
-            egui::Grid::new("codegen-grid").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| {
-                match d.tab {
-                    Tab::Generate => {
-                        ui.label(if l == Lang::Ddl { "Data Model" } else { "Base Package" });
-                        let text = d.base.map(|b| label(self, b)).unwrap_or_else(|| "(none)".into());
-                        egui::ComboBox::from_id_salt("codegen-base").width(360.0).selected_text(text).show_ui(ui, |ui| {
-                            for &b in &bases {
-                                ui.selectable_value(&mut d.base, Some(b), label(self, b));
-                            }
-                        });
-                        ui.end_row();
-                        ui.label("Output Folder");
-                        ui.horizontal(|ui| {
-                            ui.add(egui::TextEdit::singleline(&mut d.out_dir).desired_width(280.0));
-                            if ui.button("Browse...").clicked() {
-                                if let Some(p) = rfd::FileDialog::new().set_title("Select a folder where generated codes to be located").pick_folder() {
-                                    d.out_dir = p.display().to_string();
+            // the form stays as it is while a job runs
+            ui.add_enabled_ui(!running, |ui| {
+                ui.horizontal(|ui| {
+                    ui.selectable_value(&mut d.tab, Tab::Generate, "Generate");
+                    ui.selectable_value(&mut d.tab, Tab::Reverse, "Reverse");
+                });
+                ui.separator();
+                egui::Grid::new("codegen-grid").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| {
+                    match d.tab {
+                        Tab::Generate => {
+                            ui.label(if l == Lang::Ddl { "Data Model" } else { "Base Package" });
+                            let text = d.base.map(|b| label(self, b)).unwrap_or_else(|| "(none)".into());
+                            egui::ComboBox::from_id_salt("codegen-base").width(360.0).selected_text(text).show_ui(ui, |ui| {
+                                for &b in &bases {
+                                    ui.selectable_value(&mut d.base, Some(b), label(self, b));
                                 }
-                            }
-                        });
-                        ui.end_row();
+                            });
+                            ui.end_row();
+                            ui.label("Output Folder");
+                            ui.horizontal(|ui| {
+                                ui.add(egui::TextEdit::singleline(&mut d.out_dir).desired_width(280.0));
+                                if ui.button("Browse...").clicked() {
+                                    if let Some(p) = rfd::FileDialog::new().set_title("Select a folder where generated codes to be located").pick_folder() {
+                                        d.out_dir = p.display().to_string();
+                                    }
+                                }
+                            });
+                            ui.end_row();
+                        }
+                        Tab::Reverse => {
+                            ui.label(if l == Lang::Ddl { "Target Data Model" } else { "Target Package" });
+                            let text = d.target.map(|b| label(self, b)).unwrap_or_else(|| "(New model)".into());
+                            egui::ComboBox::from_id_salt("codegen-target").width(360.0).selected_text(text).show_ui(ui, |ui| {
+                                ui.selectable_value(&mut d.target, None, "(New model)");
+                                for &b in &targets {
+                                    ui.selectable_value(&mut d.target, Some(b), label(self, b));
+                                }
+                            });
+                            ui.end_row();
+                            ui.label("Source Folder");
+                            ui.horizontal(|ui| {
+                                ui.add(egui::TextEdit::singleline(&mut d.src_dir).desired_width(280.0));
+                                if ui.button("Browse...").clicked() {
+                                    if let Some(p) = rfd::FileDialog::new().set_title("Select a folder containing source files").pick_folder() {
+                                        d.src_dir = p.display().to_string();
+                                    }
+                                }
+                            });
+                            ui.end_row();
+                        }
+                    }
+                });
+                ui.add_space(4.0);
+                egui::CollapsingHeader::new("Options").default_open(true).show(ui, |ui| match d.tab {
+                    Tab::Generate => {
+                        if l == Lang::Ddl {
+                            ui.horizontal(|ui| {
+                                ui.label("DBMS");
+                                for (v, t) in [("mysql", "MySQL"), ("sqlite", "SQLite"), ("postgresql", "PostgreSQL")] {
+                                    ui.radio_value(&mut g.dbms, v.to_string(), t);
+                                }
+                            });
+                            ui.checkbox(&mut g.quote, "Quote identifiers");
+                            ui.checkbox(&mut g.drop_table, "Drop tables first (DROP TABLE IF EXISTS)");
+                            ui.checkbox(&mut g.doc, "Comments from documentation");
+                        } else {
+                            ui.checkbox(&mut g.doc, "Documentation comments");
+                            ui.checkbox(&mut g.use_tab, "Use tab for indentation");
+                            ui.add_enabled_ui(!g.use_tab, |ui| {
+                                ui.horizontal(|ui| {
+                                    ui.label("Indent spaces");
+                                    ui.add(egui::DragValue::new(&mut g.indent_spaces).range(0..=16));
+                                });
+                            });
+                        }
                     }
                     Tab::Reverse => {
-                        ui.label(if l == Lang::Ddl { "Target Data Model" } else { "Target Package" });
-                        let text = d.target.map(|b| label(self, b)).unwrap_or_else(|| "(New model)".into());
-                        egui::ComboBox::from_id_salt("codegen-target").width(360.0).selected_text(text).show_ui(ui, |ui| {
-                            ui.selectable_value(&mut d.target, None, "(New model)");
-                            for &b in &targets {
-                                ui.selectable_value(&mut d.target, Some(b), label(self, b));
-                            }
-                        });
-                        ui.end_row();
-                        ui.label("Source Folder");
-                        ui.horizontal(|ui| {
-                            ui.add(egui::TextEdit::singleline(&mut d.src_dir).desired_width(280.0));
-                            if ui.button("Browse...").clicked() {
-                                if let Some(p) = rfd::FileDialog::new().set_title("Select a folder containing source files").pick_folder() {
-                                    d.src_dir = p.display().to_string();
-                                }
-                            }
-                        });
-                        ui.end_row();
+                        if l == Lang::Ddl {
+                            ui.checkbox(&mut ro.type_hierarchy, "Create an ER diagram");
+                        } else {
+                            ui.checkbox(&mut ro.association, "Fields typed by a class as associations");
+                            ui.checkbox(&mut ro.public_only, "Public members only");
+                            ui.checkbox(&mut ro.type_hierarchy, "Create a type hierarchy diagram");
+                            ui.checkbox(&mut ro.package_structure, "Create a package structure diagram");
+                            ui.checkbox(&mut ro.package_overview, "Create package overview diagrams");
+                        }
                     }
-                }
-            });
-            ui.add_space(4.0);
-            egui::CollapsingHeader::new("Options").default_open(true).show(ui, |ui| match d.tab {
-                Tab::Generate => {
-                    if l == Lang::Ddl {
-                        ui.horizontal(|ui| {
-                            ui.label("DBMS");
-                            for (v, t) in [("mysql", "MySQL"), ("sqlite", "SQLite"), ("postgresql", "PostgreSQL")] {
-                                ui.radio_value(&mut g.dbms, v.to_string(), t);
-                            }
-                        });
-                        ui.checkbox(&mut g.quote, "Quote identifiers");
-                        ui.checkbox(&mut g.drop_table, "Drop tables first (DROP TABLE IF EXISTS)");
-                        ui.checkbox(&mut g.doc, "Comments from documentation");
-                    } else {
-                        ui.checkbox(&mut g.doc, "Documentation comments");
-                        ui.checkbox(&mut g.use_tab, "Use tab for indentation");
-                        ui.add_enabled_ui(!g.use_tab, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label("Indent spaces");
-                                ui.add(egui::DragValue::new(&mut g.indent_spaces).range(0..=16));
-                            });
-                        });
-                    }
-                }
-                Tab::Reverse => {
-                    if l == Lang::Ddl {
-                        ui.checkbox(&mut ro.type_hierarchy, "Create an ER diagram");
-                    } else {
-                        ui.checkbox(&mut ro.association, "Fields typed by a class as associations");
-                        ui.checkbox(&mut ro.public_only, "Public members only");
-                        ui.checkbox(&mut ro.type_hierarchy, "Create a type hierarchy diagram");
-                        ui.checkbox(&mut ro.package_structure, "Create a package structure diagram");
-                        ui.checkbox(&mut ro.package_overview, "Create package overview diagrams");
-                    }
-                }
+                });
             });
             ui.add_space(4.0);
             egui::ScrollArea::vertical().max_height(160.0).auto_shrink([false, true]).show(ui, |ui| {
@@ -1235,13 +1395,23 @@ impl App {
                         Tab::Generate => d.base.is_some() && !d.out_dir.trim().is_empty(),
                         Tab::Reverse => !d.src_dir.trim().is_empty(),
                     };
-                    run = ui.add_enabled(ok, egui::Button::new(if d.tab == Tab::Generate { "Generate" } else { "Reverse" })).clicked();
+                    // the button becomes Cancel while the job runs
+                    if running {
+                        cancel = ui.button("Cancel").clicked();
+                    } else {
+                        run = ui.add_enabled(ok, egui::Button::new(if d.tab == Tab::Generate { "Generate" } else { "Reverse" })).clicked();
+                    }
                 });
             });
             close |= ui.input(|i| i.key_pressed(egui::Key::Escape));
         });
         if format!("{g:?}") != g0 || format!("{ro:?}") != r0 {
             store_opts(&mut self.prefs, l, &g, &ro);
+        }
+        if cancel {
+            if let Some(j) = &d.job {
+                j.cancel.store(true, Ordering::Relaxed);
+            }
         }
         if run {
             let k = l.key();
@@ -1250,30 +1420,21 @@ impl App {
                     let out = PathBuf::from(d.out_dir.trim());
                     self.prefs.set(&format!("{k}.lastOutputFolder"), json!(d.out_dir.trim()));
                     self.prefs.flush();
-                    match self.generate_code(l, d.base.unwrap(), &out) {
-                        Ok(files) => {
-                            for f in &files {
-                                d.log.push(format!("Generated {}", f.display()));
-                            }
-                            d.log.push(format!("{} files generated in {}.", files.len(), out.display()));
-                            d.last_out = Some(out);
-                        }
-                        Err(e) => d.log.push(format!("Error: {e}")),
-                    }
+                    let o = gen_opts(&self.prefs, l);
+                    d.job = Some(Job::generate(self.repo.clone(), l, d.base.unwrap(), o, out, Some(ctx.clone())));
                 }
                 Tab::Reverse => {
                     self.prefs.set(&format!("{k}.lastSourceFolder"), json!(d.src_dir.trim()));
                     self.prefs.flush();
-                    let ms = crate::canvas::EguiMeasure { ctx: ctx.clone() };
-                    match self.reverse_code(l, d.target, Path::new(d.src_dir.trim()), &ms) {
-                        Ok(lines) => d.log.extend(lines),
-                        Err(e) => d.log.push(format!("Error: {e}")),
-                    }
+                    d.job = Some(Job::reverse(l, PathBuf::from(d.src_dir.trim()), d.target, Some(ctx.clone())));
                 }
             }
         }
         if open && !close {
             self.codegen = Some(d);
+        } else if let Some(j) = &d.job {
+            // closing the dialog stops the job
+            j.cancel.store(true, Ordering::Relaxed);
         }
     }
 }

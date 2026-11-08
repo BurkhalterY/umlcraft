@@ -474,3 +474,44 @@ pub(super) fn generate_then_reverse_through_the_app() {
     assert!(!a.repo.all_of("UMLModel").iter().any(|x| a.repo.name(*x) == "JavaReverse"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Generate and Reverse run on a worker thread: the dialog's log fills as files go, the Reverse is
+/// imported when the files are read, and a job stops between two files once it is cancelled.
+#[test]
+pub(super) fn jobs_run_on_a_worker_thread_and_can_be_cancelled() {
+    let dir = std::env::temp_dir().join(format!("umlcraft-codegen-job-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut a = App::new(None);
+    let (r, core) = library();
+    a.repo = r;
+    let ms = measure();
+    let mut d = Dialog { lang: Lang::Java, tab: Tab::Generate, base: Some(core), target: None, out_dir: String::new(), src_dir: String::new(), log: vec![], last_out: None, job: None };
+    let wait = |a: &mut App, d: &mut Dialog| {
+        let start = std::time::Instant::now();
+        while !a.poll_codegen_job(d, &ms) {
+            assert!(start.elapsed().as_secs() < 30, "the job did not end");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    };
+    d.job = Some(Job::generate(a.repo.clone(), Lang::Java, core, gen_opts(&a.prefs, Lang::Java), dir.clone(), None));
+    wait(&mut a, &mut d);
+    assert!(d.job.is_none());
+    assert!(d.log.iter().any(|l| l.starts_with("Generated ")), "{:?}", d.log);
+    assert!(d.log.last().unwrap().starts_with("5 files generated"), "{:?}", d.log);
+    assert_eq!(d.last_out.as_deref(), Some(dir.as_path()));
+    d.log.clear();
+    d.job = Some(Job::reverse(Lang::Java, dir.clone(), None, None));
+    wait(&mut a, &mut d);
+    assert!(d.log.iter().any(|l| l.contains("5 files analyzed")), "{:?}", d.log);
+    assert!(a.repo.all_of("UMLModel").iter().any(|x| a.repo.name(*x) == "JavaReverse"));
+    // a cancelled job stops before the next file
+    let stop = std::sync::atomic::AtomicBool::new(true);
+    assert!(read_sources(Lang::Java, &dir, &stop, &mut |_| {}).unwrap().is_none());
+    assert!(write_files(vec![(PathBuf::from("X.java"), String::new())], &dir, &stop, &mut |_| {}).unwrap().is_none());
+    assert!(!dir.join("X.java").exists());
+    let job = Job::reverse(Lang::Java, dir.clone(), None, None);
+    job.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
+    d.job = Some(job);
+    wait(&mut a, &mut d);
+    let _ = std::fs::remove_dir_all(&dir);
+}
