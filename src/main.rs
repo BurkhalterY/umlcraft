@@ -47,6 +47,7 @@ mod thumbs;
 mod ui;
 mod validate;
 mod views;
+mod wireframe;
 mod xmi;
 #[cfg(test)]
 mod tests;

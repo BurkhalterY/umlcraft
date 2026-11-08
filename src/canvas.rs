@@ -231,6 +231,8 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                 ],
                 // a combined fragment's Add Operand (quickedits/uml.json "uml.combined-fragment")
                 "UMLCombinedFragment" => vec![("+ Operand", "Add Operand", "", ItemKey::AddOperand)],
+                // a tab list's Add Tab (wireframe/quickedits/wireframe.json "wireframe.tab-list")
+                "WFTabList" => vec![("+ Tab", "Add Tab", "", ItemKey::AddTab)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
                 // classes, interfaces, signals, data types, components, nodes, artifacts: Add Reception
                 // too, which has no key; stereotypes have none (actors take no attributes in UMLCraft)
@@ -292,6 +294,8 @@ pub enum ItemKey {
     AddConnectionPoint,
     /// A combined fragment's Add Operand
     AddOperand,
+    /// A tab list's Add Tab
+    AddTab,
     /// A lifeline's Select Type (false) or Create Type (true)
     LifelineType(bool),
     /// A lifeline's message buttons
@@ -1479,8 +1483,9 @@ impl App {
             self.pick_image(v);
             return;
         }
-        // frames and hyperlinks have no inline edit
-        if t == "UMLFrameView" || t == "HyperlinkView" {
+        // frames and hyperlinks have no inline edit, nor wireframe frames and widgets without a name
+        // but a tab list (wireframe/quickedits/wireframe.json)
+        if t == "UMLFrameView" || t == "HyperlinkView" || (crate::wireframe::is_node_view(&t) && !crate::wireframe::has_name(&t) && t != "WFTabListView") {
             return;
         }
         // a constraint edits its specification (uml-commands.js:669)
@@ -1567,7 +1572,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || matches!(self.repo.ty(v), "ERDEntityView" | "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView") || crate::c4::is_node_view(self.repo.ty(v))));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || matches!(self.repo.ty(v), "ERDEntityView" | "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView") || crate::c4::is_node_view(self.repo.ty(v)) || crate::wireframe::has_name(self.repo.ty(v))));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
@@ -1806,6 +1811,11 @@ impl App {
                 Some(role) => self.open_element_picker(role, "type"),
                 None => self.toast_error("Lifeline should represent a role. (connect 'represent' field to an Attribute of the container Collaboration)"),
             },
+            (ItemKey::AddTab, _) => {
+                if let Some(t) = self.change(|a| a.add_tab(host)) {
+                    self.select(vec![t]);
+                }
+            }
             (ItemKey::Seq(what), _) => {
                 if let Some(e) = self.add_seq(host, what) {
                     self.select(vec![e]);

@@ -223,6 +223,41 @@ const SEQUENCE_GROUPS: &[Group] = &[
     },
     ANNOTATIONS,
 ];
+// a wireframe diagram (wireframe/toolbox/wireframe.json)
+const WIREFRAME_GROUPS: &[Group] = &[
+    Group {
+        id: "wireframe.frames",
+        label: "Wireframe Frames",
+        items: &[
+            node("Frame", "WFFrame", "WFFrame"),
+            node("Frame (Mobile)", "WFMobileFrame", "WFMobileFrame"),
+            node("Frame (Web)", "WFWebFrame", "WFWebFrame"),
+            node("Frame (Desktop)", "WFDesktopFrame", "WFDesktopFrame"),
+        ],
+    },
+    Group {
+        id: "wireframe.components",
+        label: "Wireframe Components",
+        items: &[
+            node("Button", "WFButton", "WFButton"),
+            node("Text", "WFText", "WFText"),
+            node("Radio", "WFRadio", "WFRadio"),
+            node("Checkbox", "WFCheckbox", "WFCheckbox"),
+            node("Switch", "WFSwitch", "WFSwitch"),
+            node("Link", "WFLink", "WFLink"),
+            node("Tab List", "WFTabList", "WFTabList"),
+            node("Tab", "WFTab", "WFTab"),
+            node("Input", "WFInput", "WFInput"),
+            node("Dropdown", "WFDropdown", "WFDropdown"),
+            node("Panel", "WFPanel", "WFPanel"),
+            node("Image", "WFImage", "WFImage"),
+            node("Separator", "WFSeparator", "WFSeparator"),
+            node("Avatar", "WFAvatar", "WFAvatar"),
+            node("Slider", "WFSlider", "WFSlider"),
+        ],
+    },
+    ANNOTATIONS,
+];
 // a C4 diagram (c4/toolbox/c4.json)
 const C4_GROUPS: &[Group] = &[
     Group {
@@ -453,7 +488,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 17] = [
+const DIAGRAM_KINDS: [(&str, &str); 18] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -472,6 +507,7 @@ const DIAGRAM_KINDS: [(&str, &str); 17] = [
     ("MindmapDiagram", "MMMindmapDiagram"),
     ("ER Diagram", "ERDDiagram"),
     ("C4 Diagram", "C4Diagram"),
+    ("Wireframe Diagram", "WFWireframeDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -733,6 +769,8 @@ impl App {
         }
         if self.repo.kind_of(e, "ExtensibleModel") && !self.repo.kind_of(e, "Diagram") {
             adds.push(("Mindmap", "MMMindmap", false));
+            // and a wireframe (wireframe/menus/wireframe.json, wireframe-commands.js:50-60)
+            adds.push(("Wireframe", "WFWireframe", false));
         }
         // Model › Add › Constraint on any model element (uml.json)
         if self.repo.kind_of(e, "UMLModelElement") {
@@ -832,7 +870,7 @@ impl App {
         if is_pkg || is_classifier || other {
             let dfd = self.repo.kind_of(e, "DFDElement");
             ui.menu_button("Add Diagram", |ui| {
-                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram") || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
+                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram") || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
                 for (l, k) in kinds {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
@@ -1107,6 +1145,12 @@ impl App {
             "C4Container" => return vec![("name", "text"), ("technology", "text"), ("description", "multiline"), ("kind", "enum")],
             _ if r.kind_of(e, "C4Element") => return vec![("name", "text"), ("technology", "text"), ("description", "multiline")],
             _ if r.kind_of(e, "DFDElement") => return vec![("name", "text"), ("id", "text")],
+            "WFMobileFrame" => return vec![("name", "text"), ("id", "text"), ("orientation", "enum")],
+            "WFRadio" | "WFCheckbox" | "WFSwitch" => return vec![("name", "text"), ("id", "text"), ("checked", "bool")],
+            "WFTab" | "WFTabList" => return vec![("name", "text"), ("id", "text"), ("position", "enum")],
+            "WFSeparator" => return vec![("name", "text"), ("id", "text"), ("isVertical", "bool")],
+            "WFSlider" => return vec![("name", "text"), ("id", "text"), ("value", "int")],
+            _ if r.kind_of(e, "WFElement") => return vec![("name", "text"), ("id", "text")],
             _ => {}
         }
         if t == "UMLAssociation" {
@@ -1240,6 +1284,9 @@ impl App {
         match (ty, field) {
             ("UMLTransition", "kind") => return &["external", "internal", "local"],
             ("ERDRelationshipEnd", "cardinality") => return &["0..1", "1", "0..*", "1..*"],
+            // WFOrientationKind, WFPositionKind (wireframe/metamodel.json)
+            ("WFMobileFrame", "orientation") => return &["portrait", "landscape"],
+            ("WFTab" | "WFTabList", "position") => return &["top", "bottom", "left", "right"],
             ("C4Container", "kind") => {
                 return &["server-webapp", "client-webapp", "desktop-app", "mobile-app", "console-app", "serverless-function", "database", "blob-store", "filesystem", "shell-script", "etc"]
             }
@@ -1749,6 +1796,8 @@ impl App {
                 Some("MMMindmapDiagram") => self.open_groups.insert("mindmap"),
                 Some("ERDDiagram") => self.open_groups.insert("erd"),
                 Some("C4Diagram") => self.open_groups.insert("c4"),
+                // both groups open on a wireframe diagram ("auto-expands")
+                Some("WFWireframeDiagram") => self.open_groups.insert("wireframe.frames") | self.open_groups.insert("wireframe.components"),
                 Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
                 _ => false,
             };
@@ -1781,6 +1830,7 @@ impl App {
             Some("MMMindmapDiagram") => MINDMAP_GROUPS,
             Some("ERDDiagram") => ERD_GROUPS,
             Some("C4Diagram") => C4_GROUPS,
+            Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
             Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,

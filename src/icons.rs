@@ -53,7 +53,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLGate" => "gate",
         "UMLSequenceDiagram" => "diagram",
         // a flowchart element's icon is its type (the shapes are drawn by key)
-        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") => crate::meta::static_name(t),
+        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") || t.starts_with("WF") => crate::meta::static_name(t),
         "UMLTransition" => "dependency",
         // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
         "UMLAction" => match r.str(e, "kind").as_str() {
@@ -439,6 +439,87 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             p.rect_stroke(Rect::from_min_size(at(1.5, 4.0), Vec2::new(13.0 * s, 8.0 * s)), (4.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
         }
         "MMEdge" => line(&[(2.0, 13.0), (14.0, 3.0)], B),
+        // wireframe elements: their outlines in small (wireframe/elements.js)
+        "WFWireframe" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, Y);
+            line(&[(1.5, 5.5), (14.5, 5.5)], Y);
+            rect_at(3.5, 8.0, 5.0, 3.5, Y);
+        }
+        "WFWireframeDiagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            rect_at(4.0, 4.0, 8.0, 3.0, G);
+            line(&[(4.0, 10.0), (12.0, 10.0)], G);
+        }
+        "WFFrame" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 1.5), Vec2::new(13.0 * s, 13.0 * s)), (3.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "WFMobileFrame" => {
+            p.rect_stroke(Rect::from_min_size(at(4.0, 1.0), Vec2::new(8.0 * s, 14.0 * s)), (2.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            rect_at(5.0, 3.0, 6.0, 10.0, Y);
+        }
+        "WFWebFrame" | "WFDesktopFrame" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, Y);
+            line(&[(1.5, 5.5), (14.5, 5.5)], Y);
+            if key == "WFWebFrame" {
+                p.circle_stroke(at(12.5, 4.0), 0.8 * s, st(Y));
+            } else {
+                line(&[(11.5, 3.2), (13.0, 4.8)], Y);
+                line(&[(13.0, 3.2), (11.5, 4.8)], Y);
+            }
+        }
+        "WFButton" | "WFInput" | "WFDropdown" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 4.5), Vec2::new(13.0 * s, 7.0 * s)), (2.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            match key {
+                "WFButton" => line(&[(5.0, 8.0), (11.0, 8.0)], Y),
+                "WFInput" => line(&[(4.0, 6.5), (4.0, 9.5)], Y),
+                _ => line(&[(10.0, 7.0), (11.5, 9.0), (13.0, 7.0)], Y),
+            }
+        }
+        "WFText" | "WFLink" => {
+            let c = if key == "WFLink" { B } else { Y };
+            line(&[(3.0, 3.0), (13.0, 3.0)], c);
+            line(&[(8.0, 3.0), (8.0, 12.0)], c);
+            if key == "WFLink" {
+                line(&[(3.0, 14.0), (13.0, 14.0)], c);
+            }
+        }
+        "WFRadio" => {
+            p.circle_stroke(at(5.0, 8.0), 3.5 * s, st(Y));
+            p.circle_filled(at(5.0, 8.0), 1.5 * s, Y);
+            line(&[(10.0, 8.0), (15.0, 8.0)], Y);
+        }
+        "WFCheckbox" => {
+            rect_at(1.5, 4.5, 7.0, 7.0, Y);
+            line(&[(2.5, 7.5), (4.5, 10.0), (8.0, 4.0)], Y);
+            line(&[(10.0, 8.0), (15.0, 8.0)], Y);
+        }
+        "WFSwitch" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 4.5), Vec2::new(13.0 * s, 7.0 * s)), (3.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            p.circle_filled(at(11.0, 8.0), 2.2 * s, Y);
+        }
+        "WFTabList" | "WFTab" => {
+            line(&[(1.5, 12.5), (1.5, 4.5), (7.5, 4.5), (7.5, 12.5)], Y);
+            if key == "WFTabList" {
+                line(&[(7.5, 7.0), (13.5, 7.0), (13.5, 12.5)], Y);
+                line(&[(0.5, 12.5), (15.5, 12.5)], Y);
+            }
+        }
+        "WFPanel" => rect_at(1.5, 2.5, 13.0, 11.0, Y),
+        "WFImage" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, Y);
+            line(&[(1.5, 2.5), (14.5, 13.5)], Y);
+            line(&[(14.5, 2.5), (1.5, 13.5)], Y);
+        }
+        "WFSeparator" => line(&[(1.0, 8.0), (15.0, 8.0)], Y),
+        "WFAvatar" => {
+            p.circle_stroke(at(8.0, 8.0), 6.5 * s, st(Y));
+            p.circle_stroke(at(8.0, 6.0), 2.0 * s, st(Y));
+            line(&[(4.5, 12.0), (5.5, 9.5), (10.5, 9.5), (11.5, 12.0)], Y);
+        }
+        "WFSlider" => {
+            line(&[(1.0, 8.0), (15.0, 8.0)], Y);
+            p.circle_filled(at(6.0, 8.0), 2.5 * s, Y);
+        }
         // flowchart shapes in small (flowchart/elements.js)
         k if k.starts_with("FC") => {
             let c = Y;

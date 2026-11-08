@@ -410,6 +410,37 @@ fn build() -> HashMap<&'static str, Kind> {
     def("MMEdge", Some("DirectedRelationship"), vec![]);
     def("MMNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
     def("MMEdgeView", Some("EdgeView"), vec![]);
+    // wireframes (wireframe/metamodel.json)
+    def("WFElement", Some("ExtensibleModel"), vec![("id", d(json!("")))]);
+    def("WFWireframe", Some("WFElement"), vec![]);
+    def("WFWireframeDiagram", Some("Diagram"), vec![]);
+    def("WFFrame", Some("WFElement"), vec![]);
+    def("WFMobileFrame", Some("WFFrame"), vec![("orientation", d(json!("portrait")))]);
+    def("WFWebFrame", Some("WFFrame"), vec![]);
+    def("WFDesktopFrame", Some("WFFrame"), vec![]);
+    for ty in ["WFButton", "WFText", "WFLink", "WFInput", "WFDropdown", "WFPanel", "WFImage", "WFAvatar"] {
+        def(ty, Some("WFElement"), vec![]);
+    }
+    for ty in ["WFRadio", "WFCheckbox", "WFSwitch"] {
+        def(ty, Some("WFElement"), vec![("checked", d(json!(false)))]);
+    }
+    for ty in ["WFTab", "WFTabList"] {
+        def(ty, Some("WFElement"), vec![("position", d(json!("top")))]);
+    }
+    def("WFSeparator", Some("WFElement"), vec![("isVertical", d(json!(false)))]);
+    def("WFSlider", Some("WFElement"), vec![("value", d(json!(0)))]);
+    def("WFGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
+    def("WFFrameView", Some("NodeView"), vec![]);
+    for ty in ["WFMobileFrameView", "WFWebFrameView", "WFDesktopFrameView"] {
+        def(ty, Some("WFFrameView"), vec![]);
+    }
+    for ty in ["WFButtonView", "WFTextView", "WFRadioView", "WFCheckboxView", "WFTabView", "WFInputView", "WFDropdownView"] {
+        def(ty, Some("WFGeneralNodeView"), vec![]);
+    }
+    def("WFLinkView", Some("WFTextView"), vec![]);
+    for ty in ["WFSwitchView", "WFTabListView", "WFPanelView", "WFImageView", "WFSeparatorView", "WFAvatarView", "WFSliderView"] {
+        def(ty, Some("NodeView"), vec![]);
+    }
     for (_, ty, _) in crate::flowchart::NODES {
         if ty != "FCFlow" {
             def(ty, Some("FCModelElement"), vec![]);
@@ -481,5 +512,5 @@ pub fn static_name(ty: &str) -> &'static str {
 /// Whether an element of another notation than UML takes its name as typed, without the UML name
 /// grammar (flowcharts, data flow diagrams, mind maps: their quick edits only set the name).
 pub fn plain_named(ty: &str) -> bool {
-    ["FC", "DFD", "MM", "ERD", "C4"].iter().any(|p| ty.starts_with(p))
+    ["FC", "DFD", "MM", "ERD", "C4", "WF"].iter().any(|p| ty.starts_with(p))
 }

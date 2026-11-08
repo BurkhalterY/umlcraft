@@ -91,7 +91,7 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
       <h3>Use case diagrams</h3>
       Actors, use cases, use case subjects and packages, with associations, generalizations, dependencies, includes and extends. Boundaries stay behind what they contain and carry it along when you move them.
       <br><br>
-      Sequence diagrams (lifelines, every kind of message, activations), composite structure diagrams (ports, parts, connectors), statechart diagrams (states, pseudostates, transitions), activity diagrams (actions, control and object nodes, regions, flows), ER diagrams (entities, columns and crow's-foot relationships), flowcharts (all 27 symbols and flows), data flow diagrams, mind maps and C4 diagrams are editable too. Every other diagram kind in a StarUML file (communication, timing, BPMN, SysML and more) opens, is drawn from its saved shapes, and is saved back exactly as it was.
+      Sequence diagrams (lifelines, every kind of message, activations), composite structure diagrams (ports, parts, connectors), statechart diagrams (states, pseudostates, transitions), activity diagrams (actions, control and object nodes, regions, flows), ER diagrams (entities, columns and crow's-foot relationships), flowcharts (all 27 symbols and flows), data flow diagrams, mind maps, C4 diagrams and wireframes (frames and every widget) are editable too. Every other diagram kind in a StarUML file (communication, timing, BPMN, SysML and more) opens, is drawn from its saved shapes, and is saved back exactly as it was.
     </td>
   </tr>
 </table>
@@ -135,7 +135,8 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/model.rs`, `src/meta.rs` | The project and the `.mdj` element kinds, fields and defaults |
 | `src/views.rs`, `src/render.rs`, `src/export.rs` | Laying out and drawing boxes, labels and lines, on screen and into PNG, JPEG and SVG |
 | `src/layout.rs`, `src/generate.rs` | Format › Layout (the layered automatic layout) and Tools › Diagram Generator |
-| `src/mermaid.rs` | Tools › Generate Diagram by Mermaid: class diagrams from Mermaid code |
+| `src/mermaid.rs`, `src/mermaid_kinds.rs` | Tools › Generate Diagram by Mermaid: class diagrams, flowcharts, ER diagrams, mind maps and state diagrams from Mermaid code |
+| `src/sequence.rs`, `src/flowchart.rs`, `src/notations.rs`, `src/erd.rs`, `src/c4.rs`, `src/wireframe.rs` | Sequence diagrams, flowcharts, data flow diagrams and mind maps, ER diagrams, C4 diagrams and wireframes: their views, layout and drawing |
 | `src/html.rs` | File › Export › HTML Docs: one page per element, an SVG and image map per diagram |
 | `src/xmi.rs` | File › Export › XMI Export and File › Import › XMI Import (v2.1): the model elements as OMG XMI 2.1, without diagrams, and a small XML reader |
 | `src/markdown.rs` | View › Markdown Documentation: the editor and a small Markdown preview |

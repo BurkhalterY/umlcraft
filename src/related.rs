@@ -165,6 +165,9 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
         "DFDDataStore" => return vec![r("Add Incoming Process", "DFDProcess", "DFDDataFlow", Plain, true, Above), NOTE],
         // a mind map node: a node to the left or right, its edge from the new node (an oblique line,
         // mindmap-commands.js:16-60); no note
+        // named wireframe widgets and tab lists: Add Note (wireframe/quickedits/wireframe.json)
+        "WFButton" | "WFText" | "WFRadio" | "WFCheckbox" | "WFLink" | "WFTab" | "WFInput" | "WFDropdown" | "WFTabList" => return vec![NOTE],
+        t if t.starts_with("WF") => return vec![],
         "MMNode" => return vec![r("Add Node Left", "MMNode", "MMEdge", Plain, true, Left), r("Add Node Right", "MMNode", "MMEdge", Plain, true, Right)],
         _ => vec![],
     };

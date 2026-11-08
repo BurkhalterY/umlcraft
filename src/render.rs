@@ -588,6 +588,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             crate::notations::draw(c, r, v, fill, line, fc);
             return;
         }
+        "wireframe" => {
+            crate::wireframe::draw(c, r, v, fill, line, fc);
+            return;
+        }
         "structured" => {
             // a filled rounded box with a dashed border (UMLStructuredActivityNodeView.drawObject,
             // elements.js:10891-10925)

@@ -330,22 +330,22 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Profiles `uml.profile` | UMLProfileDiagram | Enumeration | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Profiles `uml.profile` | UMLProfileDiagram | Extension | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Profiles `uml.profile` | UMLProfileDiagram | Generalization | ✅ | extensions/essential/uml/toolbox/uml.json |
-| Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame (Mobile) | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame (Web) | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame (Desktop) | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Button | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Text | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Radio | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Checkbox | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Switch | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Link | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Tab List | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Tab | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Input | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Dropdown | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Panel | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Image | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Separator | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Avatar | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
-| Wireframe Components `wireframe.components` | WFWireframeDiagram | Slider | ❌ | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame | ✅ | a WFFrame ("Frame1"…) in the wireframe that owns the diagram, at least 100 × 100, a box rounded by 14 (src/app.rs:893-910; src/wireframe.rs:110, 277) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame (Mobile) | ✅ | a WFMobileFrame: a phone body rounded by a twentieth of its width around a screen, turned with its orientation (src/wireframe.rs:279-287) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame (Web) | ✅ | a WFWebFrame: a 20-high bar with an address field and two round buttons (src/wireframe.rs:288-295) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Frames `wireframe.frames` | WFWireframeDiagram | Frame (Desktop) | ✅ | a WFDesktopFrame: a 20-high title bar with a close box (src/wireframe.rs:296-303) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Button | ✅ | a WFButton ("Button1"…) with its centred name, padded 8 across and 6 down, rounded by 4; drawn in a frame or panel it goes in it (src/app.rs:893-910; src/wireframe.rs:184-226) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Text | ✅ | a WFText: its left-aligned word-wrapped name at the top (src/wireframe.rs:184-226) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Radio | ✅ | a WFRadio: a 14 circle on the left, dotted when `checked`, then its name (src/wireframe.rs:311-317) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Checkbox | ✅ | a WFCheckbox: a 14 square rounded by 3, ticked when `checked`, then its name (src/wireframe.rs:318-324) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Switch | ✅ | a WFSwitch, always 26 × 16: a pill with its knob filled on the right when `checked` (src/wireframe.rs:114, 325-334) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Link | ✅ | a WFLink: its name underlined in blue #2b71ff (src/wireframe.rs:76-80, 392-410) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Tab List | ✅ | a WFTabList: its tabs lined up across (top, bottom) or down (left, right) as deep as the list, which grows to hold them, with a line on their side; Add Tab in its quick edit (src/wireframe.rs:144-183, 346-356) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Tab | ✅ | a WFTab, rounded on the side away from its list; in a tab list it takes the list's `position` (src/wireframe.rs:335-345) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Input | ✅ | a WFInput: a box rounded by 4 with its name at the top left, padded 8 / 6 (src/wireframe.rs:184-226) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Dropdown | ✅ | a WFDropdown: an input 16 wider with a chevron on the right (src/wireframe.rs:305-310) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Panel | ✅ | a WFPanel, at least 16 × 16, a box that holds widgets (src/wireframe.rs:47-55, 118) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Image | ✅ | a WFImage: a crossed box, at least 16 × 16 (src/wireframe.rs:357-361) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Separator | ✅ | a WFSeparator: a line 8 thick, across or down (`isVertical`), stretching one way only (src/wireframe.rs:122-131, 362-369) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Avatar | ✅ | a WFAvatar: a circle with a head and shoulders, kept square, at least 24 (src/wireframe.rs:132-137, 370-377) | extensions/essential/wireframe/toolbox/wireframe.json |
+| Wireframe Components `wireframe.components` | WFWireframeDiagram | Slider | ✅ | a WFSlider, 12 high: a track with its knob at `value` 0–100 (src/wireframe.rs:138-143, 378-385) | extensions/essential/wireframe/toolbox/wireframe.json |

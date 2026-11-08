@@ -614,6 +614,8 @@ impl App {
             other if other.starts_with("DFD") && other != "DFDDiagram" => &other[3..],
             // and an ERD element "ERD" (ERDElement.getDisplayClassName, erd/elements.js:35-38)
             other if other.starts_with("ERD") && other != "ERDDiagram" => &other[3..],
+            // and a wireframe element "WF" (WFElement.getDisplayClassName, wireframe/elements.js:42-45)
+            other if other.starts_with("WF") && other != "WFWireframeDiagram" => &other[2..],
             other => other.trim_start_matches("UML"),
         };
         let names: HashSet<String> = self.repo.children(parent).into_iter().map(|(_, c)| self.repo.name(c)).collect();
@@ -888,6 +890,24 @@ impl App {
             self.apply_view_defaults(v);
             return Some(v);
         }
+        // a wireframe widget goes in the wireframe that owns the diagram, or in the frame, panel or tab
+        // list it is drawn in, named after its class ("Button1"; wireframe-factory.js:75-95,
+        // elements.js:42-45, diagram-editor.js containerView)
+        if crate::wireframe::is_node_type(kind) {
+            let owner = self.repo.parent(d)?;
+            let vt = format!("{kind}View");
+            let holder = self.repo.list(d, "ownedViews").into_iter().rev().find(|c| crate::wireframe::can_contain(self.repo.ty(*c), &vt) && { let b = views::node_rect(&self.repo, *c); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h });
+            let parent = holder.and_then(|c| self.repo.refd(c, "model")).unwrap_or(owner);
+            let name = self.new_name(parent, kind);
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((parent, "ownedElements")));
+            let v = crate::wireframe::create_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            crate::wireframe::link_color(&mut self.repo, v);
+            if let Some(c) = holder {
+                self.set_container(&[v], Some(c));
+            }
+            return Some(v);
+        }
         // a flowchart node goes in the flowchart that owns the diagram (flowchart-factory.js:73-110)
         if crate::flowchart::is_node_type(kind) {
             let owner = self.repo.parent(d)?;
@@ -1034,6 +1054,17 @@ impl App {
     /// hold boxes, and never themselves or a box that contains them.
     pub fn can_contain_view(&self, container: Eid, v: Eid) -> bool {
         let ct = self.repo.ty(container);
+        // a wireframe frame or panel holds widgets, a tab list holds tabs (wireframe/elements.js)
+        if crate::wireframe::is_node_view(ct) || crate::wireframe::is_node_view(self.repo.ty(v)) {
+            let mut c = Some(container);
+            while let Some(x) = c {
+                if x == v {
+                    return false;
+                }
+                c = self.repo.refd(x, "containerView");
+            }
+            return crate::wireframe::can_contain(ct, self.repo.ty(v));
+        }
         // a state holds states and pseudostates, which then belong to its first region
         let vertex = |x: Eid| self.repo.refd(x, "model").map(|m| self.repo.kind_of(m, "UMLVertex")).unwrap_or(false);
         if ct == "UMLStateView" && !vertex(v) {
@@ -1202,6 +1233,8 @@ impl App {
             "FCFlowchartDiagram" => vec!["Hyperlink", "Diagram", "FCModelElement", "FCFlow"],
             "DFDDiagram" => vec!["Hyperlink", "Diagram", "DFDExternalEntity", "DFDProcess", "DFDDataStore", "DFDDataFlow"],
             "MMMindmapDiagram" => vec!["Hyperlink", "Diagram", "MMNode", "MMEdge"],
+            // WFWireframeDiagram.canAcceptModel (wireframe/elements.js:55-61)
+            "WFWireframeDiagram" => vec!["Hyperlink", "Diagram", "WFElement"],
             // ERDDiagram.canAcceptModel (erd/elements.js:40-47)
             "ERDDiagram" => vec!["Hyperlink", "Diagram", "ERDEntity", "ERDColumn", "ERDRelationship"],
             // C4Diagram.canAcceptModel (c4/elements.js:75-80)
@@ -1311,7 +1344,7 @@ impl App {
             }
             return Ok(v.into_iter().collect());
         }
-        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) {
+        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) {
             return Ok(vec![]);
         }
         // a hidden view of it is shown again instead of a second one
@@ -2000,6 +2033,8 @@ impl App {
             "FCFlowchartDiagram" => Some(("FCFlowchart", "Flowchart", "FCFlowchart")),
             "DFDDiagram" => Some(("DFDElement", "DataFlowModel", "DFDDataFlowModel")),
             "MMMindmapDiagram" => Some(("MMMindmap", "Mindmap", "MMMindmap")),
+            // a wireframe diagram goes in a wireframe, else in a new "Wireframe1" (wireframe-factory.js:20-50)
+            "WFWireframeDiagram" => Some(("WFWireframe", "Wireframe", "WFWireframe")),
             // an ER diagram goes in a data model, else in a new "Data Model1" (erd-factory.js:30-55)
             "ERDDiagram" => Some(("ERDDataModel", "Data Model", "ERDDataModel")),
             _ => None,

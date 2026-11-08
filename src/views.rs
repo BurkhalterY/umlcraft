@@ -430,7 +430,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLInteractionUse" => (crate::sequence::FRAGMENT_MIN_W * 2.0, crate::sequence::FRAGMENT_MIN_H),
         "UMLContinuation" | "UMLStateInvariant" => crate::sequence::INVARIANT_MIN,
         // a click makes a flowchart node at its smallest size, as in the original (factory.js:279-292)
-        _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) || kind == "ERDEntity" || crate::c4::tool(kind).is_some() => (1.0, 1.0),
+        _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) || kind == "ERDEntity" || crate::c4::tool(kind).is_some() || crate::wireframe::is_node_type(kind) => (1.0, 1.0),
         _ => (100.0, 60.0),
     }
 }
@@ -547,6 +547,9 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
     }
     if crate::notations::is_node_type(r.ty(model)) {
         return Some(crate::notations::create_view(r, diagram, model, rect));
+    }
+    if crate::wireframe::is_node_type(r.ty(model)) {
+        return Some(crate::wireframe::create_view(r, diagram, model, rect));
     }
     if r.ty(model) == "ERDEntity" {
         return Some(crate::erd::create_view(r, diagram, model, rect));
@@ -2127,6 +2130,10 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
     if crate::notations::is_node_view(&t) {
         crate::notations::layout(r, ms, v);
         return Info { shape: "notation", ..Default::default() };
+    }
+    if crate::wireframe::is_node_view(&t) {
+        crate::wireframe::layout(r, ms, v);
+        return Info { shape: "wireframe", ..Default::default() };
     }
     if let Some(m) = m {
         if let Some(k) = node_kind(r.ty(m)) {

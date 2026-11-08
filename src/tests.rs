@@ -5585,3 +5585,72 @@ fn lifeline_and_message_quick_edits() {
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn wireframes_hold_frames_widgets_and_tab_lists() {
+    use crate::views::Measure;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "WFWireframeDiagram"));
+    let wf = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(wf), a.repo.name(wf).as_str(), a.repo.name(d).as_str()), ("WFWireframe", "Wireframe1", "WFWireframeDiagram1"));
+    // a frame takes its smallest size on a click; a button drawn in it goes in it
+    let f = a.change(|a| a.create_node("WFMobileFrame", rect(0.0, 0.0, 1.0, 1.0))).unwrap();
+    a.repo.set(f, "width", json!(300));
+    a.repo.set(f, "height", json!(500));
+    let fm = a.repo.refd(f, "model").unwrap();
+    assert_eq!(a.repo.name(fm), "MobileFrame1");
+    let b = a.change(|a| a.create_node("WFButton", rect(20.0, 20.0, 1.0, 1.0))).unwrap();
+    let bm = a.repo.refd(b, "model").unwrap();
+    assert_eq!((a.repo.name(bm).as_str(), a.repo.parent(bm)), ("Button1", Some(fm)));
+    assert_eq!(a.repo.refd(b, "containerView"), Some(f));
+    // a frame never goes in a frame
+    let f2 = a.change(|a| a.create_node("WFFrame", rect(40.0, 40.0, 1.0, 1.0))).unwrap();
+    assert_eq!(a.repo.refd(f2, "containerView"), None);
+    let f2m = a.repo.refd(f2, "model").unwrap();
+    a.change(|a| a.delete_models(&[f2m]));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let lh = ms.size();
+    let name_w = crate::views::widest_word(&ms, "Button1", 0).ceil();
+    assert_eq!((a.repo.f(b, "width"), a.repo.f(b, "height")), (name_w + 16.0, lh + 12.0), "the name with 8 / 6 padding");
+    assert_eq!((a.repo.f(f, "width"), a.repo.f(f, "height")), (300.0, 500.0));
+    // a switch is always 26 × 16; a slider 12 high; an avatar round
+    let sw = a.change(|a| a.create_node("WFSwitch", rect(20.0, 100.0, 80.0, 80.0))).unwrap();
+    let av = a.change(|a| a.create_node("WFAvatar", rect(20.0, 200.0, 60.0, 40.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(sw, "width"), a.repo.f(sw, "height")), (26.0, 16.0));
+    assert_eq!((a.repo.f(av, "width"), a.repo.f(av, "height")), (40.0, 40.0));
+    // a tab list lines up its tabs; Add Tab puts a new one after the others, taking the list's position
+    let tl = a.change(|a| a.create_node("WFTabList", rect(20.0, 300.0, 1.0, 1.0))).unwrap();
+    let tlm = a.repo.refd(tl, "model").unwrap();
+    assert_eq!(a.repo.parent(tlm), Some(fm));
+    let t1 = a.change(|a| a.add_tab(tl)).unwrap();
+    let t2 = a.change(|a| a.add_tab(tl)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let t2m = a.repo.refd(t2, "model").unwrap();
+    assert_eq!((a.repo.name(t2m).as_str(), a.repo.parent(t2m)), ("Tab2", Some(tlm)));
+    assert_eq!(a.repo.f(t1, "left"), 20.0);
+    assert_eq!(a.repo.f(t2, "left"), 20.0 + a.repo.f(t1, "width"));
+    assert_eq!(a.repo.f(t2, "top"), 300.0);
+    assert_eq!(a.repo.f(tl, "width"), a.repo.f(t1, "width") + a.repo.f(t2, "width"));
+    a.repo.set(tlm, "position", json!("left"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(t2m, "position"), "left");
+    assert_eq!(a.repo.f(t2, "top"), 300.0 + a.repo.f(t1, "height"));
+    // the quick edits: Add Note on a widget, Add Tab on a tab list
+    assert_eq!(crate::related::actions("WFButton").len(), 1);
+    assert!(crate::canvas::item_buttons(&a.repo, &crate::app::EditKind::Name(tlm)).iter().any(|b| b.1 == "Add Tab"));
+    // the template: a wireframe with a phone frame, without the UML profile
+    let t = crate::templates::TEMPLATES.iter().find(|t| t.label == "Wireframe Model").unwrap();
+    let pr = crate::templates::project(t);
+    assert_eq!(pr.children(pr.root).len(), 1);
+    let w = pr.children(pr.root)[0].1;
+    assert_eq!(pr.ty(w), "WFWireframe");
+    let names: Vec<String> = pr.children(w).into_iter().map(|(_, c)| pr.name(c)).collect();
+    assert_eq!(names, ["Wireframe Diagram", "MobileFrame1"]);
+    // every view draws
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
