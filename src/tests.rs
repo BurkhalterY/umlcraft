@@ -1208,7 +1208,7 @@ fn dragging_a_line_label_keeps_it_with_the_line() {
     let at = Pos2::new((b.x + b.w / 2.0) as f32, (b.y + 6.0) as f32);
     a.on_press(canvas, at, Modifiers::NONE);
     assert!(matches!(a.drag, Some(crate::app::Drag::Label { .. })));
-    assert_eq!(a.selection, vec![e]);
+    assert_eq!(a.selection, vec![l], "the label itself is selected");
     a.on_move(canvas, at + egui::vec2(30.0, -20.0));
     a.on_release(canvas.min, at + egui::vec2(30.0, -20.0));
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
@@ -6004,4 +6004,72 @@ fn a_hidden_attribute_dropped_on_its_class_shows_again() {
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     assert_eq!(a.info[&c1].compartments.iter().flat_map(|c| c.rows.iter()).count(), 1);
     assert_eq!(a.repo.list(d, "ownedViews").len(), 1, "no second view");
+}
+
+#[test]
+fn line_labels_are_selected_by_area_and_select_all_and_resize_across() {
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    a.change(|a| a.repo.set(m, "name", json!("borrows many things")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let l = a.repo.refd(e, "nameLabel").unwrap();
+    a.select_all();
+    assert!(a.selection.contains(&c1) && a.selection.contains(&e) && a.selection.contains(&l), "{:?}", a.selection);
+    // an area over the label alone selects it
+    let b = crate::views::node_rect(&a.repo, l);
+    a.select(vec![]);
+    a.on_press(canvas, Pos2::new((b.x - 2.0) as f32, (b.y - 12.0) as f32), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new((b.x + 20.0) as f32, (b.y - 4.0) as f32));
+    a.on_move(canvas, Pos2::new((b.x + 20.0) as f32, (b.y + 4.0) as f32));
+    a.on_release(canvas.min, Pos2::new((b.x + 20.0) as f32, (b.y + 4.0) as f32));
+    assert_eq!(a.selection, vec![l]);
+    // with word wrap a label narrowed by hand wraps, and keeps at least its widest word
+    a.change(|a| {
+        a.repo.set(l, "wordWrap", json!(true));
+        a.repo.set(l, "width", json!(10));
+    });
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nb = crate::views::node_rect(&a.repo, l);
+    assert!(nb.w < b.w && nb.h > b.h, "{b:?} -> {nb:?}");
+    assert!(nb.w >= crate::views::widest_word(&ms, "borrows", 0) - 0.5);
+    // a widened label keeps its width
+    a.change(|a| {
+        a.repo.set(l, "wordWrap", json!(false));
+        a.repo.set(l, "width", json!(300));
+    });
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.f(l, "width"), 300.0);
+}
+
+#[test]
+fn a_port_label_drags_around_its_port() {
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let d = a.diagram.unwrap();
+    a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 300.0, 200.0))).unwrap();
+    let p = a.change(|a| a.create_feature_box("UMLPort", crate::views::P { x: 390.0, y: 200.0 }, rect(0.0, 0.0, 0.0, 0.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let l = a.repo.refd(p, "nameLabel").unwrap();
+    let b = crate::views::node_rect(&a.repo, l);
+    let at = Pos2::new((b.x + b.w / 2.0) as f32, (b.y + b.h / 2.0) as f32);
+    a.on_press(canvas, at, Modifiers::NONE);
+    assert_eq!(a.selection, vec![l]);
+    a.on_move(canvas, at + egui::vec2(40.0, 30.0));
+    a.on_release(canvas.min, at + egui::vec2(40.0, 30.0));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let b2 = crate::views::node_rect(&a.repo, l);
+    assert!((b2.x - b.x - 40.0).abs() <= 2.0 && (b2.y - b.y - 30.0).abs() <= 2.0, "{b:?} -> {b2:?}");
+    // and follows the port
+    a.change(|a| a.repo.set(p, "top", json!(a.repo.f(p, "top") + 20.0)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!((crate::views::node_rect(&a.repo, l).y - b2.y - 20.0).abs() <= 1.0);
 }

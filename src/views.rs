@@ -1058,8 +1058,12 @@ fn layout_part(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
 fn place_floating_label(r: &mut Repo, ms: &dyn Measure, host: Eid, lv: Eid, text: &str, shown: bool) {
     r.set(lv, "text", json!(text));
     r.set(lv, "visible", json!(shown && !text.is_empty()));
-    let w = ms.width(text, 0).ceil();
-    let h = ms.size();
+    // as wide as its text (its widest word with word wrap) or as it was widened (NodeLabelView.sizeObject,
+    // core.js:3705-3727)
+    let wrap = r.bool(lv, "wordWrap");
+    let min_w = if wrap { widest_word(ms, text, 0) } else { ms.width(text, 0) }.ceil();
+    let w = if text.is_empty() { min_w } else { r.f(lv, "width").max(min_w) };
+    let h = if wrap && !text.is_empty() { wrap_text(ms, text, w, 0).len().max(1) as f64 * ms.size() } else { ms.size() };
     let b = node_rect(r, host);
     let c = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
     let off = point_away_line(c, c, r.f(lv, "alpha"), r.f(lv, "distance"));
@@ -2779,8 +2783,12 @@ pub(crate) fn layout_edge_labels(r: &mut Repo, ms: &dyn Measure, e: Eid, pts: &[
         } else {
             r.remove(lv, "visible");
         }
-        let w = if t.is_empty() { 0.0 } else { ms.width(&t, 0) };
-        let lh = ms.size();
+        // at least as wide as its text, or its widest word with word wrap; a label widened by hand
+        // keeps its width, and wraps to it (EdgeLabelView.sizeObject, core.js:3779-3800)
+        let wrap = r.bool(lv, "wordWrap");
+        let min_w = if t.is_empty() { 0.0 } else if wrap { widest_word(ms, &t, 0) } else { ms.width(&t, 0) };
+        let w = if t.is_empty() { 0.0 } else { r.f(lv, "width").max(min_w) };
+        let lh = if wrap && !t.is_empty() { wrap_text(ms, &t, w, 0).len().max(1) as f64 * ms.size() } else { ms.size() };
         r.set(lv, "width", num(w));
         r.set(lv, "height", num(lh));
         let (p1, p2) = label_anchor(r, lv, pts);

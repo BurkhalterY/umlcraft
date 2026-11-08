@@ -364,6 +364,40 @@ impl App {
         None
     }
 
+    /// The labels inside a view that are selected on their own by an area or Select All: visible,
+    /// enabled, not inheriting their parent's style (core.js:3895-3912, 4180-4196).
+    pub fn selectable_subs(&self, v: Eid) -> Vec<Eid> {
+        let mut out = vec![];
+        let mut stack = self.repo.list(v, "subViews");
+        while let Some(s) = stack.pop() {
+            if matches!(self.repo.raw(s, "visible"), Some(serde_json::Value::Bool(false)) | Some(serde_json::Value::Null)) || matches!(self.repo.raw(s, "enabled"), Some(serde_json::Value::Bool(false))) {
+                continue;
+            }
+            if matches!(self.repo.ty(s), "EdgeLabelView" | "NodeLabelView") && !self.repo.bool(s, "parentStyle") && !self.repo.str(s, "text").is_empty() {
+                out.push(s);
+            }
+            stack.extend(self.repo.list(s, "subViews"));
+        }
+        out.reverse();
+        out
+    }
+
+    /// The floating label of a box under `p`, topmost first: (label, box).
+    fn hit_node_label(&self, p: P) -> Option<(Eid, Eid)> {
+        let d = self.diagram?;
+        for v in self.repo.list(d, "ownedViews").into_iter().rev() {
+            if is_edge(&self.repo, v) || matches!(self.repo.raw(v, "visible"), Some(serde_json::Value::Bool(false))) {
+                continue;
+            }
+            for l in self.selectable_subs(v) {
+                if self.repo.ty(l) == "NodeLabelView" && self.repo.parent(l) == Some(v) && in_rect(p, &node_rect(&self.repo, l)) {
+                    return Some((l, v));
+                }
+            }
+        }
+        None
+    }
+
     pub fn hit_view(&self, p: P, nodes_only: bool) -> Option<Eid> {
         let d = self.diagram?;
         let views = self.repo.list(d, "ownedViews");
@@ -989,9 +1023,10 @@ impl App {
         }
         // a line's label can be dragged away from its line (diagram-editor.js:2051-2106)
         if !mods.shift {
-            if let Some((label, edge)) = self.hit_edge_label(p) {
-                if !self.selection.contains(&edge) {
-                    self.select(vec![edge]);
+            if let Some((label, edge)) = self.hit_edge_label(p).or_else(|| self.hit_node_label(p)) {
+                // the label itself is selected (EdgeLabelView is selectable, core.js:3761-3770)
+                if !self.selection.contains(&label) {
+                    self.select(vec![label]);
                 }
                 let b = node_rect(&self.repo, label);
                 let orig = P { x: b.x + (b.w / 2.0).floor(), y: b.y + (views::LABEL_H / 2.0).floor() };
@@ -1142,6 +1177,12 @@ impl App {
                         if overlaps(&r, &b) {
                             inside.push(v);
                         }
+                        // and the labels in it that do not inherit its style (core.js:3895-3912)
+                        for s in self.selectable_subs(v) {
+                            if overlaps(&r, &node_rect(&self.repo, s)) {
+                                inside.push(s);
+                            }
+                        }
                     }
                 }
                 if *add {
@@ -1277,9 +1318,16 @@ impl App {
                     self.checkpoint();
                     *changed = true;
                 }
-                let pts = points_of(&self.repo, *edge);
+                // a box's label is anchored to the box's centre (diagram-editor.js:2061-2070)
+                let pts = if is_edge(&self.repo, *edge) {
+                    points_of(&self.repo, *edge)
+                } else {
+                    let b = node_rect(&self.repo, *edge);
+                    let c = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+                    vec![c, c]
+                };
                 if pts.len() >= 2 {
-                    let (p1, p2) = views::label_anchor(&self.repo, *label, &pts);
+                    let (p1, p2) = if is_edge(&self.repo, *edge) { views::label_anchor(&self.repo, *label, &pts) } else { (pts[0], pts[1]) };
                     let (alpha, distance) = views::label_polar(p1, p2, P { x: orig.x + dx, y: orig.y + dy });
                     self.repo.set(*label, "alpha", json!(alpha));
                     self.repo.set(*label, "distance", json!(distance));
@@ -1524,6 +1572,14 @@ impl App {
 
     pub fn edit_view(&mut self, v: Eid, p: Option<P>) {
         let t = self.repo.ty(v).to_string();
+        // a selected label edits its line or box
+        if t == "EdgeLabelView" || t == "NodeLabelView" {
+            if let Some(e) = self.repo.parent(v) {
+                let b = node_rect(&self.repo, v);
+                self.edit_view(e, Some(P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 }));
+            }
+            return;
+        }
         // a selected compartment item edits its row in the box that shows it
         if views::is_item_view(&t) {
             let mut host = self.repo.parent(v);
@@ -2727,7 +2783,13 @@ impl App {
     /// Select All: every visible, enabled top-level view (core.js:4180-4196).
     pub fn select_all(&mut self) {
         if let Some(d) = self.diagram {
-            let all = self.repo.list(d, "ownedViews").into_iter().filter(|v| !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))) && !matches!(self.repo.raw(*v, "enabled"), Some(serde_json::Value::Bool(false)))).collect();
+            let tops: Vec<Eid> = self.repo.list(d, "ownedViews").into_iter().filter(|v| !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))) && !matches!(self.repo.raw(*v, "enabled"), Some(serde_json::Value::Bool(false)))).collect();
+            // with their own labels (core.js:4180-4196)
+            let mut all = vec![];
+            for v in tops {
+                all.push(v);
+                all.extend(self.selectable_subs(v));
+            }
             self.select(all);
         }
     }
