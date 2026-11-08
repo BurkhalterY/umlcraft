@@ -1270,46 +1270,41 @@ pub fn handle_points(b: &R) -> [P; 8] {
     ]
 }
 
+/// The box around every shown view of a diagram and all their shown sub-views, at any depth
+/// (Diagram.getBoundingBoxWithChildren, core.js:1842-1854, 4145-4155; the export crops to it,
+/// diagram-export.js:106-128). A label without text is left out, as the original hides those, and
+/// so is a sub-view without a size. An edge counts its points.
 pub fn bounds(r: &Repo, d: Eid) -> Option<R> {
-    let (mut x1, mut y1, mut x2, mut y2) = (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
-    for v in r.list(d, "ownedViews") {
-        if !r.alive(v) {
-            continue;
-        }
-        if !shown(r, v) {
-            continue;
+    let mut acc = (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
+    fn grow(acc: &mut (f64, f64, f64, f64), x1: f64, y1: f64, x2: f64, y2: f64) {
+        acc.0 = acc.0.min(x1);
+        acc.1 = acc.1.min(y1);
+        acc.2 = acc.2.max(x2);
+        acc.3 = acc.3.max(y2);
+    }
+    fn view(r: &Repo, v: Eid, top: bool, acc: &mut (f64, f64, f64, f64)) {
+        if !r.alive(v) || !shown(r, v) {
+            return;
         }
         if is_edge(r, v) {
             for p in points_of(r, v) {
-                x1 = x1.min(p.x);
-                y1 = y1.min(p.y);
-                x2 = x2.max(p.x);
-                y2 = y2.max(p.y);
+                grow(acc, p.x, p.y, p.x, p.y);
             }
-            // its labels, which can sit away from the line (the original counts children too)
-            for l in r.list(v, "subViews") {
-                if shown(r, l) && !r.str(l, "text").is_empty() && r.has(l, "width") {
-                    let b = node_rect(r, l);
-                    x1 = x1.min(b.x);
-                    y1 = y1.min(b.y);
-                    x2 = x2.max(b.x + b.w);
-                    y2 = y2.max(b.y + b.h);
-                }
-            }
-        } else if is_node(r, v) {
-            let mut boxes = vec![node_rect(r, v)];
-            // a template parameter box sticks out of its class
-            if let Some(tc) = r.refd(v, "templateParameterCompartment").filter(|tc| shown(r, *tc) && !r.list(*tc, "subViews").is_empty()) {
-                boxes.push(node_rect(r, tc));
-            }
-            for b in boxes {
-                x1 = x1.min(b.x);
-                y1 = y1.min(b.y);
-                x2 = x2.max(b.x + b.w);
-                y2 = y2.max(b.y + b.h);
+        } else if r.has(v, "width") || r.has(v, "left") {
+            let b = node_rect(r, v);
+            let label = r.ty(v).ends_with("LabelView");
+            if !(label && r.str(v, "text").is_empty()) && (top || b.w > 0.0 || b.h > 0.0) {
+                grow(acc, b.x, b.y, b.x + b.w, b.y + b.h);
             }
         }
+        for sv in r.list(v, "subViews") {
+            view(r, sv, false, acc);
+        }
     }
+    for v in r.list(d, "ownedViews") {
+        view(r, v, true, &mut acc);
+    }
+    let (x1, y1, x2, y2) = acc;
     if x1.is_finite() { Some(R { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }) } else { None }
 }
 

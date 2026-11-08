@@ -361,7 +361,10 @@ fn zoom_commands_keep_the_screen_centre() {
     a.zoom_keep_centre(0.5);
     assert_eq!((a.scroll.x, a.scroll.y), (0.0, 0.0));
 
-    // fit: bounding box 1000..1600 x 1000..1400 fits at 1.0 and is centred
+    // fit: bounding box 1000..1600 x 1000..1400 fits at 1.0 and is centred (on the laid-out
+    // views, as each frame lays the diagram out first)
+    let ms = measure();
+    crate::views::layout_diagram(&mut a.repo, &ms, a.diagram.unwrap());
     a.fit();
     assert_eq!(a.zoom, 1.0);
     let (x, y) = centre(&a);
@@ -369,6 +372,7 @@ fn zoom_commands_keep_the_screen_centre() {
     assert!((x - (b.x + b.w / 2.0)).abs() < 1e-6 && (y - (b.y + b.h / 2.0)).abs() < 1e-6);
     // a box larger than the window zooms out
     a.change(|a| a.create_node("UMLClass", rect(3000.0, 1000.0, 200.0, 100.0)));
+    crate::views::layout_diagram(&mut a.repo, &ms, a.diagram.unwrap());
     a.fit();
     assert!(a.zoom < 1.0);
     let b = crate::render::bounds(&a.repo, a.diagram.unwrap()).unwrap();
@@ -1898,6 +1902,40 @@ fn print_to_pdf() {
     assert!(text.contains("/MediaBox [0 0 612.00 792.00]"));
     assert!(!text.contains(" Tj "));
     assert!(a.pdf_of(&[], &o, &ms).is_err());
+}
+
+#[test]
+fn export_box_includes_sub_views() {
+    let ms = measure();
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let mut beyond = 0;
+    for d in a.repo.all_of("Diagram") {
+        crate::views::layout_diagram(&mut a.repo, &ms, d);
+        let b = crate::render::bounds(&a.repo, d).unwrap();
+        for v in a.repo.list(d, "ownedViews") {
+            if crate::views::is_edge(&a.repo, v) {
+                continue;
+            }
+            let top = crate::views::node_rect(&a.repo, v);
+            let mut stack = a.repo.list(v, "subViews");
+            while let Some(s) = stack.pop() {
+                if a.repo.raw(s, "visible") == Some(&json!(false)) {
+                    continue;
+                }
+                stack.extend(a.repo.list(s, "subViews"));
+                let r = crate::views::node_rect(&a.repo, s);
+                if r.w <= 0.0 || (a.repo.ty(s).ends_with("LabelView") && a.repo.str(s, "text").is_empty()) {
+                    continue;
+                }
+                assert!(r.x >= b.x && r.y >= b.y && r.x + r.w <= b.x + b.w + 1e-6 && r.y + r.h <= b.y + b.h + 1e-6, "{} inside the box", a.repo.ty(s));
+                if r.y + r.h > top.y + top.h || r.x < top.x || r.x + r.w > top.x + top.w {
+                    beyond += 1;
+                }
+            }
+        }
+    }
+    assert!(beyond > 0, "some sub-view sticks out of its view (the interface's name under its circle)");
 }
 
 #[test]

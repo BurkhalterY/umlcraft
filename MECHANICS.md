@@ -106,6 +106,7 @@ returned nothing).
 
 | Rule | Value | Source |
 |---|---|---|
+| Bounds of the drawing | every shown top-level view with all its shown sub-views, at any depth (a node's box, an edge's points) | `src/core/core.js:1842-1854, 4145-4155` getBoundingBoxWithChildren, `diagram-export.js:110` |
 | Margin around the drawing | the diagram's bounds grown by 10 on every side | `src/engine/diagram-export.js:33` BOUNDING_BOX_EXPAND, `src/core/graphics.js:381` expand |
 | PNG size | grown bounds + 30 in width and height, at zoom 1, times the screen's pixel ratio | `diagram-export.js:113-127` getImageData |
 | PNG background | transparent (white only for JPEG); no grid | `diagram-export.js:130-134` |
