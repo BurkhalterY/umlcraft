@@ -94,7 +94,7 @@ Taken from the extracted source under `staruml/app/src`. Paths are relative to `
 ## Editors pane (Editors holder)
 
 - **Stacked editors** — The "Editors" pane holds Styles, Properties and Documentation, in that order. (app-context.js:589-591; static/html-contents/editors-holder.html:1-8) — **UMLCraft:** ✅ present The "Editors" pane holds Styles (only with a view selection), Properties and Documentation, in that order (src/ui.rs:1320-1341)
-- **Collapse an editor section** — Clicking a section's header button folds its body with a slide animation. The collapsed state is saved per section (`_viewState.styleEditor`, `propertyEditor`, `documentationEditor`) and restored at startup. (views/editors-holder-view.js:61-87) — **UMLCraft:** ✅ present clicking a header folds or unfolds its section with a slide, and the folded state is kept in the preferences file (src/ui.rs:1329-1334, 1402-1411; src/prefs.rs:90-92)
+- **Collapse an editor section** — Clicking a section's header button folds its body with a slide animation. The collapsed state is saved per section (`_viewState.styleEditor`, `propertyEditor`, `documentationEditor`) and restored at startup. (views/editors-holder-view.js:61-87) — **UMLCraft:** ✅ present clicking a header folds or unfolds its section with a slide, and the folded state is kept in the preferences file (src/ui.rs:2021-2041, 2097; src/prefs.rs:106-108, 134)
 
 ## Style editor
 
