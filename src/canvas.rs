@@ -395,6 +395,17 @@ impl App {
         out
     }
 
+    /// The line whose shown qualifier box is under `p`.
+    pub(crate) fn hit_qualifier(&self, p: P) -> Option<Eid> {
+        let d = self.diagram?;
+        self.repo.list(d, "ownedViews").into_iter().rev().find(|e| {
+            is_edge(&self.repo, *e)
+                && ["tailQualifiersCompartment", "headQualifiersCompartment"].iter().any(|f| {
+                    self.repo.refd(*e, f).filter(|q| self.repo.val(*q, "visible").and_then(|x| x.as_bool()) != Some(false)).map(|q| !views::qualifier_rows(&self.repo, q).is_empty() && in_rect(p, &node_rect(&self.repo, q))).unwrap_or(false)
+                })
+        })
+    }
+
     /// The floating label of a box under `p`, topmost first: (label, box).
     fn hit_node_label(&self, p: P) -> Option<(Eid, Eid)> {
         let d = self.diagram?;
@@ -884,8 +895,10 @@ impl App {
         if resp.double_clicked() && self.tool.is_none() {
             if let Some(pos) = pointer.interact_pos() {
                 let p = self.to_diagram(origin, pos);
-                // a line's label belongs to the line: its edit opens, not a new text
-                if let Some((_, e)) = self.hit_edge_label(p) {
+                // a line's label or qualifier box belongs to the line: its edit opens, not a new text
+                if let Some(e) = self.hit_qualifier(p) {
+                    self.edit_view(e, Some(p));
+                } else if let Some((_, e)) = self.hit_edge_label(p) {
                     self.edit_view(e, Some(p));
                 } else if let Some(v) = self.hit_view(p, false) {
                     // a frame showing a diagram opens it (app-context.js:1355-1359)
@@ -1644,6 +1657,34 @@ impl App {
                 self.edit_view(e, Some(P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 }));
             }
             return;
+        }
+        // a qualifier row of an association end edits that qualifier (quickedits/uml.json, the
+        // attribute edits with target-tests on tailQualifiersCompartment / headQualifiersCompartment)
+        if let (true, Some(p)) = (is_edge(&self.repo, v), p) {
+            for field in ["tailQualifiersCompartment", "headQualifiersCompartment"] {
+                let Some(q) = self.repo.refd(v, field).filter(|q| self.repo.val(*q, "visible").and_then(|x| x.as_bool()) != Some(false)) else { continue };
+                let b = node_rect(&self.repo, q);
+                let Some(end) = self.repo.refd(q, "model") else { continue };
+                let quals: Vec<Eid> = self.repo.list(end, "qualifiers").into_iter().filter(|a| self.repo.alive(*a)).collect();
+                if quals.is_empty() || !in_rect(p, &b) {
+                    continue;
+                }
+                let size = views::view_font(&self.repo, v).1;
+                let i = (((p.y - b.y - views::PAD) / size).floor().max(0.0) as usize).min(quals.len() - 1);
+                let item = quals[i];
+                let y = b.y + views::PAD + i as f64 * size;
+                self.editing = Some(Editing {
+                    kind: EditKind::Feature(item),
+                    text: views::attribute_text(&self.repo, item, views::Show::ALL),
+                    rect: R { x: b.x + views::PAD - 2.0, y: y - 3.0, w: (b.w - 2.0 * views::PAD).max(120.0) + 4.0, h: 19.0 },
+                    multiline: false,
+                    center: false,
+                    fresh: true,
+                    host: Some(v),
+                    orig: None,
+                });
+                return;
+            }
         }
         // a selected compartment item edits its row in the box that shows it
         if views::is_item_view(&t) {

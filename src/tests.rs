@@ -7435,3 +7435,52 @@ fn a_message_tool_looks_through_other_views_for_a_lifeline() {
     let head = a.repo.refd(e, "head").unwrap();
     assert!(head == l2 || a.repo.refd(l2, "linePart") == Some(head));
 }
+
+#[test]
+fn a_qualifier_row_is_edited_inline() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 100.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 100.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    let end1 = a.repo.child(m, "end1").unwrap();
+    let qa = a.change(|a| a.add_qualifier(end1));
+    a.change(|a| a.repo.set(qa, "name", json!("id")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let q = a.repo.refd(e, "tailQualifiersCompartment").unwrap();
+    let b = crate::views::node_rect(&a.repo, q);
+    let p = crate::views::P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+    let hit = a.hit_qualifier(p);
+    assert_eq!(hit, Some(e));
+    a.edit_view(e, Some(p));
+    assert!(matches!(a.editing.as_ref().map(|x| x.kind.clone()), Some(crate::app::EditKind::Feature(x)) if x == qa));
+    a.editing.as_mut().unwrap().text = "key: String".into();
+    a.close_inline(true);
+    assert_eq!((a.repo.name(qa).as_str(), a.repo.str(qa, "type").as_str()), ("key", "String"));
+}
+
+#[test]
+fn a_role_label_edits_its_association_end() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 100.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 100.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    let (end1, end2) = (a.repo.child(m, "end1").unwrap(), a.repo.child(m, "end2").unwrap());
+    a.change(|a| {
+        a.repo.set(end1, "name", json!("owner"));
+        a.repo.set(end2, "name", json!("items"));
+    });
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    for (field, end) in [("tailRoleNameLabel", end1), ("headRoleNameLabel", end2)] {
+        let l = a.repo.refd(e, field).unwrap();
+        a.select(vec![l]);
+        a.edit_view(l, None);
+        assert!(matches!(a.editing.as_ref().map(|x| x.kind.clone()), Some(crate::app::EditKind::Name(x)) if x == end), "{field}");
+        a.close_inline(false);
+    }
+}
