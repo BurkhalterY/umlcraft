@@ -11,6 +11,7 @@ mod cli;
 mod clipboard;
 mod export;
 mod find;
+mod flowchart;
 mod fragment;
 mod generate;
 mod html;

@@ -47,6 +47,8 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLFinalState" => "final",
         "UMLPseudostate" => "initial",
         "UMLConnectionPointReference" => "connection-point",
+        // a flowchart element's icon is its type (the shapes are drawn by key)
+        t if t.starts_with("FC") => crate::meta::static_name(t),
         "UMLTransition" => "dependency",
         // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
         "UMLAction" => match r.str(e, "kind").as_str() {
@@ -298,6 +300,95 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             rect_at(1.5, 5.5, 13.0, 5.0, Y);
             for x in [4.75, 8.0, 11.25] {
                 line(&[(x, 5.5), (x, 10.5)], Y);
+            }
+        }
+        // flowchart shapes in small (flowchart/elements.js)
+        k if k.starts_with("FC") => {
+            let c = Y;
+            let circle = |r: f32| p.circle_stroke(at(8.0, 8.0), r * s, st(c));
+            match k {
+                "FCFlowchart" => {
+                    rect_at(5.0, 1.5, 6.0, 4.0, c);
+                    line(&[(8.0, 5.5), (8.0, 8.0), (3.0, 8.0), (3.0, 10.5)], c);
+                    line(&[(8.0, 8.0), (13.0, 8.0), (13.0, 10.5)], c);
+                    rect_at(1.0, 10.5, 4.5, 4.0, c);
+                    rect_at(10.5, 10.5, 4.5, 4.0, c);
+                }
+                "FCFlowchartDiagram" => {
+                    rect_at(1.5, 1.5, 13.0, 13.0, G);
+                    rect_at(5.0, 4.0, 6.0, 3.0, G);
+                    line(&[(8.0, 7.0), (8.0, 9.0)], G);
+                    line(&[(8.0, 9.0), (10.5, 11.0), (8.0, 13.0), (5.5, 11.0), (8.0, 9.0)], G);
+                }
+                "FCFlow" => {
+                    line(&[(8.0, 14.0), (8.0, 4.0)], B);
+                    p.add(Shape::convex_polygon(vec![at(8.0, 2.0), at(10.5, 6.0), at(5.5, 6.0)], B, st(B)));
+                }
+                "FCTerminator" => {
+                    p.rect_stroke(Rect::from_min_size(at(1.5, 4.5), Vec2::new(13.0 * s, 7.0 * s)), (3.5 * s) as f32, st(c), egui::StrokeKind::Middle);
+                }
+                "FCAlternateProcess" => {
+                    p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(13.0 * s, 9.0 * s)), (2.5 * s) as f32, st(c), egui::StrokeKind::Middle);
+                }
+                "FCDecision" | "FCSort" => {
+                    line(&[(1.5, 8.0), (8.0, 2.5), (14.5, 8.0), (8.0, 13.5), (1.5, 8.0)], c);
+                    if k == "FCSort" {
+                        line(&[(1.5, 8.0), (14.5, 8.0)], c);
+                    }
+                }
+                "FCDelay" => line(&[(1.5, 3.5), (10.0, 3.5), (12.5, 4.5), (14.0, 6.5), (14.0, 9.5), (12.5, 11.5), (10.0, 12.5), (1.5, 12.5), (1.5, 3.5)], c),
+                "FCPredefinedProcess" => {
+                    rect_at(1.5, 3.5, 13.0, 9.0, c);
+                    line(&[(3.5, 3.5), (3.5, 12.5)], c);
+                    line(&[(12.5, 3.5), (12.5, 12.5)], c);
+                }
+                "FCData" => line(&[(4.0, 3.5), (14.5, 3.5), (12.0, 12.5), (1.5, 12.5), (4.0, 3.5)], c),
+                "FCDocument" | "FCMultiDocument" => {
+                    if k == "FCMultiDocument" {
+                        line(&[(4.0, 3.0), (4.0, 1.5), (14.5, 1.5), (14.5, 10.0), (13.0, 10.0)], c);
+                    }
+                    line(&[(1.5, 3.5), (12.5, 3.5), (12.5, 12.0), (10.0, 11.0), (7.0, 12.5), (4.0, 14.0), (1.5, 13.0), (1.5, 3.5)], c);
+                }
+                "FCPreparation" => line(&[(1.5, 8.0), (4.0, 3.5), (12.0, 3.5), (14.5, 8.0), (12.0, 12.5), (4.0, 12.5), (1.5, 8.0)], c),
+                "FCDisplay" => line(&[(1.5, 8.0), (4.0, 3.5), (11.5, 3.5), (13.8, 4.8), (14.5, 8.0), (13.8, 11.2), (11.5, 12.5), (4.0, 12.5), (1.5, 8.0)], c),
+                "FCManualInput" => line(&[(1.5, 6.0), (14.5, 3.0), (14.5, 12.5), (1.5, 12.5), (1.5, 6.0)], c),
+                "FCManualOperation" => line(&[(1.5, 3.5), (14.5, 3.5), (12.0, 12.5), (4.0, 12.5), (1.5, 3.5)], c),
+                "FCCard" => line(&[(4.5, 3.5), (14.5, 3.5), (14.5, 12.5), (1.5, 12.5), (1.5, 6.5), (4.5, 3.5)], c),
+                "FCPunchedTape" => line(&[(1.5, 4.0), (5.0, 5.5), (10.0, 2.5), (14.5, 4.0), (14.5, 12.0), (11.0, 10.5), (6.0, 13.5), (1.5, 12.0), (1.5, 4.0)], c),
+                "FCConnector" => {
+                    circle(5.5);
+                }
+                "FCOffPageConnector" => line(&[(3.0, 2.0), (13.0, 2.0), (13.0, 10.0), (8.0, 14.0), (3.0, 10.0), (3.0, 2.0)], c),
+                "FCOr" | "FCSummingJunction" => {
+                    circle(6.0);
+                    if k == "FCOr" {
+                        line(&[(8.0, 2.0), (8.0, 14.0)], c);
+                        line(&[(2.0, 8.0), (14.0, 8.0)], c);
+                    } else {
+                        line(&[(4.0, 4.0), (12.0, 12.0)], c);
+                        line(&[(12.0, 4.0), (4.0, 12.0)], c);
+                    }
+                }
+                "FCCollate" => line(&[(3.0, 2.0), (13.0, 2.0), (3.0, 14.0), (13.0, 14.0), (3.0, 2.0)], c),
+                "FCMerge" => line(&[(2.0, 3.0), (14.0, 3.0), (8.0, 13.0), (2.0, 3.0)], c),
+                "FCExtract" => line(&[(8.0, 3.0), (14.0, 13.0), (2.0, 13.0), (8.0, 3.0)], c),
+                "FCStoredData" => line(&[(14.5, 3.5), (13.0, 5.0), (12.5, 8.0), (13.0, 11.0), (14.5, 12.5), (4.0, 12.5), (2.2, 11.0), (1.5, 8.0), (2.2, 5.0), (4.0, 3.5), (14.5, 3.5)], c),
+                "FCDatabase" => {
+                    p.add(Shape::ellipse_stroke(at(8.0, 4.0), Vec2::new(6.0 * s, 2.0 * s), st(c)));
+                    line(&[(2.0, 4.0), (2.0, 12.0)], c);
+                    line(&[(14.0, 4.0), (14.0, 12.0)], c);
+                    line(&[(2.0, 12.0), (4.0, 13.5), (8.0, 14.0), (12.0, 13.5), (14.0, 12.0)], c);
+                }
+                "FCDirectAccessStorage" => {
+                    line(&[(4.0, 3.5), (12.0, 3.5), (13.8, 5.0), (14.5, 8.0), (13.8, 11.0), (12.0, 12.5), (4.0, 12.5), (2.2, 11.0), (1.5, 8.0), (2.2, 5.0), (4.0, 3.5)], c);
+                    line(&[(12.0, 3.5), (10.2, 5.0), (9.5, 8.0), (10.2, 11.0), (12.0, 12.5)], c);
+                }
+                "FCInternalStorage" => {
+                    rect_at(1.5, 2.5, 13.0, 11.0, c);
+                    line(&[(4.0, 2.5), (4.0, 13.5)], c);
+                    line(&[(1.5, 5.0), (14.5, 5.0)], c);
+                }
+                _ => rect_at(1.5, 3.5, 13.0, 9.0, c),
             }
         }
         "connection-point" => {

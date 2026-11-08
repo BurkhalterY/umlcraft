@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile and statechart diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
+UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity and flowchart diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -100,34 +100,34 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Entity-Relationship `erd` | ERDDiagram | One to One Relationship | ❌ | extensions/essential/erd/toolbox/erd.json |
 | Entity-Relationship `erd` | ERDDiagram | One to Many Relationship | ❌ | extensions/essential/erd/toolbox/erd.json |
 | Entity-Relationship `erd` | ERDDiagram | Many to Many Relationship | ❌ | extensions/essential/erd/toolbox/erd.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Flow | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Process | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Terminator | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Decision | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Delay | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Predefined Process | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Alternate Process | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Data | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Document | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Multi-Document | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Preparation | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Display | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Manual Input | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Manual Operation | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Card | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Punched Tape | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Connector | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Off-Page Connector | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Or | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Summing Junction | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Collate | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Sort | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Merge | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Extract | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Stored Data | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Database | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Direct Access Storage | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
-| Flowchart `flowchart` | FCFlowchartDiagram | Internal Storage | ❌ | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Flow | ✅ | an FCFlow between two flowchart nodes, owned by its source, a line with a filled arrow and its name 15 px off its middle (src/app.rs:1369; src/views.rs:1235-1240; src/render.rs:1050) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Process | ✅ | an FCProcess in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Terminator | ✅ | an FCTerminator in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Decision | ✅ | an FCDecision in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Delay | ✅ | an FCDelay in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Predefined Process | ✅ | an FCPredefinedProcess in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Alternate Process | ✅ | an FCAlternateProcess in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Data | ✅ | an FCData in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Document | ✅ | an FCDocument in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Multi-Document | ✅ | an FCMultiDocument in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Preparation | ✅ | an FCPreparation in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Display | ✅ | an FCDisplay in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Manual Input | ✅ | an FCManualInput in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Manual Operation | ✅ | an FCManualOperation in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Card | ✅ | an FCCard in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Punched Tape | ✅ | an FCPunchedTape in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Connector | ✅ | an FCConnector in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Off-Page Connector | ✅ | an FCOffPageConnector in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Or | ✅ | an FCOr in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Summing Junction | ✅ | an FCSummingJunction in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Collate | ✅ | an FCCollate in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Sort | ✅ | an FCSort in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Merge | ✅ | an FCMerge in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Extract | ✅ | an FCExtract in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Stored Data | ✅ | an FCStoredData in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Database | ✅ | an FCDatabase in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Direct Access Storage | ✅ | an FCDirectAccessStorage in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
+| Flowchart `flowchart` | FCFlowchartDiagram | Internal Storage | ✅ | an FCInternalStorage in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
 | GCP `gcp.elements` | GCPDiagram | Zone | ❌ | extensions/essential/gcp/toolbox/gcp.json |
 | GCP `gcp.elements` | GCPDiagram | User | ❌ | extensions/essential/gcp/toolbox/gcp.json |
 | GCP `gcp.elements` | GCPDiagram | Product | ❌ | extensions/essential/gcp/toolbox/gcp.json |

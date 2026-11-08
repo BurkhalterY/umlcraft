@@ -558,6 +558,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             }
             return;
         }
+        "flowchart" => {
+            crate::flowchart::draw(c, r, v, fill, line, fc);
+            return;
+        }
         "structured" => {
             // a filled rounded box with a dashed border (UMLStructuredActivityNodeView.drawObject,
             // elements.js:10891-10925)
@@ -1042,6 +1046,8 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         // an extension: a solid line with a filled triangle at the metaclass
         "UMLExtensionView" => head = Some(End::FilledTriangle),
         "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" | "UMLTransitionView" | "UMLControlFlowView" | "UMLObjectFlowView" | "UMLExceptionHandlerView" | "UMLActivityInterruptView" => head = Some(End::Arrow),
+        // a flowchart flow ends in a filled arrow (FCGeneralEdgeView, flowchart/elements.js:200)
+        "FCFlowView" => head = Some(End::SolidArrow),
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
             if let Some(m) = r.refd(e, "model") {

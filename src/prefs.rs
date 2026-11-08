@@ -258,6 +258,17 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("State", "state", None),
         ("Note", "note", None),
     ];
+    // flowcharts: the flow's line style and each node's fill colour (flowchart/preferences/flowchart.json)
+    v.push(("Flowchart", "", "Flow", Kind::Header, Value::Null));
+    v.push(("Flowchart", "flowchart.flow.lineStyle", "Line Style", Kind::LineStyle, json!(2)));
+    for (label, ty, _) in crate::flowchart::NODES {
+        if ty == "FCFlow" {
+            continue;
+        }
+        let key: &'static str = Box::leak(format!("flowchart.{}.fillColor", crate::flowchart::pref_id(ty)).into_boxed_str());
+        v.push(("Flowchart", "", label, Kind::Header, Value::Null));
+        v.push(("Flowchart", key, "Fill Color", Kind::Color, Value::Null));
+    }
     for (label, id, more) in kinds {
         let key = |f: &str| -> &'static str { Box::leak(format!("uml.{id}.{f}").into_boxed_str()) };
         v.push(("UML", "", label, Kind::Header, Value::Null));
@@ -340,7 +351,14 @@ impl App {
             sets.push(("font", json!(crate::views::font_str(&face, size, 0))));
         }
         let kind = kind_id(&ty, model_ty.as_deref());
-        let fill = kind.map(|k| self.pref(&format!("uml.{k}.fillColor"))).filter(|f| f.is_string()).unwrap_or_else(|| self.pref("view.fillColor"));
+        let mut fill = kind.map(|k| self.pref(&format!("uml.{k}.fillColor"))).filter(|f| f.is_string()).unwrap_or_else(|| self.pref("view.fillColor"));
+        // a flowchart node's own fill colour (FC…View constructors, flowchart/elements.js:330-1340)
+        if let Some(mt) = model_ty.as_deref().filter(|t| crate::flowchart::is_node_type(t)) {
+            let p = self.pref(&format!("flowchart.{}.fillColor", crate::flowchart::pref_id(mt)));
+            if p.is_string() {
+                fill = p;
+            }
+        }
         for (field, v) in [("fillColor", fill), ("lineColor", self.pref("view.lineColor")), ("fontColor", self.pref("view.fontColor"))] {
             if v.is_string() {
                 sets.push((field, v));
@@ -348,7 +366,10 @@ impl App {
         }
         sets.push(("showShadow", json!(self.pref("view.showShadow").as_bool().unwrap_or(true))));
         if crate::views::is_edge(&self.repo, v) {
-            sets.push(("lineStyle", json!(self.pref("view.lineStyle").as_i64().unwrap_or(1))));
+            // a flow takes the flowchart's line style, unless that is rectilinear (0), which the
+            // original's `||` passes over for the general one (FCFlowView, flowchart/elements.js:1340-1344)
+            let own = (ty == "FCFlowView").then(|| self.pref("flowchart.flow.lineStyle").as_i64()).flatten().filter(|s| *s != 0);
+            sets.push(("lineStyle", json!(own.unwrap_or_else(|| self.pref("view.lineStyle").as_i64().unwrap_or(1)))));
         }
         if let Some(k) = kind {
             for f in ["stereotypeDisplay", "suppressAttributes", "suppressOperations", "suppressLiterals"] {
@@ -379,7 +400,7 @@ impl App {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(120.0);
-                    for s in ["General", "UML"] {
+                    for s in ["General", "Flowchart", "UML"] {
                         if ui.selectable_label(section == s, s).clicked() {
                             pick = Some(s.to_string());
                         }

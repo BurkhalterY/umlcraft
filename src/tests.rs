@@ -5125,3 +5125,67 @@ fn connection_point_references_sit_on_their_state() {
     assert_eq!(into_join, 2);
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn flowcharts_have_every_shape_and_flows() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "FCFlowchartDiagram"));
+    let fc = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(fc), a.repo.name(fc).as_str(), a.repo.name(d).as_str()), ("FCFlowchart", "Flowchart1", "FlowchartDiagram1"));
+    // a second diagram on the flowchart goes in it
+    let d2 = a.change(|a| a.add_diagram(Some(fc), "FCFlowchartDiagram"));
+    assert_eq!((a.repo.parent(d2), a.repo.name(d2).as_str()), (Some(fc), "FlowchartDiagram2"));
+    a.open_diagram(d);
+    let mut views = vec![];
+    for (i, (_, ty, _)) in crate::flowchart::NODES.iter().enumerate().filter(|(_, n)| n.1 != "FCFlow") {
+        let (x, y) = ((i % 6) as f64 * 160.0, (i / 6) as f64 * 120.0);
+        let v = a.change(|a| a.create_node(ty, rect(x, y, 10.0, 10.0))).unwrap();
+        assert_eq!(a.repo.ty(v), format!("{ty}View"));
+        views.push(v);
+    }
+    use crate::views::Measure;
+    let name = |a: &App, v: crate::model::Eid| a.repo.name(a.repo.refd(v, "model").unwrap());
+    assert_eq!(name(&a, views[0]), "Process1");
+    assert_eq!(name(&a, views[11]), "Input1", "a manual input is named Input…");
+    assert_eq!(name(&a, views[15]), "C1");
+    assert_eq!(name(&a, views[17]), "", "an or has no name");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // a process: its name plus 10 px all round; a decision twice its name; an or stays round
+    let l = a.repo.refd(views[0], "nameLabel").unwrap();
+    assert_eq!(a.repo.str(l, "text"), "Process1");
+    assert_eq!(a.repo.f(views[0], "width"), (ms.width("Process1", 0)).ceil() + 20.0);
+    assert_eq!(a.repo.f(views[2], "width"), 50f64.max((ms.width("Decision1", 0)).ceil() * 2.0));
+    assert_eq!((a.repo.f(views[17], "width"), a.repo.f(views[17], "height")), (30.0, 30.0));
+    // a flow between two nodes, owned by its source, with a filled arrow
+    let t = tool("FCFlow", AssocInit::Plain);
+    assert!(a.can_connect(&t, views[0], views[2]));
+    let f = a.change(|a| a.create_edge(&t, views[0], views[2])).unwrap();
+    let fm = a.repo.refd(f, "model").unwrap();
+    assert_eq!((a.repo.ty(f), a.repo.parent(fm)), ("FCFlowView", a.repo.refd(views[0], "model")));
+    assert!(a.repo.refd(f, "stereotypeLabel").is_none());
+    // Add Outgoing Decision below a process
+    let b = crate::related::actions("FCProcess").into_iter().find(|b| b.label == "Add Outgoing Decision").unwrap();
+    let nv = a.add_related(views[0], b).unwrap();
+    assert_eq!(a.repo.ty(nv), "FCDecisionView");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("Process1"));
+    // the flowchart preferences: a node's own fill colour, the flow's line style
+    assert_eq!(a.repo.val(f, "lineStyle").and_then(|x| x.as_i64()), Some(2), "rounded rectilinear by default");
+    a.prefs.set("flowchart.decision.fillColor", json!("#ffeeaa"));
+    let dv = a.change(|a| a.create_node("FCDecision", rect(0.0, 800.0, 10.0, 10.0))).unwrap();
+    assert_eq!(a.repo.str(dv, "fillColor"), "#ffeeaa");
+    // a node dragged from the explorer onto another flowchart diagram gets a second view there,
+    // with its flows to nodes already shown
+    a.open_diagram(d2);
+    let pm = a.repo.refd(views[0], "model").unwrap();
+    let dm = a.repo.refd(views[2], "model").unwrap();
+    a.drop_model(dm, crate::views::P { x: 300.0, y: 300.0 }).unwrap();
+    let got = a.drop_model(pm, crate::views::P { x: 100.0, y: 100.0 }).unwrap();
+    assert_eq!(a.repo.ty(got[0]), "FCProcessView");
+    assert!(a.repo.list(d2, "ownedViews").iter().any(|v| a.repo.ty(*v) == "FCFlowView"));
+    let text = a.repo.serialize();
+    Repo::parse(&text).unwrap();
+}

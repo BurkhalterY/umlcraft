@@ -599,6 +599,10 @@ impl App {
             "UMLPackageDiagram" => "PackageDiagram",
             "UMLProfile" => "Profile",
             "UMLStereotype" => "Stereotype",
+            // a flowchart's elements drop "FC" (FCModelElement.getDisplayClassName); its diagram is a
+            // "FlowchartDiagram" (flowchart/elements.js:42-75)
+            "FCFlowchartDiagram" => "FlowchartDiagram",
+            other if other.starts_with("FC") => &other[2..],
             other => other.trim_start_matches("UML"),
         };
         let names: HashSet<String> = self.repo.children(parent).into_iter().map(|(_, c)| self.repo.name(c)).collect();
@@ -784,6 +788,22 @@ impl App {
             let name = self.new_name(act, "UMLActivityPartition");
             let m = self.repo.create("UMLActivityPartition", &[("name", json!(name))], Some((act, "groups")));
             let v = views::create_swimlane_view(&mut self.repo, d, m, rect, kind == "SwimlaneVert");
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // a flowchart node goes in the flowchart that owns the diagram (flowchart-factory.js:73-110)
+        if crate::flowchart::is_node_type(kind) {
+            let owner = self.repo.parent(d)?;
+            let name = match crate::flowchart::name_base(kind) {
+                Some("") => String::new(),
+                Some(base) => {
+                    let names: HashSet<String> = self.repo.children(owner).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+                    (1..).map(|i| format!("{base}{i}")).find(|n| !names.contains(n)).unwrap()
+                }
+                None => self.new_name(owner, kind),
+            };
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((owner, "ownedElements")));
+            let v = crate::flowchart::create_view(&mut self.repo, d, m, rect);
             self.apply_view_defaults(v);
             return Some(v);
         }
@@ -1081,6 +1101,8 @@ impl App {
             "UMLObjectDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier", "UMLInstance", "UMLSlot", "UMLDependency", "UMLLink"],
             "UMLStatechartDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLVertex", "UMLTransition", "UMLStateMachine"],
             "UMLActivityDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLActivityNode", "UMLActivityEdge", "UMLActivity"],
+            // FCFlowchartDiagram.canAcceptModel (flowchart/elements.js:68-75)
+            "FCFlowchartDiagram" => vec!["Hyperlink", "Diagram", "FCModelElement", "FCFlow"],
             "UMLUseCaseDiagram" => vec![
                 "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
@@ -1160,7 +1182,7 @@ impl App {
             }
             return Ok(v.into_iter().collect());
         }
-        if views::node_kind(&ty).is_none() {
+        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) {
             return Ok(vec![]);
         }
         // a hidden view of it is shown again instead of a second one
@@ -1343,6 +1365,8 @@ impl App {
             // a transition joins two vertices: states and pseudostates
             "UMLTransition" => r.kind_of(tm, "UMLVertex") && r.kind_of(hm, "UMLVertex"),
             // a control or object flow joins two activity nodes (uml-factory.js:119-127)
+            // a flow joins two flowchart nodes (flowchart-factory.js:20-27)
+            "FCFlow" => r.kind_of(tm, "FCModelElement") && r.kind_of(hm, "FCModelElement"),
             "UMLControlFlow" | "UMLActivityInterrupt" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
             // an exception handler joins two actions (actionLinkPrecondition, uml-factory.js:129-135)
             "UMLExceptionHandler" => r.kind_of(tm, "UMLAction") && r.kind_of(hm, "UMLAction"),
@@ -1731,6 +1755,27 @@ impl App {
             Some(p) if ty == "UMLActivityDiagram" && self.repo.ty(p) == "UMLActivity" => p,
             _ => self.package_for(self.diagram),
         };
+        // a flowchart diagram goes in a flowchart: the target if it is one, else a new "Flowchart1"…
+        // (flowchart-factory.js:31-62)
+        if ty == "FCFlowchartDiagram" {
+            let target = match parent {
+                Some(p) if self.repo.ty(p) == "FCFlowchart" => p,
+                Some(p) if self.repo.kind_of(p, "ExtensibleModel") && !self.repo.kind_of(p, "Diagram") => p,
+                _ => self.package_for(self.diagram),
+            };
+            let target = if self.repo.ty(target) == "FCFlowchart" {
+                target
+            } else {
+                let names: HashSet<String> = self.repo.children(target).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+                let name = (1..).map(|i| format!("Flowchart{i}")).find(|n| !names.contains(n)).unwrap();
+                self.repo.create("FCFlowchart", &[("name", json!(name))], Some((target, "ownedElements")))
+            };
+            let name = self.new_name(target, ty);
+            let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
         // a profile diagram goes in a profile: the target if it is one, else a new profile "Profile" (uml-factory.js:184)
         let target = if ty == "UMLProfileDiagram" && self.repo.ty(target) != "UMLProfile" {
             self.repo.create("UMLProfile", &[("name", json!("Profile"))], Some((target, "ownedElements")))

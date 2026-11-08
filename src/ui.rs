@@ -172,6 +172,44 @@ const USECASE_GROUPS: &[Group] = &[
     ANNOTATIONS,
 ];
 const OTHER_GROUPS: &[Group] = &[ANNOTATIONS];
+// a flowchart diagram (flowchart/toolbox/flowchart.json)
+const FLOWCHART_GROUPS: &[Group] = &[
+    Group {
+        id: "flowchart",
+        label: "Flowchart",
+        items: &[
+            line("Flow", "FCFlow", "FCFlow", AssocInit::Plain),
+            node("Process", "FCProcess", "FCProcess"),
+            node("Terminator", "FCTerminator", "FCTerminator"),
+            node("Decision", "FCDecision", "FCDecision"),
+            node("Delay", "FCDelay", "FCDelay"),
+            node("Predefined Process", "FCPredefinedProcess", "FCPredefinedProcess"),
+            node("Alternate Process", "FCAlternateProcess", "FCAlternateProcess"),
+            node("Data", "FCData", "FCData"),
+            node("Document", "FCDocument", "FCDocument"),
+            node("Multi-Document", "FCMultiDocument", "FCMultiDocument"),
+            node("Preparation", "FCPreparation", "FCPreparation"),
+            node("Display", "FCDisplay", "FCDisplay"),
+            node("Manual Input", "FCManualInput", "FCManualInput"),
+            node("Manual Operation", "FCManualOperation", "FCManualOperation"),
+            node("Card", "FCCard", "FCCard"),
+            node("Punched Tape", "FCPunchedTape", "FCPunchedTape"),
+            node("Connector", "FCConnector", "FCConnector"),
+            node("Off-Page Connector", "FCOffPageConnector", "FCOffPageConnector"),
+            node("Or", "FCOr", "FCOr"),
+            node("Summing Junction", "FCSummingJunction", "FCSummingJunction"),
+            node("Collate", "FCCollate", "FCCollate"),
+            node("Sort", "FCSort", "FCSort"),
+            node("Merge", "FCMerge", "FCMerge"),
+            node("Extract", "FCExtract", "FCExtract"),
+            node("Stored Data", "FCStoredData", "FCStoredData"),
+            node("Database", "FCDatabase", "FCDatabase"),
+            node("Direct Access Storage", "FCDirectAccessStorage", "FCDirectAccessStorage"),
+            node("Internal Storage", "FCInternalStorage", "FCInternalStorage"),
+        ],
+    },
+    ANNOTATIONS,
+];
 // component and deployment diagrams share the Component and Deployment groups (uml.json "uml.component",
 // "uml.deployment")
 const COMPONENT_GROUPS: &[Group] = &[
@@ -330,7 +368,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 11] = [
+const DIAGRAM_KINDS: [(&str, &str); 12] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -342,6 +380,7 @@ const DIAGRAM_KINDS: [(&str, &str); 11] = [
     ("Profile Diagram", "UMLProfileDiagram"),
     ("Statechart Diagram", "UMLStatechartDiagram"),
     ("Activity Diagram", "UMLActivityDiagram"),
+    ("Flowchart Diagram", "FCFlowchartDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -1558,6 +1597,7 @@ impl App {
                 Some("UMLCompositeStructureDiagram") => self.open_groups.insert("compositestructure"),
                 Some("UMLStatechartDiagram") => self.open_groups.insert("statechart"),
                 Some("UMLActivityDiagram") => self.open_groups.insert("activity"),
+                Some("FCFlowchartDiagram") => self.open_groups.insert("flowchart"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1584,6 +1624,7 @@ impl App {
             Some("UMLCompositeStructureDiagram") => COMPOSITE_GROUPS,
             Some("UMLStatechartDiagram") => STATECHART_GROUPS,
             Some("UMLActivityDiagram") => ACTIVITY_GROUPS,
+            Some("FCFlowchartDiagram") => FLOWCHART_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

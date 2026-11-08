@@ -261,12 +261,13 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "UMLObjectFlow" => "UMLObjectFlowView",
         "UMLExceptionHandler" => "UMLExceptionHandlerView",
         "UMLActivityInterrupt" => "UMLActivityInterruptView",
+        "FCFlow" => "FCFlowView",
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 26] = [
-    "UMLExceptionHandlerView", "UMLActivityInterruptView", "UMLConnectorView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
+const KNOWN_EDGE_VIEWS: [&str; 27] = [
+    "FCFlowView", "UMLExceptionHandlerView", "UMLActivityInterruptView", "UMLConnectorView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
@@ -420,6 +421,8 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         _ if pseudostate_kind(kind).is_some() => pseudostate_min(pseudostate_kind(kind).unwrap_or("initial")),
         "UMLConnectionPointReference" => (CONNECTION_POINT_SIZE, CONNECTION_POINT_SIZE),
         "UMLNaryAssociationNode" => (NARY_MIN_W, NARY_MIN_H),
+        // a click makes a flowchart node at its smallest size, as in the original (factory.js:279-292)
+        _ if crate::flowchart::is_node_type(kind) => (1.0, 1.0),
         _ => (100.0, 60.0),
     }
 }
@@ -531,6 +534,9 @@ fn list_compartment(r: &mut Repo, view: Eid, model: Eid, ty: &str, visible: bool
 }
 
 pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Option<Eid> {
+    if crate::flowchart::is_node_type(r.ty(model)) {
+        return Some(crate::flowchart::create_view(r, diagram, model, rect));
+    }
     let kind = node_kind(r.ty(model))?;
     let m = r.ref_to(model);
     let changeable = r.ty(model) != "UMLUseCaseSubject";
@@ -1225,6 +1231,12 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
     props.push(("points", json!("0:0;0:0")));
     let e = r.create(ty, &props, Some((diagram, "ownedViews")));
     let Some(m) = model else { return Some(e) };
+    // a flow has only its name, 15 px off its middle (FCGeneralEdgeView, flowchart/elements.js:197-215)
+    if ty == "FCFlowView" {
+        let nl = edge_label(r, e, Some(m), HALF_PI, 15.0, 1, false);
+        r.set_ref(e, "nameLabel", Some(nl));
+        return Some(e);
+    }
     r.set(e, "showVisibility", json!(true));
     let nl = edge_label(r, e, Some(m), HALF_PI, 15.0, 1, false);
     let sl = edge_label(r, e, Some(m), HALF_PI, 30.0, 1, true);
@@ -2029,6 +2041,10 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
     let ms: &dyn Measure = &scaled;
     let t = r.ty(v).to_string();
     let m = r.refd(v, "model");
+    if crate::flowchart::is_node_view(&t) {
+        crate::flowchart::layout(r, ms, v);
+        return Info { shape: "flowchart", ..Default::default() };
+    }
     if let Some(m) = m {
         if let Some(k) = node_kind(r.ty(m)) {
             if k.classifier && k.view == t {
@@ -2494,6 +2510,9 @@ fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     let name = r.name(m);
     // a derived association shows "/" before its name (StarUML 5.x)
     let derived = if r.kind_of(m, "UMLAssociation") && r.bool(m, "isDerived") { "/" } else { "" };
+    if r.ty(m) == "FCFlow" {
+        return vec![("nameLabel", name)];
+    }
     if r.ty(m) == "UMLTransition" {
         out.push(("nameLabel", transition_text(r, m)));
     } else if r.kind_of(m, "UMLActivityEdge") {

@@ -322,6 +322,28 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLLinkView", Some("UMLUndirectedRelationshipView"), vec![]);
     def("UMLConnectorView", Some("UMLUndirectedRelationshipView"), vec![]);
     def("UMLRoleBindingView", Some("UMLGeneralEdgeView"), vec![("roleNameLabel", n())]);
+    // flowcharts (flowchart/metamodel.json): every node is an FCModelElement owned by its flowchart,
+    // shown by an FC…View with a word-wrapped name label
+    def("FCModelElement", Some("ExtensibleModel"), vec![]);
+    def("FCFlowchart", Some("FCModelElement"), vec![]);
+    def("FCFlowchartDiagram", Some("Diagram"), vec![]);
+    def("FCFlow", Some("DirectedRelationship"), vec![]);
+    def("FCGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
+    def("FCGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
+    def("FCFlowView", Some("FCGeneralEdgeView"), vec![]);
+    for (_, ty, _) in crate::flowchart::NODES {
+        if ty != "FCFlow" {
+            def(ty, Some("FCModelElement"), vec![]);
+        }
+    }
+    for name in [
+        "FCProcessView", "FCTerminatorView", "FCDecisionView", "FCDelayView", "FCPredefinedProcessView", "FCAlternateProcessView", "FCDataView", "FCDocumentView",
+        "FCMultiDocumentView", "FCPreparationView", "FCDisplayView", "FCManualInputView", "FCManualOperationView", "FCCardView", "FCPunchedTapeView", "FCConnectorView",
+        "FCOffPageConnectorView", "FCOrView", "FCSummingJunctionView", "FCCollateView", "FCSortView", "FCMergeView", "FCExtractView", "FCStoredDataView", "FCDatabaseView",
+        "FCDirectAccessStorageView", "FCInternalStorageView",
+    ] {
+        def(name, Some("FCGeneralNodeView"), vec![]);
+    }
     t
 }
 
@@ -370,4 +392,15 @@ pub fn is_kind_of(ty: &str, base: &str) -> bool {
 
 pub fn known(ty: &str) -> bool {
     table().contains_key(ty)
+}
+
+/// The kind's name with a static lifetime (for keys made from a type name), or "" if unknown.
+pub fn static_name(ty: &str) -> &'static str {
+    table().get_key_value(ty).map(|(k, _)| *k).unwrap_or("")
+}
+
+/// Whether an element of another notation than UML takes its name as typed, without the UML name
+/// grammar (flowcharts, data flow diagrams, mind maps: their quick edits only set the name).
+pub fn plain_named(ty: &str) -> bool {
+    ["FC", "DFD", "MM"].iter().any(|p| ty.starts_with(p))
 }

@@ -126,6 +126,19 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             r("Add Sub-Type", model_ty_static(model_ty), "UMLGeneralization", Plain, true, Below),
             r("Add Super-Type", model_ty_static(model_ty), "UMLGeneralization", Plain, false, Above),
         ],
+        // a flowchart node: a process or decision below (outgoing) or above (incoming), joined by a
+        // flow (quickedits/flowchart.json "fc.node"; flowchart-commands.js:16-95)
+        t if crate::flowchart::is_node_type(t) => {
+            return vec![
+                r("Add Outgoing Process", "FCProcess", "FCFlow", Plain, false, Below),
+                r("Add Incoming Process", "FCProcess", "FCFlow", Plain, true, Above),
+                r("Add Outgoing Decision", "FCDecision", "FCFlow", Plain, false, Below),
+                r("Add Incoming Decision", "FCDecision", "FCFlow", Plain, true, Above),
+                NOTE,
+            ];
+        }
+        // a flow: only Add Note ("fc.edge")
+        "FCFlow" => return vec![NOTE],
         _ => vec![],
     };
     v.push(NOTE);

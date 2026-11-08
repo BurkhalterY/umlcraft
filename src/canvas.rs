@@ -1487,7 +1487,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView")));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v))));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
@@ -1778,6 +1778,8 @@ impl App {
             EditKind::Name(m) if self.repo.kind_of(*m, "UMLInstance") => Some(Grammar::Object),
             // a transition's expression is split by hand (uml-transition.pegjs)
             EditKind::Name(m) if self.repo.ty(*m) == "UMLTransition" => None,
+            // other notations' elements take their name as typed (flowchart.json "fc.set-name")
+            EditKind::Name(m) if crate::meta::plain_named(self.repo.ty(*m)) => None,
             EditKind::Name(_) => Some(Grammar::Name),
             EditKind::Feature(f) => match self.repo.ty(*f) {
                 "UMLOperation" => Some(Grammar::Operation),
@@ -1854,6 +1856,12 @@ impl App {
             EditKind::Name(m) if self.repo.ty(m) == "UMLTransition" => {
                 if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
                     self.change(|a| crate::parse::apply_transition(&mut a.repo, m, &e.text));
+                }
+            }
+            EditKind::Name(m) if crate::meta::plain_named(self.repo.ty(m)) => {
+                if self.repo.alive(m) && self.repo.name(m) != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| a.repo.set(m, "name", serde_json::json!(t)));
                 }
             }
             EditKind::Name(m) => {
