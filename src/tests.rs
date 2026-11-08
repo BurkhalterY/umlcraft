@@ -5368,3 +5368,46 @@ fn activity_boxes_take_their_fill_colour_preferences() {
     let ds = a.change(|a| a.create_node("UMLDataStoreNode", rect(200.0, 0.0, 60.0, 40.0))).unwrap();
     assert_eq!((a.repo.str(act, "fillColor").as_str(), a.repo.str(ds, "fillColor").as_str()), ("#abcdef", "#fedcba"));
 }
+
+#[test]
+fn mermaid_makes_flowcharts_er_diagrams_mind_maps_and_statecharts() {
+    use crate::mermaid_kinds::*;
+    // flowchart parsing: shapes, chains, "&", link texts in both forms
+    let fc = parse_flowchart("flowchart LR\n  A([Start]) --> B{Is it?}\n  B -->|Yes| C[OK] --> D[(Db)]\n  B -- No --> E[/In/] & F[\\\\Out/]\n  style A fill:#f00").unwrap();
+    assert_eq!(fc.direction, "LR");
+    let shape = |id: &str| fc.nodes.iter().find(|n| n.id == id).map(|n| n.shape).unwrap();
+    assert_eq!((shape("A"), shape("B"), shape("C"), shape("D"), shape("E"), shape("F")), ("stadium", "diamond", "square", "cylinder", "lean_right", "inv_trapezoid"));
+    assert!(fc.edges.contains(&("B".into(), "C".into(), "Yes".into())));
+    assert!(fc.edges.contains(&("C".into(), "D".into(), String::new())));
+    assert!(fc.edges.contains(&("B".into(), "E".into(), "No".into())) && fc.edges.contains(&("B".into(), "F".into(), "No".into())));
+    assert_eq!((fc_type("cylinder"), fc_type("inv_trapezoid"), fc_type("odd")), ("FCDatabase", "FCManualOperation", "FCProcess"));
+    // ER parsing
+    let er = parse_er(ER_SAMPLE).unwrap();
+    assert_eq!(er.entities.len(), 3);
+    let member = er.entities.iter().find(|e| e.id == "MEMBER").unwrap();
+    assert_eq!(member.columns[2].keys, vec!["UK".to_string()]);
+    assert_eq!((er.rels[0].card_a, er.rels[0].card_b, er.rels[0].identifying, er.rels[1].label.as_str()), ("1", "0..*", true, "is lent in"));
+    // mind map parsing: the tree by indentation, texts out of their shapes
+    let mm = parse_mindmap(MINDMAP_SAMPLE).unwrap();
+    assert_eq!((mm.text.as_str(), mm.children.len(), mm.children[1].children[1].text.as_str()), ("Library", 3, "DVDs"));
+    // state parsing
+    let sd = parse_state("stateDiagram-v2\n  direction LR\n  [*] --> A\n  state C <<choice>>\n  A --> C : go\n  C --> [*]\n  note right of A : first").unwrap();
+    assert_eq!(sd.direction, "LR");
+    assert_eq!(sd.nodes.iter().map(|n| n.shape).collect::<Vec<_>>(), vec!["stateStart", "rect", "choice", "stateEnd"]);
+    assert_eq!(sd.notes, vec![("A".to_string(), "first".to_string())]);
+    // generation, each as one undo step
+    let ms = measure();
+    let mut a = App::new(None);
+    for (code, dty, holder) in [(FLOWCHART_SAMPLE, "FCFlowchartDiagram", "Flowchart by Mermaid"), (ER_SAMPLE, "ERDDiagram", "Data Model by Mermaid"), (MINDMAP_SAMPLE, "MMMindmapDiagram", "Mindmap by Mermaid"), (STATE_SAMPLE, "UMLStatechartDiagram", "Statemachine by Mermaid")] {
+        let before = a.undo.len();
+        let d = a.generate_mermaid(code, &ms).unwrap();
+        assert_eq!(a.repo.ty(d), dty);
+        assert_eq!(a.repo.name(a.repo.parent(d).unwrap()), holder);
+        assert_eq!(a.undo.len(), before + 1);
+        assert!(a.repo.list(d, "ownedViews").len() > 3);
+    }
+    let er = a.repo.all().find(|e| a.repo.ty(*e) == "ERDEntity" && a.repo.name(*e) == "LOAN").unwrap();
+    assert_eq!(a.repo.list(er, "columns").len(), 4);
+    assert!(a.generate_mermaid("sequenceDiagram\n A->>B: hi", &ms).is_err());
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

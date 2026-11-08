@@ -3,8 +3,8 @@
 //!
 //! UMLCraft reads Mermaid's class diagram syntax itself: classes (with labels, generics and
 //! annotations), members, namespaces, relations with cardinalities and labels, lollipop interfaces,
-//! notes and `direction`. Other Mermaid diagram kinds are refused, as UMLCraft only edits class and
-//! use case diagrams.
+//! notes and `direction`. Flowcharts, ER diagrams, mind maps and state diagrams are made by
+//! mermaid_kinds.rs; sequence and requirement diagrams are refused.
 
 use crate::app::{App, AssocInit, Tool};
 use crate::layout::{Dir, Seps};
@@ -309,8 +309,13 @@ impl App {
     /// Generate the class diagram, in one undo step, then lay it out and open it. Returns the diagram.
     pub fn generate_mermaid(&mut self, code: &str, ms: &dyn Measure) -> Result<Eid, String> {
         let ty = diagram_type(code)?;
-        if ty != "class" {
-            return Err(format!("UMLCraft can only generate class diagrams from Mermaid, not {ty} diagrams."));
+        match ty {
+            "flowchart" => return self.generate_flowchart(code, ms),
+            "er" => return self.generate_er(code, ms),
+            "mindmap" => return self.generate_mindmap(code, ms),
+            "state" => return self.generate_state(code, ms),
+            "class" => {}
+            _ => return Err(format!("UMLCraft cannot generate {ty} diagrams from Mermaid yet.")),
         }
         let md = parse_class_diagram(code)?;
         // the container: the selected package, or a new "Package by Mermaid" in the project
@@ -465,9 +470,21 @@ impl App {
         let (mut ok, mut cancel) = (false, false);
         egui::Window::new("Generate Diagram by Mermaid").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO).show(ctx, |ui| {
             ui.horizontal(|ui| {
-                if ui.button("Example: Class").clicked() {
-                    code = SAMPLE.to_string();
-                }
+                // the Examples menu (main.js:185-205; the examples are UMLCraft's own)
+                ui.menu_button("Examples", |ui| {
+                    for (label, text) in [
+                        ("Class Diagram", SAMPLE),
+                        ("State Diagram", crate::mermaid_kinds::STATE_SAMPLE),
+                        ("Flowchart", crate::mermaid_kinds::FLOWCHART_SAMPLE),
+                        ("Entity Relationship Diagram", crate::mermaid_kinds::ER_SAMPLE),
+                        ("Mindmap", crate::mermaid_kinds::MINDMAP_SAMPLE),
+                    ] {
+                        if ui.button(label).clicked() {
+                            code = text.to_string();
+                            ui.close();
+                        }
+                    }
+                });
                 if ui.button("Clear").clicked() {
                     code.clear();
                 }

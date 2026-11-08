@@ -426,11 +426,11 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | diagram-canvas | Tag Editor... | `model:tag-editor` | ✅ | Ctrl+T, Model › Tag Editor..., and the canvas and explorer menus (src/ui.rs:1898, 2454; src/tags.rs:171-275) |
 | mermaid-example-dropdown | Class Diagram | `mermaid:example-class-diagram` | ✅ | an "Example: Class" button fills in a class diagram example (src/mermaid.rs:468-470) |
 | mermaid-example-dropdown | Sequence Diagram | `mermaid:example-sequence-diagram` | ❌ |  |
-| mermaid-example-dropdown | State Diagram | `mermaid:example-state-diagram` | ❌ |  |
-| mermaid-example-dropdown | Flowchart | `mermaid:example-flowchart` | ❌ |  |
-| mermaid-example-dropdown | Entity Relationship Diagram | `mermaid:example-er-diagram` | ❌ |  |
+| mermaid-example-dropdown | State Diagram | `mermaid:example-state-diagram` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:473-487; src/mermaid_kinds.rs:14-60) |
+| mermaid-example-dropdown | Flowchart | `mermaid:example-flowchart` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:473-487; src/mermaid_kinds.rs:14-60) |
+| mermaid-example-dropdown | Entity Relationship Diagram | `mermaid:example-er-diagram` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:473-487; src/mermaid_kinds.rs:14-60) |
 | mermaid-example-dropdown | Requirement Diagram | `mermaid:example-requirement-diagram` | ❌ |  |
-| mermaid-example-dropdown | Mindmap | `mermaid:example-mindmap` | ❌ |  |
+| mermaid-example-dropdown | Mindmap | `mermaid:example-mindmap` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:473-487; src/mermaid_kinds.rs:14-60) |
 | #relationship-view div.listview | Select Related Element | `relationship-view:select-related-element` | ✅ | the Relationships panel row's context menu selects the element at the other end (src/relview.rs:85-89) |
 | #relationship-view div.listview | Select Relationship | `relationship-view:select-relationship` | ✅ | the Relationships panel row's context menu selects the relationship (src/relview.rs:90-93) |
 | model-explorer | *(the menu as a whole)* |  | 🟡 | the explorer menu has Add (with Constraint, Reception and Extension Point where they apply), Add Diagram, Open Diagram, Tag Editor, Select In Diagram, Cut, Copy, Paste, Move Up, Move Down and Delete from Model; of the behaviour items only Interaction, State Machine, Activity and Opaque Behavior (src/ui.rs:600)
