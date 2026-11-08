@@ -128,6 +128,33 @@ pub const SIZES: [f64; 14] = [8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 16.0, 18.0
 /// chosen name; diagrams are drawn with the Arial-compatible face whatever it is.
 pub const FONT_FACES: [&str; 12] = ["Arial", "Courier", "Courier New", "Gloria Hallelujah", "Helvetica", "Inter", "Lato", "Roboto", "Source Code Pro", "Source Sans Pro", "Times", "Times New Roman"];
 
+/// The font family a face name is shown in by the Font dialog's preview: the file the system
+/// matches for the name (fontconfig, as the original's page resolves a CSS font family), loaded
+/// the first time; until it is ready, or without a match, the Arial-compatible face
+/// (dialog-manager.js:569-571).
+pub fn face_family(ctx: &egui::Context, face: &str) -> egui::FontFamily {
+    use egui::epaint::text::{FontInsert, FontPriority, InsertFontFamily};
+    let arial = egui::FontFamily::Name("arial".into());
+    let face = face.trim();
+    if face.is_empty() || face.eq_ignore_ascii_case("Arial") {
+        return arial;
+    }
+    let name = format!("face:{face}");
+    let family = egui::FontFamily::Name(name.clone().into());
+    if ctx.fonts(|f| f.definitions().families.contains_key(&family)) {
+        return family;
+    }
+    static TRIED: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    let Ok(mut tried) = TRIED.lock() else { return arial };
+    if !tried.contains(&name) {
+        tried.push(name.clone());
+        if let Some(bytes) = crate::system_font(face).and_then(|p| std::fs::read(p).ok()) {
+            ctx.add_font(FontInsert { name, data: egui::FontData::from_owned(bytes), families: vec![InsertFontFamily { family, priority: FontPriority::Highest }] });
+        }
+    }
+    arial
+}
+
 /// The drop-down beside a font face field: picking a face returns it, to copy into the field.
 pub fn font_face_menu(ui: &mut egui::Ui, id: &str) -> Option<String> {
     let mut out = None;

@@ -75,7 +75,7 @@ fn first_existing(paths: &[&str]) -> Option<Vec<u8>> {
 /// the panels use a Source-Sans-like UI face when one is installed.
 /// The face the system gives for a font request, the way the original's engine resolves the
 /// diagram font "Arial" on Linux (through fontconfig; MECHANICS.md "Runtime"). `None` without fontconfig.
-fn system_font(pattern: &str) -> Option<String> {
+pub(crate) fn system_font(pattern: &str) -> Option<String> {
     let out = std::process::Command::new("fc-match").args(["-f", "%{file}", pattern]).output().ok()?;
     let file = String::from_utf8(out.stdout).ok()?;
     std::path::Path::new(&file).exists().then_some(file)

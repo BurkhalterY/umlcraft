@@ -3225,8 +3225,9 @@ impl App {
                 ui.label("Size");
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut size).hint_text("—").desired_width(60.0));
+                    // the dialog's own sizes (dialog-manager.js:541)
                     egui::ComboBox::from_id_salt("font-sizes").selected_text("").width(20.0).show_ui(ui, |ui| {
-                        for s in crate::style::SIZES {
+                        for s in [8, 9, 10, 11, 12, 13, 15, 16, 18, 20, 22, 24, 26, 28, 32, 36, 42] {
                             if ui.selectable_label(false, format!("{s}")).clicked() {
                                 size = format!("{s}");
                             }
@@ -3261,7 +3262,9 @@ impl App {
             ui.add_space(4.0);
             let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 60.0), egui::Sense::hover());
             ui.painter().rect(rect, 0.0, Color32::WHITE, Stroke::new(1.0, BORDER()), egui::StrokeKind::Inside);
-            ui.painter().text(rect.center(), Align2::CENTER_CENTER, "AaBb123", egui::FontId::proportional(px), fg);
+            // in the chosen face, when the system has it
+            let family = crate::style::face_family(ui.ctx(), &face);
+            ui.painter().text(rect.center(), Align2::CENTER_CENTER, "AaBb123", egui::FontId::new(px, family), fg);
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 ok = ui.button("OK").clicked();
