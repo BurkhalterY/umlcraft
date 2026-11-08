@@ -139,7 +139,7 @@ impl Canvas for ScreenCanvas<'_> {
 fn rect_of(a: P, b: P) -> R {
     R { x: a.x.min(b.x), y: a.y.min(b.y), w: (a.x - b.x).abs(), h: (a.y - b.y).abs() }
 }
-fn dist_to_seg(p: P, a: P, b: P) -> f64 {
+pub(crate) fn dist_to_seg(p: P, a: P, b: P) -> f64 {
     let (dx, dy) = (b.x - a.x, b.y - a.y);
     let l2 = dx * dx + dy * dy;
     let t = if l2 > 0.0 { (((p.x - a.x) * dx + (p.y - a.y) * dy) / l2).clamp(0.0, 1.0) } else { 0.0 };
@@ -164,11 +164,34 @@ fn short_label(l: &str) -> String {
 /// Attribute (Literal, Slot, Extension Point) and Add Operation; on a compartment item, Add, Delete,
 /// Move Up and Move Down. Each is shown with its hint and key, "Add Attribute (Ctrl+Enter)"
 /// (quickedits/uml.json components with a `key`; quickedit-manager.js:385-394).
-pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static str, &'static str, &'static str, ItemKey)> {
+pub fn item_buttons(r: &crate::model::Repo, host: Option<Eid>, kind: &EditKind) -> Vec<(&'static str, &'static str, &'static str, ItemKey)> {
     const ADD_OP: (&str, &str, &str, ItemKey) = ("+ Op", "Add Operation", "Ctrl+Shift+Enter", ItemKey::AddOperation);
     match kind {
         EditKind::Name(m) => {
             let t = r.ty(*m);
+            // a timing lifeline's and state's buttons (quickedits/uml.json "uml.lifeline-timing", "uml.state-timing")
+            if t == "UMLLifeline" && host.map(|h| r.ty(h) == "UMLTimingLifelineView").unwrap_or(false) {
+                return vec![
+                    ("Type…", "Select Type", "", ItemKey::LifelineType(false)),
+                    ("+ Type", "Create Type", "", ItemKey::LifelineType(true)),
+                    ("+ State", "Create State/Condition", "", ItemKey::Timing),
+                ];
+            }
+            if host.map(|h| r.ty(h) == "UMLTimingStateView").unwrap_or(false) {
+                return vec![("+ Segment", "Create Time Segment", "", ItemKey::Timing)];
+            }
+            // a communication lifeline's buttons (quickedits/uml.json "uml.lifeline-comm")
+            if t == "UMLLifeline" && host.map(|h| r.ty(h) == "UMLCommLifelineView").unwrap_or(false) {
+                use crate::communication::CommAdd::*;
+                return vec![
+                    ("Type…", "Select Type", "", ItemKey::LifelineType(false)),
+                    ("+ Type", "Create Type", "", ItemKey::LifelineType(true)),
+                    ("+ Lifeline", "Add Connected Lifeline", "", ItemKey::Comm(ConnectedLifeline)),
+                    ("+ Self", "Add Self Connector", "", ItemKey::Comm(SelfConnector)),
+                    ("+ Fwd", "Add Forward Message", "", ItemKey::Comm(ForwardMessage)),
+                    ("+ Rev", "Add Reverse Message", "", ItemKey::Comm(ReverseMessage)),
+                ];
+            }
             // a port or a part (quickedits/uml.json "uml.port", "uml.part")
             if t == "UMLPort" || t == "UMLAttribute" {
                 let mut v = vec![("Type…", "Select Type", "", ItemKey::SelectType), ("+ Type", "Create Type", "", ItemKey::CreateType)];
@@ -193,6 +216,8 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                     ("+ Internal", "Add Internal Transition", "", ItemKey::InternalTransition),
                     ("+ Choice", "Add Choice", "", ItemKey::Scaffold("Choice")),
                     ("+ Fork", "Add Fork", "", ItemKey::Scaffold("Fork")),
+                    ("+ Join", "Add Join", "", ItemKey::Scaffold("Join")),
+                    ("+ CPR", "Add Connection Point Reference", "", ItemKey::AddConnectionPoint),
                 ],
                 // an action's decision, merge, fork and join scaffolds (quickedits/uml.json "uml.action")
                 "UMLAction" => vec![
@@ -204,6 +229,33 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                     ("+ Join", "Add Join", "", ItemKey::Scaffold("UMLJoinNode")),
                 ],
                 "UMLUseCase" => vec![("+ Ext", "Add Extension Point", "Ctrl+Enter", ItemKey::Add)],
+                "ERDEntity" => vec![("+ Col", "Add Column", "Ctrl+Enter", ItemKey::Add)],
+                // a lifeline's and a message's buttons (quickedits/uml.json "uml.lifeline-seq", "uml.message")
+                "UMLLifeline" => {
+                    use crate::sequence::SeqAdd::*;
+                    vec![
+                        ("Type…", "Select Type", "", ItemKey::LifelineType(false)),
+                        ("+ Type", "Create Type", "", ItemKey::LifelineType(true)),
+                        ("+ Msg", "Add Message with Lifeline", "", ItemKey::Seq(MessageLifeline)),
+                        ("+ Create", "Add Create Message with Lifeline", "", ItemKey::Seq(CreateMessageLifeline)),
+                        ("+ Self", "Add Self Message", "", ItemKey::Seq(SelfMessage)),
+                        ("+ Found", "Add Found Message", "", ItemKey::Seq(FoundMessage)),
+                        ("+ Lost", "Add Lost Message", "", ItemKey::Seq(LostMessage)),
+                        ("+ From Gate", "Add Message from Gate", "", ItemKey::Seq(FromGate)),
+                        ("+ To Gate", "Add Message to Gate", "", ItemKey::Seq(ToGate)),
+                    ]
+                }
+                "UMLMessage" => vec![
+                    ("Op…", "Select Operation", "", ItemKey::MessageSignature(false, false)),
+                    ("+ Op", "Create Operation", "", ItemKey::MessageSignature(false, true)),
+                    ("Signal…", "Select Signal", "", ItemKey::MessageSignature(true, false)),
+                    ("+ Signal", "Create Signal", "", ItemKey::MessageSignature(true, true)),
+                    ("+ Reply", "Add Reply Message", "", ItemKey::ReplyMessage),
+                ],
+                // a combined fragment's Add Operand (quickedits/uml.json "uml.combined-fragment")
+                "UMLCombinedFragment" => vec![("+ Operand", "Add Operand", "", ItemKey::AddOperand)],
+                // a tab list's Add Tab (wireframe/quickedits/wireframe.json "wireframe.tab-list")
+                "WFTabList" => vec![("+ Tab", "Add Tab", "", ItemKey::AddTab)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
                 // classes, interfaces, signals, data types, components, nodes, artifacts: Add Reception
                 // too, which has no key; stereotypes have none (actors take no attributes in UMLCraft)
@@ -261,6 +313,24 @@ pub enum ItemKey {
     Scaffold(&'static str),
     /// A state's Add Region
     AddRegion,
+    /// A state's Add Connection Point Reference
+    AddConnectionPoint,
+    /// A combined fragment's Add Operand
+    AddOperand,
+    /// A tab list's Add Tab
+    AddTab,
+    /// A lifeline's Select Type (false) or Create Type (true)
+    LifelineType(bool),
+    /// A lifeline's message buttons
+    Seq(crate::sequence::SeqAdd),
+    /// A communication lifeline's buttons
+    Comm(crate::communication::CommAdd),
+    /// A timing lifeline's Create State/Condition, a timing state's Create Time Segment
+    Timing,
+    /// A message's Select / Create (second flag) Operation (first flag false) or Signal (true)
+    MessageSignature(bool, bool),
+    /// A message's Add Reply Message
+    ReplyMessage,
     /// An action's Add Input Pin (true) or Add Output Pin (false)
     AddPin(bool),
     /// A composite state's Add Internal Transition
@@ -356,7 +426,9 @@ impl App {
         let hs = 6.0 / self.zoom;
         let o = 4.0 / self.zoom;
         let b = node_rect(&self.repo, v);
-        render::handle_points(&R { x: b.x - o, y: b.y - o, w: b.w + 2.0 * o, h: b.h + 2.0 * o }).iter().position(|h| (p.x - h.x).abs() <= hs && (p.y - h.y).abs() <= hs)
+        // only the handles its sizable mode allows (diagram-editor.js:1411-1454)
+        let s = views::sizable(&self.repo, v);
+        render::handle_points(&R { x: b.x - o, y: b.y - o, w: b.w + 2.0 * o, h: b.h + 2.0 * o }).iter().enumerate().position(|(i, h)| views::handle_shown(s, i) && (p.x - h.x).abs() <= hs && (p.y - h.y).abs() <= hs)
     }
 
     fn snap_v(&self, n: f64) -> f64 {
@@ -520,8 +592,13 @@ impl App {
                 c.painter.rect_stroke(r, 0.0, Stroke::new(1.0, sel), egui::StrokeKind::Middle);
                 // centred 4 screen px outside the corners and edge midpoints (graphics.js:2726-2727)
                 let o = 4.0 / c.zoom;
-                for p in render::handle_points(&R { x: b.x - o, y: b.y - o, w: b.w + 2.0 * o, h: b.h + 2.0 * o }) {
-                    handle(c, p);
+                let s = views::sizable(&self.repo, v);
+                if !self.repo.bool(v, "autoResize") {
+                    for (i, p) in render::handle_points(&R { x: b.x - o, y: b.y - o, w: b.w + 2.0 * o, h: b.h + 2.0 * o }).into_iter().enumerate() {
+                        if views::handle_shown(s, i) {
+                            handle(c, p);
+                        }
+                    }
                 }
             }
         }
@@ -822,7 +899,8 @@ impl App {
         let lines: Vec<Eid> = sel.iter().copied().filter(|v| views::is_freeline(&self.repo, *v)).collect();
         self.change(|a| {
             for v in movers {
-                a.shift_view(v, dx, dy);
+                let (mx, my) = views::movable(&a.repo, v);
+                a.shift_view(v, if mx { dx } else { 0.0 }, if my { dy } else { 0.0 });
             }
             // free lines move by their points
             for e in lines {
@@ -857,7 +935,9 @@ impl App {
         if let Some(tool) = self.tool {
             if !tool.line || tool.kind == "FreeLine" {
                 self.drag = Some(Drag::CreateNode { start: p, now: p });
-            } else if let Some(tail) = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject")) {
+            } else if let Some(tail) = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject" | "UMLForwardMessage" | "UMLReverseMessage")).or_else(|| if matches!(tool.kind, "UMLFoundMessage" | "UMLForwardMessage" | "UMLReverseMessage") { self.diagram } else { None }) {
+                // a found message may start anywhere: its endpoint is made at the press point; so may
+                // a communication message, which only needs the connector it is dropped on
                 self.drag = Some(Drag::CreateEdge { start: p, now: p, tail });
             }
             return;
@@ -1103,11 +1183,19 @@ impl App {
                     dx = dx.max(-min_x.max(0.0));
                     dy = dy.max(-min_y.max(0.0));
                 }
+                // each box only along the ways it may move (diagram-editor.js:1612-1622, 1642-1674)
                 for (n, o) in orig.iter() {
-                    self.repo.set(*n, "left", crate::model::num(o.x + dx));
-                    self.repo.set(*n, "top", crate::model::num(o.y + dy));
+                    let (mx, my) = views::movable(&self.repo, *n);
+                    self.repo.set(*n, "left", crate::model::num(o.x + if mx { dx } else { 0.0 }));
+                    self.repo.set(*n, "top", crate::model::num(o.y + if my { dy } else { 0.0 }));
                 }
                 let moved: Vec<Eid> = orig.iter().map(|(n, _)| *n).collect();
+                // a communication message keeps the place it was dragged to beside its connector
+                for v in &moved {
+                    if self.repo.ty(*v) == "UMLCommMessageView" {
+                        crate::communication::moved(&mut self.repo, *v);
+                    }
+                }
                 self.hover = self.container_at(p, &moved);
                 for (e, pts) in edges.iter() {
                     if pts.len() > 2 || views::is_freeline(&self.repo, *e) {
@@ -1276,7 +1364,7 @@ impl App {
                     let (mw, mh) = views::tool_min_size(tool.kind).unwrap_or((1.0, 1.0));
                     R { x: x1, y: y1, w: (x2 - x1).max(mw), h: (y2 - y1).max(mh) }
                 };
-                if matches!(tool.kind, "UMLPort" | "UMLPart" | "UMLInputPin" | "UMLOutputPin") {
+                if matches!(tool.kind, "UMLPort" | "UMLPart" | "UMLInputPin" | "UMLOutputPin" | "UMLInputExpansionNode" | "UMLOutputExpansionNode" | "UMLConnectionPointReference") {
                     // a port is placed at the point (a "point" tool), a part takes the box; both go on the
                     // classifier box under the point (toolbox/uml.json "parasitic")
                     if !self.tool_sticky {
@@ -1331,13 +1419,24 @@ impl App {
                     self.pending_edit = Some(v);
                 }
             }
-            Drag::CreateEdge { tail, .. } => {
+            Drag::CreateEdge { tail, start, .. } => {
                 let Some(tool) = self.tool else { return };
                 // a self-connection tool joins the view under the release point to itself (factory.js:273-277)
-                let hit = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject"));
-                let (tail, hit) = if tool.label == "Self Transition" { (hit.unwrap_or(tail), hit) } else { (tail, hit) };
-                if let Some(head) = hit.map(|h| if tool.label == "Self Transition" { tail } else { h }) {
-                    if !self.can_connect(&tool, tail, head) {
+                let hit = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject" | "UMLForwardMessage" | "UMLReverseMessage"));
+                let selfish = matches!(tool.label, "Self Transition" | "Self Message" | "Self Connector");
+                let (tail, hit) = if selfish { (hit.unwrap_or(tail), hit) } else { (tail, hit) };
+                // a message keeps the height it is drawn at; a found message comes from an endpoint at
+                // the press point, a lost one goes to an endpoint at the release point
+                self.line_from = Some((start, p));
+                let lifeline = |a: &Self, v: Eid| a.repo.refd(v, "model").map(|m| a.repo.ty(m) == "UMLLifeline").unwrap_or(false);
+                let hit = match tool.kind {
+                    "UMLLostMessage" if lifeline(self, tail) => Some(tail),
+                    "UMLFoundMessage" => hit.filter(|h| lifeline(self, *h)),
+                    _ => hit,
+                };
+                let free = matches!(tool.kind, "UMLFoundMessage" | "UMLLostMessage");
+                if let Some(head) = hit.map(|h| if selfish { tail } else { h }) {
+                    if !free && !self.can_connect(&tool, tail, head) {
                         // a refused link is reported (uml-factory.js:19-146, toolbox-view.js:209-216)
                         self.toast_error(&format!("Invalid connection ({})", tool.kind.trim_start_matches("UML")));
                     } else if let Some(v) = self.change(|a| a.create_edge(&tool, tail, head)) {
@@ -1428,8 +1527,9 @@ impl App {
             self.pick_image(v);
             return;
         }
-        // frames and hyperlinks have no inline edit
-        if t == "UMLFrameView" || t == "HyperlinkView" {
+        // frames and hyperlinks have no inline edit, nor wireframe frames and widgets without a name
+        // but a tab list (wireframe/quickedits/wireframe.json)
+        if t == "UMLFrameView" || t == "HyperlinkView" || (crate::wireframe::is_node_view(&t) && !crate::wireframe::has_name(&t) && t != "WFTabListView") {
             return;
         }
         // a constraint edits its specification (uml-commands.js:669)
@@ -1456,7 +1556,10 @@ impl App {
                     let centre = if n % 2 == 0 { P { x: (pts[mi].x + pts[mi + 1].x) / 2.0, y: (pts[mi].y + pts[mi + 1].y) / 2.0 } } else { pts[mi] };
                     let dist = |q: P| (q.x - p.x).powi(2) + (q.y - p.y).powi(2);
                     let (dt, dh, dm) = (dist(pts[0]), dist(pts[n - 1]), dist(centre));
-                    let end = if dt < dh && dt < dm { Some(("end1", "tailRoleNameLabel", pts[0])) } else if dh < dt && dh < dm { Some(("end2", "headRoleNameLabel", pts[n - 1])) } else { None };
+                    // an ERD relationship names its end labels tailNameLabel and headNameLabel
+                    let erd = self.repo.ty(v) == "ERDRelationshipView";
+                    let (tl, hl) = if erd { ("tailNameLabel", "headNameLabel") } else { ("tailRoleNameLabel", "headRoleNameLabel") };
+                    let end = if dt < dh && dt < dm { Some(("end1", tl, pts[0])) } else if dh < dt && dh < dm { Some(("end2", hl, pts[n - 1])) } else { None };
                     if let Some((field, label, at)) = end {
                         if let Some(e) = self.repo.child(m, field) {
                             let rect = match self.repo.refd(v, label) {
@@ -1469,13 +1572,53 @@ impl App {
                     }
                 }
             }
-            let lv = self.repo.refd(v, "nameLabel");
+            // a C4 relationship's inline edit is its description, in a text area (quickedits/c4.json)
+            let c4 = self.repo.ty(m) == "C4Relationship";
+            let lv = self.repo.refd(v, if c4 { "descriptionLabel" } else { "nameLabel" });
             let rect = match lv {
-                Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: 19.0 },
-                _ => R { x: mid.x - 50.0, y: mid.y - 10.0, w: 100.0, h: 19.0 },
+                Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: if c4 { self.repo.f(l, "height").max(19.0) + 20.0 } else { 19.0 } },
+                _ => R { x: mid.x - 50.0, y: mid.y - 10.0, w: 100.0, h: if c4 { 40.0 } else { 19.0 } },
             };
-            self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: None, orig: None });
+            let text = if c4 { self.repo.str(m, "description") } else { crate::parse::name_text(&self.repo, m) };
+            // a message's edit keeps its view, for its buttons (quickedits/uml.json "uml.message")
+            let host = (self.repo.ty(v) == "UMLSeqMessageView").then_some(v);
+            self.editing = Some(Editing { kind: EditKind::Name(m), text, rect, multiline: c4, center: !c4, fresh: true, host, orig: None });
             return;
+        }
+        // an operand of a combined fragment edits its guard, a state invariant on a lifeline its
+        // invariant (quickedits/uml.json "uml.interaction-operand", "uml.state-invariant")
+        if let Some(p) = p {
+            let parts: Vec<Eid> = match t.as_str() {
+                "UMLCombinedFragmentView" => self.repo.refd(v, "operandCompartment").map(|oc| self.repo.list(oc, "subViews")).unwrap_or_default(),
+                "UMLSeqLifelineView" => self.repo.list(v, "subViews").into_iter().filter(|x| self.repo.ty(*x) == "UMLStateInvariantView").collect(),
+                _ => vec![],
+            };
+            for part in parts {
+                let b = node_rect(&self.repo, part);
+                if in_rect(p, &b) {
+                    if let Some(pm) = self.repo.refd(part, "model") {
+                        let rect = R { x: b.x + 4.0, y: if t == "UMLCombinedFragmentView" { b.y + 10.0 } else { b.y }, w: b.w.max(120.0) - 8.0, h: 19.0 };
+                        self.editing = Some(Editing { kind: EditKind::Name(pm), text: crate::parse::name_text(&self.repo, pm), rect, multiline: false, center: false, fresh: true, host: Some(v), orig: None });
+                        return;
+                    }
+                }
+            }
+        }
+        // an inline interaction opens the diagram it shows and selects it (uml/main.js:84-89)
+        if t == "UMLInteractionInlineView" {
+            if let Some(dg) = self.repo.refd(m, "target").filter(|x| self.repo.alive(*x)) {
+                self.open_diagram(dg);
+                self.reveal(dg);
+            }
+            return;
+        }
+        // an interaction use selects the interaction it refers to, or its action's target's
+        // (uml/main.js:90-96)
+        if t == "UMLInteractionUseView" {
+            let iu = if self.repo.ty(m) == "UMLAction" { self.repo.refd(m, "target").unwrap_or(m) } else { m };
+            if let Some(target) = self.repo.refd(iu, "refersTo") {
+                self.reveal(target);
+            }
         }
         if let Some(iv) = p.and_then(|p| self.row_at(v, p)) {
             if self.edit_row(v, iv) {
@@ -1483,7 +1626,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView")));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || matches!(self.repo.ty(v), "ERDEntityView" | "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView" | "UMLCommMessageView" | "UMLTimingStateView" | "UMLTimingLifelineView") || crate::c4::is_node_view(self.repo.ty(v)) || crate::wireframe::has_name(self.repo.ty(v))));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
@@ -1498,7 +1641,12 @@ impl App {
         self.editing = Some(Editing {
             kind: EditKind::Feature(item),
             // a reception is edited as a name expression, without its «signal» keyword
-            text: if self.repo.ty(item) == "UMLReception" { crate::parse::name_text(&self.repo, item) } else { self.repo.str(iv, "text") },
+            text: match self.repo.ty(item) {
+                "UMLReception" => crate::parse::name_text(&self.repo, item),
+                // a column is edited as "name: type(length)" (ERDColumn.textualNotation)
+                "ERDColumn" => crate::erd::column_text(&self.repo, item),
+                _ => self.repo.str(iv, "text"),
+            },
             rect: R { x: b.x - 2.0, y: b.y - 3.0, w: b.w.max(120.0) + 4.0, h: 19.0 },
             multiline: false,
             center: false,
@@ -1559,6 +1707,7 @@ impl App {
             "UMLExtensionPoint" | "UMLSlot" => None,
             "UMLEnumerationLiteral" => Some("suppressLiterals"),
             "UMLTemplateParameter" => None,
+            "ERDColumn" => Some("suppressColumns"),
             _ => Some("suppressAttributes"),
         }
     }
@@ -1666,6 +1815,8 @@ impl App {
                 let ty = match self.repo.ty(m) {
                     "UMLEnumeration" => "UMLEnumerationLiteral",
                     "UMLUseCase" => "UMLExtensionPoint",
+                    // a column on an entity (quickedits/erd.json "erd.add-column")
+                    "ERDEntity" => "ERDColumn",
                     _ if self.repo.kind_of(m, "UMLInstance") => "UMLSlot",
                     _ => "UMLAttribute",
                 };
@@ -1694,6 +1845,70 @@ impl App {
             (ItemKey::AddRegion, _) => {
                 if let Some(rg) = self.change(|a| a.add_feature(m, "UMLRegion")) {
                     self.reveal(rg);
+                }
+            }
+            // on the state's left border, under the ones already there (the original picks a random
+            // point in the box, uml-commands.js:2947-2963)
+            (ItemKey::AddConnectionPoint, _) => {
+                let b = node_rect(&self.repo, host);
+                let d = self.diagram;
+                let n = d.map(|d| self.repo.list(d, "ownedViews").into_iter().filter(|v| self.repo.refd(*v, "containerView") == Some(host) && self.repo.ty(*v) == "UMLConnectionPointReferenceView").count()).unwrap_or(0) as f64;
+                let at = P { x: b.x, y: (b.y + 20.0 + 20.0 * n).min(b.y + b.h) };
+                if let Some(v) = self.change(|a| a.create_feature_on(host, "UMLConnectionPointReference", at, R::default()).map_err(|e| a.toast_error(&e)).ok()) {
+                    self.select(vec![v]);
+                }
+            }
+            (ItemKey::LifelineType(create), _) => match self.repo.refd(m, "represent").filter(|r| self.repo.ty(*r) == "UMLAttribute") {
+                Some(role) if create => {
+                    self.input_dialog = Some(crate::input::InputDialog { message: "Enter a type name to create".into(), text: String::new(), action: crate::input::InputAction::CreateLifelineType(role), fresh: true });
+                }
+                Some(role) => self.open_element_picker(role, "type"),
+                None => self.toast_error("Lifeline should represent a role. (connect 'represent' field to an Attribute of the container Collaboration)"),
+            },
+            (ItemKey::AddTab, _) => {
+                if let Some(t) = self.change(|a| a.add_tab(host)) {
+                    self.select(vec![t]);
+                }
+            }
+            (ItemKey::Timing, _) => {
+                if let Some(e) = self.add_timing(host) {
+                    self.select(vec![e]);
+                }
+            }
+            (ItemKey::Comm(what), _) => {
+                if let Some(e) = self.add_comm(host, what) {
+                    self.select(vec![e]);
+                }
+            }
+            (ItemKey::Seq(what), _) => {
+                if let Some(e) = self.add_seq(host, what) {
+                    self.select(vec![e]);
+                }
+            }
+            (ItemKey::MessageSignature(signal, create), _) => {
+                if signal {
+                    if create {
+                        self.input_dialog = Some(crate::input::InputDialog { message: "Enter a signal name to create".into(), text: String::new(), action: crate::input::InputAction::CreateMessageSignal(m), fresh: true });
+                    } else {
+                        self.open_typed_picker(m, "signature", "UMLSignal");
+                    }
+                } else if self.message_target_type(m).is_none() {
+                    self.toast_error("Lifeline should have a type.");
+                } else if create {
+                    self.input_dialog = Some(crate::input::InputDialog { message: "Enter an operation name to create".into(), text: String::new(), action: crate::input::InputAction::CreateMessageOperation(m), fresh: true });
+                } else {
+                    // the original lists the operations of the target's type, inherited ones included
+                    self.open_typed_picker(m, "signature", "UMLOperation");
+                }
+            }
+            (ItemKey::ReplyMessage, _) => {
+                if let Some(e) = self.add_reply(host) {
+                    self.select(vec![e]);
+                }
+            }
+            (ItemKey::AddOperand, _) => {
+                if let Some(o) = self.change(|a| a.add_feature(m, "UMLInteractionOperand")) {
+                    self.reveal(o);
                 }
             }
             (ItemKey::Activity(field), _) => self.ask_behavior_kind(m, field),
@@ -1763,13 +1978,17 @@ impl App {
             EditKind::Name(m) if self.repo.kind_of(*m, "UMLInstance") => Some(Grammar::Object),
             // a transition's expression is split by hand (uml-transition.pegjs)
             EditKind::Name(m) if self.repo.ty(*m) == "UMLTransition" => None,
+            // a lifeline's and a message's expressions are split by hand (uml-lifeline.pegjs, uml-message.pegjs)
+            EditKind::Name(m) if matches!(self.repo.ty(*m), "UMLLifeline" | "UMLMessage" | "UMLInteractionOperand" | "UMLStateInvariant") => None,
+            // other notations' elements take their name as typed (flowchart.json "fc.set-name")
+            EditKind::Name(m) if crate::meta::plain_named(self.repo.ty(*m)) => None,
             EditKind::Name(_) => Some(Grammar::Name),
             EditKind::Feature(f) => match self.repo.ty(*f) {
                 "UMLOperation" => Some(Grammar::Operation),
                 "UMLSlot" => Some(Grammar::Slot),
                 "UMLTemplateParameter" => Some(Grammar::TemplateParameter),
                 "UMLReception" | "UMLEnumerationLiteral" => Some(Grammar::Name),
-                "UMLExtensionPoint" => None,
+                "UMLExtensionPoint" | "ERDColumn" => None,
                 _ => Some(Grammar::Attribute),
             },
         }
@@ -1841,9 +2060,57 @@ impl App {
                     self.change(|a| crate::parse::apply_transition(&mut a.repo, m, &e.text));
                 }
             }
+            EditKind::Name(m) if self.repo.ty(m) == "UMLLifeline" => {
+                if self.repo.alive(m) && crate::parse::lifeline_text(&self.repo, m) != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| {
+                        let ty = crate::parse::apply_lifeline(&mut a.repo, m, &t);
+                        if let Some(role) = a.repo.refd(m, "represent") {
+                            match ty {
+                                Some(ty) => match a.resolve_name(role, &ty, "UMLClassifier") {
+                                    Some(c) => a.repo.set_ref(role, "type", Some(c)),
+                                    None => a.repo.set(role, "type", serde_json::json!(ty)),
+                                },
+                                None => a.repo.remove(role, "type"),
+                            }
+                        }
+                    });
+                }
+            }
+            EditKind::Name(m) if matches!(self.repo.ty(m), "UMLInteractionOperand" | "UMLStateInvariant") => {
+                let field = if self.repo.ty(m) == "UMLStateInvariant" { "invariant" } else { "guard" };
+                if self.repo.alive(m) && self.repo.str(m, field) != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| a.repo.set(m, field, serde_json::json!(t)));
+                }
+            }
+            EditKind::Name(m) if self.repo.ty(m) == "UMLMessage" => {
+                if self.repo.alive(m) && crate::parse::message_text(&self.repo, m) != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| crate::parse::apply_message(&mut a.repo, m, &t));
+                }
+            }
+            EditKind::Name(m) if self.repo.ty(m) == "C4Relationship" => {
+                if self.repo.alive(m) && self.repo.str(m, "description") != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| a.repo.set(m, "description", serde_json::json!(t)));
+                }
+            }
+            EditKind::Name(m) if crate::meta::plain_named(self.repo.ty(m)) => {
+                if self.repo.alive(m) && self.repo.name(m) != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| a.repo.set(m, "name", serde_json::json!(t)));
+                }
+            }
             EditKind::Name(m) => {
                 if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
                     self.change(|a| crate::parse::apply_name(&mut a.repo, m, &e.text));
+                }
+            }
+            EditKind::Feature(f) if self.repo.ty(f) == "ERDColumn" => {
+                if self.repo.alive(f) && crate::erd::column_text(&self.repo, f) != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| crate::erd::apply_column(&mut a.repo, f, &t));
                 }
             }
             EditKind::Feature(f) => {
@@ -1907,6 +2174,7 @@ impl App {
         let mut related: Option<crate::related::Related> = None;
         let mut edge_note: Option<Eid> = None;
         let mut edge_constraint: Option<Eid> = None;
+        let mut comm_message: Option<(Eid, bool)> = None;
         let mut add_subst: Option<Eid> = None;
         let mut picked_order: Option<(Eid, &'static str)> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
@@ -1990,7 +2258,7 @@ impl App {
                         // the item buttons with a key, on a box's name or item (taken on press, as the
                         // field loses focus before a release)
                         if ed.host.is_some() && !ed.multiline {
-                            for (label, hint, keys, k) in item_buttons(&self.repo, &ed.kind) {
+                            for (label, hint, keys, k) in item_buttons(&self.repo, ed.host, &ed.kind) {
                                 let tip = if keys.is_empty() { hint.to_string() } else { format!("{hint} ({keys})") };
                                 let b = ui.add(egui::Button::new(egui::RichText::new(label).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(tip);
                                 if b.is_pointer_button_down_on() {
@@ -2015,9 +2283,68 @@ impl App {
                     }
                     ed.fresh = true;
                 }
+                // ERD quick edits (quickedits/erd.json): a relationship end's cardinality, a relationship's
+                // Identifying, a column's Primary Key
+                let mut picked_end: Option<(&'static str, String)> = None;
+                let mut picked_flag: Option<(Eid, &'static str, bool)> = None;
+                let erd_target = match ed.kind {
+                    EditKind::Name(x) | EditKind::Feature(x) if self.repo.ty(x).starts_with("ERD") || self.repo.ty(x) == "UMLMessage" => Some(x),
+                    _ => None,
+                };
+                if let Some(x) = erd_target {
+                    let ty = self.repo.ty(x).to_string();
+                    ui.horizontal(|ui| {
+                        let menu = |ui: &mut egui::Ui, shown: &str, hint: &str, add: &mut dyn FnMut(&mut egui::Ui)| {
+                            ui.menu_button(egui::RichText::new(format!("{shown} ▾")).size(11.0).color(Color32::WHITE), |ui| add(ui)).response.on_hover_text(hint);
+                        };
+                        match ty.as_str() {
+                            // a message's sort (quickedits/uml.json "uml.set-message-sort")
+                            "UMLMessage" => {
+                                let cur = self.repo.str(x, "messageSort");
+                                menu(ui, &cur, "MessageSort", &mut |ui| {
+                                    for val in ["synchCall", "asynchCall", "asynchSignal", "createMessage", "deleteMessage", "reply"] {
+                                        if ui.selectable_label(cur == val, val).clicked() {
+                                            picked_end = Some(("messageSort", val.to_string()));
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                            }
+                            "ERDRelationshipEnd" => {
+                                let cur = self.repo.str(x, "cardinality");
+                                let cur = if cur.is_empty() { "1".to_string() } else { cur };
+                                let shown = crate::erd::CARDINALITIES.iter().find(|c| c.0 == cur).map(|c| c.1).unwrap_or("One and Only One");
+                                menu(ui, shown, "Cardinality", &mut |ui| {
+                                    for (val, label) in crate::erd::CARDINALITIES {
+                                        if ui.selectable_label(cur == val, label).clicked() {
+                                            picked_end = Some(("cardinality", val.to_string()));
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                            }
+                            "ERDRelationship" | "ERDColumn" => {
+                                let (field, hint, yes, no) = if ty == "ERDColumn" { ("primaryKey", "Primary Key", "Primary Key", "Not Key") } else { ("identifying", "Identifying", "Identifying", "Non-Identifying") };
+                                let cur = if ty == "ERDColumn" { self.repo.bool(x, field) } else { self.repo.raw(x, field).and_then(|v| v.as_bool()).unwrap_or(true) };
+                                menu(ui, if cur { yes } else { no }, hint, &mut |ui| {
+                                    for (val, label) in [(true, yes), (false, no)] {
+                                        if ui.selectable_label(cur == val, label).clicked() {
+                                            picked_flag = Some((x, field, val));
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                            }
+                            _ => {}
+                        }
+                    });
+                }
+                if let Some((x, field, val)) = picked_flag {
+                    self.change(|a| a.repo.set(x, field, serde_json::json!(val)));
+                    ed.fresh = true;
+                }
                 // an association end: aggregation, navigability and multiplicity dropdowns
                 // (quickedits/uml.json "uml.association-end1/2")
-                let mut picked_end: Option<(&'static str, String)> = None;
                 let mut picked_owner: Option<Option<Eid>> = None;
                 let mut add_qualifier = false;
                 if let EditKind::Name(end) = ed.kind {
@@ -2097,7 +2424,7 @@ impl App {
                 // the "add related element" buttons of a box's name edit (quickedits/uml.json)
                 if let (Some(h), EditKind::Name(m)) = (ed.host, &ed.kind) {
                     let acts = crate::related::actions(self.repo.ty(*m));
-                    if self.repo.refd(h, "model") == Some(*m) && !acts.is_empty() {
+                    if self.repo.refd(h, "model") == Some(*m) && !acts.is_empty() && !views::is_edge(&self.repo, h) {
                         ui.horizontal_wrapped(|ui| {
                             ui.set_max_width(w.max(220.0));
                             // a class also gets Add Template Parameter (quickedits/uml.json "uml.class")
@@ -2128,6 +2455,15 @@ impl App {
                         let b = ui.add(egui::Button::new(egui::RichText::new("+ Constraint").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Constraint");
                         if b.is_pointer_button_down_on() {
                             edge_constraint = Some(e);
+                        }
+                        // a communication connector's Add Forward / Reverse Message (quickedits/uml.json "uml.connector-comm")
+                        if self.repo.ty(e) == "UMLConnectorView" && self.diagram.map(|d| self.repo.ty(d) == "UMLCommunicationDiagram").unwrap_or(false) {
+                            for (label, hint, forward) in [("+ Fwd", "Add Forward Message", true), ("+ Rev", "Add Reverse Message", false)] {
+                                let b = ui.add(egui::Button::new(egui::RichText::new(label).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(hint);
+                                if b.is_pointer_button_down_on() {
+                                    comm_message = Some((e, forward));
+                                }
+                            }
                         }
                     }
                     // an association's Order of Ends, a property of its line (quickedits/uml.json "uml.end-order")
@@ -2160,13 +2496,13 @@ impl App {
                     ed.fresh = true;
                 }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if key.is_some() || related.is_some() || edge_note.is_some() || edge_constraint.is_some() || add_subst.is_some() {
+                if key.is_some() || related.is_some() || edge_note.is_some() || edge_constraint.is_some() || comm_message.is_some() || add_subst.is_some() {
                     commit = Some(true);
                 } else if esc {
                     commit = Some(false);
                 } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
                     commit = Some(true);
-                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() && picked_order.is_none() {
+                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() && picked_order.is_none() && picked_flag.is_none() {
                     commit = Some(true);
                 }
             });
@@ -2190,6 +2526,11 @@ impl App {
         }
         if let Some(e) = edge_constraint.filter(|e| self.repo.alive(*e)) {
             self.add_constraint_to(e);
+        }
+        if let Some((e, forward)) = comm_message.filter(|(e, _)| self.repo.alive(*e)) {
+            if let Some(v) = self.add_comm_message(e, forward) {
+                self.select(vec![v]);
+            }
         }
         // the new substitution is selected in the explorer (uml-commands.js:1026-1034)
         if let Some(b) = add_subst.filter(|b| self.repo.alive(*b)) {

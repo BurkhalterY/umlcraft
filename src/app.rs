@@ -122,6 +122,9 @@ pub enum Area {
     Other,
 }
 
+/// The lowest a message may be drawn: just under the lifelines' heads.
+const LIFELINE_MESSAGE_MIN_Y: f64 = crate::sequence::LIFELINE_TOP + crate::sequence::HEAD_H + 10.0;
+
 pub struct App {
     pub repo: Repo,
     pub filename: Option<PathBuf>,
@@ -178,6 +181,8 @@ pub struct App {
     pub shot_requested: bool,
     pub quit_after_save: bool,
     pub pending_edit: Option<Eid>,
+    /// Where the line being drawn was pressed and released: a message keeps that height.
+    pub line_from: Option<(P, P)>,
     /// A compartment item to edit inline once its row is laid out: (box view, item, frames left).
     pub pending_item: Option<(Eid, Eid, u8)>,
     pub reveal_pending: Option<Eid>,
@@ -321,6 +326,7 @@ impl App {
             shot_requested: false,
             quit_after_save: false,
             pending_edit: None,
+            line_from: None,
             pending_item: None,
             reveal_pending: None,
             scrolls: HashMap::new(),
@@ -599,6 +605,17 @@ impl App {
             "UMLPackageDiagram" => "PackageDiagram",
             "UMLProfile" => "Profile",
             "UMLStereotype" => "Stereotype",
+            "UMLInteractionOperand" => "Operand",
+            // a flowchart's elements drop "FC" (FCModelElement.getDisplayClassName); its diagram is a
+            // "FlowchartDiagram" (flowchart/elements.js:42-75)
+            "FCFlowchartDiagram" => "FlowchartDiagram",
+            other if other.starts_with("FC") => &other[2..],
+            // a data flow element drops "DFD" (DFDElement.getDisplayClassName, dfd/elements.js:42-45)
+            other if other.starts_with("DFD") && other != "DFDDiagram" => &other[3..],
+            // and an ERD element "ERD" (ERDElement.getDisplayClassName, erd/elements.js:35-38)
+            other if other.starts_with("ERD") && other != "ERDDiagram" => &other[3..],
+            // and a wireframe element "WF" (WFElement.getDisplayClassName, wireframe/elements.js:42-45)
+            other if other.starts_with("WF") && other != "WFWireframeDiagram" => &other[2..],
             other => other.trim_start_matches("UML"),
         };
         let names: HashSet<String> = self.repo.children(parent).into_iter().map(|(_, c)| self.repo.name(c)).collect();
@@ -787,20 +804,206 @@ impl App {
             self.apply_view_defaults(v);
             return Some(v);
         }
+        // a lifeline goes in the participants of the diagram's interaction and represents a new role
+        // "Role1"… of the classifier that owns the interaction; it is at least 200 high (lifelineFn,
+        // uml-factory.js:1105-1180). Endpoints and gates are participants too.
+        // a timing diagram's lifelines, states, time segments and time ticks (uml-factory.js:1105-1180, 1559-1700)
+        if let Some(v) = self.create_timing_node(d, kind, rect) {
+            if let Some(v) = v {
+                self.apply_view_defaults(v);
+            }
+            return v;
+        }
+        if matches!(kind, "UMLLifeline" | "UMLEndpoint" | "UMLGate") {
+            let inter = self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLInteraction")?;
+            let name = self.new_name(inter, kind);
+            if kind != "UMLLifeline" {
+                let m = self.repo.create(kind, &[("name", json!(name))], Some((inter, "participants")));
+                let v = crate::sequence::create_endpoint_view(&mut self.repo, d, m, P { x: rect.x, y: rect.y });
+                self.apply_view_defaults(v);
+                return Some(v);
+            }
+            let classifier = self.repo.parent(inter).filter(|c| self.repo.kind_of(*c, "UMLClassifier"))?;
+            let names: HashSet<String> = self.repo.list(classifier, "attributes").into_iter().map(|a| self.repo.name(a)).collect();
+            let role_name = (1..).map(|i| format!("Role{i}")).find(|n| !names.contains(n)).unwrap();
+            let role = self.repo.create("UMLAttribute", &[("name", json!(role_name))], Some((classifier, "attributes")));
+            let rr = self.repo.ref_to(role);
+            let m = self.repo.create(kind, &[("name", json!(name)), ("represent", rr)], Some((inter, "participants")));
+            // on a communication diagram, a box at least 100 × 30 (uml-factory.js:1136-1143)
+            let v = if self.repo.ty(d) == "UMLCommunicationDiagram" {
+                crate::communication::create_lifeline_view(&mut self.repo, d, m, rect)
+            } else {
+                crate::sequence::create_lifeline_view(&mut self.repo, d, m, rect)
+            };
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // an interaction overview's interaction uses and inline interactions (uml-factory.js:1833-1950)
+        if matches!(kind, "UMLInteractionUseInOverview" | "UMLInteractionInOverview") {
+            return self.create_overview_node(d, kind, rect);
+        }
+        // a time constraint belongs to the message it is dropped on, its label 20 px under the point and
+        // joined to the message; a duration constraint belongs to the interaction (timeConstraintFn,
+        // durationConstraintFn, uml-factory.js:1718-1840)
+        if kind == "UMLTimeConstraint" {
+            // on a message, or on a timing diagram's message or time segment
+            let at = P { x: rect.x, y: rect.y };
+            let msg = self.repo.list(d, "ownedViews").into_iter().rev().find(|v| match self.repo.ty(*v) {
+                "UMLSeqMessageView" | "UMLTimingMessageView" => crate::views::points_of(&self.repo, *v).windows(2).any(|w| crate::canvas::dist_to_seg(at, w[0], w[1]) <= 5.0),
+                "UMLTimeSegmentView" => { let b = views::node_rect(&self.repo, *v); at.x >= b.x && at.x <= b.x + b.w && at.y >= b.y && at.y <= b.y + b.h }
+                _ => false,
+            })?;
+            let mm = self.repo.refd(msg, "model")?;
+            let names: HashSet<String> = self.repo.children(mm).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+            let name = (1..).map(|i| format!("Time Constraint{i}")).find(|n| !names.contains(n)).unwrap();
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((mm, "ownedElements")));
+            let v = crate::sequence::create_time_views(&mut self.repo, d, m, msg, P { x: rect.x, y: rect.y + 20.0 });
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        if kind == "UMLDurationConstraint" {
+            let inter = self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLInteraction")?;
+            let names: HashSet<String> = self.repo.children(inter).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+            let name = (1..).map(|i| format!("Duration Constraint{i}")).find(|n| !names.contains(n)).unwrap();
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((inter, "ownedElements")));
+            let v = crate::sequence::create_duration_view(&mut self.repo, d, m, rect);
+            // on a timing diagram, in the frame under its far corner
+            if self.repo.ty(d) == "UMLTimingDiagram" {
+                let (x2, y2) = (rect.x + rect.w, rect.y + rect.h);
+                if let Some(f) = self.repo.list(d, "ownedViews").into_iter().rev().find(|f| self.repo.ty(*f) == "UMLTimingFrameView" && { let b = views::node_rect(&self.repo, *f); x2 >= b.x && x2 <= b.x + b.w && y2 >= b.y && y2 <= b.y + b.h }) {
+                    self.set_container(&[v], Some(f));
+                }
+            }
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // combined fragments (with one operand), continuations and interaction uses are fragments of
+        // the interaction; a state invariant covers the lifeline it is dropped on and sits on its line
+        // (combinedFragmentFn, stateInvariantFn, uml-factory.js:1506-1550, 1687-1716, 3736-3744)
+        if matches!(kind, "UMLCombinedFragment" | "UMLContinuation" | "UMLInteractionUse" | "UMLStateInvariant") {
+            let inter = self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLInteraction")?;
+            let lifeline = (kind == "UMLStateInvariant").then(|| {
+                self.repo.list(d, "ownedViews").into_iter().rev().find(|v| self.repo.ty(*v) == "UMLSeqLifelineView" && { let b = views::node_rect(&self.repo, *v); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h })
+            });
+            if lifeline == Some(None) {
+                return None;
+            }
+            let name = self.new_name(inter, kind);
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((inter, "fragments")));
+            if kind == "UMLCombinedFragment" {
+                self.repo.set(m, "interactionOperator", json!("seq"));
+                self.repo.create("UMLInteractionOperand", &[("name", json!("Operand1"))], Some((m, "operands")));
+            }
+            let v = match lifeline.flatten() {
+                Some(lv) => {
+                    let lm = self.repo.refd(lv, "model")?;
+                    self.repo.set_ref(m, "covered", Some(lm));
+                    crate::sequence::create_invariant_view(&mut self.repo, lv, m, rect.y)
+                }
+                None if kind == "UMLCombinedFragment" => crate::sequence::create_fragment_view(&mut self.repo, d, m, rect),
+                None => crate::sequence::create_box_view(&mut self.repo, d, m, rect),
+            };
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // a C4 element goes in the element that owns the diagram, named after its class ("C4Person1"…);
+        // the container tools set its kind (c4-factory.js:70-90, toolbox/c4.json)
+        if let Some((ty, ckind)) = crate::c4::tool(kind) {
+            let owner = self.repo.parent(d)?;
+            let names: HashSet<String> = self.repo.children(owner).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+            let name = (1..).map(|i| format!("{ty}{i}")).find(|n| !names.contains(n)).unwrap();
+            let m = self.repo.create(ty, &[("name", json!(name))], Some((owner, "ownedElements")));
+            if ty == "C4Container" {
+                self.repo.set(m, "kind", json!(ckind.unwrap_or("etc")));
+            }
+            let v = crate::c4::create_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // an entity goes in the data model that owns the diagram (erd-factory.js:70-75)
+        if kind == "ERDEntity" {
+            let owner = self.repo.parent(d)?;
+            let name = self.new_name(owner, kind);
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((owner, "ownedElements")));
+            let v = crate::erd::create_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // a data flow or mind map node goes in the element that owns the diagram (dfd-factory.js:70-80,
+        // mindmap-factory.js:68-80)
+        if crate::notations::is_node_type(kind) {
+            let owner = self.repo.parent(d)?;
+            let base = crate::notations::name_base(kind);
+            let names: HashSet<String> = self.repo.children(owner).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+            let name = (1..).map(|i| format!("{base}{i}")).find(|n| !names.contains(n)).unwrap();
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((owner, "ownedElements")));
+            let v = crate::notations::create_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // a wireframe widget goes in the wireframe that owns the diagram, or in the frame, panel or tab
+        // list it is drawn in, named after its class ("Button1"; wireframe-factory.js:75-95,
+        // elements.js:42-45, diagram-editor.js containerView)
+        if crate::wireframe::is_node_type(kind) {
+            let owner = self.repo.parent(d)?;
+            let vt = format!("{kind}View");
+            let holder = self.repo.list(d, "ownedViews").into_iter().rev().find(|c| crate::wireframe::can_contain(self.repo.ty(*c), &vt) && { let b = views::node_rect(&self.repo, *c); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h });
+            let parent = holder.and_then(|c| self.repo.refd(c, "model")).unwrap_or(owner);
+            let name = self.new_name(parent, kind);
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((parent, "ownedElements")));
+            let v = crate::wireframe::create_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            crate::wireframe::link_color(&mut self.repo, v);
+            if let Some(c) = holder {
+                self.set_container(&[v], Some(c));
+            }
+            return Some(v);
+        }
+        // a flowchart node goes in the flowchart that owns the diagram (flowchart-factory.js:73-110)
+        if crate::flowchart::is_node_type(kind) {
+            let owner = self.repo.parent(d)?;
+            let name = match crate::flowchart::name_base(kind) {
+                Some("") => String::new(),
+                Some(base) => {
+                    let names: HashSet<String> = self.repo.children(owner).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+                    (1..).map(|i| format!("{base}{i}")).find(|n| !names.contains(n)).unwrap()
+                }
+                None => self.new_name(owner, kind),
+            };
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((owner, "ownedElements")));
+            let v = crate::flowchart::create_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // an interruptible region is a group of the activity (uml-factory.js:3836-3840)
+        if kind == "UMLInterruptibleActivityRegion" {
+            let act = self.diagram_activity(d)?;
+            let name = self.new_name(act, kind);
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((act, "groups")));
+            let v = views::create_node_view(&mut self.repo, d, m, rect)?;
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
         let action = views::action_kind(kind);
-        if action.is_some() || matches!(kind, "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLInitialNode" | "UMLActivityFinalNode" | "UMLFlowFinalNode" | "UMLForkNode" | "UMLJoinNode" | "UMLMergeNode" | "UMLDecisionNode") {
+        if action.is_some()
+            || matches!(
+                kind,
+                "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLActivityParameterNode" | "UMLInitialNode" | "UMLActivityFinalNode" | "UMLFlowFinalNode" | "UMLForkNode" | "UMLJoinNode" | "UMLMergeNode" | "UMLDecisionNode" | "UMLStructuredActivityNode" | "UMLExpansionRegion" | "UMLActivityEdgeConnector"
+            )
+        {
             let act = self.diagram_activity(d)?;
             let ty = if action.is_some() { "UMLAction" } else { kind };
-            let name = self.new_name(act, ty);
+            // an edge connector is named "A" (uml-factory.js:3872-3880)
+            let name = if kind == "UMLActivityEdgeConnector" { "A".to_string() } else { self.new_name(act, ty) };
             let m = self.repo.create(ty, &[("name", json!(name))], Some((act, "nodes")));
             if let Some(k) = action.filter(|k| *k != "opaque") {
                 self.repo.set(m, "kind", json!(k));
             }
             let v = views::create_node_view(&mut self.repo, d, m, rect)?;
             self.apply_view_defaults(v);
-            // drawn inside a swimlane: it goes in that lane's partition
-            let lane = self.repo.list(d, "ownedViews").into_iter().rev().find(|c| self.repo.ty(*c) == "UMLSwimlaneView" && { let b = views::node_rect(&self.repo, *c); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h });
-            if let Some(c) = lane {
+            // drawn inside a swimlane, region or structured activity: it goes in that container
+            let holder = self.repo.list(d, "ownedViews").into_iter().rev().find(|c| *c != v && self.can_contain_view(*c, v) && { let b = views::node_rect(&self.repo, *c); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h });
+            if let Some(c) = holder {
                 self.set_container(&[v], Some(c));
             }
             return Some(v);
@@ -810,7 +1013,16 @@ impl App {
         if pseudo.is_some() || matches!(kind, "UMLState" | "UMLFinalState" | "CompositeState" | "SubmachineState" | "OrthogonalState") {
             let region = self.statechart_region(d)?;
             let ty = if pseudo.is_some() { "UMLPseudostate" } else if kind == "UMLFinalState" { kind } else { "UMLState" };
-            let name = self.new_name(region, ty);
+            // pseudostates and final states are made unnamed at their smallest size, whatever box is
+            // dragged (pseudostateFn, finalStateFn, uml-factory.js:2116-2180)
+            let mark = ty != "UMLState";
+            let name = if mark { String::new() } else { self.new_name(region, ty) };
+            let rect = if mark {
+                let (w, h) = views::default_size(kind);
+                R { w, h, ..rect }
+            } else {
+                rect
+            };
             let m = self.repo.create(ty, &[("name", json!(name))], Some((region, "vertices")));
             if let Some(k) = pseudo {
                 self.repo.set(m, "kind", json!(k));
@@ -893,6 +1105,21 @@ impl App {
     /// hold boxes, and never themselves or a box that contains them.
     pub fn can_contain_view(&self, container: Eid, v: Eid) -> bool {
         let ct = self.repo.ty(container);
+        // a timing frame holds lifelines, a state time segments (elements.js:13440-13460)
+        if let Some(ok) = crate::timing::can_contain(ct, self.repo.ty(v)) {
+            return ok && container != v;
+        }
+        // a wireframe frame or panel holds widgets, a tab list holds tabs (wireframe/elements.js)
+        if crate::wireframe::is_node_view(ct) || crate::wireframe::is_node_view(self.repo.ty(v)) {
+            let mut c = Some(container);
+            while let Some(x) = c {
+                if x == v {
+                    return false;
+                }
+                c = self.repo.refd(x, "containerView");
+            }
+            return crate::wireframe::can_contain(ct, self.repo.ty(v));
+        }
         // a state holds states and pseudostates, which then belong to its first region
         let vertex = |x: Eid| self.repo.refd(x, "model").map(|m| self.repo.kind_of(m, "UMLVertex")).unwrap_or(false);
         if ct == "UMLStateView" && !vertex(v) {
@@ -900,9 +1127,23 @@ impl App {
         }
         // a swimlane holds actions, control nodes and object nodes (UMLSwimlaneView.canContainViewKind,
         // elements.js:10574-10581)
-        if ct == "UMLSwimlaneView" {
+        // and so does an interruptible region; a structured activity or expansion region also holds
+        // structured activities (elements.js:10783-10790, 10845-10853)
+        if matches!(ct, "UMLSwimlaneView" | "UMLInterruptibleActivityRegionView" | "UMLStructuredActivityNodeView" | "UMLExpansionRegionView") {
             let vt = self.repo.ty(v);
-            return matches!(vt, "UMLActionView" | "UMLControlNodeView" | "UMLObjectNodeView" | "UMLCentralBufferNodeView" | "UMLDataStoreNodeView" | "UMLFinalStateView");
+            let structured = matches!(vt, "UMLStructuredActivityNodeView" | "UMLExpansionRegionView");
+            if structured && !matches!(ct, "UMLStructuredActivityNodeView" | "UMLExpansionRegionView") {
+                return false;
+            }
+            // not itself or a box that holds it
+            let mut c = Some(container);
+            while let Some(x) = c {
+                if x == v {
+                    return false;
+                }
+                c = self.repo.refd(x, "containerView");
+            }
+            return structured || matches!(vt, "UMLActionView" | "UMLControlNodeView" | "UMLObjectNodeView" | "UMLCentralBufferNodeView" | "UMLDataStoreNodeView" | "UMLActivityParameterNodeView" | "UMLActivityEdgeConnectorView" | "UMLFinalStateView");
         }
         if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView" || ct == "UMLStateView") || !views::is_node(&self.repo, v) {
             return false;
@@ -951,6 +1192,14 @@ impl App {
                 a.push(self.repo.ref_to(v));
                 self.repo.set_raw(c, "containedViews", json!(a));
             }
+            // a time segment moved to another state takes that state and its lifeline; other timing
+            // views keep their models where they are
+            if self.repo.ty(v).starts_with("UMLTim") || self.repo.ty(v) == "UMLDurationConstraintView" {
+                if let (Some(c), "UMLTimeSegmentView") = (to, self.repo.ty(v)) {
+                    crate::timing::segment_moved(&mut self.repo, v, c);
+                }
+                continue;
+            }
             // a state or pseudostate goes in the first region of the state it is put in, or of the
             // diagram's state machine when released (uml/main.js:24-41)
             if let Some(vm) = self.repo.refd(v, "model").filter(|m| self.repo.kind_of(*m, "UMLVertex")) {
@@ -976,7 +1225,7 @@ impl App {
             // activity when released (uml/main.js:24-41; engine.js:1158-1166)
             if let Some(vm) = self.repo.refd(v, "model").filter(|m| self.repo.kind_of(*m, "UMLActivityNode")) {
                 let target = match to.and_then(|c| self.repo.refd(c, "model")) {
-                    Some(pm) if self.repo.kind_of(pm, "UMLActivityGroup") => Some(pm),
+                    Some(pm) if self.repo.kind_of(pm, "UMLActivityGroup") || self.repo.kind_of(pm, "UMLStructuredActivityNode") => Some(pm),
                     _ => self.diagram_activity(d),
                 };
                 if let Some(t) = target.filter(|t| self.repo.parent(vm) != Some(*t) && self.repo.field_of(vm).as_deref() == Some("nodes")) {
@@ -1043,6 +1292,27 @@ impl App {
             "UMLObjectDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier", "UMLInstance", "UMLSlot", "UMLDependency", "UMLLink"],
             "UMLStatechartDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLVertex", "UMLTransition", "UMLStateMachine"],
             "UMLActivityDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLActivityNode", "UMLActivityEdge", "UMLActivity"],
+            // FCFlowchartDiagram.canAcceptModel (flowchart/elements.js:68-75)
+            "FCFlowchartDiagram" => vec!["Hyperlink", "Diagram", "FCModelElement", "FCFlow"],
+            "DFDDiagram" => vec!["Hyperlink", "Diagram", "DFDExternalEntity", "DFDProcess", "DFDDataStore", "DFDDataFlow"],
+            "MMMindmapDiagram" => vec!["Hyperlink", "Diagram", "MMNode", "MMEdge"],
+            // WFWireframeDiagram.canAcceptModel (wireframe/elements.js:55-61)
+            "WFWireframeDiagram" => vec!["Hyperlink", "Diagram", "WFElement"],
+            // ERDDiagram.canAcceptModel (erd/elements.js:40-47)
+            "ERDDiagram" => vec!["Hyperlink", "Diagram", "ERDEntity", "ERDColumn", "ERDRelationship"],
+            // C4Diagram.canAcceptModel (c4/elements.js:75-80)
+            "C4Diagram" => vec!["Hyperlink", "Diagram", "C4Element", "C4Relationship"],
+            // UMLInteractionOverviewDiagram.canAcceptModel (elements.js:13823-13834)
+            "UMLInteractionOverviewDiagram" => vec!["Hyperlink", "Diagram", "UMLInteractionUse", "UMLInteraction"],
+            // UMLSequenceDiagram.canAcceptModel (elements.js:10958-10985), and
+            // UMLCommunicationDiagram's and UMLTimingDiagram's (elements.js:12914-12946, 13374-13389)
+            "UMLSequenceDiagram" | "UMLCommunicationDiagram" | "UMLTimingDiagram" => {
+                // a role of the collaboration that owns the interaction
+                if self.repo.ty(m) == "UMLAttribute" {
+                    return self.repo.parent(m) == self.repo.parent(d).and_then(|i| self.repo.parent(i));
+                }
+                vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier"]
+            }
             "UMLUseCaseDiagram" => vec![
                 "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
@@ -1089,6 +1359,34 @@ impl App {
         if views::edge_view_of(&ty).is_some() && self.rel_ends(m).is_some() {
             return self.drop_relationship(d, m, p);
         }
+        // a classifier dropped on a sequence diagram becomes a lifeline representing a new role of that
+        // type; a role of the collaboration a lifeline representing it (viewForSequenceDiagramFn,
+        // uml-factory.js:2763-2850)
+        // an interaction use, an interaction or a sequence diagram on an interaction overview diagram
+        // becomes an action calling it
+        if self.repo.ty(d) == "UMLInteractionOverviewDiagram" && (matches!(self.repo.ty(m), "UMLInteractionUse" | "UMLInteraction" | "UMLSequenceDiagram")) {
+            let v = self.change(|a| a.drop_on_overview(d, m, p));
+            return Ok(v.into_iter().collect());
+        }
+        let comm = self.repo.ty(d) == "UMLCommunicationDiagram";
+        let timing = self.repo.ty(d) == "UMLTimingDiagram";
+        if (self.repo.ty(d) == "UMLSequenceDiagram" || comm || timing) && (self.repo.kind_of(m, "UMLClassifier") || self.repo.ty(m) == "UMLAttribute") {
+            let v = self.change(|a| {
+                // a communication lifeline at its smallest (viewForCommunicationDiagramFn, uml-factory.js:2981-3070)
+                let h = if comm { crate::communication::LIFELINE_MIN.1 } else if timing { 1.0 } else { 200.0 };
+                let v = a.create_node("UMLLifeline", views::R { x: p.x, y: p.y, w: 100.0, h })?;
+                let lm = a.repo.refd(v, "model")?;
+                let role = a.repo.refd(lm, "represent")?;
+                if a.repo.ty(m) == "UMLAttribute" {
+                    a.repo.set_ref(lm, "represent", Some(m));
+                    a.repo.detach(role);
+                } else {
+                    a.repo.set_ref(role, "type", Some(m));
+                }
+                Some(v)
+            });
+            return Ok(v.into_iter().collect());
+        }
         // a constraint gets its view and links to its owner's boxes (factory.js:899-918)
         if ty == "UMLConstraint" {
             let v = self.change(|a| Some(a.place_constraint(d, m, p)));
@@ -1122,7 +1420,7 @@ impl App {
             }
             return Ok(v.into_iter().collect());
         }
-        if views::node_kind(&ty).is_none() {
+        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) {
             return Ok(vec![]);
         }
         // a hidden view of it is shown again instead of a second one
@@ -1272,6 +1570,10 @@ impl App {
             }
             return r.kind_of(tm, "UMLClassifier") && r.kind_of(hm, "UMLClassifier");
         }
+        // a communication diagram's connectors and messages (uml-factory.js:1231-1330, 1956-1965)
+        if let Some(ok) = crate::communication::can_link(r, kind, tail, head) {
+            return ok;
+        }
         if views::is_edge(r, tail) || views::is_edge(r, head) {
             return false;
         }
@@ -1305,7 +1607,23 @@ impl App {
             // a transition joins two vertices: states and pseudostates
             "UMLTransition" => r.kind_of(tm, "UMLVertex") && r.kind_of(hm, "UMLVertex"),
             // a control or object flow joins two activity nodes (uml-factory.js:119-127)
-            "UMLControlFlow" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
+            // a flow joins two flowchart nodes (flowchart-factory.js:20-27)
+            "FCFlow" => r.kind_of(tm, "FCModelElement") && r.kind_of(hm, "FCModelElement"),
+            // a data flow joins two DFD elements, a mind map edge two nodes (dfd-factory.js:20-26,
+            // mindmap-factory.js:20-27)
+            "DFDDataFlow" => r.kind_of(tm, "DFDElement") && r.kind_of(hm, "DFDElement"),
+            "MMEdge" => r.ty(tm) == "MMNode" && r.ty(hm) == "MMNode",
+            // a relationship joins two entities (entityLinkPrecondition, erd-factory.js:20-26)
+            // a message joins two lifelines, endpoints or gates (messageFn, uml-factory.js:1185-1215)
+            // on a timing diagram, between two time segments (UMLTimingMessageView.canConnectTo)
+            _ if crate::sequence::message_sort(kind).is_some() && r.ty(tail) == "UMLTimeSegmentView" => r.ty(head) == "UMLTimeSegmentView",
+            _ if crate::sequence::message_sort(kind).is_some() => r.kind_of(tm, "UMLMessageEndpoint") && r.kind_of(hm, "UMLMessageEndpoint"),
+            // a C4 relationship joins two C4 elements (linkPrecondition, c4-factory.js:20-25)
+            "C4Relationship" => r.kind_of(tm, "C4Element") && r.kind_of(hm, "C4Element"),
+            "ERDRelationship" | "ERDRelationshipOneToMany" | "ERDRelationshipManyToMany" => r.ty(tm) == "ERDEntity" && r.ty(hm) == "ERDEntity",
+            "UMLControlFlow" | "UMLActivityInterrupt" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
+            // an exception handler joins two actions (actionLinkPrecondition, uml-factory.js:129-135)
+            "UMLExceptionHandler" => r.kind_of(tm, "UMLAction") && r.kind_of(hm, "UMLAction"),
             // an object flow may also end on a pin (UMLObjectFlowView.canConnectTo, elements.js:10528)
             "UMLObjectFlow" => {
                 let ok = |m: Eid| r.kind_of(m, "UMLActivityNode") || r.kind_of(m, "UMLPin");
@@ -1334,8 +1652,75 @@ impl App {
             let inp = self.create_feature_on(head, "UMLInputPin", views::port_junction(hb, tc), R::default()).ok()?;
             return self.create_edge_inner(tool, out, inp);
         }
+        // an exception handler ends on a new input pin of the handler action, where the line meets it;
+        // the action is its handler body (exceptionHandlerFn, uml-factory.js:2367-2425)
+        if tool.kind == "UMLExceptionHandler" {
+            let (tm, hm) = (self.repo.refd(tail, "model")?, self.repo.refd(head, "model")?);
+            let (tb, hb) = (views::node_rect(&self.repo, tail), views::node_rect(&self.repo, head));
+            let tc = P { x: tb.x + tb.w / 2.0, y: tb.y + tb.h / 2.0 };
+            let pin = self.create_feature_on(head, "UMLInputPin", views::port_junction(hb, tc), R::default()).ok()?;
+            let pm = self.repo.refd(pin, "model")?;
+            let owner = self.diagram_activity(d).unwrap_or(tm);
+            let field = if self.repo.ty(owner) == "UMLActivity" { "edges" } else { "ownedElements" };
+            let (s, t, hb) = (self.repo.ref_to(tm), self.repo.ref_to(pm), self.repo.ref_to(hm));
+            let m = self.repo.create("UMLExceptionHandler", &[("source", s), ("target", t), ("handlerBody", hb)], Some((owner, field)));
+            return views::create_edge_view(&mut self.repo, d, Some(m), tail, pin);
+        }
         if tool.kind == "NoteLink" {
             return views::create_edge_view(&mut self.repo, d, None, tail, head);
+        }
+        if let Some(v) = self.comm_edge(d, tool, tail, head) {
+            return v;
+        }
+        // a message, from line part to line part (or endpoint), at the height it was drawn; found and
+        // lost messages start or end at a new endpoint (messageFn, foundMessageFn, lostMessageFn,
+        // uml-factory.js:1185-1510)
+        // a timing diagram's message joins two time segments at the points it was drawn between
+        if let (Some(sort), true) = (crate::sequence::message_sort(tool.kind), self.repo.ty(d) == "UMLTimingDiagram") {
+            let (from, to) = self.line_from.take().unwrap_or_default();
+            return self.timing_message(d, sort, tail, head, from, to);
+        }
+        if let Some(sort) = crate::sequence::message_sort(tool.kind) {
+            let inter = self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLInteraction")?;
+            let (from, to) = self.line_from.take().unwrap_or_default();
+            let line = |a: &App, v: Eid| if a.repo.ty(v) == "UMLSeqLifelineView" { a.repo.refd(v, "linePart").unwrap_or(v) } else { v };
+            let endpoint = |a: &mut App, at: P| -> Option<Eid> {
+                let name = a.new_name(inter, "UMLEndpoint");
+                let m = a.repo.create("UMLEndpoint", &[("name", json!(name))], Some((inter, "participants")));
+                let v = crate::sequence::create_endpoint_view(&mut a.repo, d, m, at);
+                a.apply_view_defaults(v);
+                Some(v)
+            };
+            let (t, h) = match tool.kind {
+                "UMLFoundMessage" => (endpoint(self, from)?, line(self, head)),
+                "UMLLostMessage" => (line(self, tail), endpoint(self, to)?),
+                _ => (line(self, tail), line(self, head)),
+            };
+            let (tm, hm) = (self.repo.refd(t, "model")?, self.repo.refd(h, "model")?);
+            let name = if matches!(sort, "reply" | "createMessage" | "deleteMessage") { String::new() } else { self.new_name(inter, "UMLMessage") };
+            let (rs, rt) = (self.repo.ref_to(tm), self.repo.ref_to(hm));
+            let m = self.repo.create("UMLMessage", &[("name", json!(name)), ("source", rs), ("target", rt)], Some((inter, "messages")));
+            if sort != "synchCall" {
+                self.repo.set(m, "messageSort", json!(sort));
+            }
+            let y = if from.y > 0.0 { from.y } else { to.y };
+            return Some(crate::sequence::create_message_view(&mut self.repo, d, m, t, h, y.max(LIFELINE_MESSAGE_MIN_Y)));
+        }
+        // an ERD relationship, owned by its first entity, with an end at each; the one-to-many and
+        // many-to-many tools make its ends "0..*" (toolbox/erd.json "model-init")
+        if tool.kind.starts_with("ERDRelationship") {
+            let (tm, hm) = (self.repo.refd(tail, "model")?, self.repo.refd(head, "model")?);
+            let m = self.repo.create("ERDRelationship", &[], Some((tm, "ownedElements")));
+            let (r1, r2) = (self.repo.ref_to(tm), self.repo.ref_to(hm));
+            let e1 = self.repo.create("ERDRelationshipEnd", &[("reference", r1)], Some((m, "end1")));
+            let e2 = self.repo.create("ERDRelationshipEnd", &[("reference", r2)], Some((m, "end2")));
+            if tool.kind == "ERDRelationshipManyToMany" {
+                self.repo.set(e1, "cardinality", json!("0..*"));
+            }
+            if tool.kind != "ERDRelationship" {
+                self.repo.set(e2, "cardinality", json!("0..*"));
+            }
+            return views::create_edge_view(&mut self.repo, d, Some(m), tail, head);
         }
         if tool.kind == "AssociationClass" {
             return self.create_association_class(d, tail, head);
@@ -1381,7 +1766,7 @@ impl App {
             let owner = match self.repo.parent(tm) {
                 Some(rg) if tool.kind == "UMLTransition" && self.repo.ty(rg) == "UMLRegion" => (rg, "transitions"),
                 // a flow belongs to the edges of the diagram's activity (uml-factory.js:2253-2300)
-                _ if matches!(tool.kind, "UMLControlFlow" | "UMLObjectFlow") && self.diagram_activity(d).is_some() => (self.diagram_activity(d)?, "edges"),
+                _ if matches!(tool.kind, "UMLControlFlow" | "UMLObjectFlow" | "UMLActivityInterrupt") && self.diagram_activity(d).is_some() => (self.diagram_activity(d)?, "edges"),
                 _ => (tm, "ownedElements"),
             };
             self.repo.create(tool.kind, &[("source", s), ("target", t)], Some(owner))
@@ -1472,6 +1857,12 @@ impl App {
                     }
                 }
             }
+            // a communication connector refers to the new lifeline's role, and the messages on it
+            // now come from or go to the new lifeline (uml/main.js:49-68)
+            if a.repo.ty(to) == "UMLCommLifelineView" && a.repo.ty(e) == "UMLConnectorView" {
+                crate::communication::reconnected(&mut a.repo, e, tail);
+                return;
+            }
             // the ends are laid out again from the new box
             if let (Some(m), Some(tm)) = (a.repo.refd(e, "model"), a.repo.refd(to, "model")) {
                 if a.repo.ty(m) == "UMLAssociationClassLink" {
@@ -1508,6 +1899,7 @@ impl App {
             "UMLEvent" => "triggers",
             "UMLAction" => "nodes",
             "UMLInteractionOperand" => "operands",
+            "ERDColumn" => "columns",
             _ => return None,
         };
         let name = self.new_name(owner, ty);
@@ -1542,6 +1934,7 @@ impl App {
             "UMLEvent" => t == "UMLAction" || t == "UMLTransition",
             "UMLAction" => t == "UMLActivity",
             "UMLInteractionOperand" => t == "UMLCombinedFragment",
+            "ERDColumn" => t == "ERDEntity",
             "UMLExtensionPoint" => t == "UMLUseCase",
             "UMLSlot" => self.repo.kind_of(owner, "UMLInstance"),
             // template parameters on classes, interfaces and the other boxes with compartments
@@ -1561,7 +1954,7 @@ impl App {
             .list(d, "ownedViews")
             .into_iter()
             .rev()
-            .filter(|v| views::is_node(&self.repo, *v) && !matches!(self.repo.ty(*v), "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView") && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
+            .filter(|v| views::is_node(&self.repo, *v) && !matches!(self.repo.ty(*v), "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLExpansionNodeView" | "UMLConnectionPointReferenceView") && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
             .find(|v| {
                 let b = views::node_rect(&self.repo, *v);
                 at.x >= b.x && at.y >= b.y && at.x <= b.x + b.w && at.y <= b.y + b.h
@@ -1574,12 +1967,25 @@ impl App {
     /// action's box, in the action's inputs or outputs (uml-factory.js:3827-3834).
     pub fn create_feature_on(&mut self, host: Eid, kind: &str, at: P, rect: R) -> Result<Eid, String> {
         let d = self.diagram.ok_or_else(String::new)?;
-        if kind == "UMLInputPin" || kind == "UMLOutputPin" {
+        // a connection point reference goes in the connections of the state under the point
+        // (connectionPointReferenceFn, uml-factory.js:2183-2214)
+        if kind == "UMLConnectionPointReference" {
+            let hm = self.repo.refd(host, "model").filter(|m| self.repo.kind_of(*m, "UMLState")).ok_or_else(|| format!("{kind} cannot be placed here."))?;
+            let m = self.repo.create(kind, &[("name", json!(""))], Some((hm, "connections")));
+            let v = views::create_connection_point_view(&mut self.repo, d, m, host, at);
+            self.apply_view_defaults(v);
+            return Ok(v);
+        }
+        if matches!(kind, "UMLInputPin" | "UMLOutputPin" | "UMLInputExpansionNode" | "UMLOutputExpansionNode") {
             let refused = format!("{kind} cannot be placed here.");
-            let hm = self.repo.refd(host, "model").filter(|m| self.repo.ty(*m) == "UMLAction").ok_or(refused)?;
-            let name = self.new_name(hm, kind);
-            let field = if kind == "UMLInputPin" { "inputs" } else { "outputs" };
-            let m = self.repo.create(kind, &[("name", json!(name))], Some((hm, field)));
+            let hm = self.repo.refd(host, "model").filter(|m| self.repo.kind_of(*m, "UMLAction")).ok_or(refused)?;
+            // an expansion node is an unnamed UMLExpansionNode (uml-factory.js:3849-3866)
+            let (ty, name) = match kind {
+                "UMLInputExpansionNode" | "UMLOutputExpansionNode" => ("UMLExpansionNode", String::new()),
+                _ => (kind, self.new_name(hm, kind)),
+            };
+            let field = if matches!(kind, "UMLInputPin" | "UMLInputExpansionNode") { "inputs" } else { "outputs" };
+            let m = self.repo.create(ty, &[("name", json!(name))], Some((hm, field)));
             let v = views::create_pin_view(&mut self.repo, d, m, host, at);
             self.apply_view_defaults(v);
             return Ok(v);
@@ -1650,6 +2056,10 @@ impl App {
         let name = self.new_name(parent, ty);
         let m = self.repo.create(ty, &[("name", json!(name))], Some((parent, "ownedElements")));
         add_stereotype_icon(&mut self.repo, m);
+        // a C4 container is of no particular kind (c4/elements.js:95-100)
+        if ty == "C4Container" {
+            self.repo.set(m, "kind", json!("etc"));
+        }
         // a state machine starts with one region (uml-factory.js:606-626)
         if ty == "UMLStateMachine" {
             self.repo.create("UMLRegion", &[], Some((m, "regions")));
@@ -1664,6 +2074,148 @@ impl App {
             Some(p) if ty == "UMLActivityDiagram" && self.repo.ty(p) == "UMLActivity" => p,
             _ => self.package_for(self.diagram),
         };
+        // a flowchart diagram goes in a flowchart: the target if it is one, else a new "Flowchart1"…
+        // (flowchart-factory.js:31-62)
+        // and so do a data flow diagram (in any DFD element, else a new "DataFlowModel1") and a mind
+        // map diagram (in a mind map, else a new "Mindmap1") (dfd-factory.js:30-55, mindmap-factory.js:30-60)
+        // a sequence diagram goes in an interaction: the target if it is one, else a new interaction in
+        // a classifier, else a new collaboration with an interaction; it starts with a frame showing
+        // it (sequenceDiagramFn and _addFrame, uml-factory.js:251-310)
+        // an interaction overview diagram goes in an activity: the target if it is one, else a new
+        // "Activity1" in the interaction, the classifier's new interaction or a new collaboration's
+        // interaction; it starts with a frame (interactionOverviewDiagramFn, uml-factory.js:441-530)
+        if ty == "UMLInteractionOverviewDiagram" {
+            let target = match parent {
+                Some(p) if matches!(self.repo.ty(p), "UMLActivity" | "UMLInteraction") || self.repo.kind_of(p, "UMLClassifier") || self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" => p,
+                _ => self.package_for(self.diagram),
+            };
+            let act = if self.repo.ty(target) == "UMLActivity" {
+                target
+            } else {
+                let inter = if self.repo.ty(target) == "UMLInteraction" {
+                    target
+                } else {
+                    let holder = if self.repo.kind_of(target, "UMLClassifier") {
+                        target
+                    } else {
+                        let name = self.new_name(target, "UMLCollaboration");
+                        self.repo.create("UMLCollaboration", &[("name", json!(name))], Some((target, "ownedElements")))
+                    };
+                    let name = self.new_name(holder, "UMLInteraction");
+                    self.repo.create("UMLInteraction", &[("name", json!(name))], Some((holder, "ownedElements")))
+                };
+                let name = self.new_name(inter, "UMLActivity");
+                self.repo.create("UMLActivity", &[("name", json!(name))], Some((inter, "ownedElements")))
+            };
+            let name = self.new_name(act, ty);
+            let d = self.repo.create(ty, &[("name", json!(name))], Some((act, "ownedElements")));
+            let f = views::create_frame_view(&mut self.repo, d, Some(d), R { x: 8.0, y: 8.0, w: 692.0, h: 592.0 });
+            self.apply_view_defaults(f);
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
+        // a timing diagram too, with a timing frame (timingDiagramFn, uml-factory.js:374-434)
+        if ty == "UMLTimingDiagram" {
+            let target = match parent {
+                Some(p) if self.repo.ty(p) == "UMLInteraction" || self.repo.kind_of(p, "UMLClassifier") || self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" => p,
+                _ => self.package_for(self.diagram),
+            };
+            let target = if self.repo.ty(target) == "UMLInteraction" {
+                target
+            } else {
+                let holder = if self.repo.kind_of(target, "UMLCollaboration") {
+                    target
+                } else {
+                    let name = self.new_name(target, "UMLCollaboration");
+                    self.repo.create("UMLCollaboration", &[("name", json!(name))], Some((target, "ownedElements")))
+                };
+                let name = self.new_name(holder, "UMLInteraction");
+                self.repo.create("UMLInteraction", &[("name", json!(name))], Some((holder, "ownedElements")))
+            };
+            let name = self.new_name(target, ty);
+            let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
+            let f = crate::timing::create_frame(&mut self.repo, d);
+            self.apply_view_defaults(f);
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
+        // and a communication diagram the same way, but in a collaboration's new interaction
+        // (communicationDiagramFn, uml-factory.js:312-370)
+        if ty == "UMLSequenceDiagram" || ty == "UMLCommunicationDiagram" {
+            let target = match parent {
+                Some(p) if self.repo.ty(p) == "UMLInteraction" || self.repo.kind_of(p, "UMLClassifier") || self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" => p,
+                _ => self.package_for(self.diagram),
+            };
+            let target = if self.repo.ty(target) == "UMLInteraction" {
+                target
+            } else {
+                let holder = if self.repo.kind_of(target, if ty == "UMLCommunicationDiagram" { "UMLCollaboration" } else { "UMLClassifier" }) {
+                    target
+                } else {
+                    let name = self.new_name(target, "UMLCollaboration");
+                    self.repo.create("UMLCollaboration", &[("name", json!(name))], Some((target, "ownedElements")))
+                };
+                let name = self.new_name(holder, "UMLInteraction");
+                self.repo.create("UMLInteraction", &[("name", json!(name))], Some((holder, "ownedElements")))
+            };
+            let name = self.new_name(target, ty);
+            let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
+            let f = views::create_frame_view(&mut self.repo, d, Some(d), R { x: 8.0, y: 8.0, w: 692.0, h: 592.0 });
+            self.apply_view_defaults(f);
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
+        // a C4 diagram goes in the C4 element it is added to; elsewhere in a new "C4Model1" in the
+        // project (c4-factory.js:28-55)
+        if ty == "C4Diagram" {
+            let target = match parent {
+                Some(p) if self.repo.kind_of(p, "C4Element") => p,
+                _ => self.repo.root,
+            };
+            let target = if self.repo.ty(target) == "Project" {
+                let name = self.new_name(target, "C4Model");
+                self.repo.create("C4Model", &[("name", json!(name))], Some((target, "ownedElements")))
+            } else {
+                target
+            };
+            let name = self.new_name(target, ty);
+            let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
+        let holder = match ty {
+            "FCFlowchartDiagram" => Some(("FCFlowchart", "Flowchart", "FCFlowchart")),
+            "DFDDiagram" => Some(("DFDElement", "DataFlowModel", "DFDDataFlowModel")),
+            "MMMindmapDiagram" => Some(("MMMindmap", "Mindmap", "MMMindmap")),
+            // a wireframe diagram goes in a wireframe, else in a new "Wireframe1" (wireframe-factory.js:20-50)
+            "WFWireframeDiagram" => Some(("WFWireframe", "Wireframe", "WFWireframe")),
+            // an ER diagram goes in a data model, else in a new "Data Model1" (erd-factory.js:30-55)
+            "ERDDiagram" => Some(("ERDDataModel", "Data Model", "ERDDataModel")),
+            _ => None,
+        };
+        if let Some((kind, base, new_ty)) = holder {
+            let target = match parent {
+                Some(p) if self.repo.kind_of(p, kind) => p,
+                Some(p) if self.repo.kind_of(p, "ExtensibleModel") && !self.repo.kind_of(p, "Diagram") => p,
+                _ => self.package_for(self.diagram),
+            };
+            let target = if self.repo.kind_of(target, kind) {
+                target
+            } else {
+                let names: HashSet<String> = self.repo.children(target).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+                let name = (1..).map(|i| format!("{base}{i}")).find(|n| !names.contains(n)).unwrap();
+                self.repo.create(new_ty, &[("name", json!(name))], Some((target, "ownedElements")))
+            };
+            let name = self.new_name(target, ty);
+            let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
         // a profile diagram goes in a profile: the target if it is one, else a new profile "Profile" (uml-factory.js:184)
         let target = if ty == "UMLProfileDiagram" && self.repo.ty(target) != "UMLProfile" {
             self.repo.create("UMLProfile", &[("name", json!("Profile"))], Some((target, "ownedElements")))

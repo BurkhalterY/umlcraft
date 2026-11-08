@@ -3121,7 +3121,7 @@ fn reception_signal_is_a_reference() {
     // the reception's inline edit has Select Signal, which opens the Element Picker on UMLSignal
     use crate::app::EditKind;
     use crate::canvas::{item_buttons, ItemKey};
-    assert!(item_buttons(&a.repo, &EditKind::Feature(rc)).iter().any(|b| b.3 == ItemKey::SelectSignal));
+    assert!(item_buttons(&a.repo, None, &EditKind::Feature(rc)).iter().any(|b| b.3 == ItemKey::SelectSignal));
     a.item_key(v, EditKind::Feature(rc), ItemKey::SelectSignal);
     let p = a.element_picker.as_ref().unwrap();
     assert_eq!((p.obj, p.field.as_str(), p.ty, p.chosen), (rc, "signal", "UMLSignal", Some(sm)));
@@ -3997,10 +3997,10 @@ fn inline_edit_buttons_carry_their_keys() {
     let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
     let e = a.change(|a| a.create_node("UMLEnumeration", rect(300.0, 40.0, 160.0, 100.0))).unwrap();
     let (cm, em) = (a.repo.refd(c, "model").unwrap(), a.repo.refd(e, "model").unwrap());
-    let hints = |k: &EditKind, a: &App| item_buttons(&a.repo, k).into_iter().map(|b| if b.2.is_empty() { b.1.to_string() } else { format!("{} ({})", b.1, b.2) }).collect::<Vec<_>>();
+    let hints = |k: &EditKind, a: &App| item_buttons(&a.repo, None, k).into_iter().map(|b| if b.2.is_empty() { b.1.to_string() } else { format!("{} ({})", b.1, b.2) }).collect::<Vec<_>>();
     assert_eq!(hints(&EditKind::Name(cm), &a), ["Add Attribute (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)", "Add Reception", "Add Port", "Add Part"]);
     assert_eq!(hints(&EditKind::Name(em), &a), ["Add Literal (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)"]);
-    let keys: Vec<ItemKey> = item_buttons(&a.repo, &EditKind::Feature(cm)).into_iter().map(|b| b.3).collect();
+    let keys: Vec<ItemKey> = item_buttons(&a.repo, None, &EditKind::Feature(cm)).into_iter().map(|b| b.3).collect();
     assert_eq!(keys, [ItemKey::Add, ItemKey::Delete, ItemKey::Move(true), ItemKey::Move(false)]);
     // a button does what its key does
     a.item_key(c, EditKind::Name(cm), ItemKey::Add);
@@ -4366,7 +4366,7 @@ fn port_and_part_quick_edit_actions() {
     assert!(a.repo.f(parts[1], "left") > a.repo.f(parts[0], "left"), "the next one to its right");
     // a port's edit: Select Type, Create Type, Add Connected Part
     let pm = a.repo.refd(ports[0], "model").unwrap();
-    let labels: Vec<&str> = item_buttons(&a.repo, &EditKind::Name(pm)).into_iter().map(|b| b.1).collect();
+    let labels: Vec<&str> = item_buttons(&a.repo, None, &EditKind::Name(pm)).into_iter().map(|b| b.1).collect();
     assert_eq!(labels, ["Select Type", "Create Type", "Add Provided Interface", "Add Required Interface", "Add Connected Part"]);
     a.item_key(ports[0], EditKind::Name(pm), ItemKey::AddConnectedPart);
     assert_eq!(views_of(&a, "UMLPartView").len(), 3);
@@ -4627,7 +4627,7 @@ fn a_statechart_diagram_with_states_and_a_transition() {
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     let l = a.repo.refd(e2, "nameLabel").unwrap();
     assert_eq!(a.repo.str(l, "text"), "done [ok] / log");
-    assert_eq!((a.repo.f(ch, "width"), a.repo.f(ch, "height")), (crate::views::PSEUDO_SIZE, crate::views::PSEUDO_SIZE), "a fixed mark");
+    assert_eq!((a.repo.f(ch, "width"), a.repo.f(ch, "height")), (23.0, 19.0), "a point tool: the choice's smallest size");
     assert!(a.repo.f(s1, "height") > crate::views::NAME_MIN_H, "room for the entry activity");
     assert_eq!(a.info[&s1].shape, "state");
     Repo::parse(&a.repo.serialize()).unwrap();
@@ -4981,4 +4981,958 @@ fn swimlanes_hold_the_activity_nodes_drawn_in_them() {
     let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
     assert!(svg.contains("rotate(-90"), "a horizontal lane's name reads upwards");
     Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn advanced_activity_tools_make_their_elements() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let act = a.repo.parent(d).unwrap();
+    // a structured activity holds the actions drawn in it, in its own nodes
+    let sv = a.change(|a| a.create_node("UMLStructuredActivityNode", rect(0.0, 0.0, 300.0, 200.0))).unwrap();
+    let sm = a.repo.refd(sv, "model").unwrap();
+    assert_eq!(a.repo.ty(sv), "UMLStructuredActivityNodeView");
+    let inner = a.change(|a| a.create_node("UMLAction", rect(20.0, 60.0, 60.0, 40.0))).unwrap();
+    let im = a.repo.refd(inner, "model").unwrap();
+    assert_eq!(a.repo.parent(im), Some(sm));
+    assert_eq!(a.repo.field_of(im).as_deref(), Some("nodes"));
+    // an expansion region shows its mode; expansion nodes sit on its border
+    let ev = a.change(|a| a.create_node("UMLExpansionRegion", rect(400.0, 0.0, 200.0, 150.0))).unwrap();
+    let em = a.repo.refd(ev, "model").unwrap();
+    assert_eq!(a.repo.str(em, "mode"), "iterative");
+    let en = a.change(|a| a.create_feature_box("UMLInputExpansionNode", crate::views::P { x: 500.0, y: 0.0 }, rect(0.0, 0.0, 0.0, 0.0)).ok()).unwrap();
+    assert_eq!(a.repo.ty(en), "UMLExpansionNodeView");
+    let enm = a.repo.refd(en, "model").unwrap();
+    assert_eq!((a.repo.ty(enm), a.repo.name(enm).as_str()), ("UMLExpansionNode", ""));
+    assert_eq!(a.repo.list(em, "inputs"), vec![enm]);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let b = crate::views::node_rect(&a.repo, en);
+    assert_eq!(crate::views::pin_side(&a.repo, en), "top");
+    assert_eq!((b.w, b.h), (72.0, 18.0), "four cells along the top border");
+    let st = a.repo.refd(ev, "nameCompartment").and_then(|nc| a.repo.refd(nc, "stereotypeLabel")).unwrap();
+    assert_eq!(a.repo.str(st, "text"), "«iterative»");
+    // an interruptible region is a group; an edge connector is named "A"
+    let iv = a.change(|a| a.create_node("UMLInterruptibleActivityRegion", rect(0.0, 300.0, 10.0, 10.0))).unwrap();
+    let ig = a.repo.refd(iv, "model").unwrap();
+    assert!(a.repo.list(act, "groups").contains(&ig));
+    let cv = a.change(|a| a.create_node("UMLActivityEdgeConnector", rect(700.0, 300.0, 26.0, 26.0))).unwrap();
+    assert_eq!(a.repo.name(a.repo.refd(cv, "model").unwrap()), "A");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(iv, "width"), a.repo.f(iv, "height")), (30.0, 30.0));
+    // an exception handler ends on a new input pin of the handler and carries a zig-zag
+    let h1 = a.change(|a| a.create_node("UMLAction", rect(100.0, 500.0, 60.0, 40.0))).unwrap();
+    let h2 = a.change(|a| a.create_node("UMLAction", rect(400.0, 500.0, 60.0, 40.0))).unwrap();
+    let t = tool("UMLExceptionHandler", AssocInit::Plain);
+    assert!(a.can_connect(&t, h1, h2));
+    let eh = a.change(|a| a.create_edge(&t, h1, h2)).unwrap();
+    let ehm = a.repo.refd(eh, "model").unwrap();
+    assert_eq!(a.repo.ty(eh), "UMLExceptionHandlerView");
+    assert_eq!(a.repo.refd(ehm, "handlerBody"), a.repo.refd(h2, "model"));
+    assert_eq!(a.repo.ty(a.repo.refd(ehm, "target").unwrap()), "UMLInputPin");
+    assert_eq!(a.repo.ty(a.repo.refd(eh, "head").unwrap()), "UMLInputPinView");
+    assert!(a.repo.list(act, "edges").contains(&ehm));
+    let ai = a.change(|a| a.create_edge(&tool("UMLActivityInterrupt", AssocInit::Plain), h1, h2)).unwrap();
+    assert_eq!(a.repo.ty(a.repo.refd(ai, "model").unwrap()), "UMLActivityInterrupt");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let z = a.repo.refd(ai, "adornment").unwrap();
+    assert_eq!((a.repo.ty(z), a.repo.f(z, "width"), a.repo.f(z, "height")), ("UMLZigZagAdornmentView", 25.0, 20.0));
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("A</text>"));
+    let text = a.repo.serialize();
+    Repo::parse(&text).unwrap();
+}
+
+#[test]
+fn activity_boxes_show_called_operations_and_states() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let class = a.repo.create("UMLClass", &[("name", serde_json::json!("Order"))], Some((root, "ownedElements")));
+    let op = a.repo.create("UMLOperation", &[("name", serde_json::json!("place"))], Some((class, "operations")));
+    let v = a.change(|a| a.create_node("UMLAction", rect(0.0, 0.0, 60.0, 40.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    a.repo.set(m, "kind", serde_json::json!("callOperation"));
+    let opr = a.repo.ref_to(op);
+    a.repo.set(m, "target", opr);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nc = a.repo.refd(v, "nameCompartment").unwrap();
+    let ns = a.repo.refd(nc, "namespaceLabel").unwrap();
+    assert_eq!(a.repo.str(ns, "text"), "(Order::place)");
+    assert_ne!(a.repo.raw(ns, "visible"), Some(&serde_json::json!(false)));
+    // unnamed, it shows the operation's name
+    a.repo.set(m, "name", serde_json::json!(""));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nm = a.repo.refd(nc, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nm, "text"), "place");
+    // an object node in states
+    let o = a.change(|a| a.create_node("UMLObjectNode", rect(200.0, 0.0, 60.0, 40.0))).unwrap();
+    let om = a.repo.refd(o, "model").unwrap();
+    let st = a.repo.create("UMLState", &[("name", serde_json::json!("Paid"))], Some((root, "ownedElements")));
+    let sr = a.repo.ref_to(st);
+    a.repo.set(om, "inStates", serde_json::json!([sr]));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let ons = a.repo.refd(a.repo.refd(o, "nameCompartment").unwrap(), "namespaceLabel").unwrap();
+    assert_eq!(a.repo.str(ons, "text"), "[Paid]");
+}
+
+#[test]
+fn connection_point_references_sit_on_their_state() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let s = a.change(|a| a.create_node("SubmachineState", rect(100.0, 100.0, 120.0, 60.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    let sub = a.repo.refd(sm, "submachine").unwrap();
+    // the tool needs a state under the point
+    assert!(a.create_feature_box("UMLConnectionPointReference", crate::views::P { x: 10.0, y: 10.0 }, rect(0.0, 0.0, 0.0, 0.0)).is_err());
+    let cp = a.change(|a| a.create_feature_box("UMLConnectionPointReference", crate::views::P { x: 100.0, y: 130.0 }, rect(0.0, 0.0, 0.0, 0.0)).ok()).unwrap();
+    let cm = a.repo.refd(cp, "model").unwrap();
+    assert_eq!(a.repo.ty(cp), "UMLConnectionPointReferenceView");
+    assert_eq!(a.repo.list(sm, "connections"), vec![cm]);
+    // it shows the names of the exit points it refers to, with an X
+    let ex = a.repo.create("UMLPseudostate", &[("name", json!("abort")), ("kind", json!("exitPoint"))], Some((a.repo.list(sub, "regions")[0], "vertices")));
+    let er = a.repo.ref_to(ex);
+    a.repo.set(cm, "exit", json!([er]));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let b = crate::views::node_rect(&a.repo, cp);
+    assert_eq!((b.w, b.h), (14.0, 14.0));
+    assert_eq!(b.x + 7.0, 100.0, "centred on the left border");
+    let nl = a.repo.refd(cp, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "abort");
+    // the submachine state shows "name: Machine" and keeps room for its mark
+    let nm = a.repo.refd(a.repo.refd(s, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nm, "text"), format!("{}: {}", a.repo.name(sm), a.repo.name(sub)));
+    // pseudostates are unnamed and take their kind's smallest size
+    let j = a.change(|a| a.create_node("Junction", rect(400.0, 100.0, 60.0, 60.0))).unwrap();
+    let h = a.change(|a| a.create_node("DeepHistory", rect(400.0, 200.0, 10.0, 10.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(j, "width"), a.repo.f(h, "width")), (15.0, 26.0));
+    assert_eq!(a.repo.name(a.repo.refd(j, "model").unwrap()), "");
+    assert!(a.repo.refd(j, "nameCompartment").is_none());
+    // Add Join: a join above the state with two states above it, all wired by transitions
+    let target = a.change(|a| a.create_node("UMLState", rect(400.0, 400.0, 100.0, 40.0))).unwrap();
+    let jv = a.add_scaffold(target, "Join").unwrap();
+    let jm = a.repo.refd(jv, "model").unwrap();
+    assert_eq!(a.repo.str(jm, "kind"), "join");
+    assert!(a.repo.f(jv, "top") < 400.0);
+    assert_eq!((a.repo.f(jv, "width"), a.repo.f(jv, "height")), (70.0, 6.0));
+    let region = a.repo.parent(jm).unwrap();
+    let into_join = a.repo.list(region, "transitions").into_iter().filter(|t| a.repo.refd(*t, "target") == Some(jm)).count();
+    assert_eq!(into_join, 2);
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn flowcharts_have_every_shape_and_flows() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "FCFlowchartDiagram"));
+    let fc = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(fc), a.repo.name(fc).as_str(), a.repo.name(d).as_str()), ("FCFlowchart", "Flowchart1", "FlowchartDiagram1"));
+    // a second diagram on the flowchart goes in it
+    let d2 = a.change(|a| a.add_diagram(Some(fc), "FCFlowchartDiagram"));
+    assert_eq!((a.repo.parent(d2), a.repo.name(d2).as_str()), (Some(fc), "FlowchartDiagram2"));
+    a.open_diagram(d);
+    let mut views = vec![];
+    for (i, (_, ty, _)) in crate::flowchart::NODES.iter().enumerate().filter(|(_, n)| n.1 != "FCFlow") {
+        let (x, y) = ((i % 6) as f64 * 160.0, (i / 6) as f64 * 120.0);
+        let v = a.change(|a| a.create_node(ty, rect(x, y, 10.0, 10.0))).unwrap();
+        assert_eq!(a.repo.ty(v), format!("{ty}View"));
+        views.push(v);
+    }
+    use crate::views::Measure;
+    let name = |a: &App, v: crate::model::Eid| a.repo.name(a.repo.refd(v, "model").unwrap());
+    assert_eq!(name(&a, views[0]), "Process1");
+    assert_eq!(name(&a, views[11]), "Input1", "a manual input is named Input…");
+    assert_eq!(name(&a, views[15]), "C1");
+    assert_eq!(name(&a, views[17]), "", "an or has no name");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // a process: its name plus 10 px all round; a decision twice its name; an or stays round
+    let l = a.repo.refd(views[0], "nameLabel").unwrap();
+    assert_eq!(a.repo.str(l, "text"), "Process1");
+    assert_eq!(a.repo.f(views[0], "width"), (ms.width("Process1", 0)).ceil() + 20.0);
+    assert_eq!(a.repo.f(views[2], "width"), 50f64.max((ms.width("Decision1", 0)).ceil() * 2.0));
+    assert_eq!((a.repo.f(views[17], "width"), a.repo.f(views[17], "height")), (30.0, 30.0));
+    // a flow between two nodes, owned by its source, with a filled arrow
+    let t = tool("FCFlow", AssocInit::Plain);
+    assert!(a.can_connect(&t, views[0], views[2]));
+    let f = a.change(|a| a.create_edge(&t, views[0], views[2])).unwrap();
+    let fm = a.repo.refd(f, "model").unwrap();
+    assert_eq!((a.repo.ty(f), a.repo.parent(fm)), ("FCFlowView", a.repo.refd(views[0], "model")));
+    assert!(a.repo.refd(f, "stereotypeLabel").is_none());
+    // Add Outgoing Decision below a process
+    let b = crate::related::actions("FCProcess").into_iter().find(|b| b.label == "Add Outgoing Decision").unwrap();
+    let nv = a.add_related(views[0], b).unwrap();
+    assert_eq!(a.repo.ty(nv), "FCDecisionView");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("Process1"));
+    // the flowchart preferences: a node's own fill colour, the flow's line style
+    assert_eq!(a.repo.val(f, "lineStyle").and_then(|x| x.as_i64()), Some(2), "rounded rectilinear by default");
+    a.prefs.set("flowchart.decision.fillColor", json!("#ffeeaa"));
+    a.prefs.set("uml.action.fillColor", json!("#abcdef"));
+    let dv = a.change(|a| a.create_node("FCDecision", rect(0.0, 800.0, 10.0, 10.0))).unwrap();
+    assert_eq!(a.repo.str(dv, "fillColor"), "#ffeeaa");
+    // a node dragged from the explorer onto another flowchart diagram gets a second view there,
+    // with its flows to nodes already shown
+    a.open_diagram(d2);
+    let pm = a.repo.refd(views[0], "model").unwrap();
+    let dm = a.repo.refd(views[2], "model").unwrap();
+    a.drop_model(dm, crate::views::P { x: 300.0, y: 300.0 }).unwrap();
+    let got = a.drop_model(pm, crate::views::P { x: 100.0, y: 100.0 }).unwrap();
+    assert_eq!(a.repo.ty(got[0]), "FCProcessView");
+    assert!(a.repo.list(d2, "ownedViews").iter().any(|v| a.repo.ty(*v) == "FCFlowView"));
+    let text = a.repo.serialize();
+    Repo::parse(&text).unwrap();
+}
+
+#[test]
+fn data_flow_diagrams_and_mind_maps() {
+    use crate::views::Measure;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "DFDDiagram"));
+    let model = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(model), a.repo.name(model).as_str(), a.repo.name(d).as_str()), ("DFDDataFlowModel", "DataFlowModel1", "DFDDiagram1"));
+    let e = a.change(|a| a.create_node("DFDExternalEntity", rect(0.0, 0.0, 1.0, 1.0))).unwrap();
+    let p = a.change(|a| a.create_node("DFDProcess", rect(200.0, 0.0, 1.0, 1.0))).unwrap();
+    let s = a.change(|a| a.create_node("DFDDataStore", rect(400.0, 0.0, 1.0, 1.0))).unwrap();
+    let pm = a.repo.refd(p, "model").unwrap();
+    assert_eq!(a.repo.name(pm), "Process1");
+    a.repo.set(pm, "id", json!("1.0"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // a process: the id compartment (5 + id + 5), then the name with 10 px around it
+    let lh = ms.size();
+    assert_eq!(a.repo.f(p, "height"), 5.0 + lh + 5.0 + 10.0 + lh + 10.0);
+    assert_eq!(a.repo.str(a.repo.refd(p, "idLabel").unwrap(), "text"), "1.0");
+    assert_eq!(a.repo.f(e, "width"), ms.width("ExternalEntity1", 0).ceil() + 20.0);
+    assert!(a.repo.refd(e, "idLabel").is_none(), "an external entity does not save its id label");
+    let t = tool("DFDDataFlow", AssocInit::Plain);
+    assert!(a.can_connect(&t, e, p) && a.can_connect(&t, p, s));
+    let f = a.change(|a| a.create_edge(&t, e, p)).unwrap();
+    assert_eq!(a.repo.ty(f), "DFDDataFlowView");
+    assert_eq!(a.repo.val(f, "lineStyle").and_then(|x| x.as_i64()), Some(2));
+    let b = crate::related::actions("DFDProcess").into_iter().find(|b| b.label == "Add Outgoing Data Store").unwrap();
+    let nv = a.add_related(p, b).unwrap();
+    assert_eq!(a.repo.ty(nv), "DFDDataStoreView");
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("1.0"));
+    // a mind map: nodes named MMNode1…, edges without arrows, Add Node Right
+    let md = a.change(|a| a.add_diagram(Some(root), "MMMindmapDiagram"));
+    let mm = a.repo.parent(md).unwrap();
+    assert_eq!((a.repo.ty(mm), a.repo.name(mm).as_str(), a.repo.name(md).as_str()), ("MMMindmap", "Mindmap1", "MMMindmapDiagram1"));
+    let n = a.change(|a| a.create_node("MMNode", rect(100.0, 100.0, 1.0, 1.0))).unwrap();
+    assert_eq!(a.repo.name(a.repo.refd(n, "model").unwrap()), "MMNode1");
+    let b = crate::related::actions("MMNode").into_iter().find(|b| b.label == "Add Node Right").unwrap();
+    let n2 = a.add_related(n, b).unwrap();
+    assert!(a.repo.f(n2, "left") > a.repo.f(n, "left"));
+    let edge = a.repo.list(md, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "MMEdgeView").unwrap();
+    assert_eq!(a.repo.refd(edge, "tail"), Some(n2), "the edge runs from the new node");
+    assert_eq!(a.repo.val(edge, "lineStyle").and_then(|x| x.as_i64()), Some(1));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, md);
+    assert_eq!(a.repo.f(n, "width"), ms.width("MMNode1", 0).ceil() + 16.0);
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn er_diagrams_have_entities_columns_and_crows_feet() {
+    use crate::views::Measure;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "ERDDiagram"));
+    let dm = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(dm), a.repo.name(dm).as_str(), a.repo.name(d).as_str()), ("ERDDataModel", "Data Model1", "ERDDiagram1"));
+    let e1 = a.change(|a| a.create_node("ERDEntity", rect(0.0, 0.0, 1.0, 1.0))).unwrap();
+    let e2 = a.change(|a| a.create_node("ERDEntity", rect(300.0, 0.0, 1.0, 1.0))).unwrap();
+    let m1 = a.repo.refd(e1, "model").unwrap();
+    assert_eq!(a.repo.name(m1), "Entity1");
+    // Add Column (Ctrl+Enter) and its expression "name: type(length)"
+    let c = a.change(|a| a.add_feature(m1, "ERDColumn")).unwrap();
+    assert_eq!(a.repo.name(c), "Column1");
+    crate::erd::apply_column(&mut a.repo, c, "id : VARCHAR(20)");
+    assert_eq!((a.repo.name(c).as_str(), a.repo.str(c, "type").as_str(), crate::erd::column_text(&a.repo, c).as_str()), ("id", "VARCHAR", "id: VARCHAR(20)"));
+    a.repo.set(c, "primaryKey", json!(true));
+    let c2 = a.change(|a| a.add_feature(m1, "ERDColumn")).unwrap();
+    crate::erd::apply_column(&mut a.repo, c2, "note");
+    a.repo.set(c2, "nullable", json!(true));
+    assert_eq!((crate::erd::key_text(&a.repo, c).as_str(), crate::erd::key_text(&a.repo, c2).as_str()), ("PK", "N"));
+    assert_eq!(a.repo.raw(c2, "length"), Some(&json!(0)), "no length sets it to 0, as the original does");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let cc = a.repo.refd(e1, "columnCompartment").unwrap();
+    assert_eq!(a.repo.list(cc, "subViews").len(), 2);
+    assert_eq!(a.info[&e1].compartments[0].rows.len(), 2, "the columns are rows the inline edit walks");
+    let lh = ms.size();
+    assert_eq!(a.repo.f(e1, "height"), 5.0 + lh + 5.0 + 5.0 + 2.0 * lh + 2.0 + 5.0);
+    // a one-to-many relationship: the second end is 0..*
+    let t = tool("ERDRelationshipOneToMany", AssocInit::Plain);
+    assert!(a.can_connect(&t, e1, e2));
+    let rv = a.change(|a| a.create_edge(&t, e1, e2)).unwrap();
+    let rm = a.repo.refd(rv, "model").unwrap();
+    assert_eq!(a.repo.ty(rv), "ERDRelationshipView");
+    assert_eq!(a.repo.str(a.repo.child(rm, "end2").unwrap(), "cardinality"), "0..*");
+    assert_eq!(a.repo.str(a.repo.child(rm, "end1").unwrap(), "cardinality"), "1");
+    assert!(a.repo.refd(rv, "tailNameLabel").is_some());
+    // Add Many to Many on an entity's quick edit
+    let b = crate::related::actions("ERDEntity").into_iter().find(|b| b.label == "Add Many to Many").unwrap();
+    let nv = a.add_related(e2, b).unwrap();
+    assert_eq!(a.repo.ty(nv), "ERDEntityView");
+    // suppress columns hides the rows
+    a.repo.set(e1, "suppressColumns", json!(true));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.info[&e1].compartments[0].rows.is_empty());
+    assert_eq!(a.repo.f(e1, "height") >= 5.0 + lh + 5.0, true);
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("Entity1"));
+    // ERD001: a nullable primary key; ERD002: a foreign key to an entity without a relationship
+    a.repo.set(c, "nullable", json!(true));
+    let m3 = a.repo.refd(nv, "model").unwrap();
+    let fk = a.change(|a| a.add_feature(m3, "ERDColumn")).unwrap();
+    a.repo.set(fk, "foreignKey", json!(true));
+    let cr = a.repo.ref_to(c);
+    a.repo.set(fk, "referenceTo", cr);
+    let rules: Vec<&str> = crate::validate::validate(&a.repo).into_iter().map(|p| p.rule).collect();
+    assert!(rules.contains(&"ERD001") && rules.contains(&"ERD002"));
+    // File › New From Template › Data Model
+    let t = crate::templates::TEMPLATES.iter().find(|t| t.label == "Data Model").unwrap();
+    let p = crate::templates::project(t);
+    let dms: Vec<_> = p.children(p.root).into_iter().map(|(_, c)| c).collect();
+    assert_eq!(dms.len(), 1, "no UML profile");
+    assert_eq!((p.ty(dms[0]), p.name(dms[0]).as_str()), ("ERDDataModel", "Data Model"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn c4_diagrams_have_people_systems_containers_and_boundaries() {
+    use crate::views::Measure;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "C4Diagram"));
+    let model = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(model), a.repo.name(model).as_str(), a.repo.name(d).as_str()), ("C4Model", "C4Model1", "C4Diagram1"));
+    let p = a.change(|a| a.create_node("C4Person", rect(0.0, 0.0, 1.0, 1.0))).unwrap();
+    let s = a.change(|a| a.create_node("C4SoftwareSystem", rect(300.0, 0.0, 1.0, 1.0))).unwrap();
+    let db = a.change(|a| a.create_node("C4ContainerDatabase", rect(600.0, 0.0, 1.0, 1.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    assert_eq!(a.repo.name(sm), "C4SoftwareSystem1");
+    let dbm = a.repo.refd(db, "model").unwrap();
+    assert_eq!((a.repo.ty(dbm), a.repo.str(dbm, "kind").as_str()), ("C4Container", "database"));
+    a.repo.set(sm, "technology", json!("Rust"));
+    a.repo.set(sm, "description", json!("Keeps the books"));
+    assert_eq!(a.repo.str(p, "fillColor"), "#38bcff", "the C4 preference's default colour");
+    a.repo.set(s, "width", json!(300));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(s, "technologyLabel").unwrap(), "text"), "[Software System: Rust]");
+    let lh = ms.size();
+    // padding 8, name, 2, technology (0.9 size), 2, description, 8, plus the description margin 8
+    let h = 8.0 + lh + 2.0 + lh * 0.9 + 2.0 + lh + 8.0 + 8.0;
+    assert!((a.repo.f(s, "height") - h).abs() < 0.01, "{} vs {h}", a.repo.f(s, "height"));
+    // a dotted relationship with its description and technology
+    let t = tool("C4Relationship", AssocInit::Plain);
+    assert!(a.can_connect(&t, p, s));
+    let rv = a.change(|a| a.create_edge(&t, p, s)).unwrap();
+    let rm = a.repo.refd(rv, "model").unwrap();
+    a.repo.set(rm, "description", json!("Uses"));
+    a.repo.set(rm, "technology", json!("HTTPS"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(rv, "technologyLabel").unwrap(), "text"), "[HTTPS]");
+    // a diagram inside the software system shows it as a dashed boundary without its description
+    let inner = a.change(|a| a.add_diagram(Some(sm), "C4Diagram"));
+    assert_eq!(a.repo.parent(inner), Some(sm));
+    a.drop_model(sm, crate::views::P { x: 10.0, y: 10.0 }).unwrap();
+    let bv = a.repo.list(inner, "ownedViews")[0];
+    assert!(crate::c4::is_boundary(&a.repo, bv));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, inner);
+    assert_eq!(a.repo.raw(a.repo.refd(bv, "descriptionLabel").unwrap(), "visible"), Some(&json!(false)));
+    let t = crate::templates::TEMPLATES.iter().find(|t| t.label == "C4 Model").unwrap();
+    let pr = crate::templates::project(t);
+    assert_eq!(pr.children(pr.root).len(), 1);
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn activity_boxes_take_their_fill_colour_preferences() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    a.prefs.set("uml.action.fillColor", json!("#abcdef"));
+    a.prefs.set("uml.objectnode.fillColor", json!("#fedcba"));
+    let act = a.change(|a| a.create_node("UMLAction", rect(0.0, 0.0, 60.0, 40.0))).unwrap();
+    let ds = a.change(|a| a.create_node("UMLDataStoreNode", rect(200.0, 0.0, 60.0, 40.0))).unwrap();
+    assert_eq!((a.repo.str(act, "fillColor").as_str(), a.repo.str(ds, "fillColor").as_str()), ("#abcdef", "#fedcba"));
+}
+
+#[test]
+fn mermaid_makes_flowcharts_er_diagrams_mind_maps_and_statecharts() {
+    use crate::mermaid_kinds::*;
+    // flowchart parsing: shapes, chains, "&", link texts in both forms
+    let fc = parse_flowchart("flowchart LR\n  A([Start]) --> B{Is it?}\n  B -->|Yes| C[OK] --> D[(Db)]\n  B -- No --> E[/In/] & F[\\\\Out/]\n  style A fill:#f00").unwrap();
+    assert_eq!(fc.direction, "LR");
+    let shape = |id: &str| fc.nodes.iter().find(|n| n.id == id).map(|n| n.shape).unwrap();
+    assert_eq!((shape("A"), shape("B"), shape("C"), shape("D"), shape("E"), shape("F")), ("stadium", "diamond", "square", "cylinder", "lean_right", "inv_trapezoid"));
+    assert!(fc.edges.contains(&("B".into(), "C".into(), "Yes".into())));
+    assert!(fc.edges.contains(&("C".into(), "D".into(), String::new())));
+    assert!(fc.edges.contains(&("B".into(), "E".into(), "No".into())) && fc.edges.contains(&("B".into(), "F".into(), "No".into())));
+    assert_eq!((fc_type("cylinder"), fc_type("inv_trapezoid"), fc_type("odd")), ("FCDatabase", "FCManualOperation", "FCProcess"));
+    // ER parsing
+    let er = parse_er(ER_SAMPLE).unwrap();
+    assert_eq!(er.entities.len(), 3);
+    let member = er.entities.iter().find(|e| e.id == "MEMBER").unwrap();
+    assert_eq!(member.columns[2].keys, vec!["UK".to_string()]);
+    assert_eq!((er.rels[0].card_a, er.rels[0].card_b, er.rels[0].identifying, er.rels[1].label.as_str()), ("1", "0..*", true, "is lent in"));
+    // mind map parsing: the tree by indentation, texts out of their shapes
+    let mm = parse_mindmap(MINDMAP_SAMPLE).unwrap();
+    assert_eq!((mm.text.as_str(), mm.children.len(), mm.children[1].children[1].text.as_str()), ("Library", 3, "DVDs"));
+    // state parsing
+    let sd = parse_state("stateDiagram-v2\n  direction LR\n  [*] --> A\n  state C <<choice>>\n  A --> C : go\n  C --> [*]\n  note right of A : first").unwrap();
+    assert_eq!(sd.direction, "LR");
+    assert_eq!(sd.nodes.iter().map(|n| n.shape).collect::<Vec<_>>(), vec!["stateStart", "rect", "choice", "stateEnd"]);
+    assert_eq!(sd.notes, vec![("A".to_string(), "first".to_string())]);
+    // generation, each as one undo step
+    let ms = measure();
+    let mut a = App::new(None);
+    for (code, dty, holder) in [(FLOWCHART_SAMPLE, "FCFlowchartDiagram", "Flowchart by Mermaid"), (ER_SAMPLE, "ERDDiagram", "Data Model by Mermaid"), (MINDMAP_SAMPLE, "MMMindmapDiagram", "Mindmap by Mermaid"), (STATE_SAMPLE, "UMLStatechartDiagram", "Statemachine by Mermaid")] {
+        let before = a.undo.len();
+        let d = a.generate_mermaid(code, &ms).unwrap();
+        assert_eq!(a.repo.ty(d), dty);
+        assert_eq!(a.repo.name(a.repo.parent(d).unwrap()), holder);
+        assert_eq!(a.undo.len(), before + 1);
+        assert!(a.repo.list(d, "ownedViews").len() > 3);
+    }
+    let er = a.repo.all().find(|e| a.repo.ty(*e) == "ERDEntity" && a.repo.name(*e) == "LOAN").unwrap();
+    assert_eq!(a.repo.list(er, "columns").len(), 4);
+    assert!(a.generate_mermaid("sequenceDiagram\n A->>B: hi", &ms).is_err());
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn sequence_diagrams_have_lifelines_messages_and_activations() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    let collab = a.repo.parent(inter).unwrap();
+    assert_eq!((a.repo.ty(inter), a.repo.ty(collab)), ("UMLInteraction", "UMLCollaboration"));
+    assert_eq!(a.repo.ty(a.repo.list(d, "ownedViews")[0]), "UMLFrameView", "a new sequence diagram has a frame");
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 100.0, 100.0, 60.0))).unwrap();
+    let l2 = a.change(|a| a.create_node("UMLLifeline", rect(250.0, 300.0, 100.0, 60.0))).unwrap();
+    let m1 = a.repo.refd(l1, "model").unwrap();
+    assert_eq!((a.repo.name(m1).as_str(), a.repo.name(a.repo.refd(m1, "represent").unwrap()).as_str()), ("Lifeline1", "Role1"));
+    assert_eq!(a.repo.parent(a.repo.refd(m1, "represent").unwrap()), Some(collab));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(l1, "top"), a.repo.f(l2, "top")), (40.0, 40.0), "lifelines stand at the top");
+    // a call from the first to the second at y = 150, and a reply under it
+    let call = tool("UMLMessage", AssocInit::Plain);
+    assert!(a.can_connect(&call, l1, l2));
+    a.line_from = Some((crate::views::P { x: 100.0, y: 150.0 }, crate::views::P { x: 300.0, y: 150.0 }));
+    let e1 = a.change(|a| a.create_edge(&call, l1, l2)).unwrap();
+    a.line_from = Some((crate::views::P { x: 300.0, y: 200.0 }, crate::views::P { x: 100.0, y: 200.0 }));
+    let e2 = a.change(|a| a.create_edge(&tool("UMLReplyMessage", AssocInit::Plain), l2, l1)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let p1 = crate::views::points_of(&a.repo, e1);
+    let lp2 = a.repo.refd(l2, "linePart").unwrap();
+    let act = a.repo.refd(e1, "activation").unwrap();
+    assert_eq!(a.repo.refd(e1, "head"), Some(lp2));
+    assert_eq!((p1[0].y, p1[1].y), (150.0, 150.0));
+    assert_eq!(p1[1].x, crate::views::node_rect(&a.repo, act).x, "the call ends at the activation it starts");
+    assert_eq!(crate::views::node_rect(&a.repo, act).y, 150.0);
+    let mm1 = a.repo.refd(e1, "model").unwrap();
+    assert_eq!(a.repo.str(a.repo.refd(e1, "nameLabel").unwrap(), "text"), "1 : Message1");
+    assert_eq!(a.repo.str(a.repo.refd(e2, "model").unwrap(), "messageSort"), "reply");
+    // moving the reply above the call renumbers them
+    a.repo.set(e2, "points", json!("300:120;100:120"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.list(inter, "messages")[1], mm1);
+    // a self message is four points to the right of its lifeline
+    a.line_from = Some((crate::views::P { x: 100.0, y: 250.0 }, crate::views::P { x: 100.0, y: 250.0 }));
+    let e3 = a.change(|a| a.create_edge(&tool("UMLSelfMessage", AssocInit::Plain), l1, l1)).unwrap();
+    // a lost message ends at a new endpoint
+    a.line_from = Some((crate::views::P { x: 300.0, y: 300.0 }, crate::views::P { x: 500.0, y: 300.0 }));
+    let e4 = a.change(|a| a.create_edge(&tool("UMLLostMessage", AssocInit::Plain), l2, l2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(crate::views::points_of(&a.repo, e3).len(), 4);
+    let ep = a.repo.refd(e4, "head").unwrap();
+    assert_eq!(a.repo.ty(ep), "UMLEndpointView");
+    assert_eq!(a.repo.list(inter, "participants").len(), 3);
+    // the lifelines reach past their lowest message
+    let lb = crate::views::node_rect(&a.repo, l2);
+    assert!(lb.y + lb.h >= 300.0 + 15.0);
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("Lifeline1"));
+    // the lifeline and message expressions
+    let ty = crate::parse::apply_lifeline(&mut a.repo, m1, "<<boundary>> ui[1] : Screen");
+    assert_eq!((a.repo.name(m1).as_str(), a.repo.str(m1, "selector").as_str(), ty.as_deref()), ("ui", "1", Some("Screen")));
+    crate::parse::apply_message(&mut a.repo, mm1, "total = sum(a, b)");
+    assert_eq!((a.repo.name(mm1).as_str(), a.repo.str(mm1, "assignmentTarget").as_str(), a.repo.str(mm1, "arguments").as_str()), ("sum", "total", "a, b"));
+    assert_eq!(crate::parse::message_text(&a.repo, mm1), "total = sum(a, b)");
+    assert!(crate::sequence::message_text(&a.repo, d, mm1, true).ends_with(": total = sum(a, b)"));
+    // a class dropped on the diagram becomes a lifeline of a new role of that type
+    let class = a.change(|a| a.repo.create("UMLClass", &[("name", json!("Order"))], Some((root, "ownedElements"))));
+    let got = a.drop_model(class, crate::views::P { x: 600.0, y: 100.0 }).unwrap();
+    let lm = a.repo.refd(got[0], "model").unwrap();
+    assert_eq!(a.repo.refd(a.repo.refd(lm, "represent").unwrap(), "type"), Some(class));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nl = a.repo.refd(a.repo.refd(got[0], "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert!(a.repo.str(nl, "text").ends_with(": Order"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn sequence_fragments_invariants_and_interaction_uses() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 40.0, 100.0, 300.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // a combined fragment with one operand, then a second operand
+    let cf = a.change(|a| a.create_node("UMLCombinedFragment", rect(20.0, 120.0, 300.0, 150.0))).unwrap();
+    let cm = a.repo.refd(cf, "model").unwrap();
+    assert_eq!((a.repo.str(cm, "interactionOperator").as_str(), a.repo.list(cm, "operands").len()), ("seq", 1));
+    assert_eq!(a.repo.name(a.repo.list(cm, "operands")[0]), "Operand1");
+    let o2 = a.change(|a| a.add_feature(cm, "UMLInteractionOperand")).unwrap();
+    assert_eq!(a.repo.name(o2), "Operand2");
+    a.repo.set(o2, "guard", json!("else"));
+    a.repo.set(cm, "interactionOperator", json!("alt"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let oc = a.repo.refd(cf, "operandCompartment").unwrap();
+    let ovs = a.repo.list(oc, "subViews");
+    assert_eq!(ovs.len(), 2);
+    let (b1, b2) = (crate::views::node_rect(&a.repo, ovs[0]), crate::views::node_rect(&a.repo, ovs[1]));
+    assert_eq!(b1.y + b1.h, b2.y, "operands are stacked");
+    assert_eq!(b2.y + b2.h, 120.0 + 150.0, "the last one reaches the bottom");
+    assert_eq!(a.repo.str(a.repo.refd(ovs[1], "guardLabel").unwrap(), "text"), "[else]");
+    assert_eq!(a.repo.str(a.repo.refd(cf, "frameTypeLabel").unwrap(), "text"), "alt");
+    // a state invariant on the lifeline, centred on its line
+    let sv = a.change(|a| a.create_node("UMLStateInvariant", rect(100.0, 300.0, 50.0, 20.0))).unwrap();
+    let sm = a.repo.refd(sv, "model").unwrap();
+    assert_eq!(a.repo.refd(sm, "covered"), a.repo.refd(l1, "model"));
+    assert_eq!(a.repo.parent(sv), Some(l1), "kept in the lifeline view's sub-views");
+    a.repo.set(sm, "invariant", json!("ready"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let lp = a.repo.refd(l1, "linePart").unwrap();
+    let sb = crate::views::node_rect(&a.repo, sv);
+    assert_eq!(sb.x + sb.w / 2.0, a.repo.f(lp, "left"));
+    // a continuation and an interaction use referring to another interaction
+    let cv = a.change(|a| a.create_node("UMLContinuation", rect(400.0, 120.0, 10.0, 10.0))).unwrap();
+    assert_eq!(a.repo.name(a.repo.refd(cv, "model").unwrap()), "Continuation1");
+    let iu = a.change(|a| a.create_node("UMLInteractionUse", rect(400.0, 200.0, 160.0, 30.0))).unwrap();
+    let im = a.repo.refd(iu, "model").unwrap();
+    let other = a.repo.create("UMLInteraction", &[("name", json!("Login"))], Some((a.repo.parent(inter).unwrap(), "ownedElements")));
+    a.repo.set_ref(im, "refersTo", Some(other));
+    a.repo.set(im, "arguments", json!("user"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(iu, "nameLabel").unwrap(), "text"), "Login(user)");
+    assert_eq!(a.repo.list(inter, "fragments").len(), 4);
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("{ready}") && svg.contains("[else]") && svg.contains(">ref<"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn lifeline_and_message_quick_edits() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    use crate::sequence::SeqAdd;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 40.0, 100.0, 300.0))).unwrap();
+    let m1 = a.repo.refd(l1, "model").unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // Add Message with Lifeline: a new lifeline 20 px right, a message 20 px down its line
+    a.item_key(l1, EditKind::Name(m1), ItemKey::Seq(SeqAdd::MessageLifeline));
+    let lifelines: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| a.repo.ty(*v) == "UMLSeqLifelineView").collect();
+    assert_eq!(lifelines.len(), 2);
+    assert_eq!(a.repo.f(lifelines[1], "left"), 50.0 + 100.0 + 20.0);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let msgs: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| a.repo.ty(*v) == "UMLSeqMessageView").collect();
+    assert_eq!(msgs.len(), 1);
+    let y1 = crate::views::points_of(&a.repo, msgs[0])[0].y;
+    // Self, Found, Lost and To Gate stack 35 px apart
+    for w in [SeqAdd::SelfMessage, SeqAdd::FoundMessage, SeqAdd::LostMessage, SeqAdd::ToGate] {
+        a.item_key(l1, EditKind::Name(m1), ItemKey::Seq(w));
+        a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    }
+    let msgs: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| a.repo.ty(*v) == "UMLSeqMessageView").collect();
+    assert_eq!(msgs.len(), 5);
+    assert_eq!(crate::views::points_of(&a.repo, msgs[4])[0].y, y1 + 4.0 * 35.0);
+    assert!(a.repo.list(inter, "participants").iter().any(|p| a.repo.ty(*p) == "UMLGate"));
+    // Add Reply Message: back from the head to the tail, 20 px under
+    let mm = a.repo.refd(msgs[0], "model").unwrap();
+    a.item_key(msgs[0], EditKind::Name(mm), ItemKey::ReplyMessage);
+    let reply = a.repo.list(inter, "messages").into_iter().find(|m| a.repo.str(*m, "messageSort") == "reply").unwrap();
+    assert_eq!(a.repo.refd(reply, "target"), Some(m1));
+    // Create Type for the lifeline, then Create Operation for the message to it
+    let role = a.repo.refd(m1, "represent").unwrap();
+    a.apply_input(crate::input::InputAction::CreateLifelineType(role), "Shop".into());
+    let shop = a.repo.refd(role, "type").unwrap();
+    assert_eq!(a.repo.parent(shop), a.repo.parent(a.repo.parent(role).unwrap()), "in the collaboration's owner");
+    a.apply_input(crate::input::InputAction::CreateMessageOperation(reply), "done".into());
+    let op = a.repo.refd(reply, "signature").unwrap();
+    assert_eq!((a.repo.ty(op), a.repo.parent(op)), ("UMLOperation", Some(shop)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn wireframes_hold_frames_widgets_and_tab_lists() {
+    use crate::views::Measure;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "WFWireframeDiagram"));
+    let wf = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(wf), a.repo.name(wf).as_str(), a.repo.name(d).as_str()), ("WFWireframe", "Wireframe1", "WFWireframeDiagram1"));
+    // a frame takes its smallest size on a click; a button drawn in it goes in it
+    let f = a.change(|a| a.create_node("WFMobileFrame", rect(0.0, 0.0, 1.0, 1.0))).unwrap();
+    a.repo.set(f, "width", json!(300));
+    a.repo.set(f, "height", json!(500));
+    let fm = a.repo.refd(f, "model").unwrap();
+    assert_eq!(a.repo.name(fm), "MobileFrame1");
+    let b = a.change(|a| a.create_node("WFButton", rect(20.0, 20.0, 1.0, 1.0))).unwrap();
+    let bm = a.repo.refd(b, "model").unwrap();
+    assert_eq!((a.repo.name(bm).as_str(), a.repo.parent(bm)), ("Button1", Some(fm)));
+    assert_eq!(a.repo.refd(b, "containerView"), Some(f));
+    // a frame never goes in a frame
+    let f2 = a.change(|a| a.create_node("WFFrame", rect(40.0, 40.0, 1.0, 1.0))).unwrap();
+    assert_eq!(a.repo.refd(f2, "containerView"), None);
+    let f2m = a.repo.refd(f2, "model").unwrap();
+    a.change(|a| a.delete_models(&[f2m]));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let lh = ms.size();
+    let name_w = crate::views::widest_word(&ms, "Button1", 0).ceil();
+    assert_eq!((a.repo.f(b, "width"), a.repo.f(b, "height")), (name_w + 16.0, lh + 12.0), "the name with 8 / 6 padding");
+    assert_eq!((a.repo.f(f, "width"), a.repo.f(f, "height")), (300.0, 500.0));
+    // a switch is always 26 × 16; a slider 12 high; an avatar round
+    let sw = a.change(|a| a.create_node("WFSwitch", rect(20.0, 100.0, 80.0, 80.0))).unwrap();
+    let av = a.change(|a| a.create_node("WFAvatar", rect(20.0, 200.0, 60.0, 40.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(sw, "width"), a.repo.f(sw, "height")), (26.0, 16.0));
+    assert_eq!((a.repo.f(av, "width"), a.repo.f(av, "height")), (40.0, 40.0));
+    // a tab list lines up its tabs; Add Tab puts a new one after the others, taking the list's position
+    let tl = a.change(|a| a.create_node("WFTabList", rect(20.0, 300.0, 1.0, 1.0))).unwrap();
+    let tlm = a.repo.refd(tl, "model").unwrap();
+    assert_eq!(a.repo.parent(tlm), Some(fm));
+    let t1 = a.change(|a| a.add_tab(tl)).unwrap();
+    let t2 = a.change(|a| a.add_tab(tl)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let t2m = a.repo.refd(t2, "model").unwrap();
+    assert_eq!((a.repo.name(t2m).as_str(), a.repo.parent(t2m)), ("Tab2", Some(tlm)));
+    assert_eq!(a.repo.f(t1, "left"), 20.0);
+    assert_eq!(a.repo.f(t2, "left"), 20.0 + a.repo.f(t1, "width"));
+    assert_eq!(a.repo.f(t2, "top"), 300.0);
+    assert_eq!(a.repo.f(tl, "width"), a.repo.f(t1, "width") + a.repo.f(t2, "width"));
+    a.repo.set(tlm, "position", json!("left"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(t2m, "position"), "left");
+    assert_eq!(a.repo.f(t2, "top"), 300.0 + a.repo.f(t1, "height"));
+    // the quick edits: Add Note on a widget, Add Tab on a tab list
+    assert_eq!(crate::related::actions("WFButton").len(), 1);
+    assert!(crate::canvas::item_buttons(&a.repo, None, &crate::app::EditKind::Name(tlm)).iter().any(|b| b.1 == "Add Tab"));
+    // the template: a wireframe with a phone frame, without the UML profile
+    let t = crate::templates::TEMPLATES.iter().find(|t| t.label == "Wireframe Model").unwrap();
+    let pr = crate::templates::project(t);
+    assert_eq!(pr.children(pr.root).len(), 1);
+    let w = pr.children(pr.root)[0].1;
+    assert_eq!(pr.ty(w), "WFWireframe");
+    let names: Vec<String> = pr.children(w).into_iter().map(|(_, c)| pr.name(c)).collect();
+    assert_eq!(names, ["Wireframe Diagram", "MobileFrame1"]);
+    // every view draws
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn communication_diagrams_have_lifelines_connectors_and_messages() {
+    use crate::communication::CommAdd;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLCommunicationDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    let collab = a.repo.parent(inter).unwrap();
+    assert_eq!((a.repo.ty(inter), a.repo.ty(collab), a.repo.name(d).as_str()), ("UMLInteraction", "UMLCollaboration", "CommunicationDiagram1"));
+    assert_eq!(a.repo.ty(a.repo.list(d, "ownedViews")[0]), "UMLFrameView");
+    // lifelines are boxes at least 100 × 30
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 100.0, 1.0, 1.0))).unwrap();
+    let l2 = a.change(|a| a.create_node("UMLLifeline", rect(350.0, 100.0, 1.0, 1.0))).unwrap();
+    assert_eq!(a.repo.ty(l1), "UMLCommLifelineView");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(l1, "width"), a.repo.f(l1, "height")), (100.0, 30.0));
+    let (m1, m2) = (a.repo.refd(l1, "model").unwrap(), a.repo.refd(l2, "model").unwrap());
+    let (r1, r2) = (a.repo.refd(m1, "represent").unwrap(), a.repo.refd(m2, "represent").unwrap());
+    // a forward message drawn between two lifelines makes a connector between their roles first
+    let fwd = tool("UMLForwardMessage", AssocInit::Plain);
+    assert!(a.can_connect(&fwd, l1, l2));
+    let mv = a.change(|a| a.create_edge(&fwd, l1, l2)).unwrap();
+    assert_eq!(a.repo.ty(mv), "UMLCommMessageView");
+    let cv = a.repo.refd(mv, "hostEdge").unwrap();
+    let cm = a.repo.refd(cv, "model").unwrap();
+    assert_eq!((a.repo.ty(cm), a.repo.parent(cm)), ("UMLConnector", Some(r1)));
+    let e2 = a.repo.child(cm, "end2").unwrap();
+    assert_eq!(a.repo.refd(e2, "reference"), Some(r2));
+    let msg = a.repo.refd(mv, "model").unwrap();
+    assert_eq!((a.repo.refd(msg, "source"), a.repo.refd(msg, "target"), a.repo.refd(msg, "connector")), (Some(m1), Some(m2), Some(cm)));
+    // a reverse message dropped on the connector goes the other way
+    let rev = tool("UMLReverseMessage", AssocInit::Plain);
+    assert!(a.can_connect(&rev, a.diagram.unwrap(), cv));
+    let rv = a.change(|a| a.create_edge(&rev, d, cv)).unwrap();
+    let rmsg = a.repo.refd(rv, "model").unwrap();
+    assert_eq!((a.repo.refd(rmsg, "source"), a.repo.refd(rmsg, "target")), (Some(m2), Some(m1)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // the arrow is 40 long along the horizontal connector, 10 px above its middle, numbered
+    assert_eq!((a.repo.f(mv, "width"), a.repo.f(mv, "height")), (40.0, 0.0));
+    let pts = crate::views::points_of(&a.repo, cv);
+    let midx = ((pts[0].x + pts[1].x) / 2.0).floor();
+    assert!((a.repo.f(mv, "left") + 20.0 - midx).abs() <= 1.0, "{} vs {midx}", a.repo.f(mv, "left"));
+    assert_eq!(a.repo.f(mv, "top"), pts[0].y - 10.0);
+    let nl = a.repo.refd(mv, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "1 : Message1");
+    assert_eq!(a.repo.str(a.repo.refd(rv, "nameLabel").unwrap(), "text"), "2 : Message2");
+    // the lifeline's quick edit: a connected lifeline to the right, a self connector, a forward message to a lifeline below
+    let labels: Vec<&str> = crate::canvas::item_buttons(&a.repo, Some(l1), &crate::app::EditKind::Name(m1)).into_iter().map(|b| b.1).collect();
+    assert!(labels.contains(&"Add Connected Lifeline") && labels.contains(&"Add Reverse Message"));
+    a.diagram = Some(d);
+    let n = a.add_comm(l1, CommAdd::ConnectedLifeline).unwrap();
+    assert_eq!(a.repo.f(n, "left"), 350.0 + 100.0 + 70.0, "past the lifeline already joined on the right");
+    let s = a.add_comm(l1, CommAdd::SelfConnector).unwrap();
+    assert_eq!((a.repo.refd(s, "tail"), a.repo.refd(s, "head")), (Some(l1), Some(l1)));
+    let fm = a.add_comm(l1, CommAdd::ForwardMessage).unwrap();
+    let below = a.repo.refd(a.repo.refd(fm, "hostEdge").unwrap(), "head").unwrap();
+    assert_eq!(a.repo.f(below, "top"), 100.0 + 30.0 + 70.0);
+    // a reply goes on the same connector, back
+    let rp = a.add_reply(mv).unwrap();
+    let rpm = a.repo.refd(rp, "model").unwrap();
+    assert_eq!((a.repo.str(rpm, "messageSort").as_str(), a.repo.refd(rpm, "source")), ("reply", Some(m2)));
+    // reconnecting the connector's head to another lifeline moves the messages' ends along
+    let l3 = a.change(|a| a.create_node("UMLLifeline", rect(350.0, 400.0, 1.0, 1.0))).unwrap();
+    let m3 = a.repo.refd(l3, "model").unwrap();
+    a.reconnect(cv, false, l3).unwrap();
+    assert_eq!(a.repo.refd(msg, "target"), Some(m3));
+    assert_eq!(a.repo.refd(rmsg, "source"), Some(m3));
+    assert_eq!(a.repo.refd(e2, "reference"), a.repo.refd(m3, "represent"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn sequence_diagrams_take_time_and_duration_constraints() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 100.0, 100.0, 60.0))).unwrap();
+    let l2 = a.change(|a| a.create_node("UMLLifeline", rect(300.0, 100.0, 100.0, 60.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    a.line_from = Some((crate::views::P { x: 100.0, y: 150.0 }, crate::views::P { x: 350.0, y: 150.0 }));
+    let e = a.change(|a| a.create_edge(&tool("UMLMessage", AssocInit::Plain), l1, l2)).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // a time constraint clicked on the message belongs to it, its label 20 px under the point, linked to it
+    assert!(a.change(|a| a.create_node("UMLTimeConstraint", rect(200.0, 300.0, 1.0, 1.0))).is_none(), "only on a message");
+    let tv = a.change(|a| a.create_node("UMLTimeConstraint", rect(200.0, 150.0, 1.0, 1.0))).unwrap();
+    let tm = a.repo.refd(tv, "model").unwrap();
+    let em = a.repo.refd(e, "model").unwrap();
+    assert_eq!((a.repo.ty(tm), a.repo.name(tm).as_str(), a.repo.parent(tm)), ("UMLTimeConstraint", "Time Constraint1", Some(em)));
+    assert_eq!(a.repo.f(tv, "top"), 170.0);
+    let link = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "UMLTimeConstraintLinkView").unwrap();
+    assert_eq!((a.repo.refd(link, "tail"), a.repo.refd(link, "head")), (Some(e), Some(tv)));
+    a.repo.set(tm, "min", json!("0"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(tv, "text"), "{0..max}");
+    let pts = crate::views::points_of(&a.repo, link);
+    assert_eq!(pts[0].y, 150.0, "the link starts on the message");
+    // a duration constraint belongs to the interaction: 14 wide, stretching down
+    let dv = a.change(|a| a.create_node("UMLDurationConstraint", rect(420.0, 140.0, 60.0, 80.0))).unwrap();
+    let dm = a.repo.refd(dv, "model").unwrap();
+    assert_eq!((a.repo.name(dm).as_str(), a.repo.parent(dm)), ("Duration Constraint1", Some(inter)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(dv, "width"), a.repo.f(dv, "height")), (14.0, 80.0));
+    let nl = a.repo.refd(dv, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "{min..max}");
+    let (lcx, lcy) = (a.repo.f(nl, "left") + a.repo.f(nl, "width") / 2.0, a.repo.f(nl, "top") + a.repo.f(nl, "height") / 2.0);
+    assert_eq!((lcx, lcy), (427.0 - 15.0, 180.0 - 15.0), "centred 20 px up and left of the middle");
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn interaction_overview_diagrams_call_interactions() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLInteractionOverviewDiagram"));
+    let act = a.repo.parent(d).unwrap();
+    let inter = a.repo.parent(act).unwrap();
+    let collab = a.repo.parent(inter).unwrap();
+    assert_eq!((a.repo.ty(act), a.repo.ty(inter), a.repo.ty(collab)), ("UMLActivity", "UMLInteraction", "UMLCollaboration"));
+    assert_eq!(a.repo.name(d), "InteractionOverviewDiagram1");
+    // an interaction use calls a new interaction next to the diagram's
+    let u = a.change(|a| a.create_node("UMLInteractionUseInOverview", rect(50.0, 80.0, 160.0, 60.0))).unwrap();
+    let um = a.repo.refd(u, "model").unwrap();
+    assert_eq!((a.repo.ty(um), a.repo.str(um, "kind").as_str(), a.repo.parent(um)), ("UMLAction", "callBehavior", Some(act)));
+    let iu = a.repo.refd(um, "target").unwrap();
+    assert_eq!((a.repo.ty(iu), a.repo.parent(iu)), ("UMLInteractionUse", Some(inter)));
+    let called = a.repo.refd(iu, "refersTo").unwrap();
+    assert_eq!((a.repo.name(called).as_str(), a.repo.parent(called)), ("Interaction2", Some(collab)));
+    // an inline interaction draws a new sequence diagram of a new interaction
+    let f = a.change(|a| a.create_node("UMLInteractionInOverview", rect(300.0, 80.0, 300.0, 250.0))).unwrap();
+    assert_eq!(a.repo.ty(f), "UMLInteractionInlineView");
+    let fm = a.repo.refd(f, "model").unwrap();
+    let sd = a.repo.refd(fm, "target").unwrap();
+    assert_eq!((a.repo.ty(sd), a.repo.name(fm).as_str()), ("UMLSequenceDiagram", "Actions1"));
+    // control nodes and flows join them
+    let ini = a.change(|a| a.create_node("UMLInitialNode", rect(100.0, 20.0, 1.0, 1.0))).unwrap();
+    let cf = tool("UMLControlFlow", AssocInit::Plain);
+    assert!(a.can_connect(&cf, ini, u));
+    let e = a.change(|a| a.create_edge(&cf, ini, u)).unwrap();
+    assert_eq!(a.repo.parent(a.repo.refd(e, "model").unwrap()), Some(act));
+    // the called sequence diagram gets a lifeline, shown small inside the frame
+    a.diagram = Some(sd);
+    a.change(|a| a.create_node("UMLLifeline", rect(20.0, 40.0, 100.0, 200.0))).unwrap();
+    a.diagram = Some(d);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let lv = a.repo.list(sd, "ownedViews")[0];
+    assert!(a.info.contains_key(&lv), "the inline diagram is laid out with it");
+    assert_eq!(a.repo.str(a.repo.refd(f, "frameTypeLabel").unwrap(), "text"), "sd");
+    let u_text = a.repo.str(a.repo.refd(u, "nameLabel").unwrap(), "text");
+    assert_eq!(u_text, "Interaction2");
+    // dropping an interaction makes an interaction use calling it
+    let v = a.drop_model(called, crate::views::P { x: 50.0, y: 300.0 }).unwrap();
+    assert_eq!(a.repo.ty(v[0]), "UMLInteractionUseView");
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn timing_diagrams_have_lifelines_states_segments_and_messages() {
+    use crate::views::Measure;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLTimingDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(inter), a.repo.name(d).as_str()), ("UMLInteraction", "TimingDiagram1"));
+    let f = a.repo.list(d, "ownedViews")[0];
+    assert_eq!((a.repo.ty(f), a.repo.f(f, "left"), a.repo.f(f, "width")), ("UMLTimingFrameView", 5.0, 695.0));
+    // a lifeline only goes in a frame; it spans the frame
+    assert!(a.change(|a| a.create_node("UMLLifeline", rect(800.0, 800.0, 1.0, 1.0))).is_none());
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 60.0, 1.0, 1.0))).unwrap();
+    let l2 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 400.0, 1.0, 1.0))).unwrap();
+    assert_eq!((a.repo.ty(l1), a.repo.refd(l1, "containerView")), ("UMLTimingLifelineView", Some(f)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // states in a lifeline, by the tool or Create State/Condition
+    let s1 = a.change(|a| a.create_node("UMLTimingState", rect(100.0, a.repo.f(l1, "top") + 10.0, 1.0, 1.0))).unwrap();
+    a.diagram = Some(d);
+    let s2 = a.add_timing(l1).unwrap();
+    let s1m = a.repo.refd(s1, "model").unwrap();
+    let l1m = a.repo.refd(l1, "model").unwrap();
+    assert_eq!((a.repo.ty(s1m), a.repo.name(s1m).as_str(), a.repo.parent(s1m)), ("UMLConstraint", "State-Condition1", Some(l1m)));
+    assert_eq!(a.repo.name(a.repo.refd(s2, "model").unwrap()), "State-Condition2");
+    a.repo.set(s1m, "name", json!("Waiting a long while"));
+    let s3 = a.add_timing(l2).unwrap();
+    // time segments on the states: state invariants of the interaction
+    let g1 = a.change(|a| a.time_segment(d, s1, rect(400.0, 0.0, 40.0, 1.0))).unwrap();
+    let g2 = a.add_timing(s2).unwrap();
+    let g3 = a.add_timing(s3).unwrap();
+    let g1m = a.repo.refd(g1, "model").unwrap();
+    assert_eq!((a.repo.ty(g1m), a.repo.parent(g1m), a.repo.refd(g1m, "covered"), a.repo.refd(g1m, "invariant")), ("UMLStateInvariant", Some(inter), Some(l1m), Some(s1m)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // lifelines stack down the frame, states 25 px into them, segments from the end of the longest state name
+    assert_eq!((a.repo.f(l1, "left"), a.repo.f(l1, "width")), (5.0, 695.0));
+    assert_eq!(a.repo.f(l2, "top"), a.repo.f(l1, "top") + a.repo.f(l1, "height"));
+    assert_eq!(a.repo.f(s1, "top"), a.repo.f(l1, "top") + 25.0);
+    let start = a.repo.f(s1, "left") + ms.width("Waiting a long while", 0).ceil() + 5.0;
+    let starts: Vec<f64> = [g1, g2, g3].iter().map(|g| a.repo.f(*g, "left")).collect();
+    assert_eq!(starts[0].min(starts[1]), start, "the first segment starts after the names");
+    assert_eq!(starts[2], start);
+    assert_eq!(a.repo.f(g1, "height"), 25.0);
+    // a message between two segments, its ends at their middles
+    let msg = tool("UMLMessage", AssocInit::Plain);
+    assert!(a.can_connect(&msg, g1, g3));
+    let gx = a.repo.f(g1, "left") + 5.0;
+    a.line_from = Some((crate::views::P { x: gx, y: 0.0 }, crate::views::P { x: gx + 3.0, y: 0.0 }));
+    let e = a.change(|a| a.create_edge(&msg, g1, g3)).unwrap();
+    let em = a.repo.refd(e, "model").unwrap();
+    assert_eq!((a.repo.refd(em, "source"), a.repo.refd(em, "target")), (Some(l1m), a.repo.refd(l2, "model")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let pts = crate::views::points_of(&a.repo, e);
+    assert_eq!(pts[0].y, (a.repo.f(g1, "top") + 12.5).round());
+    assert_eq!(pts[0].x, a.repo.f(g1, "left"), "snapped to the segment's start");
+    // time ticks along the bottom of the frame, from the start
+    let t1 = a.change(|a| a.create_node("UMLTimeTick", rect(300.0, 590.0, 1.0, 1.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(t1, "left"), a.repo.f(t1, "top")), (start, 5.0 + 595.0 - 5.0));
+    // a time constraint on a segment, and a duration constraint lying across in the frame
+    let tc = a.change(|a| a.create_node("UMLTimeConstraint", rect(a.repo.f(g1, "left") + 2.0, a.repo.f(g1, "top") + 5.0, 1.0, 1.0))).unwrap();
+    assert_eq!(a.repo.parent(a.repo.refd(tc, "model").unwrap()), Some(g1m));
+    let dc = a.change(|a| a.create_node("UMLDurationConstraint", rect(300.0, 300.0, 80.0, 30.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(dc, "width"), a.repo.f(dc, "height"), a.repo.refd(dc, "containerView")), (80.0, 14.0, Some(f)));
+    // the quick edits
+    let labels: Vec<&str> = crate::canvas::item_buttons(&a.repo, Some(l1), &crate::app::EditKind::Name(l1m)).into_iter().map(|b| b.1).collect();
+    assert!(labels.contains(&"Create State/Condition"));
+    let labels: Vec<&str> = crate::canvas::item_buttons(&a.repo, Some(s1), &crate::app::EditKind::Name(s1m)).into_iter().map(|b| b.1).collect();
+    assert_eq!(labels, ["Create Time Segment"]);
+    // moving a segment onto another state changes what it covers
+    a.change(|a| a.set_container(&[g1], Some(s3)));
+    assert_eq!(a.repo.refd(g1m, "invariant"), a.repo.refd(s3, "model"));
+    assert_eq!(a.repo.refd(g1m, "covered"), a.repo.refd(l2, "model"));
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn views_move_and_resize_only_the_ways_they_may() {
+    use crate::views::{handle_shown, sizable, Sizable};
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let l = a.change(|a| a.create_node("UMLLifeline", rect(100.0, 100.0, 100.0, 200.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // a lifeline only moves across (MM_HORZ)
+    a.select(vec![l]);
+    let (x, y) = (a.repo.f(l, "left") + 50.0, a.repo.f(l, "top") + 20.0);
+    a.on_press(canvas, Pos2::new(x as f32, y as f32), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(x as f32 + 40.0, y as f32 + 40.0));
+    a.on_release(canvas.min, Pos2::new(x as f32 + 40.0, y as f32 + 40.0));
+    assert!(a.repo.f(l, "left") > 130.0, "moved across");
+    assert_eq!(a.repo.f(l, "top"), 40.0, "not down");
+    // and so with the arrow keys
+    a.select(vec![l]);
+    a.nudge_selection(0.0, 10.0);
+    assert_eq!(a.repo.f(l, "top"), 40.0);
+    // a duration constraint stretches only down on a sequence diagram: no side or corner handles
+    let dc = a.change(|a| a.create_node("UMLDurationConstraint", rect(400.0, 100.0, 14.0, 60.0))).unwrap();
+    assert_eq!(sizable(&a.repo, dc), Sizable::Vert);
+    assert!(handle_shown(Sizable::Vert, 5) && !handle_shown(Sizable::Vert, 4) && !handle_shown(Sizable::Vert, 3));
+    a.select(vec![dc]);
+    let b = crate::views::node_rect(&a.repo, dc);
+    let corner = Pos2::new((b.x + b.w + 4.0) as f32, (b.y + b.h + 4.0) as f32);
+    a.on_press(canvas, corner, Modifiers::NONE);
+    assert!(!matches!(a.drag, Some(crate::app::Drag::Resize { .. })), "no corner handle");
+    a.on_release(canvas.min, corner);
+    // a switch has no handles at all
+    let wd = a.change(|a| a.add_diagram(Some(root), "WFWireframeDiagram"));
+    a.diagram = Some(wd);
+    let sw = a.change(|a| a.create_node("WFSwitch", rect(50.0, 50.0, 1.0, 1.0))).unwrap();
+    assert_eq!(sizable(&a.repo, sw), Sizable::None);
 }

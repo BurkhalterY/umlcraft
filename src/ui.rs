@@ -172,6 +172,218 @@ const USECASE_GROUPS: &[Group] = &[
     ANNOTATIONS,
 ];
 const OTHER_GROUPS: &[Group] = &[ANNOTATIONS];
+// a data flow diagram (dfd/toolbox/dfd.json) and a mind map (mindmap/toolbox/mindmap.json)
+const DFD_GROUPS: &[Group] = &[
+    Group {
+        id: "dfd",
+        label: "Data Flow",
+        items: &[
+            node("External Entity", "DFDExternalEntity", "DFDExternalEntity"),
+            node("Process", "DFDProcess", "DFDProcess"),
+            node("Data Store", "DFDDataStore", "DFDDataStore"),
+            line("Data Flow", "DFDDataFlow", "DFDDataFlow", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
+const MINDMAP_GROUPS: &[Group] = &[
+    Group { id: "mindmap", label: "Mindmap", items: &[node("Node", "MMNode", "MMNode"), line("Edge", "MMEdge", "MMEdge", AssocInit::Plain)] },
+    ANNOTATIONS,
+];
+// a sequence diagram (uml.json "uml.sequence", "uml.sequence-adv"): the tools UMLCraft has
+const SEQUENCE_GROUPS: &[Group] = &[
+    Group {
+        id: "sequence",
+        label: "Interactions (Basic)",
+        items: &[
+            node("Lifeline", "UMLLifeline", "lifeline"),
+            line("Message", "UMLMessage", "message", AssocInit::Plain),
+            line("Self Message", "UMLSelfMessage", "self-message", AssocInit::Plain),
+            line("Async Message", "UMLAsyncMessage", "async-message", AssocInit::Plain),
+            line("Reply Message", "UMLReplyMessage", "reply-message", AssocInit::Plain),
+            line("Create Message", "UMLCreateMessage", "reply-message", AssocInit::Plain),
+            line("Delete Message", "UMLDeleteMessage", "message", AssocInit::Plain),
+            line("Async Signal Message", "UMLAsyncSignalMessage", "async-message", AssocInit::Plain),
+        ],
+    },
+    Group {
+        id: "sequence-adv",
+        label: "Interactions (Advanced)",
+        items: &[
+            line("Found Message", "UMLFoundMessage", "found-message", AssocInit::Plain),
+            line("Lost Message", "UMLLostMessage", "lost-message", AssocInit::Plain),
+            node("Endpoint", "UMLEndpoint", "endpoint"),
+            node("Gate", "UMLGate", "gate"),
+            node("State Invariant", "UMLStateInvariant", "state"),
+            node("Continuation", "UMLContinuation", "state"),
+            node("Combined Fragment", "UMLCombinedFragment", "frame"),
+            node("Interaction Use", "UMLInteractionUse", "frame"),
+            node("Time Constraint", "UMLTimeConstraint", "time-constraint"),
+            node("Duration Constraint", "UMLDurationConstraint", "duration-constraint"),
+            node("Frame", "Frame", "frame"),
+        ],
+    },
+    ANNOTATIONS,
+];
+// a wireframe diagram (wireframe/toolbox/wireframe.json)
+const WIREFRAME_GROUPS: &[Group] = &[
+    Group {
+        id: "wireframe.frames",
+        label: "Wireframe Frames",
+        items: &[
+            node("Frame", "WFFrame", "WFFrame"),
+            node("Frame (Mobile)", "WFMobileFrame", "WFMobileFrame"),
+            node("Frame (Web)", "WFWebFrame", "WFWebFrame"),
+            node("Frame (Desktop)", "WFDesktopFrame", "WFDesktopFrame"),
+        ],
+    },
+    Group {
+        id: "wireframe.components",
+        label: "Wireframe Components",
+        items: &[
+            node("Button", "WFButton", "WFButton"),
+            node("Text", "WFText", "WFText"),
+            node("Radio", "WFRadio", "WFRadio"),
+            node("Checkbox", "WFCheckbox", "WFCheckbox"),
+            node("Switch", "WFSwitch", "WFSwitch"),
+            node("Link", "WFLink", "WFLink"),
+            node("Tab List", "WFTabList", "WFTabList"),
+            node("Tab", "WFTab", "WFTab"),
+            node("Input", "WFInput", "WFInput"),
+            node("Dropdown", "WFDropdown", "WFDropdown"),
+            node("Panel", "WFPanel", "WFPanel"),
+            node("Image", "WFImage", "WFImage"),
+            node("Separator", "WFSeparator", "WFSeparator"),
+            node("Avatar", "WFAvatar", "WFAvatar"),
+            node("Slider", "WFSlider", "WFSlider"),
+        ],
+    },
+    ANNOTATIONS,
+];
+// a communication diagram (uml.json "uml.communication")
+const COMMUNICATION_GROUPS: &[Group] = &[
+    Group {
+        id: "communication",
+        label: "Communication",
+        items: &[
+            node("Lifeline", "UMLLifeline", "object"),
+            line("Connector", "UMLConnector", "association", AssocInit::Plain),
+            line("Self Connector", "UMLSelfConnector", "self-connector", AssocInit::Plain),
+            line("Forward Message", "UMLForwardMessage", "forward-message", AssocInit::Plain),
+            line("Reverse Message", "UMLReverseMessage", "reverse-message", AssocInit::Plain),
+            node("Frame", "Frame", "frame"),
+        ],
+    },
+    ANNOTATIONS,
+];
+// a timing diagram (uml.json "uml.timing")
+const TIMING_GROUPS: &[Group] = &[
+    Group {
+        id: "timing",
+        label: "Timing",
+        items: &[
+            node("Lifeline", "UMLLifeline", "timing-lifeline"),
+            node("State/Condition", "UMLTimingState", "state-condition"),
+            node("Time Segment", "UMLTimeSegment", "time-segment"),
+            node("Time Tick", "UMLTimeTick", "time-tick"),
+            node("Time Constraint", "UMLTimeConstraint", "time-constraint"),
+            node("Duration Constraint", "UMLDurationConstraint", "duration-constraint"),
+            line("Message", "UMLMessage", "message", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
+// an interaction overview diagram (uml.json "uml.interaction-overview")
+const OVERVIEW_GROUPS: &[Group] = &[
+    Group {
+        id: "interaction-overview",
+        label: "Interaction Overview",
+        items: &[
+            node("Interaction Use", "UMLInteractionUseInOverview", "frame"),
+            node("Interaction (Inline)", "UMLInteractionInOverview", "frame"),
+            node("Initial", "UMLInitialNode", "initial"),
+            node("Final", "UMLActivityFinalNode", "final"),
+            node("Fork", "UMLForkNode", "fork"),
+            node("Join", "UMLJoinNode", "fork"),
+            node("Merge", "UMLMergeNode", "choice"),
+            node("Decision", "UMLDecisionNode", "choice"),
+            line("Control Flow", "UMLControlFlow", "dependency", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
+// a C4 diagram (c4/toolbox/c4.json)
+const C4_GROUPS: &[Group] = &[
+    Group {
+        id: "c4",
+        label: "C4 Model",
+        items: &[
+            node("Person", "C4Person", "C4Person"),
+            node("Software System", "C4SoftwareSystem", "C4SoftwareSystem"),
+            node("Container", "C4Container", "C4Container"),
+            node("Container (Database)", "C4ContainerDatabase", "C4ContainerDatabase"),
+            node("Container (Web App)", "C4ContainerWebApp", "C4Container"),
+            node("Container (Desktop App)", "C4ContainerDesktopApp", "C4Container"),
+            node("Container (Mobile App)", "C4ContainerMobileApp", "C4Container"),
+            node("Component", "C4Component", "C4Component"),
+            node("Element", "C4Element", "C4Element"),
+            line("Relationship", "C4Relationship", "C4Relationship", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
+// an ER diagram (erd/toolbox/erd.json)
+const ERD_GROUPS: &[Group] = &[
+    Group {
+        id: "erd",
+        label: "Entity-Relationship",
+        items: &[
+            node("Entity", "ERDEntity", "ERDEntity"),
+            line("One to One Relationship", "ERDRelationship", "ERDRelationship", AssocInit::Plain),
+            line("One to Many Relationship", "ERDRelationshipOneToMany", "ERDRelationshipOneToMany", AssocInit::Plain),
+            line("Many to Many Relationship", "ERDRelationshipManyToMany", "ERDRelationshipManyToMany", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
+// a flowchart diagram (flowchart/toolbox/flowchart.json)
+const FLOWCHART_GROUPS: &[Group] = &[
+    Group {
+        id: "flowchart",
+        label: "Flowchart",
+        items: &[
+            line("Flow", "FCFlow", "FCFlow", AssocInit::Plain),
+            node("Process", "FCProcess", "FCProcess"),
+            node("Terminator", "FCTerminator", "FCTerminator"),
+            node("Decision", "FCDecision", "FCDecision"),
+            node("Delay", "FCDelay", "FCDelay"),
+            node("Predefined Process", "FCPredefinedProcess", "FCPredefinedProcess"),
+            node("Alternate Process", "FCAlternateProcess", "FCAlternateProcess"),
+            node("Data", "FCData", "FCData"),
+            node("Document", "FCDocument", "FCDocument"),
+            node("Multi-Document", "FCMultiDocument", "FCMultiDocument"),
+            node("Preparation", "FCPreparation", "FCPreparation"),
+            node("Display", "FCDisplay", "FCDisplay"),
+            node("Manual Input", "FCManualInput", "FCManualInput"),
+            node("Manual Operation", "FCManualOperation", "FCManualOperation"),
+            node("Card", "FCCard", "FCCard"),
+            node("Punched Tape", "FCPunchedTape", "FCPunchedTape"),
+            node("Connector", "FCConnector", "FCConnector"),
+            node("Off-Page Connector", "FCOffPageConnector", "FCOffPageConnector"),
+            node("Or", "FCOr", "FCOr"),
+            node("Summing Junction", "FCSummingJunction", "FCSummingJunction"),
+            node("Collate", "FCCollate", "FCCollate"),
+            node("Sort", "FCSort", "FCSort"),
+            node("Merge", "FCMerge", "FCMerge"),
+            node("Extract", "FCExtract", "FCExtract"),
+            node("Stored Data", "FCStoredData", "FCStoredData"),
+            node("Database", "FCDatabase", "FCDatabase"),
+            node("Direct Access Storage", "FCDirectAccessStorage", "FCDirectAccessStorage"),
+            node("Internal Storage", "FCInternalStorage", "FCInternalStorage"),
+        ],
+    },
+    ANNOTATIONS,
+];
 // component and deployment diagrams share the Component and Deployment groups (uml.json "uml.component",
 // "uml.deployment")
 const COMPONENT_GROUPS: &[Group] = &[
@@ -272,12 +484,13 @@ const STATECHART_GROUPS: &[Group] = &[
             node("Entry Point", "EntryPoint", "final"),
             node("Exit Point", "ExitPoint", "final"),
             node("Terminate", "Terminate", "terminate"),
+            node("Connection Point Reference", "UMLConnectionPointReference", "connection-point"),
             node("Frame", "Frame", "frame"),
         ],
     },
     ANNOTATIONS,
 ];
-// activity diagrams (uml.json "uml.activity", "uml.activity-adv"): the advanced tools UMLCraft has
+// activity diagrams (uml.json "uml.activity", "uml.activity-adv")
 const ACTIVITY_GROUPS: &[Group] = &[
     Group {
         id: "activity",
@@ -299,6 +512,8 @@ const ACTIVITY_GROUPS: &[Group] = &[
         items: &[
             node("Swimlane (Vertical)", "SwimlaneVert", "swimlane-vert"),
             node("Swimlane (Horizontal)", "SwimlaneHorz", "swimlane-horz"),
+            node("Interruptible Activity Region", "UMLInterruptibleActivityRegion", "interruptible"),
+            node("Structured Activity", "UMLStructuredActivityNode", "structured"),
             node("Input Pin", "UMLInputPin", "pin"),
             node("Output Pin", "UMLOutputPin", "pin"),
             node("Send Signal", "SendSignal", "send-signal"),
@@ -308,8 +523,15 @@ const ACTIVITY_GROUPS: &[Group] = &[
             node("Object Node", "UMLObjectNode", "object-node"),
             node("Central Buffer", "UMLCentralBufferNode", "object-node"),
             node("Datastore", "UMLDataStoreNode", "object-node"),
+            node("Activity Parameter Node", "UMLActivityParameterNode", "param-node"),
+            node("Expansion Region", "UMLExpansionRegion", "expansion-region"),
+            node("Input Expansion Node", "UMLInputExpansionNode", "expansion-node"),
+            node("Output Expansion Node", "UMLOutputExpansionNode", "expansion-node"),
             node("Frame", "Frame", "frame"),
             line("Object Flow", "UMLObjectFlow", "dependency", AssocInit::Plain),
+            line("Exception Handler", "UMLExceptionHandler", "interrupt", AssocInit::Plain),
+            line("Activity Interrupt", "UMLActivityInterrupt", "interrupt", AssocInit::Plain),
+            node("Activity Edge Connector", "UMLActivityEdgeConnector", "edge-connector"),
         ],
     },
     ANNOTATIONS,
@@ -320,7 +542,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 11] = [
+const DIAGRAM_KINDS: [(&str, &str); 21] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -332,6 +554,17 @@ const DIAGRAM_KINDS: [(&str, &str); 11] = [
     ("Profile Diagram", "UMLProfileDiagram"),
     ("Statechart Diagram", "UMLStatechartDiagram"),
     ("Activity Diagram", "UMLActivityDiagram"),
+    ("Sequence Diagram", "UMLSequenceDiagram"),
+    ("Communication Diagram", "UMLCommunicationDiagram"),
+    ("Timing Diagram", "UMLTimingDiagram"),
+    ("Interaction Overview Diagram", "UMLInteractionOverviewDiagram"),
+    ("Flowchart Diagram", "FCFlowchartDiagram"),
+    // the original's labels (dfd/menus/dfd.json, mindmap/menus/mindmap.json)
+    ("DataFlowDiagram", "DFDDiagram"),
+    ("MindmapDiagram", "MMMindmapDiagram"),
+    ("ER Diagram", "ERDDiagram"),
+    ("C4 Diagram", "C4Diagram"),
+    ("Wireframe Diagram", "WFWireframeDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -564,6 +797,38 @@ impl App {
                 adds.push((l, k, false));
             }
         }
+        // data flow models in a project or package, and their elements in any DFD element; a mind map
+        // in any element (dfd-commands.js:119-134, mindmap-commands.js:62-74)
+        if t == "Project" || self.repo.kind_of(e, "UMLPackage") {
+            adds.push(("DataFlowModel", "DFDDataFlowModel", false));
+        }
+        // a C4 model in the project, C4 elements in a C4 model or element (c4/menus/c4.json;
+        // c4-commands.js:20-40)
+        if t == "Project" {
+            adds.push(("C4 Model", "C4Model", false));
+        }
+        if self.repo.kind_of(e, "C4Element") {
+            adds.extend([("C4 Person", "C4Person", false), ("C4 Software System", "C4SoftwareSystem", false), ("C4 Container", "C4Container", false), ("C4 Component", "C4Component", false)]);
+        }
+        // ER data models in a project or package, entities in a data model, columns in an entity
+        // (erd/menus/erd.json; erd-commands.js:160-175)
+        if t == "Project" || self.repo.kind_of(e, "UMLPackage") {
+            adds.push(("Data Model", "ERDDataModel", false));
+        }
+        if t == "ERDDataModel" {
+            adds.push(("Entity", "ERDEntity", false));
+        }
+        if t == "ERDEntity" {
+            adds.push(("Column", "ERDColumn", true));
+        }
+        if self.repo.kind_of(e, "DFDElement") {
+            adds.extend([("ExternalEntity", "DFDExternalEntity", false), ("Process", "DFDProcess", false), ("DataStore", "DFDDataStore", false)]);
+        }
+        if self.repo.kind_of(e, "ExtensibleModel") && !self.repo.kind_of(e, "Diagram") {
+            adds.push(("Mindmap", "MMMindmap", false));
+            // and a wireframe (wireframe/menus/wireframe.json, wireframe-commands.js:50-60)
+            adds.push(("Wireframe", "WFWireframe", false));
+        }
         // Model › Add › Constraint on any model element (uml.json)
         if self.repo.kind_of(e, "UMLModelElement") {
             adds.push(("Constraint", "UMLConstraint", false));
@@ -656,9 +921,14 @@ impl App {
         if !adds.is_empty() || self.repo.kind_of(e, "ExtensibleModel") {
             ui.menu_button("Add", |ui| self.add_items(ui, e));
         }
-        if is_pkg || is_classifier {
+        // a flowchart or a mind map can be added under any element, a data flow diagram under a DFD
+        // element too (flowchart-commands.js:136, mindmap-commands.js:62-74, dfd-commands.js:119-134)
+        let other = self.repo.kind_of(e, "ExtensibleModel") && !self.repo.kind_of(e, "Diagram");
+        if is_pkg || is_classifier || other {
+            let dfd = self.repo.kind_of(e, "DFDElement");
             ui.menu_button("Add Diagram", |ui| {
-                for (l, k) in DIAGRAM_KINDS {
+                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram") || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
+                for (l, k) in kinds {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
                         self.expanded.insert(e);
@@ -917,6 +1187,29 @@ impl App {
         if t == "Hyperlink" {
             return vec![("name", "text"), ("reference", "link"), ("url", "text"), ("showName", "bool")];
         }
+        // the other notations' visible attributes (their metamodel.json files)
+        match t {
+            "FCFlow" | "DFDDataFlow" | "MMEdge" => return vec![("name", "text"), ("source", "ref"), ("target", "ref")],
+            "C4Relationship" => return vec![("name", "text"), ("source", "ref"), ("target", "ref"), ("technology", "text"), ("description", "multiline")],
+            "ERDRelationship" => {
+                return vec![("name", "text"), ("identifying", "bool"), ("-", ""), ("end1.name", "text"), ("end1.cardinality", "enum"), ("-", ""), ("end2.name", "text"), ("end2.cardinality", "enum")];
+            }
+            "ERDColumn" => {
+                return vec![
+                    ("name", "text"), ("type", "text"), ("length", "text"), ("primaryKey", "bool"), ("foreignKey", "bool"), ("referenceTo", "ref"), ("nullable", "bool"), ("unique", "bool"),
+                ];
+            }
+            "C4Container" => return vec![("name", "text"), ("technology", "text"), ("description", "multiline"), ("kind", "enum")],
+            _ if r.kind_of(e, "C4Element") => return vec![("name", "text"), ("technology", "text"), ("description", "multiline")],
+            _ if r.kind_of(e, "DFDElement") => return vec![("name", "text"), ("id", "text")],
+            "WFMobileFrame" => return vec![("name", "text"), ("id", "text"), ("orientation", "enum")],
+            "WFRadio" | "WFCheckbox" | "WFSwitch" => return vec![("name", "text"), ("id", "text"), ("checked", "bool")],
+            "WFTab" | "WFTabList" => return vec![("name", "text"), ("id", "text"), ("position", "enum")],
+            "WFSeparator" => return vec![("name", "text"), ("id", "text"), ("isVertical", "bool")],
+            "WFSlider" => return vec![("name", "text"), ("id", "text"), ("value", "int")],
+            _ if r.kind_of(e, "WFElement") => return vec![("name", "text"), ("id", "text")],
+            _ => {}
+        }
         if t == "UMLAssociation" {
             let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isDerived", "bool"), ("-", "")];
             f.extend(end("end1"));
@@ -979,6 +1272,7 @@ impl App {
             "UMLInteractionOperand" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("guard", "text")],
             "UMLEvent" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("value", "text"), ("expression", "text"), ("targetOperation", "ref"), ("targetSignal", "ref")],
             "UMLAction" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("isLocallyReentrant", "bool"), ("isSynchronous", "bool"), ("language", "text")],
+            "UMLTimeConstraint" | "UMLDurationConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist"), ("min", "text"), ("max", "text")],
             "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
             "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
             // a reception names the signal it receives (uml-commands.js:1484)
@@ -1047,6 +1341,13 @@ impl App {
     fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
         match (ty, field) {
             ("UMLTransition", "kind") => return &["external", "internal", "local"],
+            ("ERDRelationshipEnd", "cardinality") => return &["0..1", "1", "0..*", "1..*"],
+            // WFOrientationKind, WFPositionKind (wireframe/metamodel.json)
+            ("WFMobileFrame", "orientation") => return &["portrait", "landscape"],
+            ("WFTab" | "WFTabList", "position") => return &["top", "bottom", "left", "right"],
+            ("C4Container", "kind") => {
+                return &["server-webapp", "client-webapp", "desktop-app", "mobile-app", "console-app", "serverless-function", "database", "blob-store", "filesystem", "shell-script", "etc"]
+            }
             ("UMLEvent", "kind") => return &["signal", "call", "change", "time", "anyReceive"],
             ("UMLAction", "kind") => {
                 return &["opaque", "create", "destroy", "read", "write", "insert", "delete", "sendSignal", "acceptSignal", "triggerEvent", "acceptEvent", "structured", "timeEvent", "callBehavior", "callOperation"]
@@ -1548,6 +1849,17 @@ impl App {
                 Some("UMLCompositeStructureDiagram") => self.open_groups.insert("compositestructure"),
                 Some("UMLStatechartDiagram") => self.open_groups.insert("statechart"),
                 Some("UMLActivityDiagram") => self.open_groups.insert("activity"),
+                Some("FCFlowchartDiagram") => self.open_groups.insert("flowchart"),
+                Some("DFDDiagram") => self.open_groups.insert("dfd"),
+                Some("MMMindmapDiagram") => self.open_groups.insert("mindmap"),
+                Some("ERDDiagram") => self.open_groups.insert("erd"),
+                Some("C4Diagram") => self.open_groups.insert("c4"),
+                // both groups open on a wireframe diagram ("auto-expands")
+                Some("WFWireframeDiagram") => self.open_groups.insert("wireframe.frames") | self.open_groups.insert("wireframe.components"),
+                Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
+                Some("UMLCommunicationDiagram") => self.open_groups.insert("communication"),
+                Some("UMLInteractionOverviewDiagram") => self.open_groups.insert("interaction-overview"),
+                Some("UMLTimingDiagram") => self.open_groups.insert("timing"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1574,6 +1886,16 @@ impl App {
             Some("UMLCompositeStructureDiagram") => COMPOSITE_GROUPS,
             Some("UMLStatechartDiagram") => STATECHART_GROUPS,
             Some("UMLActivityDiagram") => ACTIVITY_GROUPS,
+            Some("FCFlowchartDiagram") => FLOWCHART_GROUPS,
+            Some("DFDDiagram") => DFD_GROUPS,
+            Some("MMMindmapDiagram") => MINDMAP_GROUPS,
+            Some("ERDDiagram") => ERD_GROUPS,
+            Some("C4Diagram") => C4_GROUPS,
+            Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
+            Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
+            Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,
+            Some("UMLInteractionOverviewDiagram") => OVERVIEW_GROUPS,
+            Some("UMLTimingDiagram") => TIMING_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],
@@ -3041,7 +3363,7 @@ pub struct WorkingRow(pub Eid);
 pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 15] = [
+const FORMAT_TOGGLES: [(&str, &str); 16] = [
     ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
     ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
     ("parentStyle", "Inherit Style                     Ctrl+Shift+K"),
@@ -3057,6 +3379,7 @@ const FORMAT_TOGGLES: [(&str, &str); 15] = [
     ("suppressOperations", "Suppress Operations            Ctrl+Shift+O"),
     ("suppressReceptions", "Suppress Receptions            Ctrl+Shift+E"),
     ("suppressLiterals", "Suppress Literals                 Ctrl+Shift+T"),
+    ("suppressColumns", "Suppress Columns               Ctrl+Shift+U"),
 ];
 
 /// The small padlock shown on a locked toolbox item.

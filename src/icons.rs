@@ -46,6 +46,14 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLState" => "state",
         "UMLFinalState" => "final",
         "UMLPseudostate" => "initial",
+        "UMLConnectionPointReference" => "connection-point",
+        "UMLLifeline" => "lifeline",
+        "UMLMessage" => "message",
+        "UMLEndpoint" => "endpoint",
+        "UMLGate" => "gate",
+        "UMLSequenceDiagram" => "diagram",
+        // a flowchart element's icon is its type (the shapes are drawn by key)
+        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") || t.starts_with("WF") => crate::meta::static_name(t),
         "UMLTransition" => "dependency",
         // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
         "UMLAction" => match r.str(e, "kind").as_str() {
@@ -54,7 +62,14 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
             "timeEvent" => "time-event",
             _ => "action",
         },
-        "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLActivityParameterNode" => "object-node",
+        "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" => "object-node",
+        "UMLActivityParameterNode" => "param-node",
+        "UMLStructuredActivityNode" => "structured",
+        "UMLExpansionRegion" => "expansion-region",
+        "UMLInterruptibleActivityRegion" => "interruptible",
+        "UMLActivityEdgeConnector" => "edge-connector",
+        "UMLExpansionNode" => "expansion-node",
+        "UMLExceptionHandler" | "UMLActivityInterrupt" => "interrupt",
         "UMLInitialNode" => "initial",
         "UMLActivityFinalNode" => "final",
         "UMLFlowFinalNode" => "flow-final",
@@ -273,6 +288,382 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             rect_at(1.5, 1.5, 13.0, 13.0, Y);
             line(&[(5.0, 1.5), (5.0, 14.5)], Y);
         }
+        "param-node" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, Y);
+            rect_at(10.0, 5.0, 4.5, 6.0, Y);
+        }
+        "structured" | "interruptible" => {
+            let pts = [(1.5, 3.0), (14.5, 3.0), (14.5, 13.0), (1.5, 13.0), (1.5, 3.0)];
+            dashed(&pts, Y);
+        }
+        "expansion-region" => {
+            dashed(&[(3.0, 3.0), (14.5, 3.0), (14.5, 14.5), (3.0, 14.5), (3.0, 3.0)], Y);
+            rect_at(1.0, 5.0, 4.0, 8.0, Y);
+            line(&[(1.0, 9.0), (5.0, 9.0)], Y);
+        }
+        "expansion-node" => {
+            rect_at(1.5, 5.5, 13.0, 5.0, Y);
+            for x in [4.75, 8.0, 11.25] {
+                line(&[(x, 5.5), (x, 10.5)], Y);
+            }
+        }
+        // sequence diagram tools
+        "lifeline" => {
+            rect_at(3.0, 1.5, 10.0, 4.5, Y);
+            dashed(&[(8.0, 6.0), (8.0, 15.0)], Y);
+        }
+        "message" | "async-message" | "reply-message" => {
+            let l = [(1.5, 8.0), (14.0, 8.0)];
+            if key == "reply-message" { dashed(&l, B) } else { line(&l, B) }
+            if key == "message" {
+                p.add(Shape::convex_polygon(vec![at(14.5, 8.0), at(10.5, 5.5), at(10.5, 10.5)], B, st(B)));
+            } else {
+                line(&[(11.0, 5.5), (14.5, 8.0), (11.0, 10.5)], B);
+            }
+        }
+        "self-message" => {
+            line(&[(4.0, 4.0), (12.0, 4.0), (12.0, 11.0), (4.0, 11.0)], B);
+            line(&[(7.0, 8.5), (4.0, 11.0), (7.0, 13.5)], B);
+        }
+        // communication diagram tools: a connector with a short arrow beside it
+        "timing-lifeline" => {
+            line(&[(1.0, 14.0), (15.0, 14.0)], Y);
+            line(&[(4.0, 3.0), (4.0, 11.0)], Y);
+            line(&[(6.0, 5.0), (10.0, 5.0), (10.0, 10.0), (15.0, 10.0)], B);
+        }
+        "state-condition" => {
+            line(&[(1.0, 5.0), (6.0, 5.0)], Y);
+            line(&[(1.0, 11.0), (6.0, 11.0)], Y);
+            dashed(&[(8.0, 5.0), (15.0, 5.0)], B);
+            dashed(&[(8.0, 11.0), (15.0, 11.0)], B);
+        }
+        "time-segment" => line(&[(1.0, 11.0), (7.0, 11.0), (7.0, 5.0), (15.0, 5.0)], B),
+        "time-tick" => {
+            line(&[(1.0, 6.0), (15.0, 6.0)], Y);
+            for x in [3.0, 8.0, 13.0] {
+                line(&[(x, 6.0), (x, 10.0)], Y);
+            }
+        }
+        "time-constraint" => {
+            line(&[(1.0, 13.0), (15.0, 13.0)], B);
+            dashed(&[(8.0, 13.0), (8.0, 7.0)], B);
+            line(&[(2.5, 3.0), (1.5, 4.5), (2.5, 6.0)], Y);
+            line(&[(13.5, 3.0), (14.5, 4.5), (13.5, 6.0)], Y);
+            line(&[(5.0, 4.5), (11.0, 4.5)], Y);
+        }
+        "duration-constraint" => {
+            line(&[(4.0, 1.5), (12.0, 1.5)], B);
+            line(&[(4.0, 14.5), (12.0, 14.5)], B);
+            line(&[(8.0, 1.5), (8.0, 14.5)], B);
+            line(&[(6.0, 4.5), (8.0, 1.5), (10.0, 4.5)], B);
+            line(&[(6.0, 11.5), (8.0, 14.5), (10.0, 11.5)], B);
+        }
+        "self-connector" => {
+            rect_at(1.5, 6.0, 7.0, 6.0, Y);
+            line(&[(8.5, 7.5), (13.5, 7.5), (13.5, 2.5), (5.0, 2.5), (5.0, 6.0)], B);
+        }
+        "forward-message" | "reverse-message" => {
+            line(&[(1.0, 12.0), (15.0, 12.0)], B);
+            line(&[(4.0, 7.0), (12.0, 7.0)], B);
+            if key == "forward-message" {
+                p.add(Shape::convex_polygon(vec![at(13.0, 7.0), at(10.0, 5.0), at(10.0, 9.0)], B, st(B)));
+            } else {
+                p.add(Shape::convex_polygon(vec![at(3.0, 7.0), at(6.0, 5.0), at(6.0, 9.0)], B, st(B)));
+            }
+        }
+        "found-message" | "lost-message" => {
+            line(&[(4.0, 8.0), (12.0, 8.0)], B);
+            line(&[(9.5, 5.5), (12.5, 8.0), (9.5, 10.5)], B);
+            let x = if key == "found-message" { 3.0 } else { 14.0 };
+            p.circle_filled(at(x, 8.0), 2.0 * s, B);
+        }
+        "endpoint" => {
+            p.circle_filled(at(8.0, 8.0), 4.0 * s, Y);
+        }
+        "gate" => rect_at(5.0, 5.0, 6.0, 6.0, Y),
+        // C4 elements
+        "C4Model" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, Y);
+            p.rect_stroke(Rect::from_min_size(at(4.0, 4.0), Vec2::new(8.0 * s, 8.0 * s)), (1.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "C4Diagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            p.rect_stroke(Rect::from_min_size(at(4.0, 5.0), Vec2::new(8.0 * s, 6.0 * s)), (1.5 * s) as f32, st(G), egui::StrokeKind::Middle);
+        }
+        "C4Person" => {
+            p.circle_stroke(at(8.0, 4.0), 2.5 * s, st(Y));
+            p.rect_stroke(Rect::from_min_size(at(2.5, 7.5), Vec2::new(11.0 * s, 7.0 * s)), (2.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "C4SoftwareSystem" | "C4Container" | "C4Component" | "C4Element" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(13.0 * s, 9.0 * s)), (2.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            match key {
+                "C4Container" => line(&[(1.5, 6.5), (14.5, 6.5)], Y),
+                "C4Component" => {
+                    line(&[(4.0, 6.5), (12.0, 6.5)], Y);
+                    line(&[(4.0, 9.5), (12.0, 9.5)], Y);
+                }
+                _ => {}
+            }
+        }
+        "C4ContainerDatabase" => {
+            p.add(Shape::ellipse_stroke(at(8.0, 4.0), Vec2::new(6.0 * s, 2.0 * s), st(Y)));
+            line(&[(2.0, 4.0), (2.0, 12.0)], Y);
+            line(&[(14.0, 4.0), (14.0, 12.0)], Y);
+            line(&[(2.0, 12.0), (4.0, 13.5), (8.0, 14.0), (12.0, 13.5), (14.0, 12.0)], Y);
+        }
+        "C4Relationship" => dashed(&[(2.0, 13.0), (13.0, 3.0)], B),
+        // ER elements
+        "ERDDataModel" => {
+            p.add(Shape::ellipse_stroke(at(8.0, 4.0), Vec2::new(6.0 * s, 2.0 * s), st(Y)));
+            line(&[(2.0, 4.0), (2.0, 12.0)], Y);
+            line(&[(14.0, 4.0), (14.0, 12.0)], Y);
+            line(&[(2.0, 12.0), (4.0, 13.5), (8.0, 14.0), (12.0, 13.5), (14.0, 12.0)], Y);
+        }
+        "ERDDiagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            rect_at(3.5, 4.0, 4.0, 4.0, G);
+            rect_at(8.5, 8.0, 4.0, 4.0, G);
+            line(&[(7.5, 6.0), (10.5, 6.0), (10.5, 8.0)], G);
+        }
+        "ERDEntity" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, Y);
+            line(&[(1.5, 6.0), (14.5, 6.0)], Y);
+            line(&[(5.0, 6.0), (5.0, 13.5)], Y);
+        }
+        "ERDColumn" => {
+            rect_at(1.5, 5.5, 13.0, 5.0, Y);
+            line(&[(5.0, 5.5), (5.0, 10.5)], Y);
+        }
+        "ERDRelationship" | "ERDRelationshipOneToMany" | "ERDRelationshipManyToMany" => {
+            line(&[(2.0, 8.0), (14.0, 8.0)], B);
+            line(&[(4.0, 5.5), (4.0, 10.5)], B);
+            if key == "ERDRelationship" {
+                line(&[(12.0, 5.5), (12.0, 10.5)], B);
+            } else {
+                line(&[(10.0, 8.0), (14.0, 5.0)], B);
+                line(&[(10.0, 8.0), (14.0, 11.0)], B);
+            }
+            if key == "ERDRelationshipManyToMany" {
+                line(&[(6.0, 8.0), (2.0, 5.0)], B);
+                line(&[(6.0, 8.0), (2.0, 11.0)], B);
+            }
+        }
+        // data flow and mind map elements
+        "DFDDataFlowModel" | "MMMindmap" => {
+            rect_at(5.0, 1.5, 6.0, 4.0, Y);
+            line(&[(8.0, 5.5), (8.0, 8.0), (3.0, 8.0), (3.0, 10.5)], Y);
+            line(&[(8.0, 8.0), (13.0, 8.0), (13.0, 10.5)], Y);
+            rect_at(1.0, 10.5, 4.5, 4.0, Y);
+            rect_at(10.5, 10.5, 4.5, 4.0, Y);
+        }
+        "DFDDiagram" | "MMMindmapDiagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            if key == "DFDDiagram" {
+                rect_at(3.5, 5.5, 4.0, 4.0, G);
+                line(&[(7.5, 7.5), (12.5, 7.5)], G);
+                line(&[(10.5, 5.5), (12.5, 7.5), (10.5, 9.5)], G);
+            } else {
+                p.rect_stroke(Rect::from_min_size(at(5.5, 6.5), Vec2::new(5.0 * s, 3.0 * s)), (1.5 * s) as f32, st(G), egui::StrokeKind::Middle);
+                line(&[(5.5, 8.0), (3.5, 4.5)], G);
+                line(&[(10.5, 8.0), (12.5, 11.5)], G);
+            }
+        }
+        "DFDExternalEntity" => rect_at(1.5, 3.5, 13.0, 9.0, Y),
+        "DFDProcess" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 2.5), Vec2::new(13.0 * s, 11.0 * s)), (3.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            line(&[(1.5, 6.0), (14.5, 6.0)], Y);
+        }
+        "DFDDataStore" => {
+            line(&[(14.5, 4.0), (1.5, 4.0), (1.5, 12.0), (14.5, 12.0)], Y);
+            line(&[(5.0, 4.0), (5.0, 12.0)], Y);
+        }
+        "DFDDataFlow" => {
+            line(&[(8.0, 14.0), (8.0, 4.0)], B);
+            p.add(Shape::convex_polygon(vec![at(8.0, 2.0), at(10.5, 6.0), at(5.5, 6.0)], B, st(B)));
+        }
+        "MMNode" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 4.0), Vec2::new(13.0 * s, 8.0 * s)), (4.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "MMEdge" => line(&[(2.0, 13.0), (14.0, 3.0)], B),
+        // wireframe elements: their outlines in small (wireframe/elements.js)
+        "WFWireframe" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, Y);
+            line(&[(1.5, 5.5), (14.5, 5.5)], Y);
+            rect_at(3.5, 8.0, 5.0, 3.5, Y);
+        }
+        "WFWireframeDiagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            rect_at(4.0, 4.0, 8.0, 3.0, G);
+            line(&[(4.0, 10.0), (12.0, 10.0)], G);
+        }
+        "WFFrame" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 1.5), Vec2::new(13.0 * s, 13.0 * s)), (3.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "WFMobileFrame" => {
+            p.rect_stroke(Rect::from_min_size(at(4.0, 1.0), Vec2::new(8.0 * s, 14.0 * s)), (2.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            rect_at(5.0, 3.0, 6.0, 10.0, Y);
+        }
+        "WFWebFrame" | "WFDesktopFrame" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, Y);
+            line(&[(1.5, 5.5), (14.5, 5.5)], Y);
+            if key == "WFWebFrame" {
+                p.circle_stroke(at(12.5, 4.0), 0.8 * s, st(Y));
+            } else {
+                line(&[(11.5, 3.2), (13.0, 4.8)], Y);
+                line(&[(13.0, 3.2), (11.5, 4.8)], Y);
+            }
+        }
+        "WFButton" | "WFInput" | "WFDropdown" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 4.5), Vec2::new(13.0 * s, 7.0 * s)), (2.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            match key {
+                "WFButton" => line(&[(5.0, 8.0), (11.0, 8.0)], Y),
+                "WFInput" => line(&[(4.0, 6.5), (4.0, 9.5)], Y),
+                _ => line(&[(10.0, 7.0), (11.5, 9.0), (13.0, 7.0)], Y),
+            }
+        }
+        "WFText" | "WFLink" => {
+            let c = if key == "WFLink" { B } else { Y };
+            line(&[(3.0, 3.0), (13.0, 3.0)], c);
+            line(&[(8.0, 3.0), (8.0, 12.0)], c);
+            if key == "WFLink" {
+                line(&[(3.0, 14.0), (13.0, 14.0)], c);
+            }
+        }
+        "WFRadio" => {
+            p.circle_stroke(at(5.0, 8.0), 3.5 * s, st(Y));
+            p.circle_filled(at(5.0, 8.0), 1.5 * s, Y);
+            line(&[(10.0, 8.0), (15.0, 8.0)], Y);
+        }
+        "WFCheckbox" => {
+            rect_at(1.5, 4.5, 7.0, 7.0, Y);
+            line(&[(2.5, 7.5), (4.5, 10.0), (8.0, 4.0)], Y);
+            line(&[(10.0, 8.0), (15.0, 8.0)], Y);
+        }
+        "WFSwitch" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 4.5), Vec2::new(13.0 * s, 7.0 * s)), (3.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            p.circle_filled(at(11.0, 8.0), 2.2 * s, Y);
+        }
+        "WFTabList" | "WFTab" => {
+            line(&[(1.5, 12.5), (1.5, 4.5), (7.5, 4.5), (7.5, 12.5)], Y);
+            if key == "WFTabList" {
+                line(&[(7.5, 7.0), (13.5, 7.0), (13.5, 12.5)], Y);
+                line(&[(0.5, 12.5), (15.5, 12.5)], Y);
+            }
+        }
+        "WFPanel" => rect_at(1.5, 2.5, 13.0, 11.0, Y),
+        "WFImage" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, Y);
+            line(&[(1.5, 2.5), (14.5, 13.5)], Y);
+            line(&[(14.5, 2.5), (1.5, 13.5)], Y);
+        }
+        "WFSeparator" => line(&[(1.0, 8.0), (15.0, 8.0)], Y),
+        "WFAvatar" => {
+            p.circle_stroke(at(8.0, 8.0), 6.5 * s, st(Y));
+            p.circle_stroke(at(8.0, 6.0), 2.0 * s, st(Y));
+            line(&[(4.5, 12.0), (5.5, 9.5), (10.5, 9.5), (11.5, 12.0)], Y);
+        }
+        "WFSlider" => {
+            line(&[(1.0, 8.0), (15.0, 8.0)], Y);
+            p.circle_filled(at(6.0, 8.0), 2.5 * s, Y);
+        }
+        // flowchart shapes in small (flowchart/elements.js)
+        k if k.starts_with("FC") => {
+            let c = Y;
+            let circle = |r: f32| p.circle_stroke(at(8.0, 8.0), r * s, st(c));
+            match k {
+                "FCFlowchart" => {
+                    rect_at(5.0, 1.5, 6.0, 4.0, c);
+                    line(&[(8.0, 5.5), (8.0, 8.0), (3.0, 8.0), (3.0, 10.5)], c);
+                    line(&[(8.0, 8.0), (13.0, 8.0), (13.0, 10.5)], c);
+                    rect_at(1.0, 10.5, 4.5, 4.0, c);
+                    rect_at(10.5, 10.5, 4.5, 4.0, c);
+                }
+                "FCFlowchartDiagram" => {
+                    rect_at(1.5, 1.5, 13.0, 13.0, G);
+                    rect_at(5.0, 4.0, 6.0, 3.0, G);
+                    line(&[(8.0, 7.0), (8.0, 9.0)], G);
+                    line(&[(8.0, 9.0), (10.5, 11.0), (8.0, 13.0), (5.5, 11.0), (8.0, 9.0)], G);
+                }
+                "FCFlow" => {
+                    line(&[(8.0, 14.0), (8.0, 4.0)], B);
+                    p.add(Shape::convex_polygon(vec![at(8.0, 2.0), at(10.5, 6.0), at(5.5, 6.0)], B, st(B)));
+                }
+                "FCTerminator" => {
+                    p.rect_stroke(Rect::from_min_size(at(1.5, 4.5), Vec2::new(13.0 * s, 7.0 * s)), (3.5 * s) as f32, st(c), egui::StrokeKind::Middle);
+                }
+                "FCAlternateProcess" => {
+                    p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(13.0 * s, 9.0 * s)), (2.5 * s) as f32, st(c), egui::StrokeKind::Middle);
+                }
+                "FCDecision" | "FCSort" => {
+                    line(&[(1.5, 8.0), (8.0, 2.5), (14.5, 8.0), (8.0, 13.5), (1.5, 8.0)], c);
+                    if k == "FCSort" {
+                        line(&[(1.5, 8.0), (14.5, 8.0)], c);
+                    }
+                }
+                "FCDelay" => line(&[(1.5, 3.5), (10.0, 3.5), (12.5, 4.5), (14.0, 6.5), (14.0, 9.5), (12.5, 11.5), (10.0, 12.5), (1.5, 12.5), (1.5, 3.5)], c),
+                "FCPredefinedProcess" => {
+                    rect_at(1.5, 3.5, 13.0, 9.0, c);
+                    line(&[(3.5, 3.5), (3.5, 12.5)], c);
+                    line(&[(12.5, 3.5), (12.5, 12.5)], c);
+                }
+                "FCData" => line(&[(4.0, 3.5), (14.5, 3.5), (12.0, 12.5), (1.5, 12.5), (4.0, 3.5)], c),
+                "FCDocument" | "FCMultiDocument" => {
+                    if k == "FCMultiDocument" {
+                        line(&[(4.0, 3.0), (4.0, 1.5), (14.5, 1.5), (14.5, 10.0), (13.0, 10.0)], c);
+                    }
+                    line(&[(1.5, 3.5), (12.5, 3.5), (12.5, 12.0), (10.0, 11.0), (7.0, 12.5), (4.0, 14.0), (1.5, 13.0), (1.5, 3.5)], c);
+                }
+                "FCPreparation" => line(&[(1.5, 8.0), (4.0, 3.5), (12.0, 3.5), (14.5, 8.0), (12.0, 12.5), (4.0, 12.5), (1.5, 8.0)], c),
+                "FCDisplay" => line(&[(1.5, 8.0), (4.0, 3.5), (11.5, 3.5), (13.8, 4.8), (14.5, 8.0), (13.8, 11.2), (11.5, 12.5), (4.0, 12.5), (1.5, 8.0)], c),
+                "FCManualInput" => line(&[(1.5, 6.0), (14.5, 3.0), (14.5, 12.5), (1.5, 12.5), (1.5, 6.0)], c),
+                "FCManualOperation" => line(&[(1.5, 3.5), (14.5, 3.5), (12.0, 12.5), (4.0, 12.5), (1.5, 3.5)], c),
+                "FCCard" => line(&[(4.5, 3.5), (14.5, 3.5), (14.5, 12.5), (1.5, 12.5), (1.5, 6.5), (4.5, 3.5)], c),
+                "FCPunchedTape" => line(&[(1.5, 4.0), (5.0, 5.5), (10.0, 2.5), (14.5, 4.0), (14.5, 12.0), (11.0, 10.5), (6.0, 13.5), (1.5, 12.0), (1.5, 4.0)], c),
+                "FCConnector" => {
+                    circle(5.5);
+                }
+                "FCOffPageConnector" => line(&[(3.0, 2.0), (13.0, 2.0), (13.0, 10.0), (8.0, 14.0), (3.0, 10.0), (3.0, 2.0)], c),
+                "FCOr" | "FCSummingJunction" => {
+                    circle(6.0);
+                    if k == "FCOr" {
+                        line(&[(8.0, 2.0), (8.0, 14.0)], c);
+                        line(&[(2.0, 8.0), (14.0, 8.0)], c);
+                    } else {
+                        line(&[(4.0, 4.0), (12.0, 12.0)], c);
+                        line(&[(12.0, 4.0), (4.0, 12.0)], c);
+                    }
+                }
+                "FCCollate" => line(&[(3.0, 2.0), (13.0, 2.0), (3.0, 14.0), (13.0, 14.0), (3.0, 2.0)], c),
+                "FCMerge" => line(&[(2.0, 3.0), (14.0, 3.0), (8.0, 13.0), (2.0, 3.0)], c),
+                "FCExtract" => line(&[(8.0, 3.0), (14.0, 13.0), (2.0, 13.0), (8.0, 3.0)], c),
+                "FCStoredData" => line(&[(14.5, 3.5), (13.0, 5.0), (12.5, 8.0), (13.0, 11.0), (14.5, 12.5), (4.0, 12.5), (2.2, 11.0), (1.5, 8.0), (2.2, 5.0), (4.0, 3.5), (14.5, 3.5)], c),
+                "FCDatabase" => {
+                    p.add(Shape::ellipse_stroke(at(8.0, 4.0), Vec2::new(6.0 * s, 2.0 * s), st(c)));
+                    line(&[(2.0, 4.0), (2.0, 12.0)], c);
+                    line(&[(14.0, 4.0), (14.0, 12.0)], c);
+                    line(&[(2.0, 12.0), (4.0, 13.5), (8.0, 14.0), (12.0, 13.5), (14.0, 12.0)], c);
+                }
+                "FCDirectAccessStorage" => {
+                    line(&[(4.0, 3.5), (12.0, 3.5), (13.8, 5.0), (14.5, 8.0), (13.8, 11.0), (12.0, 12.5), (4.0, 12.5), (2.2, 11.0), (1.5, 8.0), (2.2, 5.0), (4.0, 3.5)], c);
+                    line(&[(12.0, 3.5), (10.2, 5.0), (9.5, 8.0), (10.2, 11.0), (12.0, 12.5)], c);
+                }
+                "FCInternalStorage" => {
+                    rect_at(1.5, 2.5, 13.0, 11.0, c);
+                    line(&[(4.0, 2.5), (4.0, 13.5)], c);
+                    line(&[(1.5, 5.0), (14.5, 5.0)], c);
+                }
+                _ => rect_at(1.5, 3.5, 13.0, 9.0, c),
+            }
+        }
+        "connection-point" => {
+            rect_at(1.5, 1.5, 10.0, 10.0, Y);
+            p.circle_stroke(at(11.5, 11.5), (3.5 * s) as f32, st(Y));
+        }
+        "edge-connector" => {
+            p.circle_stroke(at(8.0, 8.0), (6.0 * s) as f32, st(Y));
+            line(&[(6.0, 11.0), (8.0, 5.0), (10.0, 11.0)], Y);
+        }
+        "interrupt" => line(&[(2.0, 3.0), (12.0, 3.0), (4.0, 10.0), (14.0, 10.0), (11.0, 13.0)], B),
         "pin" => {
             rect_at(1.5, 3.5, 9.0, 9.0, Y);
             rect_at(10.5, 6.0, 4.0, 4.0, Y);

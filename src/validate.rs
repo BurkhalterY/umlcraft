@@ -214,6 +214,27 @@ pub fn validate(r: &Repo) -> Vec<Problem> {
             }
         }
     }
+    // ERD001 and ERD002 (erd/rules.js:26-57)
+    for &e in &all {
+        if r.ty(e) != "ERDColumn" {
+            continue;
+        }
+        if r.bool(e, "primaryKey") && r.bool(e, "nullable") {
+            fail(e, "ERD001", "Primary key cannot be nullable.");
+        }
+        if let Some(target) = r.refd(e, "referenceTo").filter(|_| r.bool(e, "foreignKey")) {
+            // an end of a relationship of this column's entity, on the other side, must reach the
+            // entity that owns the referenced column
+            let (Some(entity), Some(other)) = (r.parent(e), r.parent(target)) else { continue };
+            let related = all.iter().filter(|x| r.ty(**x) == "ERDRelationship").any(|rel| {
+                let ends: Vec<Option<Eid>> = ["end1", "end2"].iter().map(|k| r.child(*rel, k).and_then(|end| r.refd(end, "reference"))).collect();
+                (ends[0] == Some(entity) && ends[1] == Some(other)) || (ends[1] == Some(entity) && ends[0] == Some(other))
+            });
+            if !related {
+                fail(e, "ERD002", "No relationship with the foreign key reference.");
+            }
+        }
+    }
     out.extend(behaviour_rules(r, &all));
     out
 }

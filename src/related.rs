@@ -126,6 +126,49 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             r("Add Sub-Type", model_ty_static(model_ty), "UMLGeneralization", Plain, true, Below),
             r("Add Super-Type", model_ty_static(model_ty), "UMLGeneralization", Plain, false, Above),
         ],
+        // a flowchart node: a process or decision below (outgoing) or above (incoming), joined by a
+        // flow (quickedits/flowchart.json "fc.node"; flowchart-commands.js:16-95)
+        t if crate::flowchart::is_node_type(t) => {
+            return vec![
+                r("Add Outgoing Process", "FCProcess", "FCFlow", Plain, false, Below),
+                r("Add Incoming Process", "FCProcess", "FCFlow", Plain, true, Above),
+                r("Add Outgoing Decision", "FCDecision", "FCFlow", Plain, false, Below),
+                r("Add Incoming Decision", "FCDecision", "FCFlow", Plain, true, Above),
+                NOTE,
+            ];
+        }
+        // an entity: a new entity to the right joined one to one, one to many or many to many
+        // (quickedits/erd.json "erd.entity"; erd-commands.js:60-130); a relationship: Add Note
+        "ERDEntity" => {
+            return vec![
+                r("Add One to One", "ERDEntity", "ERDRelationship", Plain, false, Right),
+                r("Add One to Many", "ERDEntity", "ERDRelationshipOneToMany", Plain, false, Right),
+                r("Add Many to Many", "ERDEntity", "ERDRelationshipManyToMany", Plain, false, Right),
+                NOTE,
+            ]
+        }
+        "ERDRelationship" => return vec![NOTE],
+        // C4 elements and relationships: Add Note (quickedits/c4.json)
+        t if t.starts_with("C4") => return vec![NOTE],
+        // a flow: only Add Note ("fc.edge")
+        "FCFlow" | "DFDDataFlow" => return vec![NOTE],
+        // data flow nodes (dfd/quickedits/dfd.json; dfd-commands.js:19-118)
+        "DFDExternalEntity" => return vec![r("Add Outgoing Process", "DFDProcess", "DFDDataFlow", Plain, false, Below), NOTE],
+        "DFDProcess" => {
+            return vec![
+                r("Add Incoming External Entity", "DFDExternalEntity", "DFDDataFlow", Plain, true, Above),
+                r("Add Outgoing Process", "DFDProcess", "DFDDataFlow", Plain, false, Below),
+                r("Add Outgoing Data Store", "DFDDataStore", "DFDDataFlow", Plain, false, Below),
+                NOTE,
+            ]
+        }
+        "DFDDataStore" => return vec![r("Add Incoming Process", "DFDProcess", "DFDDataFlow", Plain, true, Above), NOTE],
+        // a mind map node: a node to the left or right, its edge from the new node (an oblique line,
+        // mindmap-commands.js:16-60); no note
+        // named wireframe widgets and tab lists: Add Note (wireframe/quickedits/wireframe.json)
+        "WFButton" | "WFText" | "WFRadio" | "WFCheckbox" | "WFLink" | "WFTab" | "WFInput" | "WFDropdown" | "WFTabList" => return vec![NOTE],
+        t if t.starts_with("WF") => return vec![],
+        "MMNode" => return vec![r("Add Node Left", "MMNode", "MMEdge", Plain, true, Left), r("Add Node Right", "MMNode", "MMEdge", Plain, true, Right)],
         _ => vec![],
     };
     v.push(NOTE);
@@ -151,6 +194,9 @@ impl App {
         let (w, h) = size;
         let mut x = match a.place {
             Place::Right => b.x + b.w + 70.0,
+            // a box made at its smallest size starts 100 px left, as the original places every new
+            // box (getLeftPosition, quickedit-manager.js:970-977)
+            Place::Left if w <= 1.0 => b.x - 100.0,
             Place::Left => b.x - 70.0 - w,
             _ => b.x + (b.w - w) / 2.0,
         };
@@ -223,7 +269,11 @@ impl App {
             }
             let tool = Tool { label: "", kind: a.rel, icon: "", line: true, init: a.init };
             let (tail, head) = if a.from_new { (n, v) } else { (v, n) };
-            app.create_edge(&tool, tail, head);
+            let e = app.create_edge(&tool, tail, head);
+            // a mind map's quick edge is oblique (mindmap-commands.js:30-32)
+            if let Some(e) = e.filter(|_| a.rel == "MMEdge") {
+                app.repo.set(e, "lineStyle", json!(1));
+            }
             Some(n)
         })?;
         self.select(vec![new]);
@@ -271,10 +321,24 @@ impl App {
     pub fn add_scaffold(&mut self, v: Eid, kind: &str) -> Option<Eid> {
         let b = node_rect(&self.repo, v);
         let (pw, ph) = views::default_size(kind);
-        let (pw, ph) = if kind == "Fork" { (ph, pw) } else { (pw, ph) };
-        let p = R { x: (b.x + b.w / 2.0 - pw / 2.0).round(), y: b.y + b.h + 50.0, w: pw, h: ph };
         let (sw, sh) = views::default_size("UMLState");
         let tool = Tool { label: "", kind: "UMLTransition", icon: "", line: true, init: AssocInit::Plain };
+        // Add Join: the join 40 px above the state, into it, and two new states 80 px above the join,
+        // 40 px left of it and 50 px past its right end, each into the join (handleAddJoin,
+        // uml-commands.js:3314-3378)
+        if kind == "Join" {
+            let p = R { x: b.x, y: (b.y - 40.0 - ph).max(0.0), w: pw, h: ph };
+            return self.change(|app| {
+                let pv = app.create_node(kind, p)?;
+                app.create_edge(&tool, pv, v)?;
+                for x in [p.x - 40.0, p.x + p.w + 50.0] {
+                    let s = app.create_node("UMLState", R { x: x.max(0.0), y: (p.y - 80.0).max(0.0), w: sw, h: sh })?;
+                    app.create_edge(&tool, s, pv)?;
+                }
+                Some(pv)
+            });
+        }
+        let p = R { x: (b.x + b.w / 2.0 - pw / 2.0).round(), y: b.y + b.h + 50.0, w: pw, h: ph };
         self.change(|app| {
             let pv = app.create_node(kind, p)?;
             app.create_edge(&tool, v, pv)?;

@@ -19,49 +19,49 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | BPMN | `bpmn.sequence-flow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
 | BPMN | `bpmn.message-flow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
 | BPMN | `bpmn.conversation-link.lineStyle` | Line Style | 2 | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| C4 Model | `c4.person.fillColor` | Fill Color | "#38bcff" | ❌ | extensions/essential/c4/preferences/c4.json |
-| C4 Model | `c4.software-system.fillColor` | Fill Color | "#6dceff" | ❌ | extensions/essential/c4/preferences/c4.json |
-| C4 Model | `c4.container.fillColor` | Fill Color | "#a3e0ff" | ❌ | extensions/essential/c4/preferences/c4.json |
-| C4 Model | `c4.component.fillColor` | Fill Color | "#d8f2ff" | ❌ | extensions/essential/c4/preferences/c4.json |
-| C4 Model | `c4.relationship.lineStyle` | Line Style | 1 | ❌ | extensions/essential/c4/preferences/c4.json |
-| Data Flow Diagram | `dfd.dataflow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/dfd/preferences/dfd.json |
-| Data Flow Diagram | `dfd.external-entity.fillColor` | Fill Color | null | ❌ | extensions/essential/dfd/preferences/dfd.json |
-| Data Flow Diagram | `dfd.process.fillColor` | Fill Color | null | ❌ | extensions/essential/dfd/preferences/dfd.json |
-| Data Flow Diagram | `dfd.datastore.fillColor` | Fill Color | null | ❌ | extensions/essential/dfd/preferences/dfd.json |
-| ERD | `erd.entity.fillColor` | Fill Color | null | ❌ | extensions/essential/erd/preferences/erd.json |
-| ERD | `erd.relationship.lineStyle` | Line Style | 2 | ❌ | extensions/essential/erd/preferences/erd.json |
-| Flowchart | `flowchart.flow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.process.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.terminator.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.decision.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.delay.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.predefined-process.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.alternate-process.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.data.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.document.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.multidocument.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.preparation.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.display.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.manual-input.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.manual-operation.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.card.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.punched-tape.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.connector.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.off-page-connector.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.or.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.summing-junction.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.collate.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.sort.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.merge.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.extract.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.stored-data.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.database.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.direct-access-storage.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
-| Flowchart | `flowchart.internal-storage.fillColor` | Fill Color | null | ❌ | extensions/essential/flowchart/preferences/flowchart.json |
+| C4 Model | `c4.person.fillColor` | Fill Color | "#38bcff" | ✅ | in Preferences › C4 Model; a new element of that kind takes it as its fill colour (src/prefs.rs:272-277, 396-399) | extensions/essential/c4/preferences/c4.json |
+| C4 Model | `c4.software-system.fillColor` | Fill Color | "#6dceff" | ✅ | in Preferences › C4 Model; a new element of that kind takes it as its fill colour (src/prefs.rs:272-277, 396-399) | extensions/essential/c4/preferences/c4.json |
+| C4 Model | `c4.container.fillColor` | Fill Color | "#a3e0ff" | ✅ | in Preferences › C4 Model; a new element of that kind takes it as its fill colour (src/prefs.rs:272-277, 396-399) | extensions/essential/c4/preferences/c4.json |
+| C4 Model | `c4.component.fillColor` | Fill Color | "#d8f2ff" | ✅ | in Preferences › C4 Model; a new element of that kind takes it as its fill colour (src/prefs.rs:272-277, 396-399) | extensions/essential/c4/preferences/c4.json |
+| C4 Model | `c4.relationship.lineStyle` | Line Style | 1 | ✅ | in Preferences › C4 Model; a new relationship takes it, or the general one when it is Rectilinear (0) (src/prefs.rs:279, 426) | extensions/essential/c4/preferences/c4.json |
+| Data Flow Diagram | `dfd.dataflow.lineStyle` | Line Style | 2 | ✅ | in Preferences › Data Flow Diagram; a new line takes it, or the general line style when it is Rectilinear (0) (src/prefs.rs:274, 403-410) | extensions/essential/dfd/preferences/dfd.json |
+| Data Flow Diagram | `dfd.external-entity.fillColor` | Fill Color | null | ✅ | in Preferences › Data Flow Diagram; a new node of that kind takes it as its fill colour (src/prefs.rs:274-284, 376-386) | extensions/essential/dfd/preferences/dfd.json |
+| Data Flow Diagram | `dfd.process.fillColor` | Fill Color | null | ✅ | in Preferences › Data Flow Diagram; a new node of that kind takes it as its fill colour (src/prefs.rs:274-284, 376-386) | extensions/essential/dfd/preferences/dfd.json |
+| Data Flow Diagram | `dfd.datastore.fillColor` | Fill Color | null | ✅ | in Preferences › Data Flow Diagram; a new node of that kind takes it as its fill colour (src/prefs.rs:274-284, 376-386) | extensions/essential/dfd/preferences/dfd.json |
+| ERD | `erd.entity.fillColor` | Fill Color | null | ✅ | in Preferences › ERD; a new entity takes it as its fill colour (src/prefs.rs:274, 387) | extensions/essential/erd/preferences/erd.json |
+| ERD | `erd.relationship.lineStyle` | Line Style | 2 | ✅ | in Preferences › ERD; a new relationship takes it, or the general one when it is Rectilinear (0) (src/prefs.rs:276, 413) | extensions/essential/erd/preferences/erd.json |
+| Flowchart | `flowchart.flow.lineStyle` | Line Style | 2 | ✅ | in Preferences › Flowchart; a new flow takes it, or the general line style when it is Rectilinear (0), as the original's `||` does (src/prefs.rs:263, 368-372) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.process.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.terminator.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.decision.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.delay.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.predefined-process.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.alternate-process.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.data.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.document.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.multidocument.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.preparation.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.display.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.manual-input.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.manual-operation.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.card.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.punched-tape.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.connector.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.off-page-connector.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.or.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.summing-junction.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.collate.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.sort.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.merge.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.extract.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.stored-data.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.database.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.direct-access-storage.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
+| Flowchart | `flowchart.internal-storage.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
 | GCP | `gcp.path.lineStyle` | Line Style | 0 | ❌ | extensions/essential/gcp/preferences/gcp.json |
-| Mindmap | `mindmap.edge.lineStyle` | Line Style | 1 | ❌ | extensions/essential/mindmap/preferences/mindmap.json |
-| Mindmap | `mindmap.node.fillColor` | Fill Color | null | ❌ | extensions/essential/mindmap/preferences/mindmap.json |
-| Mindmap | `mindmap.node.lineColor` | Line Color | null | ❌ | extensions/essential/mindmap/preferences/mindmap.json |
+| Mindmap | `mindmap.edge.lineStyle` | Line Style | 1 | ✅ | in Preferences › Mindmap; a new line takes it, or the general line style when it is Rectilinear (0) (src/prefs.rs:274, 403-410) | extensions/essential/mindmap/preferences/mindmap.json |
+| Mindmap | `mindmap.node.fillColor` | Fill Color | null | ✅ | in Preferences › Mindmap; a new node of that kind takes it as its fill colour (src/prefs.rs:274-284, 376-386) | extensions/essential/mindmap/preferences/mindmap.json |
+| Mindmap | `mindmap.node.lineColor` | Line Color | null | ✅ | in Preferences › Mindmap; a new node takes it as its line colour (src/prefs.rs:284, 388-393) | extensions/essential/mindmap/preferences/mindmap.json |
 | SysML | `sysml.requirement.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
 | SysML | `sysml.block.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
 | SysML | `sysml.block.suppressConstraints` | Suppress Constraints | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
@@ -124,10 +124,10 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | UML | `uml.actor.stereotypeDisplay` | Stereotype Display | "label" | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.actor.suppressAttributes` | Suppress Attributes | true | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.actor.suppressOperations` | Suppress Operations | true | ✅ in Preferences › UML › actor; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.lifeline.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.lifeline.fillColor` | Fill Color | null | ✅ | in Preferences › UML › Lifeline; new lifelines take it (src/prefs.rs:260, 342) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.state.fillColor` | Fill Color | null | ✅ in Preferences › UML › State; new state views take it (src/prefs.rs:258, 300, 330-365) | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.action.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
-| UML | `uml.objectnode.fillColor` | Fill Color | null | ❌ | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.action.fillColor` | Fill Color | null | ✅ | in Preferences › UML › Action; new actions, structured activities and expansion regions take it (src/prefs.rs:260, 341) | extensions/essential/uml/preferences/uml.json |
+| UML | `uml.objectnode.fillColor` | Fill Color | null | ✅ | in Preferences › UML › Object Node; new object, central buffer, data store and parameter nodes take it (src/prefs.rs:261, 342) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.metaclass.fillColor` | Fill Color | null | ✅ in Preferences › UML › metaclass; new views of that kind take it (src/prefs.rs:252-257) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.stereotype.fillColor` | Fill Color | null | ✅ in Preferences › UML › stereotype; new views of that kind take it (src/prefs.rs:252-257) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.note.fillColor` | Fill Color | null | ✅ in Preferences › UML › note; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |

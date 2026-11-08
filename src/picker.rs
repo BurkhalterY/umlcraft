@@ -60,6 +60,15 @@ impl App {
 
     /// Open the picker for a reference field, with the current value selected and its owners expanded;
     /// with no value, "Do not specify" starts checked.
+    /// The Element Picker for a field that takes elements of a given type (a message's signature: an
+    /// operation or a signal).
+    pub fn open_typed_picker(&mut self, obj: Eid, field: &str, ty: &'static str) {
+        self.open_element_picker(obj, field);
+        if let Some(p) = self.element_picker.as_mut() {
+            p.ty = ty;
+        }
+    }
+
     pub fn open_element_picker(&mut self, obj: Eid, field: &str) {
         let chosen = self.repo.raw(obj, field).and_then(|v| self.repo.by_ref(v)).filter(|x| self.repo.alive(*x));
         let mut open: HashSet<Eid> = HashSet::from([self.repo.root]);

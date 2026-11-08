@@ -230,7 +230,7 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("General", "validation.validateModel", "Validate Model", Kind::Check, json!(true)),
     ];
     // per element kind: fill colour (null = the general one), stereotype display and compartments
-    let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 26] = [
+    let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 29] = [
         ("Package", "package", None),
         ("Model", "model", None),
         ("Class", "class", Some(("label", false, false, None))),
@@ -256,8 +256,49 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("MetaClass", "metaclass", None),
         ("Stereotype", "stereotype", None),
         ("State", "state", None),
+        // activities (uml/preferences/uml.json: UMLActionView and UMLObjectNodeView read these)
+        ("Lifeline", "lifeline", None),
+        ("Action", "action", None),
+        ("Object Node", "objectnode", None),
         ("Note", "note", None),
     ];
+    // flowcharts: the flow's line style and each node's fill colour (flowchart/preferences/flowchart.json)
+    v.push(("Flowchart", "", "Flow", Kind::Header, Value::Null));
+    v.push(("Flowchart", "flowchart.flow.lineStyle", "Line Style", Kind::LineStyle, json!(2)));
+    for (label, ty, _) in crate::flowchart::NODES {
+        if ty == "FCFlow" {
+            continue;
+        }
+        let key: &'static str = Box::leak(format!("flowchart.{}.fillColor", crate::flowchart::pref_id(ty)).into_boxed_str());
+        v.push(("Flowchart", "", label, Kind::Header, Value::Null));
+        v.push(("Flowchart", key, "Fill Color", Kind::Color, Value::Null));
+    }
+    // C4 (c4/preferences/c4.json): the boxes' own fill colours and the relationship's line style
+    for (label, id, def) in [("Person", "person", "#38bcff"), ("Software System", "software-system", "#6dceff"), ("Container", "container", "#a3e0ff"), ("Component", "component", "#d8f2ff")] {
+        let key: &'static str = Box::leak(format!("c4.{id}.fillColor").into_boxed_str());
+        v.push(("C4 Model", "", label, Kind::Header, Value::Null));
+        v.push(("C4 Model", key, "Fill Color", Kind::Color, json!(def)));
+    }
+    v.push(("C4 Model", "", "Relationship", Kind::Header, Value::Null));
+    v.push(("C4 Model", "c4.relationship.lineStyle", "Line Style", Kind::LineStyle, json!(1)));
+    // ER diagrams (erd/preferences/erd.json)
+    v.push(("ERD", "", "Entity", Kind::Header, Value::Null));
+    v.push(("ERD", "erd.entity.fillColor", "Fill Color", Kind::Color, Value::Null));
+    v.push(("ERD", "", "Relationship", Kind::Header, Value::Null));
+    v.push(("ERD", "erd.relationship.lineStyle", "Line Style", Kind::LineStyle, json!(2)));
+    // data flow diagrams and mind maps (dfd/preferences/dfd.json, mindmap/preferences/mindmap.json)
+    v.push(("Data Flow Diagram", "", "Data Flow", Kind::Header, Value::Null));
+    v.push(("Data Flow Diagram", "dfd.dataflow.lineStyle", "Line Style", Kind::LineStyle, json!(2)));
+    for (label, id) in [("External Entity", "external-entity"), ("Process", "process"), ("Data Store", "datastore")] {
+        let key: &'static str = Box::leak(format!("dfd.{id}.fillColor").into_boxed_str());
+        v.push(("Data Flow Diagram", "", label, Kind::Header, Value::Null));
+        v.push(("Data Flow Diagram", key, "Fill Color", Kind::Color, Value::Null));
+    }
+    v.push(("Mindmap", "", "Edge", Kind::Header, Value::Null));
+    v.push(("Mindmap", "mindmap.edge.lineStyle", "Line Style", Kind::LineStyle, json!(1)));
+    v.push(("Mindmap", "", "Node", Kind::Header, Value::Null));
+    v.push(("Mindmap", "mindmap.node.fillColor", "Fill Color", Kind::Color, Value::Null));
+    v.push(("Mindmap", "mindmap.node.lineColor", "Line Color", Kind::Color, Value::Null));
     for (label, id, more) in kinds {
         let key = |f: &str| -> &'static str { Box::leak(format!("uml.{id}.{f}").into_boxed_str()) };
         v.push(("UML", "", label, Kind::Header, Value::Null));
@@ -298,6 +339,9 @@ fn kind_id(view_ty: &str, model_ty: Option<&str>) -> Option<&'static str> {
         "UMLCollaboration" => "collaboration",
         "UMLCollaborationUse" => "collaborationuse",
         "UMLState" => "state",
+        "UMLLifeline" => "lifeline",
+        "UMLAction" | "UMLStructuredActivityNode" | "UMLExpansionRegion" => "action",
+        "UMLObjectNode" | "UMLCentralBufferNode" | "UMLDataStoreNode" | "UMLActivityParameterNode" => "objectnode",
         "UMLUseCaseSubject" => "subsystem",
         "UMLArtifact" => "artifact",
         "UMLComponent" => "component",
@@ -340,15 +384,57 @@ impl App {
             sets.push(("font", json!(crate::views::font_str(&face, size, 0))));
         }
         let kind = kind_id(&ty, model_ty.as_deref());
-        let fill = kind.map(|k| self.pref(&format!("uml.{k}.fillColor"))).filter(|f| f.is_string()).unwrap_or_else(|| self.pref("view.fillColor"));
-        for (field, v) in [("fillColor", fill), ("lineColor", self.pref("view.lineColor")), ("fontColor", self.pref("view.fontColor"))] {
+        let mut fill = kind.map(|k| self.pref(&format!("uml.{k}.fillColor"))).filter(|f| f.is_string()).unwrap_or_else(|| self.pref("view.fillColor"));
+        // a flowchart node's own fill colour (FC…View constructors, flowchart/elements.js:330-1340)
+        if let Some(mt) = model_ty.as_deref().filter(|t| crate::flowchart::is_node_type(t)) {
+            let p = self.pref(&format!("flowchart.{}.fillColor", crate::flowchart::pref_id(mt)));
+            if p.is_string() {
+                fill = p;
+            }
+        }
+        // a data flow node's and a mind map node's own colours (dfd/elements.js:155-260,
+        // mindmap/elements.js:44-46)
+        let own = match model_ty.as_deref() {
+            Some("DFDExternalEntity") => Some("dfd.external-entity.fillColor"),
+            Some("DFDProcess") => Some("dfd.process.fillColor"),
+            Some("DFDDataStore") => Some("dfd.datastore.fillColor"),
+            Some("MMNode") => Some("mindmap.node.fillColor"),
+            Some("ERDEntity") => Some("erd.entity.fillColor"),
+            Some("C4Person") => Some("c4.person.fillColor"),
+            Some("C4SoftwareSystem") => Some("c4.software-system.fillColor"),
+            Some("C4Container") => Some("c4.container.fillColor"),
+            Some("C4Component") => Some("c4.component.fillColor"),
+            _ => None,
+        };
+        if let Some(p) = own.map(|k| self.pref(k)).filter(|p| p.is_string()) {
+            fill = p;
+        }
+        let mut line_color = self.pref("view.lineColor");
+        if model_ty.as_deref() == Some("MMNode") {
+            let p = self.pref("mindmap.node.lineColor");
+            if p.is_string() {
+                line_color = p;
+            }
+        }
+        for (field, v) in [("fillColor", fill), ("lineColor", line_color), ("fontColor", self.pref("view.fontColor"))] {
             if v.is_string() {
                 sets.push((field, v));
             }
         }
         sets.push(("showShadow", json!(self.pref("view.showShadow").as_bool().unwrap_or(true))));
         if crate::views::is_edge(&self.repo, v) {
-            sets.push(("lineStyle", json!(self.pref("view.lineStyle").as_i64().unwrap_or(1))));
+            // a flow takes the flowchart's line style, unless that is rectilinear (0), which the
+            // original's `||` passes over for the general one (FCFlowView, flowchart/elements.js:1340-1344)
+            let key = match ty.as_str() {
+                "FCFlowView" => Some("flowchart.flow.lineStyle"),
+                "DFDDataFlowView" => Some("dfd.dataflow.lineStyle"),
+                "MMEdgeView" => Some("mindmap.edge.lineStyle"),
+                "ERDRelationshipView" => Some("erd.relationship.lineStyle"),
+                "C4RelationshipView" => Some("c4.relationship.lineStyle"),
+                _ => None,
+            };
+            let own = key.and_then(|k| self.pref(k).as_i64()).filter(|s| *s != 0);
+            sets.push(("lineStyle", json!(own.unwrap_or_else(|| self.pref("view.lineStyle").as_i64().unwrap_or(1)))));
         }
         if let Some(k) = kind {
             for f in ["stereotypeDisplay", "suppressAttributes", "suppressOperations", "suppressLiterals"] {
@@ -379,7 +465,7 @@ impl App {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(120.0);
-                    for s in ["General", "UML"] {
+                    for s in ["General", "C4 Model", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "UML"] {
                         if ui.selectable_label(section == s, s).clicked() {
                             pick = Some(s.to_string());
                         }

@@ -100,6 +100,19 @@ pub fn name_text(r: &Repo, e: Eid) -> String {
     if r.ty(e) == "UMLTransition" {
         return crate::views::transition_text(r, e);
     }
+    if r.ty(e) == "UMLLifeline" {
+        return lifeline_text(r, e);
+    }
+    // an operand's edit is its guard, a state invariant's its invariant (quickedits/uml.json)
+    if r.ty(e) == "UMLInteractionOperand" {
+        return r.str(e, "guard");
+    }
+    if r.ty(e) == "UMLStateInvariant" {
+        return r.str(e, "invariant");
+    }
+    if r.ty(e) == "UMLMessage" {
+        return message_text(r, e);
+    }
     let st = crate::views::type_name(r, e, "stereotype");
     // an object's edit also holds its classifier: "name : Class" (uml-object.pegjs)
     let name = crate::views::display_name(r, e);
@@ -390,4 +403,74 @@ pub fn parses(g: Grammar, text: &str) -> bool {
         }
     })();
     end == Some(s.len())
+}
+
+/// What a lifeline's inline edit shows: `<<st>> name[selector]: Type` (UMLLifeline.textualNotation,
+/// elements.js:3810-3822).
+pub fn lifeline_text(r: &Repo, e: Eid) -> String {
+    let st = crate::views::type_name(r, e, "stereotype");
+    let sel = r.str(e, "selector");
+    let mut s = if st.is_empty() { r.name(e) } else { format!("<<{st}>> {}", r.name(e)) };
+    if !sel.is_empty() {
+        s += &format!("[{sel}]");
+    }
+    if let Some(role) = r.refd(e, "represent") {
+        let ty = crate::views::type_name(r, role, "type");
+        if !ty.is_empty() {
+            s += &format!(": {ty}");
+        }
+    }
+    s
+}
+
+/// Lifeline expression `<<st>> vis name[selector] : Type`: the name, visibility, stereotype and
+/// selector go on the lifeline, the type on the role it represents; no type clears it
+/// (handleSetLifelineExpression, uml-commands.js:2106-2170). Returns the type text to resolve.
+pub fn apply_lifeline(r: &mut Repo, e: Eid, text: &str) -> Option<String> {
+    let (head, ty) = match text.split_once(':') {
+        Some((a, b)) => (a, Some(b.trim().to_string()).filter(|t| !t.is_empty())),
+        None => (text, None),
+    };
+    let (head, sel) = match (head.find('['), head.rfind(']')) {
+        (Some(a), Some(b)) if b > a => (format!("{}{}", &head[..a], &head[b + 1..]), head[a + 1..b].trim().to_string()),
+        _ => (head.to_string(), String::new()),
+    };
+    apply_name(r, e, &head);
+    r.set(e, "selector", json!(sel));
+    ty
+}
+
+/// What a message's inline edit shows: `<<st>> target = name(arguments)` (UMLMessage.textualNotation,
+/// elements.js:3938-3952).
+pub fn message_text(r: &Repo, e: Eid) -> String {
+    let st = crate::views::type_name(r, e, "stereotype");
+    let mut s = if st.is_empty() { String::new() } else { format!("<<{st}>>") };
+    let target = r.str(e, "assignmentTarget");
+    if !target.is_empty() {
+        s += &format!("{target} = ");
+    }
+    s += &r.name(e);
+    let args = r.str(e, "arguments");
+    if !args.is_empty() {
+        s += &format!("({args})");
+    }
+    s
+}
+
+/// Message expression `<<st>> target = name(arguments)`: no stereotype, target or arguments clear
+/// them (handleSetMessageExpression, uml-commands.js:2478-2519; uml-message.pegjs).
+pub fn apply_message(r: &mut Repo, e: Eid, text: &str) {
+    let (st, rest) = split_stereotype(text.trim());
+    set_stereotype(r, e, st);
+    let (target, rest) = match rest.split_once('=') {
+        Some((t, x)) => (t.trim().to_string(), x.trim()),
+        None => (String::new(), rest.trim()),
+    };
+    let (name, args) = match (rest.find('('), rest.rfind(')')) {
+        (Some(a), Some(b)) if b > a => (rest[..a].trim(), rest[a + 1..b].trim().to_string()),
+        _ => (rest, String::new()),
+    };
+    r.set(e, "name", json!(name));
+    r.set(e, "assignmentTarget", json!(target));
+    r.set(e, "arguments", json!(args));
 }

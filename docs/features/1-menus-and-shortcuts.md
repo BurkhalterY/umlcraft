@@ -13,7 +13,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | `ctrl-alt-d` | `markdown-doc:toggle` | ✅ | Ctrl+Alt+D shows or hides the Markdown Documentation panel (src/ui.rs:2414-2416) | extensions/default/markdown/keymaps/markdown.json |
 | `ctrl-alt-m` | `minimap:toggle` | ✅ | Ctrl+Alt+M shows or hides the minimap (src/ui.rs:2448-2450) | extensions/default/minimap/keymaps/minimap.json |
 | `ctrl-alt-r` | `relationship-view:toggle` | ✅ | Ctrl+Alt+R shows or hides the Relationships panel (src/ui.rs:2445-2453) | extensions/default/relationship-view/keymaps/relationship-view.json |
-| `ctrl-shift-u` | `erd:suppress-columns` | ❌ |  | extensions/essential/erd/keymaps/erd.json |
+| `ctrl-shift-u` | `erd:suppress-columns` | ✅ | toggles Suppress Columns on the selected entities (src/palette.rs:109, 236) | extensions/essential/erd/keymaps/erd.json |
 | `ctrl-shift-0` | `format:stereotype-none` | ✅ | sets stereotypeDisplay to none on the selected views; the stereotype is hidden (src/ui.rs:2234, 2301; src/style.rs:176) | extensions/essential/uml/keymaps/uml.json |
 | `ctrl-shift-1` | `format:stereotype-label` | ✅ | sets stereotypeDisplay to label; the «stereotype» line is drawn (src/ui.rs:2234, 2301; src/style.rs:176) | extensions/essential/uml/keymaps/uml.json |
 | `ctrl-shift-2` | `format:stereotype-decoration` | ✅ | the value is set; interfaces and «boundary», «entity» and «control» classes get a small decoration icon at the top right, and so does a profile stereotype with an icon script or picture, in a 24 × 24 box (src/ui.rs:2193, 2260; src/style.rs:176; src/render.rs:599-602, 385-504, 117-127) | extensions/essential/uml/keymaps/uml.json |
@@ -147,31 +147,31 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Model › Add › Message Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
 | Model › Add › Terminate Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
 | Model › Add › Conditional Event Definition | `factory:create-model` |  | ❌ |  | extensions/essential/bpmn/menus/bpmn.json |
-| File › New From Template › C4 Model | `c4:new-from-template` |  | ❌ | no templates | extensions/essential/c4/menus/c4.json |
-| Model › Add Diagram › C4 Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/c4/menus/c4.json |
-| Model › Add › C4 Model | `factory:create-model` |  | ❌ |  | extensions/essential/c4/menus/c4.json |
-| Model › Add › C4 Person | `factory:create-model` |  | ❌ |  | extensions/essential/c4/menus/c4.json |
-| Model › Add › C4 Software System | `factory:create-model` |  | ❌ |  | extensions/essential/c4/menus/c4.json |
-| Model › Add › C4 Container | `factory:create-model` |  | ❌ |  | extensions/essential/c4/menus/c4.json |
-| Model › Add › C4 Component | `factory:create-model` |  | ❌ |  | extensions/essential/c4/menus/c4.json |
+| File › New From Template › C4 Model | `c4:new-from-template` |  | ✅ | a C4 model "C4Model" with its "System Context Diagram" (src/templates.rs:53) | extensions/essential/c4/menus/c4.json |
+| Model › Add Diagram › C4 Diagram | `factory:create-diagram` |  | ✅ | in the selected C4 element, or in a new "C4Model1" in the project (src/ui.rs:440; src/app.rs:1839-1856) | extensions/essential/c4/menus/c4.json |
+| Model › Add › C4 Model | `factory:create-model` |  | ✅ | under the project (src/ui.rs:681) | extensions/essential/c4/menus/c4.json |
+| Model › Add › C4 Person | `factory:create-model` |  | ✅ | under a C4 model or element (src/ui.rs:684) | extensions/essential/c4/menus/c4.json |
+| Model › Add › C4 Software System | `factory:create-model` |  | ✅ | under a C4 model or element (src/ui.rs:684) | extensions/essential/c4/menus/c4.json |
+| Model › Add › C4 Container | `factory:create-model` |  | ✅ | under a C4 model or element, of kind etc (src/ui.rs:684) | extensions/essential/c4/menus/c4.json |
+| Model › Add › C4 Component | `factory:create-model` |  | ✅ | under a C4 model or element (src/ui.rs:684) | extensions/essential/c4/menus/c4.json |
 | Model › Add › Tag | `common:tag` |  | ✅ | Model › Add › Tag and the explorer Add menu create a string tag "Tag<n>" (src/ui.rs:569-578) | extensions/essential/common/menus/common.json |
-| Model › Add Diagram › Data Flow Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/dfd/menus/dfd.json |
-| Model › Add › Data Flow Model | `factory:create-model` |  | ❌ |  | extensions/essential/dfd/menus/dfd.json |
-| Model › Add › External Entity | `factory:create-model` |  | ❌ |  | extensions/essential/dfd/menus/dfd.json |
-| Model › Add › Process | `factory:create-model` |  | ❌ |  | extensions/essential/dfd/menus/dfd.json |
-| Model › Add › Data Store | `factory:create-model` |  | ❌ |  | extensions/essential/dfd/menus/dfd.json |
-| File › New From Template › Data Model | `erd:new-from-template` |  | ❌ | no templates | extensions/essential/erd/menus/erd.json |
-| Format › Suppress Columns | `erd:suppress-columns` | `ctrl-shift-u` | ❌ |  | extensions/essential/erd/menus/erd.json |
-| Model › Add Diagram › ER Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/erd/menus/erd.json |
-| Model › Add › Data Model | `factory:create-model` |  | ❌ |  | extensions/essential/erd/menus/erd.json |
-| Model › Add › Entity | `factory:create-model` |  | ❌ |  | extensions/essential/erd/menus/erd.json |
-| Model › Add › Column | `factory:create-model` |  | ❌ |  | extensions/essential/erd/menus/erd.json |
-| Model › Add Diagram › Flowchart Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/flowchart/menus/flowchart.json |
+| Model › Add Diagram › Data Flow Diagram | `factory:create-diagram` |  | ✅ | "DataFlowDiagram": in the selected DFD element, or in a new "DataFlowModel1" (src/ui.rs:403; src/app.rs:1782-1805) | extensions/essential/dfd/menus/dfd.json |
+| Model › Add › Data Flow Model | `factory:create-model` |  | ✅ | "DataFlowModel" under the project or a package (src/ui.rs:640) | extensions/essential/dfd/menus/dfd.json |
+| Model › Add › External Entity | `factory:create-model` |  | ✅ | "ExternalEntity" under any DFD element (src/ui.rs:642-644) | extensions/essential/dfd/menus/dfd.json |
+| Model › Add › Process | `factory:create-model` |  | ✅ | "Process" under any DFD element (src/ui.rs:642-644) | extensions/essential/dfd/menus/dfd.json |
+| Model › Add › Data Store | `factory:create-model` |  | ✅ | "DataStore" under any DFD element (src/ui.rs:642-644) | extensions/essential/dfd/menus/dfd.json |
+| File › New From Template › Data Model | `erd:new-from-template` |  | ✅ | a project with the data model "Data Model" and its diagram "Main", without the UML profile (src/templates.rs:51, 114-135) | extensions/essential/erd/menus/erd.json |
+| Format › Suppress Columns | `erd:suppress-columns` | `ctrl-shift-u` | ✅ | in Format and the canvas menu, enabled when an entity is selected (src/ui.rs:3180) | extensions/essential/erd/menus/erd.json |
+| Model › Add Diagram › ER Diagram | `factory:create-diagram` |  | ✅ | in the selected data model, or in a new "Data Model1" (src/ui.rs:419; src/app.rs:1820) | extensions/essential/erd/menus/erd.json |
+| Model › Add › Data Model | `factory:create-model` |  | ✅ | under the project or a package (src/ui.rs:660) | extensions/essential/erd/menus/erd.json |
+| Model › Add › Entity | `factory:create-model` |  | ✅ | under a data model (src/ui.rs:663) | extensions/essential/erd/menus/erd.json |
+| Model › Add › Column | `factory:create-model` |  | ✅ | in an entity's columns (src/ui.rs:666) | extensions/essential/erd/menus/erd.json |
+| Model › Add Diagram › Flowchart Diagram | `factory:create-diagram` |  | ✅ | in Model › Add Diagram and the explorer and canvas menus: a flowchart diagram in the selected flowchart, or in a new "Flowchart1" (src/ui.rs:383; src/app.rs:1760-1778) | extensions/essential/flowchart/menus/flowchart.json |
 | File › New From Template › GCP Architecture | `gcp:new-from-template` |  | ❌ | no templates | extensions/essential/gcp/menus/gcp.json |
 | Model › Add Diagram › GCP Architecture Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/gcp/menus/gcp.json |
 | Model › Add › GCP Model | `factory:create-model` |  | ❌ |  | extensions/essential/gcp/menus/gcp.json |
-| Model › Add Diagram › Mindmap Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/mindmap/menus/mindmap.json |
-| Model › Add › Mindmap | `factory:create-model` |  | ❌ |  | extensions/essential/mindmap/menus/mindmap.json |
+| Model › Add Diagram › Mindmap Diagram | `factory:create-diagram` |  | ✅ | "MindmapDiagram": in the selected mind map, or in a new "Mindmap1" (src/ui.rs:404; src/app.rs:1782-1805) | extensions/essential/mindmap/menus/mindmap.json |
+| Model › Add › Mindmap | `factory:create-model` |  | ✅ | "Mindmap" under any element, named MMMindmap1… as the original names it (src/ui.rs:646) | extensions/essential/mindmap/menus/mindmap.json |
 | Model › Add Diagram › Requirement Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/sysml/menus/sysml.json |
 | Model › Add Diagram › Block Definition Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/sysml/menus/sysml.json |
 | Model › Add Diagram › Internal Block Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/sysml/menus/sysml.json |
@@ -226,10 +226,10 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Model › Add Diagram › Component Diagram | `factory:create-diagram` |  | ✅ | Model › Add Diagram › Component Diagram; components, artifacts, interfaces and nodes can be drawn on it (src/ui.rs:285-296) | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Deployment Diagram | `factory:create-diagram` |  | ✅ | Model › Add Diagram › Deployment Diagram; components, artifacts, interfaces and nodes can be drawn on it (src/ui.rs:285-296) | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Use Case Diagram | `factory:create-diagram` |  | ✅ | (src/ui.rs:622) | extensions/essential/uml/menus/uml.json |
-| Model › Add Diagram › Sequence Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
-| Model › Add Diagram › Communication Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
-| Model › Add Diagram › Timing Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
-| Model › Add Diagram › Interaction Overview Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
+| Model › Add Diagram › Sequence Diagram | `factory:create-diagram` |  | ✅ | in the selected interaction, or a new interaction in the classifier, or a new collaboration with an interaction; with a frame of the diagram (src/ui.rs:464; src/app.rs:1925-1950) | extensions/essential/uml/menus/uml.json |
+| Model › Add Diagram › Communication Diagram | `factory:create-diagram` |  | ✅ | in the selected interaction, or a new "Interaction1" in a collaboration, else a new collaboration with an interaction; with a 692 × 592 frame (src/ui.rs:520; src/app.rs:2010-2035) | extensions/essential/uml/menus/uml.json |
+| Model › Add Diagram › Timing Diagram | `factory:create-diagram` |  | ✅ | wrapped like a communication diagram, with a timing frame 695 × 595 at (5, 5) (src/ui.rs:559; src/app.rs:2118-2145) | extensions/essential/uml/menus/uml.json |
+| Model › Add Diagram › Interaction Overview Diagram | `factory:create-diagram` |  | ✅ | in the selected activity, else a new "Activity1" in the interaction, the classifier's new interaction or a new collaboration's; with a frame (src/ui.rs:542; src/app.rs:2044-2075) | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Information Flow Diagram | `factory:create-diagram` |  | ✅ | (src/ui.rs:293) | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Statechart Diagram | `factory:create-diagram` |  | ✅ | in a state machine directly; elsewhere a new state machine with one region holds it (src/ui.rs:286-297; src/app.rs:1582-1591) | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Activity Diagram | `factory:create-diagram` |  | ✅ | in an activity, or in a new one "Activity1"… made for it; opens with the Activities toolbox groups (src/ui.rs:319-331; src/app.rs:1633-1640) | extensions/essential/uml/menus/uml.json |
@@ -274,9 +274,9 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Model › Add › Action | `factory:create-model` |  | ✅ | Model › Add and the explorer Add menu on an activity, into its nodes (src/app.rs:1419-1422) | extensions/essential/uml/menus/uml.json |
 | Model › Add › Constraint | `uml:create-model.constraint` |  | ✅ | Model › Add › Constraint in the Model menu and the explorer Add menu, on any model element; the constraint is owned by it (src/ui.rs:528-531) | extensions/essential/uml/menus/uml.json |
 | Model › Apply Profile › UML Standard Profile (v2) | `uml:apply-profile.uml-standard` |  | 🟡 | adds a UMLStandardProfile with its 9 metaclasses and 36 stereotypes, in its order, each stereotype extending its metaclasses; the original's icon artwork and its three profile diagrams are left out; refused with a toast when it exists (src/ui.rs:1891-1896; src/app.rs:723-738; src/templates.rs:51-106) | extensions/essential/uml/menus/uml.json |
-| File › New From Template › Wireframe Model | `wireframe:new-from-template` |  | ❌ | no templates | extensions/essential/wireframe/menus/wireframe.json |
-| Model › Add Diagram › Wireframe Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/wireframe/menus/wireframe.json |
-| Model › Add › Wireframe | `factory:create-model` |  | ❌ |  | extensions/essential/wireframe/menus/wireframe.json |
+| File › New From Template › Wireframe Model | `wireframe:new-from-template` |  | ✅ | a wireframe "Wireframe" with its "Wireframe Diagram" showing "MobileFrame1", 328 × 520 at (80, 72), without the UML profile (src/templates.rs:56, 142-145) | extensions/essential/wireframe/menus/wireframe.json |
+| Model › Add Diagram › Wireframe Diagram | `factory:create-diagram` |  | ✅ | in the selected wireframe, or in a new "Wireframe1" in the selected element (src/ui.rs:510; src/app.rs:2037) | extensions/essential/wireframe/menus/wireframe.json |
+| Model › Add › Wireframe | `factory:create-model` |  | ✅ | in any element but a diagram (src/ui.rs:773) | extensions/essential/wireframe/menus/wireframe.json |
 | File › New | `application:new` | `ctrl-n` | ✅ | File › New, Ctrl+N (src/ui.rs:1709, 2335) | resources/default/menus/linux.json |
 | File › New From Template | `application:new-from-template` |  | 🟡 | the File menu has New From Template with the four UML templates; the other notations' templates are missing (src/ui.rs:1713-1723) | resources/default/menus/linux.json |
 | File › Open... | `project:open` | `ctrl-o` | ✅ | File › Open, Ctrl+O (src/ui.rs:1724, 2338) | resources/default/menus/linux.json |
@@ -319,7 +319,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Format › Auto Resize | `format:auto-resize` | `ctrl-shift-r` | ✅ | Ctrl+Shift+R and a check item in Format (main and canvas menus) and Styles: inverts the shared autoResize, or sets it when mixed (src/ui.rs:2320, 2966; src/app.rs:1949-1980) | resources/default/menus/linux.json |
 | Format › Show Shadow | `format:show-shadow` | `ctrl-shift-h` | ✅ | Ctrl+Shift+H and a check item in Format (main and canvas menus): inverts the shared value, or sets it when mixed (src/app.rs:1971, 1987; src/ui.rs:2434, 2249) | resources/default/menus/linux.json |
 | Format › Inherit Style | `format:inherit-style` | `ctrl-shift-k` | ✅ | Ctrl+Shift+K and a check item in Format (main and canvas menus) after Show Shadow: sets parentStyle, inverting the shared value, or `true` when mixed (src/app.rs:1985; src/ui.rs:2335, 3006) | resources/default/menus/linux.json |
-| Model › Add Diagram | `model:add-diagram` |  | 🟡 | Model › Add Diagram and the explorer menu offer Class, Package, Object, Composite Structure, Component, Deployment, Use Case, Information Flow, Profile, Statechart and Activity diagrams, the kinds UMLCraft edits (src/ui.rs:319, 657, 1916) | resources/default/menus/linux.json |
+| Model › Add Diagram | `model:add-diagram` |  | 🟡 | Model › Add Diagram and the explorer menu offer Class, Package, Object, Composite Structure, Component, Deployment, Use Case, Information Flow, Profile, Statechart, Activity, Sequence, Flowchart, Data Flow, Mindmap, ER and C4 diagrams, the kinds UMLCraft edits (src/ui.rs:319, 657, 1916) | resources/default/menus/linux.json |
 | Model › Add | `model:add` |  | 🟡 | Model › Add and the explorer Add menu offer Model, Package, Profile, Class, Interface, Signal, DataType, PrimitiveType, Enumeration, Stereotype, Actor, Use Case, the behaviours (Interaction, State Machine, Activity, Opaque Behavior) and the features that apply (src/ui.rs:499-610) | resources/default/menus/linux.json |
 | Model › Tag Editor... | `model:tag-editor` | `ctrl-t` | ✅ | Ctrl+T, Model › Tag Editor..., and the canvas and explorer menus (src/ui.rs:1898, 2454; src/tags.rs:171-275) | resources/default/menus/linux.json |
 | Tools › Extension Manager... | `tools:extension-manager` |  | ➖ | UMLCraft has no extension system | resources/default/menus/linux.json |
@@ -370,7 +370,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | diagram-canvas | Format › Alignment › Set Height Equally | `alignment:set-height-equally` | ✅ | largest height in the selection (src/align.rs:93) |
 | diagram-canvas | Format › Alignment › Set Size Equally | `alignment:set-size-equally` | ✅ | largest width and height in the selection (src/align.rs:94) |
 | diagram-canvas | Model › Add › Tag | `common:tag` | ✅ | Model › Add › Tag and the explorer Add menu create a string tag "Tag<n>" (src/ui.rs:569-578) |
-| diagram-canvas | Format › Suppress Columns | `erd:suppress-columns` | ❌ |  |
+| diagram-canvas | Format › Suppress Columns | `erd:suppress-columns` | ✅ | in the canvas menu's Format (src/ui.rs:3180) |
 | diagram-canvas | Format › Suppress Property Values | `format:suppress-property-values` | ❌ | SysML |
 | diagram-canvas | Format › Suppress Constraints | `format:suppress-constraints` | ❌ | SysML |
 | diagram-canvas | Format › Suppress Parts | `format:suppress-parts` | ❌ | SysML |
@@ -403,7 +403,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | diagram-canvas | Format › Suppress Receptions | `format:suppress-receptions` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressReceptions of the selected views, or sets it when mixed; with it off, a Receptions compartment is drawn under the operations (src/ui.rs:3017; src/app.rs:1971-1999; src/views.rs:1453-1464)
 | diagram-canvas | Format › Suppress Literals | `format:suppress-literals` | ✅ | check item in Format (main and canvas menus): inverts the shared suppressLiterals of the selected views, or sets it when mixed; checked when all are on, disabled when no selected view has it (src/ui.rs:2249-2261; src/app.rs:1957-1984) |
 | diagram-canvas | Add | `model:add` | 🟡 | Model › Add and the explorer Add menu offer Model, Package, Profile, Class, Interface, Signal, DataType, PrimitiveType, Enumeration, Stereotype, Actor, Use Case, the behaviours (Interaction, State Machine, Activity, Opaque Behavior) and the features that apply (src/ui.rs:499-610) |
-| diagram-canvas | Add Diagram | `model:add-diagram` | 🟡 | Model › Add Diagram and the explorer menu offer Class, Package, Object, Composite Structure, Component, Deployment, Use Case, Information Flow, Profile, Statechart and Activity diagrams, the kinds UMLCraft edits (src/ui.rs:319, 657, 1916) |
+| diagram-canvas | Add Diagram | `model:add-diagram` | 🟡 | Model › Add Diagram and the explorer menu offer Class, Package, Object, Composite Structure, Component, Deployment, Use Case, Information Flow, Profile, Statechart, Activity, Sequence, Flowchart, Data Flow, Mindmap, ER and C4 diagrams, the kinds UMLCraft edits (src/ui.rs:319, 657, 1916) |
 | diagram-canvas | Format › Font... | `format:font` | ✅ | Ctrl+Shift+F and Format › Font... (main and canvas menus) open the Font window: face, size and colour pre-filled with the merged values. The face is stored but drawn with the Arial-compatible font (src/ui.rs:2298, 1851, 2724-2803; src/style.rs:140) |
 | diagram-canvas | Format › Fill Color... | `format:fill-color` | ✅ | Ctrl+Shift+I opens the Color dialog (picker with opacity, hex field, preset palette, Transparent; OK applies); Format › Fill Color (main and canvas menus) has a colour picker; both apply to the selected views (src/ui.rs:2330-2333, 2161, 2826-2916; src/style.rs:77-84)
 | diagram-canvas | Format › Line Color... | `format:line-color` | ✅ | Ctrl+Shift+L opens the Color dialog; Format › Line Color has a colour picker (src/ui.rs:2330-2333, 2161, 2826-2916; src/style.rs:77-84)
@@ -426,11 +426,11 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | diagram-canvas | Tag Editor... | `model:tag-editor` | ✅ | Ctrl+T, Model › Tag Editor..., and the canvas and explorer menus (src/ui.rs:1898, 2454; src/tags.rs:171-275) |
 | mermaid-example-dropdown | Class Diagram | `mermaid:example-class-diagram` | ✅ | an "Example: Class" button fills in a class diagram example (src/mermaid.rs:468-470) |
 | mermaid-example-dropdown | Sequence Diagram | `mermaid:example-sequence-diagram` | ❌ |  |
-| mermaid-example-dropdown | State Diagram | `mermaid:example-state-diagram` | ❌ |  |
-| mermaid-example-dropdown | Flowchart | `mermaid:example-flowchart` | ❌ |  |
-| mermaid-example-dropdown | Entity Relationship Diagram | `mermaid:example-er-diagram` | ❌ |  |
+| mermaid-example-dropdown | State Diagram | `mermaid:example-state-diagram` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:473-487; src/mermaid_kinds.rs:14-60) |
+| mermaid-example-dropdown | Flowchart | `mermaid:example-flowchart` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:473-487; src/mermaid_kinds.rs:14-60) |
+| mermaid-example-dropdown | Entity Relationship Diagram | `mermaid:example-er-diagram` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:473-487; src/mermaid_kinds.rs:14-60) |
 | mermaid-example-dropdown | Requirement Diagram | `mermaid:example-requirement-diagram` | ❌ |  |
-| mermaid-example-dropdown | Mindmap | `mermaid:example-mindmap` | ❌ |  |
+| mermaid-example-dropdown | Mindmap | `mermaid:example-mindmap` | ✅ | in the dialog's Examples menu, with an example of UMLCraft's own (src/mermaid.rs:473-487; src/mermaid_kinds.rs:14-60) |
 | #relationship-view div.listview | Select Related Element | `relationship-view:select-related-element` | ✅ | the Relationships panel row's context menu selects the element at the other end (src/relview.rs:85-89) |
 | #relationship-view div.listview | Select Relationship | `relationship-view:select-relationship` | ✅ | the Relationships panel row's context menu selects the relationship (src/relview.rs:90-93) |
 | model-explorer | *(the menu as a whole)* |  | 🟡 | the explorer menu has Add (with Constraint, Reception and Extension Point where they apply), Add Diagram, Open Diagram, Tag Editor, Select In Diagram, Cut, Copy, Paste, Move Up, Move Down and Delete from Model; of the behaviour items only Interaction, State Machine, Activity and Opaque Behavior (src/ui.rs:600)
@@ -440,7 +440,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | model-explorer | Model › Add › Exit Activity | `uml:create-model.exit-activity` | ✅ | on a state (Entry, Do and Exit Activity) or a transition (Effect): "Select one to create as …" offers OpaqueBehavior, Activity, StateMachine or Interaction, created in that field (src/ui.rs:541-547, 579-586; src/app.rs:705-718) |
 | model-explorer | Model › Add › Effect | `uml:create-model.effect` | ✅ | on a state (Entry, Do and Exit Activity) or a transition (Effect): "Select one to create as …" offers OpaqueBehavior, Activity, StateMachine or Interaction, created in that field (src/ui.rs:541-547, 579-586; src/app.rs:705-718) |
 | model-explorer | Model › Add › Constraint | `uml:create-model.constraint` | ✅ | Model › Add › Constraint in the Model menu and the explorer Add menu, on any model element; the constraint is owned by it (src/ui.rs:528-531)
-| model-explorer | Add Diagram | `model:add-diagram` | 🟡 | Model › Add Diagram and the explorer menu offer Class, Package, Object, Composite Structure, Component, Deployment, Use Case, Information Flow, Profile, Statechart and Activity diagrams, the kinds UMLCraft edits (src/ui.rs:319, 657, 1916) |
+| model-explorer | Add Diagram | `model:add-diagram` | 🟡 | Model › Add Diagram and the explorer menu offer Class, Package, Object, Composite Structure, Component, Deployment, Use Case, Information Flow, Profile, Statechart, Activity, Sequence, Flowchart, Data Flow, Mindmap, ER and C4 diagrams, the kinds UMLCraft edits (src/ui.rs:319, 657, 1916) |
 | model-explorer | Add | `model:add` | 🟡 | Model › Add and the explorer Add menu offer Model, Package, Profile, Class, Interface, Signal, DataType, PrimitiveType, Enumeration, Stereotype, Actor, Use Case, the behaviours (Interaction, State Machine, Activity, Opaque Behavior) and the features that apply (src/ui.rs:499-610) |
 | model-explorer | Cut | `edit:cut` | ✅ | Ctrl+X, Edit, canvas and explorer menus: copies, then removes the views (canvas) or deletes the model (explorer) (src/clipboard.rs:198; src/ui.rs:2194, 2368) |
 | model-explorer | Copy | `edit:copy` | ✅ | Ctrl+C, Edit, canvas and explorer menus: views or one model as JSON on the system clipboard, in UMLCraft's own layout (src/clipboard.rs:108, 191; src/ui.rs:2194, 2368) |

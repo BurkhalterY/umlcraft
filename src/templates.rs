@@ -15,7 +15,7 @@ pub struct Template {
 
 /// The UML templates, in menu order. Diagram names are the original's where the docs give them,
 /// otherwise the model's name (estimated).
-pub const TEMPLATES: [Template; 4] = [
+pub const TEMPLATES: [Template; 7] = [
     Template { label: "UML Minimal", models: &[("Model", "UMLClassDiagram", "Main")] },
     Template {
         label: "UML Conventional",
@@ -46,6 +46,14 @@ pub const TEMPLATES: [Template; 4] = [
             ("Deployment View", "UMLDeploymentDiagram", "Deployment View"),
         ],
     },
+    // the ERD template: a data model "Data Model" with the diagram "Main", without the UML profile
+    // (erd/templates/DataModel.mdj, File › New From Template › Data Model in erd/menus/erd.json)
+    Template { label: "Data Model", models: &[("Data Model", "ERDDiagram", "Main")] },
+    // the C4 template: a C4 model with its "System Context Diagram" (c4/templates/C4Model.mdj)
+    Template { label: "C4 Model", models: &[("C4Model", "C4Diagram", "System Context Diagram")] },
+    // the wireframe template: a wireframe with its "Wireframe Diagram" showing a phone frame
+    // (wireframe/templates/WireframeModel.mdj)
+    Template { label: "Wireframe Model", models: &[("Wireframe", "WFWireframeDiagram", "Wireframe Diagram")] },
 ];
 
 /// The UML Standard Profile in its order (uml/profiles/UMLStandardProfile.mfj): the metaclasses, each
@@ -117,13 +125,27 @@ pub fn project(t: &Template) -> Repo {
     for (_, m) in r.children(root) {
         r.detach(m);
     }
+    let erd = t.models.iter().all(|m| matches!(m.1, "ERDDiagram" | "C4Diagram" | "WFWireframeDiagram"));
     for (i, (model, kind, diagram)) in t.models.iter().enumerate() {
-        let m = r.create("UMLModel", &[("name", json!(model))], Some((root, "ownedElements")));
+        let ty = match *kind {
+            "ERDDiagram" => "ERDDataModel",
+            "C4Diagram" => "C4Model",
+            "WFWireframeDiagram" => "WFWireframe",
+            _ => "UMLModel",
+        };
+        let m = r.create(ty, &[("name", json!(model))], Some((root, "ownedElements")));
         let d = r.create(kind, &[("name", json!(diagram))], Some((m, "ownedElements")));
         if i == 0 {
             r.set(d, "defaultDiagram", json!(true));
         }
+        // a phone frame, 328 × 520 at (80, 72)
+        if *kind == "WFWireframeDiagram" {
+            let f = r.create("WFMobileFrame", &[("name", json!("MobileFrame1"))], Some((m, "ownedElements")));
+            crate::wireframe::create_view(&mut r, d, f, crate::views::R { x: 80.0, y: 72.0, w: 328.0, h: 520.0 });
+        }
     }
-    add_standard_profile(&mut r);
+    if !erd {
+        add_standard_profile(&mut r);
+    }
     r
 }
