@@ -152,8 +152,9 @@ File › Import › XMI Import (v2.1) puts what it reads into a new UMLModel `XM
 | Options and defaults | range all, layout landscape, size A4, show name on; saved to `print.options` on each change | `src/dialogs/print-dialog.js:33-76` |
 | Page layout | one diagram per page, 30 pt margin, scale `min(pageW / bounds.x2, pageH / bounds.y2)` capped at 1 | `src/engine/diagram-export.js:318-362` |
 | Caption | the diagram's path name, Helvetica 10, above the diagram | `diagram-export.js:318-362` |
+| Fonts | every font file of the FontManager is registered with PDFKit; each character is set in the first font that has it | `diagram-export.js:321-324`, `src/engine/pdf-graphics.js:102-140, 990-1060` |
 | Page sizes | PDFKit's: 4A0, 2A0, A0–A10, B0–B10, C0–C10, RA0–RA4, SRA0–SRA4, Executive, Folio, Legal, Letter, Tabloid | `static/html-contents/print-dialog.html` |
-| UMLCraft | writes the PDF itself, with each diagram as a JPEG at twice the printed size instead of vector shapes | `src/pdf.rs` |
+| UMLCraft | writes the PDF itself, in vector shapes drawn by the same code as the screen and SVG; text in subsets of the diagram faces, then egui's fallback fonts, then a fontconfig font that has the character, as Type0 fonts (Identity-H, ToUnicode); only TrueType-outline faces are embedded; the caption is set in the diagram face at 10 pt rather than Helvetica, so any character prints; an SVG picture becomes an image drawn at 4 times its printed size | `src/pdf.rs`, `src/pdf_font.rs` |
 
 ## Window (dark theme, the default)
 

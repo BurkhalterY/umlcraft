@@ -2710,12 +2710,14 @@ dependencies = [
  "arboard",
  "eframe",
  "egui",
+ "flate2",
  "image",
  "indexmap",
  "resvg",
  "rfd",
  "serde",
  "serde_json",
+ "ttf-parser",
 ]
 
 [[package]]
