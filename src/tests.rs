@@ -5983,6 +5983,12 @@ fn communication_diagrams_have_lifelines_connectors_and_messages() {
     assert_eq!(a.repo.refd(e2, "reference"), Some(r2));
     let msg = a.repo.refd(mv, "model").unwrap();
     assert_eq!((a.repo.refd(msg, "source"), a.repo.refd(msg, "target"), a.repo.refd(msg, "connector")), (Some(m1), Some(m2), Some(cm)));
+    // a message that has lost its connector view is broken
+    assert!(!a.broken_views(d).contains(&mv));
+    let keep = a.repo.raw(mv, "hostEdge").cloned();
+    a.repo.remove(mv, "hostEdge");
+    assert!(a.broken_views(d).contains(&mv));
+    a.repo.set_raw(mv, "hostEdge", keep.unwrap());
     // a reverse message dropped on the connector goes the other way
     let rev = tool("UMLReverseMessage", AssocInit::Plain);
     assert!(a.can_connect(&rev, a.diagram.unwrap(), cv));

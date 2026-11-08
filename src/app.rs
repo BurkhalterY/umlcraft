@@ -2578,6 +2578,10 @@ impl App {
                 if dangling(v, "model") || (needs_model && !r.has(v, "model") && crate::meta::known(ty)) {
                     return true;
                 }
+                // a communication message without the connector it rides on (diagram-manager.js:523-530)
+                if ty == "UMLCommMessageView" && (r.refd(v, "hostEdge").is_none() || dangling(v, "hostEdge")) {
+                    return true;
+                }
                 // a free line has no ends to lose
                 if views::is_edge(r, v) && !views::is_freeline(r, v) {
                     if r.refd(v, "tail").is_none() || r.refd(v, "head").is_none() || dangling(v, "tail") || dangling(v, "head") {
