@@ -306,3 +306,88 @@ pub fn highlight(text: &str) -> LayoutJob {
     }
     job
 }
+
+/// GitHub Flavored Markdown as the original's renderer (marked, with its GFM defaults) reads it:
+/// tables, ~~strikethrough~~, task lists and GFM block quotes.
+pub fn gfm_options() -> pulldown_cmark::Options {
+    use pulldown_cmark::Options;
+    Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TASKLISTS | Options::ENABLE_GFM
+}
+
+/// The parsed events of a Markdown text, with bare `http://`, `https://` and `www.` addresses
+/// outside links and code turned into links (GFM autolinks).
+pub fn events(text: &str) -> Vec<pulldown_cmark::Event<'_>> {
+    use pulldown_cmark::{Event, Tag, TagEnd};
+    let mut out = vec![];
+    let (mut in_link, mut in_code) = (0, 0);
+    for ev in pulldown_cmark::Parser::new_ext(text, gfm_options()) {
+        match &ev {
+            Event::Start(Tag::Link { .. } | Tag::Image { .. }) => in_link += 1,
+            Event::End(TagEnd::Link | TagEnd::Image) => in_link -= 1,
+            Event::Start(Tag::CodeBlock(_)) => in_code += 1,
+            Event::End(TagEnd::CodeBlock) => in_code -= 1,
+            _ => {}
+        }
+        match ev {
+            Event::Text(t) if in_link == 0 && in_code == 0 => autolink(&t, &mut out),
+            ev => out.push(ev),
+        }
+    }
+    out
+}
+
+/// Split a text around the web addresses in it (the GFM "extended autolink" rule, simplified: an
+/// address starts after a space, an opening bracket or the start, and runs to the next space or `<`,
+/// without trailing punctuation or an unbalanced `)`).
+fn autolink(t: &str, out: &mut Vec<pulldown_cmark::Event<'_>>) {
+    use pulldown_cmark::{CowStr, Event, LinkType, Tag, TagEnd};
+    let mut rest = t;
+    loop {
+        let start = ["https://", "http://", "www."]
+            .iter()
+            .filter_map(|p| {
+                let mut from = 0;
+                while let Some(i) = rest[from..].find(p).map(|i| i + from) {
+                    let before = rest[..i].chars().next_back();
+                    if before.map(|c| c.is_whitespace() || "(*_~".contains(c)).unwrap_or(true) {
+                        return Some(i);
+                    }
+                    from = i + p.len();
+                }
+                None
+            })
+            .min();
+        let Some(i) = start else { break };
+        let mut end = rest[i..].find(|c: char| c.is_whitespace() || c == '<').map(|k| i + k).unwrap_or(rest.len());
+        loop {
+            let url = &rest[i..end];
+            let Some(last) = url.chars().next_back() else { break };
+            let unbalanced = last == ')' && url.matches(')').count() > url.matches('(').count();
+            if "?!.,:*_~'\"".contains(last) || unbalanced {
+                end -= last.len_utf8();
+            } else {
+                break;
+            }
+        }
+        let url = &rest[i..end];
+        let bare = url.trim_start_matches("https://").trim_start_matches("http://").trim_start_matches("www.");
+        if bare.is_empty() {
+            // a prefix alone stays text
+            let stop = i + url.len().max(1);
+            out.push(Event::Text(CowStr::from(rest[..stop].to_string())));
+            rest = &rest[stop..];
+            continue;
+        }
+        if i > 0 {
+            out.push(Event::Text(CowStr::from(rest[..i].to_string())));
+        }
+        let dest = if url.starts_with("www.") { format!("http://{url}") } else { url.to_string() };
+        out.push(Event::Start(Tag::Link { link_type: LinkType::Autolink, dest_url: CowStr::from(dest), title: CowStr::from(""), id: CowStr::from("") }));
+        out.push(Event::Text(CowStr::from(url.to_string())));
+        out.push(Event::End(TagEnd::Link));
+        rest = &rest[end..];
+    }
+    if !rest.is_empty() {
+        out.push(Event::Text(CowStr::from(rest.to_string())));
+    }
+}

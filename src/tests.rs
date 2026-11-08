@@ -2389,7 +2389,11 @@ fn html_docs_export() {
     assert_eq!(md5_hex(""), "d41d8cd98f00b204e9800998ecf8427e");
     assert_eq!(md5_hex("The quick brown fox jumps over the lazy dog"), "9e107d9d372bb6826bd81d3542a419d6");
     assert_eq!(md5_hex(&"a".repeat(100)), "36a92cc94a9e0fa21f625f8bfb007adf");
-    assert_eq!(markdown_html("# T\n\n- a **b**\n- c"), "<h1>T</h1><ul><li>a <strong>b</strong></li><li>c</li></ul>");
+    assert_eq!(markdown_html("# T\n\n- a **b**\n- c"), "<div class=\"prose\"><h1>T</h1>\n<ul>\n<li>a <strong>b</strong></li>\n<li>c</li>\n</ul></div>");
+    // GitHub Flavored Markdown: tables, strikethrough, task lists and bare addresses
+    let gfm = markdown_html("| a | b |\n|---|---|\n| 1 | 2 |\n\n~~old~~ see https://staruml.io.\n\n- [x] done\n- [ ] todo");
+    assert!(gfm.contains("<table>") && gfm.contains("<td>2</td>") && gfm.contains("<del>old</del>"), "{gfm}");
+    assert!(gfm.contains("<a href=\"https://staruml.io\">https://staruml.io</a>.") && gfm.contains("checked=\"\"") && gfm.contains("type=\"checkbox\""), "{gfm}");
     let ms = measure();
     let mut a = App::new(None);
     a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
@@ -2427,6 +2431,65 @@ fn html_docs_export() {
     let index = std::fs::read_to_string(dir.join("contents/element_index.html")).unwrap();
     assert!(index.contains("<h2>Tag (1)</h2>") && index.contains("reviewed"), "tags are in the index under Tag");
     let _ = (t, dep);
+    // icons: one SVG per icon shown, used by links, the header and the navigation tree
+    assert!(std::fs::read_to_string(dir.join("assets/icons/class.svg")).unwrap().starts_with("<svg") && bp.contains("<img class=\"icon\" src=\"../assets/icons/class.svg\""));
+    let nav = std::fs::read_to_string(dir.join("contents/navigation.html")).unwrap();
+    assert!(nav.contains("target=\"content\"") && nav.contains("<strong>") && nav.contains("assets/icons/project.svg"));
+    // a blank description is "none"; attribute types are links or "none"
+    assert!(bp.contains("<h2>Description</h2>"));
+    let _ = std::fs::remove_dir_all(&dir);
+
+    // behaviour, ERD and flowchart sections
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let (sm, s1, s2, tr, dm, e1, e2, rel, f1, f2, flow) = a
+        .change(|a| {
+            let r = &mut a.repo;
+            let sm = r.create("UMLStateMachine", &[("name", json!("SM"))], Some((root, "ownedElements")));
+            let region = r.create("UMLRegion", &[], Some((sm, "regions")));
+            let s1 = r.create("UMLState", &[("name", json!("Idle"))], Some((region, "vertices")));
+            let s2 = r.create("UMLState", &[("name", json!("Busy"))], Some((region, "vertices")));
+            let (x, y) = (r.ref_to(s1), r.ref_to(s2));
+            let tr = r.create("UMLTransition", &[("name", json!("go")), ("source", x), ("target", y)], Some((region, "transitions")));
+            r.create("UMLEvent", &[("name", json!("tick"))], Some((tr, "triggers")));
+            let dm = r.create("ERDDataModel", &[("name", json!("DM"))], Some((root, "ownedElements")));
+            let e1 = r.create("ERDEntity", &[("name", json!("Book"))], Some((dm, "ownedElements")));
+            let e2 = r.create("ERDEntity", &[("name", json!("Loan"))], Some((dm, "ownedElements")));
+            let id = r.create("ERDColumn", &[("name", json!("id")), ("type", json!("VARCHAR")), ("length", json!("20")), ("primaryKey", json!(true))], Some((e1, "columns")));
+            let rid = r.ref_to(id);
+            r.create("ERDColumn", &[("name", json!("book")), ("foreignKey", json!(true)), ("referenceTo", rid)], Some((e2, "columns")));
+            let rel = r.create("ERDRelationship", &[("name", json!("lends"))], Some((dm, "ownedElements")));
+            let (x, y) = (r.ref_to(e1), r.ref_to(e2));
+            r.create("ERDRelationshipEnd", &[("reference", x), ("cardinality", json!("1"))], Some((rel, "end1")));
+            r.create("ERDRelationshipEnd", &[("name", json!("loans")), ("reference", y), ("cardinality", json!("0..*"))], Some((rel, "end2")));
+            let fc = r.create("FCFlowchart", &[("name", json!("FC"))], Some((root, "ownedElements")));
+            let f1 = r.create("FCProcess", &[("name", json!("Start"))], Some((fc, "ownedElements")));
+            let f2 = r.create("FCProcess", &[("name", json!("Stop"))], Some((fc, "ownedElements")));
+            let (x, y) = (r.ref_to(f1), r.ref_to(f2));
+            let flow = r.create("FCFlow", &[("source", x), ("target", y)], Some((f1, "ownedElements")));
+            Some((sm, s1, s2, tr, dm, e1, e2, rel, f1, f2, flow))
+        })
+        .unwrap();
+    a.export_html(&dir, &ms).unwrap();
+    let page = |e: crate::model::Eid| std::fs::read_to_string(dir.join(format!("contents/{}.html", md5_hex(&a.repo.id(e))))).unwrap();
+    assert!(page(sm).contains("<h2>Regions</h2>"));
+    let p1 = page(s1);
+    assert!(p1.contains("<h2>Outgoing Transitions</h2>") && !p1.contains("<h2>Incoming Transitions</h2>"));
+    assert!(page(s2).contains("<h2>Incoming Transitions</h2>"));
+    assert!(page(tr).contains("<h2>Triggers</h2>") && page(tr).contains("tick"));
+    assert!(page(dm).contains("<h2>Entities</h2>"));
+    let b1 = page(e1);
+    assert!(b1.contains("<h2>Columns</h2>") && b1.contains("<td>VARCHAR(20)</td><td><span class=\"label\">true</span></td><td><span class=\"label\">false</span></td>"), "{b1}");
+    assert!(b1.contains("<h2>Related Entities</h2>") && b1.contains("<td>0..*</td><td>loans</td>"), "{b1}");
+    let b2 = page(e2);
+    assert!(b2.contains(" :: ") && b2.contains(">id</a>"), "the column's reference: entity :: column");
+    assert!(page(f1).contains("<h2>Outgoing Flows</h2>") && page(f2).contains("<h2>Incoming Flows</h2>"));
+    // the Properties table follows the metamodel: name, then the kind's own fields, hidden ones left out
+    let pt = page(flow);
+    assert!(pt.contains("<td>name</td>") && pt.contains("<td>source</td>") && !pt.contains("<td>documentation</td>") && !pt.contains("<td>_id</td>"));
+    let rp = page(rel);
+    assert!(rp.contains("<h2>End1</h2>") && rp.contains("<h2>End2</h2>") && rp.contains("<td>cardinality</td><td>0..*</td>"), "each end's properties");
+    let _ = e2;
     let _ = std::fs::remove_dir_all(&dir);
 }
 
