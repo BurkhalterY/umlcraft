@@ -196,6 +196,8 @@ the colour values are not published and were chosen by UMLCraft. Implemented in 
 | Most similar variable | the smallest "redmean" weighted RGB distance to the light-theme value of `$background`, `$foreground` and the 156 hue steps; fully transparent gives `$transparent`; a partly transparent colour stays as it is | UMLCraft's choice |
 | New views | variables (fixed defaults turned into their nearest variable) only in a project that holds variables (converted, or saved by StarUML 8); otherwise `#rrggbb`, so that StarUML 7 still opens the file | UMLCraft rule (StarUML 8 always uses variables) |
 | File › Export › StarUML V7... | a copy with every variable replaced by its light-theme colour; the working project and its file are not changed; reopening the copy asks to convert again | https://docs.staruml.io/user-guide/managing-project/ |
+| Color dialog | first row `$background`, `$foreground`, `$transparent`, then one row of 12 steps per hue, drawn in the current theme; hover shows the name; the field takes `#rrggbb` or a name | formatting-diagram and user-interface pages |
+| Palette click in a plain project | writes the variable's light-theme `#rrggbb` (a typed name writes the variable) | UMLCraft rule, for StarUML 7 |
 | Canvas | a project with variables is drawn on `$background` with a `$gray4` grid while the background and grid colour preferences keep their defaults | UMLCraft's choice |
 | Pictures and print | exports use the current theme; Print to PDF always uses the light theme (white paper) | managing-project page; PDF: UMLCraft's choice |
 

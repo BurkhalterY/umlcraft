@@ -7897,3 +7897,42 @@ fn convert_or_keep_colours_and_export_for_staruml_7() {
     assert!(!b.color_prompt && b.color_vars);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn colour_dialog_offers_the_variables() {
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    a.select(vec![c]);
+    // in a plain project a palette click gives the variable's light colour, so StarUML 7 still draws it
+    a.open_color_dialog("fillColor");
+    let mut d = a.color_dialog.clone().unwrap();
+    d.pick_var("$blue3", a.color_vars);
+    assert_eq!((d.var.as_deref(), d.value().as_str()), (None, "#e6f4fe"));
+    a.apply_color_dialog(&d);
+    assert_eq!(a.repo.str(c, "fillColor"), "#e6f4fe");
+    // typing a variable name writes the variable
+    d.text = "$Green9".into();
+    d.take_text();
+    assert_eq!(d.var.as_deref(), Some("$green9"));
+    let undo = a.undo.len();
+    a.apply_color_dialog(&d);
+    assert_eq!(a.repo.str(c, "fillColor"), "$green9");
+    assert_eq!(a.undo.len(), undo + 1);
+    // the dialog opens on the variable; OK with nothing changed does nothing
+    a.open_color_dialog("fillColor");
+    let d = a.color_dialog.clone().unwrap();
+    assert_eq!((d.var.as_deref(), d.text.as_str()), (Some("$green9"), "$green9"));
+    a.apply_color_dialog(&d);
+    assert_eq!(a.undo.len(), undo + 1);
+    // a project drawn with variables gets the variable from a click
+    a.color_vars = true;
+    let mut d = d;
+    d.pick_var("$red9", a.color_vars);
+    a.apply_color_dialog(&d);
+    assert_eq!(a.repo.str(c, "fillColor"), "$red9");
+    // a typed colour is kept as it is
+    d.text = "#123456".into();
+    d.take_text();
+    a.apply_color_dialog(&d);
+    assert_eq!(a.repo.str(c, "fillColor"), "#123456");
+}
