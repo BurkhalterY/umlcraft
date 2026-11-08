@@ -15,6 +15,14 @@ pub enum InputAction {
     /// A port's or part's Create Type: the new class goes into the classifier that owns it
     /// (uml-commands.js:1606-1630).
     CreatePartType(Eid),
+    /// A lifeline's Create Type: the new class goes in the owner of the collaboration, as the type of
+    /// the role the lifeline represents (uml-commands.js:2195-2222).
+    CreateLifelineType(Eid),
+    /// A message's Create Operation: a new operation of the target lifeline's type, as its signature
+    /// (uml-commands.js:2551-2582).
+    CreateMessageOperation(Eid),
+    /// A message's Create Signal: a new signal in the owner of the collaboration (uml-commands.js:2584-2610).
+    CreateMessageSignal(Eid),
 }
 
 #[derive(Clone, Debug)]
@@ -50,6 +58,36 @@ impl App {
                     c
                 });
                 self.reveal(c);
+            }
+            InputAction::CreateLifelineType(role) => {
+                let name = text.trim().to_string();
+                let Some(owner) = self.repo.parent(role).and_then(|c| self.repo.parent(c)).filter(|_| !name.is_empty()) else { return };
+                let c = self.change(|a| {
+                    let c = a.repo.create("UMLClass", &[("name", json!(name))], Some((owner, "ownedElements")));
+                    a.repo.set_ref(role, "type", Some(c));
+                    c
+                });
+                self.reveal(c);
+            }
+            InputAction::CreateMessageOperation(m) => {
+                let name = text.trim().to_string();
+                let Some(ty) = self.message_target_type(m).filter(|_| !name.is_empty()) else { return };
+                let op = self.change(|a| {
+                    let op = a.repo.create("UMLOperation", &[("name", json!(name))], Some((ty, "operations")));
+                    a.repo.set_ref(m, "signature", Some(op));
+                    op
+                });
+                self.reveal(op);
+            }
+            InputAction::CreateMessageSignal(m) => {
+                let name = text.trim().to_string();
+                let Some(owner) = self.repo.parent(m).and_then(|i| self.repo.parent(i)).and_then(|c| self.repo.parent(c)).filter(|_| !name.is_empty()) else { return };
+                let s = self.change(|a| {
+                    let s = a.repo.create("UMLSignal", &[("name", json!(name))], Some((owner, "ownedElements")));
+                    a.repo.set_ref(m, "signature", Some(s));
+                    s
+                });
+                self.reveal(s);
             }
             InputAction::CreateType(e) => {
                 let name = text.trim().to_string();

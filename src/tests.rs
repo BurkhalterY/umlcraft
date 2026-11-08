@@ -5537,3 +5537,51 @@ fn sequence_fragments_invariants_and_interaction_uses() {
     assert!(svg.contains("{ready}") && svg.contains("[else]") && svg.contains(">ref<"));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn lifeline_and_message_quick_edits() {
+    use crate::app::EditKind;
+    use crate::canvas::ItemKey;
+    use crate::sequence::SeqAdd;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 40.0, 100.0, 300.0))).unwrap();
+    let m1 = a.repo.refd(l1, "model").unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // Add Message with Lifeline: a new lifeline 20 px right, a message 20 px down its line
+    a.item_key(l1, EditKind::Name(m1), ItemKey::Seq(SeqAdd::MessageLifeline));
+    let lifelines: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| a.repo.ty(*v) == "UMLSeqLifelineView").collect();
+    assert_eq!(lifelines.len(), 2);
+    assert_eq!(a.repo.f(lifelines[1], "left"), 50.0 + 100.0 + 20.0);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let msgs: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| a.repo.ty(*v) == "UMLSeqMessageView").collect();
+    assert_eq!(msgs.len(), 1);
+    let y1 = crate::views::points_of(&a.repo, msgs[0])[0].y;
+    // Self, Found, Lost and To Gate stack 35 px apart
+    for w in [SeqAdd::SelfMessage, SeqAdd::FoundMessage, SeqAdd::LostMessage, SeqAdd::ToGate] {
+        a.item_key(l1, EditKind::Name(m1), ItemKey::Seq(w));
+        a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    }
+    let msgs: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| a.repo.ty(*v) == "UMLSeqMessageView").collect();
+    assert_eq!(msgs.len(), 5);
+    assert_eq!(crate::views::points_of(&a.repo, msgs[4])[0].y, y1 + 4.0 * 35.0);
+    assert!(a.repo.list(inter, "participants").iter().any(|p| a.repo.ty(*p) == "UMLGate"));
+    // Add Reply Message: back from the head to the tail, 20 px under
+    let mm = a.repo.refd(msgs[0], "model").unwrap();
+    a.item_key(msgs[0], EditKind::Name(mm), ItemKey::ReplyMessage);
+    let reply = a.repo.list(inter, "messages").into_iter().find(|m| a.repo.str(*m, "messageSort") == "reply").unwrap();
+    assert_eq!(a.repo.refd(reply, "target"), Some(m1));
+    // Create Type for the lifeline, then Create Operation for the message to it
+    let role = a.repo.refd(m1, "represent").unwrap();
+    a.apply_input(crate::input::InputAction::CreateLifelineType(role), "Shop".into());
+    let shop = a.repo.refd(role, "type").unwrap();
+    assert_eq!(a.repo.parent(shop), a.repo.parent(a.repo.parent(role).unwrap()), "in the collaboration's owner");
+    a.apply_input(crate::input::InputAction::CreateMessageOperation(reply), "done".into());
+    let op = a.repo.refd(reply, "signature").unwrap();
+    assert_eq!((a.repo.ty(op), a.repo.parent(op)), ("UMLOperation", Some(shop)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

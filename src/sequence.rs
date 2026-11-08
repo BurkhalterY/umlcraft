@@ -726,3 +726,87 @@ pub fn draw_invariants(c: &mut dyn Canvas, r: &Repo, lifeline: Eid, fill: Rgba, 
         }
     }
 }
+
+// ------------------------------------------------------------------ quick edits
+
+use crate::app::{App, AssocInit, Tool};
+
+/// The lifeline quick edit's message buttons (quickedits/uml.json "uml.lifeline-seq").
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum SeqAdd {
+    MessageLifeline,
+    CreateMessageLifeline,
+    SelfMessage,
+    FoundMessage,
+    LostMessage,
+    FromGate,
+    ToGate,
+}
+
+impl App {
+    /// Where a new message goes: 35 px (45 for a create message) under the lowest message, or 20 px
+    /// down the lifeline's line when there is none (newSeqMessagePosition, uml-commands.js:2240-2270).
+    fn next_message_y(&self, d: Eid, from: Eid, interval: f64) -> f64 {
+        let lowest = messages(&self.repo, d).into_iter().map(|e| first_y(&self.repo, e)).fold(f64::NEG_INFINITY, f64::max);
+        if lowest.is_finite() {
+            lowest + interval
+        } else {
+            self.repo.refd(from, "linePart").map(|lp| self.repo.f(lp, "top") + 20.0).unwrap_or(LIFELINE_TOP + HEAD_H + 20.0)
+        }
+    }
+
+    fn message_between(&mut self, kind: &'static str, tail: Eid, head: Eid, y: f64) -> Option<Eid> {
+        self.line_from = Some((P { x: 0.0, y }, P { x: 0.0, y }));
+        let tool = Tool { label: "", kind, icon: "", line: true, init: AssocInit::Plain };
+        self.create_edge(&tool, tail, head)
+    }
+
+    /// A lifeline quick-edit button, as one undo step: a message to a new lifeline 20 px right of
+    /// the rightmost one, a create message to one, a self message, or a found or lost message or a
+    /// message from or to a gate 70 px off the lifeline (uml-commands.js:2225-2475).
+    pub fn add_seq(&mut self, v: Eid, what: SeqAdd) -> Option<Eid> {
+        let d = self.diagram?;
+        let interval = if what == SeqAdd::CreateMessageLifeline { 45.0 } else { 35.0 };
+        let y = self.next_message_y(d, v, interval);
+        let b = rect(&self.repo, v);
+        self.change(|a| match what {
+            SeqAdd::MessageLifeline | SeqAdd::CreateMessageLifeline => {
+                let right = a.repo.list(d, "ownedViews").into_iter().filter(|x| a.repo.ty(*x) == "UMLSeqLifelineView").map(|x| { let r = rect(&a.repo, x); r.x + r.w }).fold(b.x + b.w, f64::max);
+                let n = a.create_node("UMLLifeline", R { x: right + 20.0, y: b.y, w: b.w.max(100.0), h: b.h })?;
+                let kind = if what == SeqAdd::CreateMessageLifeline { "UMLCreateMessage" } else { "UMLMessage" };
+                a.message_between(kind, v, n, y)
+            }
+            SeqAdd::SelfMessage => a.message_between("UMLMessage", v, v, y),
+            SeqAdd::FoundMessage | SeqAdd::LostMessage | SeqAdd::FromGate | SeqAdd::ToGate => {
+                let left = matches!(what, SeqAdd::FoundMessage | SeqAdd::FromGate);
+                let x = if left { b.x - 70.0 } else { b.x + b.w + 70.0 };
+                let kind = if matches!(what, SeqAdd::FromGate | SeqAdd::ToGate) { "UMLGate" } else { "UMLEndpoint" };
+                let ep = a.create_node(kind, R { x: x.max(0.0), y, w: ENDPOINT_SIZE, h: ENDPOINT_SIZE })?;
+                if left { a.message_between("UMLMessage", ep, v, y) } else { a.message_between("UMLMessage", v, ep, y) }
+            }
+        })
+    }
+
+    /// Add Reply Message: a reply from the message's head back to its tail, 20 px under it
+    /// (handleAddReplyMessage, uml-commands.js:2612-2645).
+    pub fn add_reply(&mut self, e: Eid) -> Option<Eid> {
+        let (tail, head) = (self.repo.refd(e, "tail")?, self.repo.refd(e, "head")?);
+        if self.repo.ty(tail) != "UMLLinePartView" || self.repo.ty(head) != "UMLLinePartView" {
+            return None;
+        }
+        let y = first_y(&self.repo, e) + 20.0;
+        self.change(|a| {
+            let r = a.message_between("UMLMessage", head, tail, y)?;
+            let m = a.repo.refd(r, "model")?;
+            a.repo.set(m, "messageSort", json!("reply"));
+            Some(r)
+        })
+    }
+
+    /// The type of the lifeline a message goes to (its role's type), for Select / Create Operation.
+    pub fn message_target_type(&self, m: Eid) -> Option<Eid> {
+        let target = self.repo.refd(m, "target")?;
+        let role = self.repo.refd(target, "represent")?;
+        self.repo.refd(role, "type").filter(|t| self.repo.kind_of(*t, "UMLClassifier"))
+    }
+}
