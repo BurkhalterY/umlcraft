@@ -1764,7 +1764,14 @@ fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid], item_ty: 
         r.set_list(comp, "subViews", keep.clone());
     }
     let mut min_w: f64 = 0.0;
+    let mut shown = vec![];
     for (i, iv) in keep.iter().enumerate() {
+        // an item hidden by Delete keeps its view, which neither shows nor takes room
+        // (UMLAttributeView.canHide and the compartments' size, elements.js:4426, 4700-4720)
+        if r.raw(*iv, "visible") == Some(&json!(false)) {
+            continue;
+        }
+        shown.push(*iv);
         let t = &texts[i];
         r.set(*iv, "text", json!(t));
         let st = r.bool(items[i], "isStatic");
@@ -1775,7 +1782,7 @@ fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid], item_ty: 
         let tw = if wrap { widest_word(ms, t, italic) } else { ms.width(t, italic) };
         min_w = min_w.max(tw.ceil() + 2.0 * PAD);
     }
-    let rows: Vec<Row> = keep.into_iter().map(|iv| Row { iv }).collect();
+    let rows: Vec<Row> = shown.into_iter().map(|iv| Row { iv }).collect();
     let h = list_height(r, ms, &rows, f64::INFINITY);
     (min_w, h, rows)
 }
@@ -2850,9 +2857,41 @@ pub enum Sizable {
 }
 
 /// The sizable mode of a view (the constructors and update() of the views that set one).
+/// The compartment items a click selects on their own (UMLAttributeView… set selectable to SK_YES,
+/// sizable to SZ_NONE and movable to MM_NONE, elements.js:4386-4392 and the like).
+pub const ITEM_VIEWS: [&str; 7] = ["UMLAttributeView", "UMLOperationView", "UMLReceptionView", "UMLTemplateParameterView", "UMLEnumerationLiteralView", "UMLSlotView", "UMLExtensionPointView"];
+
+pub fn is_item_view(ty: &str) -> bool {
+    ITEM_VIEWS.contains(&ty)
+}
+
+/// Whether Delete may remove the view alone: not labels and parasitic views (core.js:3537, 3584),
+/// compartment items (elements.js:4435 and the like) or the interaction views that ask to go with
+/// their models (canDelete in elements.js:10593-13884).
+pub fn can_delete(r: &Repo, v: Eid) -> bool {
+    let t = r.ty(v);
+    !(is_item_view(t)
+        || r.kind_of(v, "LabelView")
+        || matches!(
+            t,
+            "NodeLabelView" | "EdgeLabelView" | "UMLZigZagAdornmentView" | "UMLSeqLifelineView" | "UMLMessageEndpointView" | "UMLActivationView" | "UMLSeqMessageView" | "UMLStateInvariantView" | "UMLContinuationView"
+                | "UMLInteractionOperandView" | "UMLCombinedFragmentView" | "UMLInteractionUseView" | "UMLTimeConstraintLinkView" | "UMLDurationConstraintView" | "UMLCommLifelineView" | "UMLCommMessageView"
+                | "UMLTimingFrameView" | "UMLTimingStateView" | "UMLTimingLifelineView" | "UMLTimeSegmentView" | "UMLTimingMessageView" | "UMLInteractionInlineView"
+        ))
+}
+
+/// Whether Delete hides the view instead (the compartment items' canHide, elements.js:4426, 4499,
+/// 4565, 4621, 6179, 7393, 8319).
+pub fn can_hide(r: &Repo, v: Eid) -> bool {
+    is_item_view(r.ty(v))
+}
+
 pub fn sizable(r: &Repo, v: Eid) -> Sizable {
     let vertical = || r.refd(v, "model").map(|m| r.bool(m, "isVertical")).unwrap_or(false);
     let timing = || r.parent(v).map(|d| r.ty(d) == "UMLTimingDiagram").unwrap_or(false);
+    if is_item_view(r.ty(v)) {
+        return Sizable::None;
+    }
     match r.ty(v) {
         "UMLPortView" | "UMLPinView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLConnectionPointReferenceView" | "UMLEndpointView" | "UMLGateView" | "UMLCommMessageView" | "UMLTimeConstraintView"
         | "UMLTimingStateView" | "UMLZigZagAdornmentView" | "WFSwitchView" | "ERDColumnView" => Sizable::None,
@@ -2866,6 +2905,9 @@ pub fn sizable(r: &Repo, v: Eid) -> Sizable {
 
 /// Whether a view moves across and down (NodeView.movable: MM_FREE, MM_HORZ, MM_VERT, MM_NONE).
 pub fn movable(r: &Repo, v: Eid) -> (bool, bool) {
+    if is_item_view(r.ty(v)) {
+        return (false, false);
+    }
     match r.ty(v) {
         "UMLSeqLifelineView" | "UMLTimeTickView" => (true, false),
         "UMLTimingLifelineView" | "UMLTimingStateView" | "UMLStateInvariantView" => (false, true),

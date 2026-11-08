@@ -206,6 +206,8 @@ pub struct App {
     pub open_order: Vec<Eid>,
     /// A "Select One" dialog waiting for an answer (dialog-manager.js:433-476).
     pub select_one: Option<SelectOne>,
+    /// The "Delete Views Only" question, for views that can neither be deleted alone nor hidden.
+    pub delete_prompt: bool,
     /// The Element List Editor: the element, the reference-list field and the selected row.
     pub list_editor: Option<(Eid, &'static str, Option<usize>)>,
     /// The Color dialog, opened by Ctrl+Shift+I, Ctrl+Shift+L and the Style editor's swatches.
@@ -339,6 +341,7 @@ impl App {
             color_dialog: None,
             list_editor: None,
             select_one: None,
+            delete_prompt: false,
             open_order: vec![],
             font_dialog: None,
             prefs: crate::prefs::Prefs::default(),
@@ -1339,6 +1342,18 @@ impl App {
             return Ok(vec![]);
         }
         let ty = self.repo.ty(m).to_string();
+        // a hidden view of it inside the box under the drop point, such as an attribute hidden by
+        // Delete, is shown again (app-context.js:1158-1183)
+        if let Some(c) = self.hit_view(p, true) {
+            let mut stack = self.repo.list(c, "subViews");
+            while let Some(s) = stack.pop() {
+                if self.repo.refd(s, "model") == Some(m) && self.repo.raw(s, "visible") == Some(&json!(false)) {
+                    self.change(|a| a.repo.set(s, "visible", json!(true)));
+                    return Ok(vec![s]);
+                }
+                stack.extend(self.repo.list(s, "subViews"));
+            }
+        }
         if m == d {
             // a 700×600 frame of the diagram, its top left at the drop point (factory.js:1174-1185)
             return Ok(self.create_frame(d, Some(d), views::R { x: p.x, y: p.y, w: 700.0, h: 600.0 }).into_iter().collect());

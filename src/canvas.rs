@@ -1000,7 +1000,9 @@ impl App {
             }
         }
         let add = mods.shift;
-        match self.hit_view(p, false) {
+        // a compartment item under the press is selected on its own (View.getViewAt, core.js:1793-1806)
+        let hit = self.hit_view(p, false).map(|v| if is_node(&self.repo, v) { self.row_at(v, p).filter(|iv| views::is_item_view(self.repo.ty(*iv))).unwrap_or(v) } else { v });
+        match hit {
             None => {
                 if !add {
                     self.select(vec![]);
@@ -1522,6 +1524,18 @@ impl App {
 
     pub fn edit_view(&mut self, v: Eid, p: Option<P>) {
         let t = self.repo.ty(v).to_string();
+        // a selected compartment item edits its row in the box that shows it
+        if views::is_item_view(&t) {
+            let mut host = self.repo.parent(v);
+            while let Some(h) = host.filter(|h| !self.repo.kind_of(*h, "Diagram")) {
+                if self.repo.parent(h).map(|d| self.repo.kind_of(d, "Diagram")).unwrap_or(false) {
+                    self.edit_row(h, v);
+                    return;
+                }
+                host = self.repo.parent(h);
+            }
+            return;
+        }
         // an image picks its picture again (app-context.js:1360-1382)
         if t == "ImageView" {
             self.pick_image(v);
@@ -2551,6 +2565,22 @@ impl App {
             }
             return;
         }
+        // views that cannot go alone are hidden if they can be (compartment items), else the person
+        // is asked (handleDelete, default-commands.js:776-822)
+        if !from_model && !sel.iter().all(|v| views::can_delete(&self.repo, *v)) {
+            if sel.iter().all(|v| views::can_hide(&self.repo, *v)) {
+                self.change(|a| {
+                    for v in &sel {
+                        a.repo.set_raw(*v, "visible", serde_json::json!(false));
+                    }
+                    a.selection.clear();
+                    a.focus = None;
+                });
+            } else {
+                self.delete_prompt = true;
+            }
+            return;
+        }
         self.change(|a| {
             if from_model {
                 let models: Vec<Eid> = sel.iter().filter_map(|v| a.repo.refd(*v, "model")).collect();
@@ -2564,6 +2594,19 @@ impl App {
             } else {
                 a.remove_views(&sel);
             }
+            a.selection.clear();
+            a.focus = None;
+        });
+    }
+
+    /// Delete the selected views whatever they are, their models staying ("Delete Views Only").
+    pub fn delete_views_only(&mut self) {
+        let sel: Vec<Eid> = self.selection.iter().copied().filter(|v| self.repo.alive(*v)).collect();
+        if sel.is_empty() {
+            return;
+        }
+        self.change(|a| {
+            a.remove_views(&sel);
             a.selection.clear();
             a.focus = None;
         });

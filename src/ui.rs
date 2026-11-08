@@ -2971,6 +2971,7 @@ impl App {
             || self.color_dialog.is_some()
             || self.list_editor.is_some()
             || self.select_one.is_some()
+            || self.delete_prompt
             || self.font_dialog.is_some()
             || self.prefs_open.is_some()
             || self.tag_editor.is_some()
@@ -3018,6 +3019,7 @@ impl App {
         self.color_dialog_ui(ctx);
         self.list_editor_ui(ctx);
         self.select_one_ui(ctx);
+        self.delete_prompt_ui(ctx);
         self.print_dialog_ui(ctx);
         self.element_picker_ui(ctx);
         self.input_dialog_ui(ctx);
@@ -3275,6 +3277,34 @@ impl App {
             self.select_one = None;
         } else {
             self.select_one = Some(d);
+        }
+    }
+
+    /// "Delete Views Only": Delete on views that ask to go with their models (lifelines, messages,
+    /// labels…) offers to delete the views only or the models too (default-commands.js:786-822).
+    fn delete_prompt_ui(&mut self, ctx: &egui::Context) {
+        if !self.delete_prompt {
+            return;
+        }
+        let (mut views, mut models, mut cancel) = (false, false, false);
+        egui::Window::new("Delete Views Only").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+            ui.label("Do you want to delete views only?");
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                views = ui.button("Delete Views Only").clicked();
+                models = ui.button("Delete from Model").clicked();
+                cancel = ui.button("Cancel").clicked();
+            });
+            models |= ui.input(|i| i.key_pressed(egui::Key::Enter));
+            cancel |= ui.input(|i| i.key_pressed(egui::Key::Escape));
+        });
+        if views || models || cancel {
+            self.delete_prompt = false;
+        }
+        if views {
+            self.delete_views_only();
+        } else if models {
+            self.delete_selection(true);
         }
     }
 

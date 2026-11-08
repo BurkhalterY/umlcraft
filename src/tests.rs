@@ -5936,3 +5936,72 @@ fn views_move_and_resize_only_the_ways_they_may() {
     let sw = a.change(|a| a.create_node("WFSwitch", rect(50.0, 50.0, 1.0, 1.0))).unwrap();
     assert_eq!(sizable(&a.repo, sw), Sizable::None);
 }
+
+#[test]
+fn delete_hides_compartment_items_and_asks_for_lifelines() {
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(800.0, 600.0));
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let m1 = a.repo.refd(c1, "model").unwrap();
+    let at = a.change(|a| a.add_feature(m1, "UMLAttribute")).unwrap();
+    let at2 = a.change(|a| a.add_feature(m1, "UMLAttribute")).unwrap();
+    let d = a.diagram.unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let h0 = a.repo.f(c1, "height");
+    let rows = a.info[&c1].compartments.iter().flat_map(|c| c.rows.iter()).map(|r| r.iv).collect::<Vec<_>>();
+    assert_eq!(rows.len(), 2);
+    let iv = rows[0];
+    assert_eq!(a.repo.refd(iv, "model"), Some(at));
+    let b = crate::views::node_rect(&a.repo, iv);
+    // a click on the row selects the attribute's view alone, and a drag does not move the class
+    a.on_press(canvas, Pos2::new((b.x + 5.0) as f32, (b.y + b.h / 2.0) as f32), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new((b.x + 60.0) as f32, (b.y + 60.0) as f32));
+    a.on_release(canvas.min, Pos2::new((b.x + 60.0) as f32, (b.y + 60.0) as f32));
+    assert_eq!(a.selection, vec![iv]);
+    assert_eq!(a.focus, Some(at));
+    assert_eq!(a.repo.f(c1, "left"), 40.0);
+    // Delete hides it: the model stays, the view is kept but takes no room
+    a.delete_selection(false);
+    assert!(a.repo.alive(at) && a.repo.alive(iv));
+    assert_eq!(a.repo.raw(iv, "visible"), Some(&json!(false)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let rows = a.info[&c1].compartments.iter().flat_map(|c| c.rows.iter()).map(|r| r.iv).collect::<Vec<_>>();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(a.repo.refd(rows[0], "model"), Some(at2));
+    assert!(a.repo.f(c1, "height") <= h0);
+    // a lifeline cannot go alone: the person is asked
+    let sd = a.change(|a| a.add_diagram(Some(a.repo.root), "UMLSequenceDiagram"));
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 100.0, 100.0, 60.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, sd);
+    let lm = a.repo.refd(l1, "model").unwrap();
+    a.select(vec![l1]);
+    a.delete_selection(false);
+    assert!(a.delete_prompt && a.repo.alive(l1));
+    a.delete_prompt = false;
+    a.delete_views_only();
+    assert!(!a.repo.alive(l1));
+    assert!(a.repo.alive(lm));
+}
+
+#[test]
+fn a_hidden_attribute_dropped_on_its_class_shows_again() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let m1 = a.repo.refd(c1, "model").unwrap();
+    let at = a.change(|a| a.add_feature(m1, "UMLAttribute")).unwrap();
+    let d = a.diagram.unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let iv = a.info[&c1].compartments.iter().flat_map(|c| c.rows.iter()).map(|r| r.iv).next().unwrap();
+    a.select(vec![iv]);
+    a.delete_selection(false);
+    assert_eq!(a.repo.raw(iv, "visible"), Some(&json!(false)));
+    let shown = a.drop_model(at, crate::views::P { x: 60.0, y: 60.0 }).unwrap();
+    assert_eq!(shown, vec![iv]);
+    assert_ne!(a.repo.raw(iv, "visible"), Some(&json!(false)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.info[&c1].compartments.iter().flat_map(|c| c.rows.iter()).count(), 1);
+    assert_eq!(a.repo.list(d, "ownedViews").len(), 1, "no second view");
+}
