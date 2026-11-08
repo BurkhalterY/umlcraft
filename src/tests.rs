@@ -9194,3 +9194,63 @@ fn an_interaction_dropped_on_a_sequence_diagram_is_used() {
     a.open_diagram(cd);
     assert!(!a.can_drop_model(other));
 }
+
+/// A surface that records the filled polygons and the texts drawn on it, in order.
+#[derive(Default)]
+struct Recorder {
+    ops: Vec<(String, crate::views::R)>,
+}
+impl crate::views::Measure for Recorder {
+    fn width(&self, text: &str, _style: u8) -> f64 {
+        text.len() as f64 * 7.0
+    }
+}
+impl crate::render::Canvas for Recorder {
+    fn polyline(&mut self, _pts: &[crate::views::P], _color: crate::render::Rgba, _dashed: bool) {}
+    fn polygon(&mut self, pts: &[crate::views::P], fill: Option<crate::render::Rgba>, _stroke: Option<crate::render::Rgba>) {
+        if let Some(f) = fill {
+            let (x0, y0) = (pts.iter().map(|p| p.x).fold(f64::INFINITY, f64::min), pts.iter().map(|p| p.y).fold(f64::INFINITY, f64::min));
+            let (x1, y1) = (pts.iter().map(|p| p.x).fold(f64::NEG_INFINITY, f64::max), pts.iter().map(|p| p.y).fold(f64::NEG_INFINITY, f64::max));
+            self.ops.push((format!("fill {:02x}{:02x}{:02x}", f.0, f.1, f.2), rect(x0, y0, x1 - x0, y1 - y0)));
+        }
+    }
+    fn ellipse(&mut self, _c: crate::views::P, _rx: f64, _ry: f64, _fill: Option<crate::render::Rgba>, _stroke: Option<crate::render::Rgba>) {}
+    fn text(&mut self, t: &str, b: crate::views::R, _align: i64, _style: u8, _size: f64, _color: crate::render::Rgba, _underline: bool) {
+        self.ops.push((format!("text {t}"), b));
+    }
+}
+
+#[test]
+fn a_line_label_fills_its_box_before_its_text() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(340.0, 40.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    a.repo.set(m, "name", json!("owns"));
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nl = a.repo.refd(e, "nameLabel").unwrap();
+    assert_eq!(a.repo.ty(nl), "EdgeLabelView");
+    let mut rec = Recorder::default();
+    crate::render::draw_label(&mut rec, &a.repo, nl, crate::render::Rgba(0, 0, 0, 255));
+    // EdgeLabelView.draw (core.js:3802-3806): fillRect over the label's box, then the text
+    let b = crate::views::node_rect(&a.repo, nl);
+    assert_eq!(rec.ops.len(), 2, "{:?}", rec.ops.iter().map(|o| o.0.clone()).collect::<Vec<_>>());
+    assert_eq!(rec.ops[0].0, "fill ffffff");
+    assert_eq!((rec.ops[0].1.x, rec.ops[0].1.y, rec.ops[0].1.w, rec.ops[0].1.h), (b.x, b.y, b.w, b.h));
+    assert_eq!(rec.ops[1].0, "text +owns");
+    // its own fill colour
+    a.repo.set(nl, "fillColor", json!("#ffff00"));
+    let mut rec = Recorder::default();
+    crate::render::draw_label(&mut rec, &a.repo, nl, crate::render::Rgba(0, 0, 0, 255));
+    assert_eq!(rec.ops[0].0, "fill ffff00");
+    // a compartment row (a LabelView) is not filled
+    let at = a.change(|a| a.add_feature(a.repo.refd(c1, "model").unwrap(), "UMLAttribute")).unwrap();
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let row = a.repo.all().into_iter().find(|v| a.repo.ty(*v) == "UMLAttributeView" && a.repo.refd(*v, "model") == Some(at)).unwrap();
+    let mut rec = Recorder::default();
+    crate::render::draw_label(&mut rec, &a.repo, row, crate::render::Rgba(0, 0, 0, 255));
+    assert!(rec.ops.iter().all(|o| o.0.starts_with("text")));
+}

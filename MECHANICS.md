@@ -116,6 +116,7 @@ Read from `extensions/default/staruml-v1` (main.js, reader.js, uml-readers.js); 
 | Selection colour / handle size | #4f99ff / 8 | `src/core/graphics.js:2723` |
 
 * Word wrap: a view with `wordWrap` on breaks its labels between words to the label width, and its minimum width is the widest single word plus padding (`src/core/core.js:3705-3727, 3769-3790`). UMLCraft applies this to the name and the attribute, operation and literal rows of class-like boxes; notes and text wrap only while their `wordWrap` is on (default on).
+* Floating labels (EdgeLabelView, NodeLabelView: a line's name, roles and multiplicities, a port's or pin's name) fill their box with their own fill colour, white by default, before drawing their text, so a line under a label is hidden there (`src/core/core.js:3742-3746, 3802-3806`).
 
 * Robustness: a class stereotyped «boundary», «entity» or «control» with Stereotype Display Icon (or Icon with Label) is drawn as the UML robustness icon with its name below; the Robustness tools create such a class with attributes and operations suppressed (`extensions/default/robustness/main.js:17`). UMLCraft draws its own icons in a 50×36 area (estimated).
 
