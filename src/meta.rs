@@ -411,6 +411,29 @@ fn build() -> HashMap<&'static str, Kind> {
     def("AzureCalloutView", Some("AzureGeneralNodeView"), vec![]);
     def("AzureServiceView", Some("AzureIconNodeView"), vec![]);
     def("AzureConnectorView", Some("AzureGeneralEdgeView"), vec![]);
+    // GCP architecture diagrams (gcp/metamodel.json)
+    def("GCPElement", Some("ExtensibleModel"), vec![("icon", d(json!("")))]);
+    def("GCPModel", Some("GCPElement"), vec![]);
+    def("GCPDiagram", Some("Diagram"), vec![]);
+    def("GCPUser", Some("GCPElement"), vec![]);
+    def("GCPZone", Some("GCPElement"), vec![("zoneType", d(json!("project")))]);
+    def(
+        "GCPProduct",
+        Some("GCPElement"),
+        vec![
+            ("product", d(json!(""))), ("multiInstance", d(json!(false))), ("expanded", d(json!(false))), ("expandedInfo", d(json!(""))), ("machineType", d(json!("none"))),
+            ("cores", d(json!(0))), ("ram", d(json!(0.0))), ("diskType", d(json!("none"))), ("disks", d(json!(0))), ("additionalModifier", d(json!("none"))),
+        ],
+    );
+    def("GCPService", Some("GCPElement"), vec![]);
+    def("GCPPath", Some("DirectedRelationship"), vec![("pathType", d(json!("primary")))]);
+    def("GCPGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
+    def("GCPGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
+    for ty in ["GCPUserView", "GCPZoneView", "GCPServiceView"] {
+        def(ty, Some("GCPGeneralNodeView"), vec![]);
+    }
+    def("GCPProductView", Some("GCPGeneralNodeView"), vec![("productLabel", n()), ("expandedLabel", n())]);
+    def("GCPPathView", Some("GCPGeneralEdgeView"), vec![]);
     // C4 models (c4/metamodel.json)
     def("C4Element", Some("ExtensibleModel"), vec![("technology", d(json!(""))), ("description", d(json!("")))]);
     def("C4Model", Some("C4Element"), vec![]);
@@ -564,5 +587,5 @@ pub fn static_name(ty: &str) -> &'static str {
 /// Whether an element of another notation than UML takes its name as typed, without the UML name
 /// grammar (flowcharts, data flow diagrams, mind maps: their quick edits only set the name).
 pub fn plain_named(ty: &str) -> bool {
-    ["FC", "DFD", "MM", "ERD", "C4", "WF", "AWS", "Azure"].iter().any(|p| ty.starts_with(p))
+    ["FC", "DFD", "MM", "ERD", "C4", "WF", "AWS", "Azure", "GCP"].iter().any(|p| ty.starts_with(p))
 }

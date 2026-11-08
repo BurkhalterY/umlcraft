@@ -18,6 +18,7 @@ mod erd;
 mod export;
 mod find;
 mod flowchart;
+mod gcp;
 mod fragment;
 mod generate;
 mod html;

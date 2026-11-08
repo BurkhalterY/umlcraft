@@ -272,8 +272,8 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 34] = [
-    "AWSArrowView", "AzureConnectorView", "C4RelationshipView", "ERDRelationshipView", "FCFlowView", "DFDDataFlowView", "MMEdgeView", "UMLExceptionHandlerView", "UMLActivityInterruptView", "UMLConnectorView", "UMLTimeConstraintLinkView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
+const KNOWN_EDGE_VIEWS: [&str; 35] = [
+    "AWSArrowView", "AzureConnectorView", "GCPPathView", "C4RelationshipView", "ERDRelationshipView", "FCFlowView", "DFDDataFlowView", "MMEdgeView", "UMLExceptionHandlerView", "UMLActivityInterruptView", "UMLConnectorView", "UMLTimeConstraintLinkView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",

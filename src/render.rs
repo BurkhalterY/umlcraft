@@ -1140,6 +1140,11 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
             head = Some(End::SolidArrow);
             dashed = crate::cloud::edge_dotted(r, e);
         }
+        // a GCP path ends in a filled arrow head, dotted when optional (GCPPathView, gcp/elements.js:1000-1045)
+        "GCPPathView" => {
+            head = Some(End::SolidArrow);
+            dashed = crate::cloud::edge_dotted(r, e);
+        }
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
             if let Some(m) = r.refd(e, "model") {

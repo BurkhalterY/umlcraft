@@ -345,6 +345,21 @@ const AZURE_GROUPS: &[Group] = &[
     },
     ANNOTATIONS,
 ];
+// a GCP architecture diagram (gcp/toolbox/gcp.json)
+const GCP_GROUPS: &[Group] = &[
+    Group {
+        id: "gcp.elements",
+        label: "GCP",
+        items: &[
+            node("Zone", "GCPZone", "GCPZone"),
+            node("User", "GCPUser", "GCPUser"),
+            node("Product", "GCPProduct", "GCPProduct"),
+            node("Service", "GCPService", "GCPService"),
+            line("Path", "GCPPath", "GCPPath", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
 // a C4 diagram (c4/toolbox/c4.json)
 const C4_GROUPS: &[Group] = &[
     Group {
@@ -575,7 +590,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 23] = [
+const DIAGRAM_KINDS: [(&str, &str); 24] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -600,6 +615,7 @@ const DIAGRAM_KINDS: [(&str, &str); 23] = [
     ("Wireframe Diagram", "WFWireframeDiagram"),
     ("AWS Architecture Diagram", "AWSDiagram"),
     ("Azure Architecture Diagram", "AzureDiagram"),
+    ("GCP Architecture Diagram", "GCPDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -1386,6 +1402,12 @@ impl App {
             // WFOrientationKind, WFPositionKind (wireframe/metamodel.json)
             ("WFMobileFrame", "orientation") => return &["portrait", "landscape"],
             ("WFTab" | "WFTabList", "position") => return &["top", "bottom", "left", "right"],
+            // GCPZoneKind, GCPPathKind, GCPMachineType, GCPDiskType, GCPAdditionalModifierType (gcp/metamodel.json)
+            ("GCPZone", "zoneType") => return &crate::gcp::ZONE_TYPES,
+            ("GCPPath", "pathType") => return &crate::gcp::PATH_KINDS,
+            ("GCPProduct", "machineType") => return &crate::gcp::MACHINE_TYPES,
+            ("GCPProduct", "diskType") => return &crate::gcp::DISK_TYPES,
+            ("GCPProduct", "additionalModifier") => return &crate::gcp::MODIFIERS,
             ("C4Container", "kind") => {
                 return &["server-webapp", "client-webapp", "desktop-app", "mobile-app", "console-app", "serverless-function", "database", "blob-store", "filesystem", "shell-script", "etc"]
             }
@@ -1603,6 +1625,18 @@ impl App {
                         match buf.trim().parse::<i64>() {
                             Ok(n) => self.change_all(&targets, |a, o, f| a.repo.set(o, f, json!(n))),
                             Err(_) => *buf = cur,
+                        }
+                    }
+                }
+                // a real number (a GCP product's ram): a typed value that is not a number is ignored
+                "real" => {
+                    let cur = merged.clone().unwrap_or_default();
+                    let buf = self.prop_buf.entry(path.to_string()).or_insert(cur.clone());
+                    let r = ui.add_sized(Vec2::new(w, 23.0), egui::TextEdit::singleline(buf).hint_text("—").font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
+                    if r.lost_focus() && *buf != cur {
+                        match buf.trim().parse::<f64>().ok().filter(|x| x.is_finite()) {
+                            Some(n) => self.change_all(&targets, |a, o, f| a.repo.set(o, f, json!(n))),
+                            None => *buf = cur,
                         }
                     }
                 }
@@ -1897,6 +1931,7 @@ impl App {
                 Some("C4Diagram") => self.open_groups.insert("c4"),
                 Some("AWSDiagram") => self.open_groups.insert("aws.elements"),
                 Some("AzureDiagram") => self.open_groups.insert("azure.elements"),
+                Some("GCPDiagram") => self.open_groups.insert("gcp.elements"),
                 // both groups open on a wireframe diagram ("auto-expands")
                 Some("WFWireframeDiagram") => self.open_groups.insert("wireframe.frames") | self.open_groups.insert("wireframe.components"),
                 Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
@@ -1936,6 +1971,7 @@ impl App {
             Some("C4Diagram") => C4_GROUPS,
             Some("AWSDiagram") => AWS_GROUPS,
             Some("AzureDiagram") => AZURE_GROUPS,
+            Some("GCPDiagram") => GCP_GROUPS,
             Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
             Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
             Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,

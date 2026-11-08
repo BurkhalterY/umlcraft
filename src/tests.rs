@@ -6072,3 +6072,79 @@ fn azure_diagrams_have_groups_services_callouts_and_connectors() {
     assert_eq!((pr.ty(m0), pr.name(m0).as_str()), ("AzureModel", "Azure Architecture"));
     assert_eq!(pr.name(pr.children(m0)[0].1), "Main");
 }
+
+#[test]
+fn gcp_diagrams_have_zones_cards_products_and_paths() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "GCPDiagram"));
+    let model = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(model), a.repo.name(model).as_str(), a.repo.name(d).as_str()), ("GCPModel", "GCPModel1", "GCPDiagram1"));
+    // a zone filled by its kind, holding a product drawn in it
+    let z = a.change(|a| a.create_node("GCPZone", rect(0.0, 0.0, 500.0, 300.0))).unwrap();
+    let zm = a.repo.refd(z, "model").unwrap();
+    let p = a.change(|a| a.create_node("GCPProduct", rect(40.0, 40.0, 1.0, 1.0))).unwrap();
+    let pm = a.repo.refd(p, "model").unwrap();
+    assert_eq!(a.repo.parent(pm), Some(zm));
+    assert_eq!((a.repo.str(pm, "icon").as_str(), a.repo.str(pm, "product").as_str()), ("Compute-Engine.svg", "Compute Engine"));
+    assert_eq!(a.repo.str(p, "lineColor"), crate::gcp::CARD_LINE);
+    let u = a.change(|a| a.create_node("GCPUser", rect(600.0, 0.0, 1.0, 1.0))).unwrap();
+    let um = a.repo.refd(u, "model").unwrap();
+    assert_eq!(a.repo.str(um, "icon"), "Users.png");
+    let s = a.change(|a| a.create_node("GCPService", rect(600.0, 200.0, 1.0, 1.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(z, "fillColor"), "#F6F6F6", "a project zone");
+    a.repo.set(zm, "zoneType", json!("kubernetes-cluster"));
+    let menus = crate::cloud::dropdowns(&a.repo, zm);
+    assert_eq!((menus[0].0, menus[0].1, menus[0].2.len()), ("zoneType", "Zone Type", 20));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(z, "fillColor"), "#FCE4EC");
+    // cards: a user's icon is 48 high above its name, a service's 32 wide left of it
+    assert!(a.repo.f(u, "height") >= 48.0 + 16.0 + 13.0 - 0.01);
+    let ul = a.repo.refd(u, "nameLabel").unwrap();
+    assert_eq!(a.repo.f(ul, "top"), 48.0 + 8.0);
+    let sl = a.repo.refd(s, "nameLabel").unwrap();
+    assert_eq!(a.repo.f(sl, "left"), 600.0 + 48.0);
+    // a product: its icon, name and product line; expanded, its details under them
+    let pl = a.repo.refd(p, "productLabel").unwrap();
+    assert_eq!(a.repo.str(pl, "text"), "Compute Engine");
+    assert_eq!(a.repo.str(pl, "fontColor"), crate::gcp::PRODUCT_FONT);
+    let h0 = a.repo.f(p, "height");
+    a.repo.set(pm, "expanded", json!(true));
+    a.repo.set(pm, "expandedInfo", json!("n1-standard-4"));
+    a.repo.set(pm, "machineType", json!("standard"));
+    a.repo.set(pm, "cores", json!(4));
+    a.repo.set(pm, "ram", json!(15.0));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.repo.f(p, "height") > h0 + 24.0, "room for the details and their icons");
+    assert!(a.repo.f(p, "width") >= 48.0 + 8.0 + 32.0 * 3.0 + 8.0 - 0.01);
+    let xl = a.repo.refd(p, "expandedLabel").unwrap();
+    assert_eq!(a.repo.raw(xl, "visible"), None);
+    // a path is coloured by its kind and dotted when optional
+    let t = tool("GCPPath", AssocInit::Plain);
+    assert!(a.can_connect(&t, u, p));
+    let e = a.change(|a| a.create_edge(&t, u, p)).unwrap();
+    let em = a.repo.refd(e, "model").unwrap();
+    // the path's preference is Rectilinear (0), which the original's `||` passes over for the general one
+    assert_eq!(a.repo.val(e, "lineStyle"), Some(json!(1)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(e, "lineColor"), crate::gcp::GOOGLE_BLUE);
+    a.repo.set(em, "pathType", json!("optional-secondary"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(e, "lineColor"), crate::gcp::GOOGLE_GRAY);
+    assert!(crate::cloud::edge_dotted(&a.repo, e));
+    // Set Product Icon sets the product line, Set Icon the name
+    assert_eq!(crate::cloud::icon_hint("GCPProduct"), "GCP Product Icon");
+    let (_, field) = crate::cloud::icon_base("GCPProduct").unwrap();
+    a.set_icon(pm, field, "Cloud-Run.svg");
+    assert_eq!((a.repo.str(pm, "product").as_str(), a.repo.name(pm).as_str()), ("Cloud Run", "GCPProduct1"));
+    let text = a.repo.serialize();
+    assert!(text.contains("\"zoneType\": \"kubernetes-cluster\""));
+    let back = Repo::parse(&text).unwrap();
+    assert_eq!(back.all_of("GCPProductView").len(), 1);
+    let tp = crate::templates::TEMPLATES.iter().find(|t| t.label == "GCP Architecture").unwrap();
+    let pr = crate::templates::project(tp);
+    let m0 = pr.children(pr.root)[0].1;
+    assert_eq!((pr.ty(m0), pr.name(m0).as_str()), ("GCPModel", "GCP Architecture"));
+}

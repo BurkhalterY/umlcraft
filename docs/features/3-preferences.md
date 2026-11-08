@@ -8,8 +8,8 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 
 | Section | Key | Label | Default | UMLCraft | Source |
 |---|---|---|---|---|---|
-| AWS | `aws.arrow.lineStyle` | Line Style | 2 | ✅ | in Preferences › AWS; a new arrow takes it, or the general one when it is Rectilinear (0) (src/prefs.rs:241, 446) | extensions/essential/aws/preferences/aws.json |
-| Azure | `azure.arrow.lineStyle` | Line Style | 2 | ✅ | in Preferences › Azure; a new connector takes it, or the general one when it is Rectilinear (0) (src/prefs.rs:243, 447) | extensions/essential/azure/preferences/azure.json |
+| AWS | `aws.arrow.lineStyle` | Line Style | 2 | ✅ | in Preferences › AWS; a new arrow takes it, or the general one when it is Rectilinear (0) (src/prefs.rs:241, 448) | extensions/essential/aws/preferences/aws.json |
+| Azure | `azure.arrow.lineStyle` | Line Style | 2 | ✅ | in Preferences › Azure; a new connector takes it, or the general one when it is Rectilinear (0) (src/prefs.rs:243, 449) | extensions/essential/azure/preferences/azure.json |
 | BPMN | `bpmn.activity.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
 | BPMN | `bpmn.event.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
 | BPMN | `bpmn.message.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
@@ -58,7 +58,7 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | Flowchart | `flowchart.database.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
 | Flowchart | `flowchart.direct-access-storage.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
 | Flowchart | `flowchart.internal-storage.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
-| GCP | `gcp.path.lineStyle` | Line Style | 0 | ❌ | extensions/essential/gcp/preferences/gcp.json |
+| GCP | `gcp.path.lineStyle` | Line Style | 0 | ✅ | in Preferences › GCP; a new path takes it, or the general one when it is Rectilinear (0), its default, as the original's `||` does (src/prefs.rs:245, 450) | extensions/essential/gcp/preferences/gcp.json |
 | Mindmap | `mindmap.edge.lineStyle` | Line Style | 1 | ✅ | in Preferences › Mindmap; a new line takes it, or the general line style when it is Rectilinear (0) (src/prefs.rs:274, 403-410) | extensions/essential/mindmap/preferences/mindmap.json |
 | Mindmap | `mindmap.node.fillColor` | Fill Color | null | ✅ | in Preferences › Mindmap; a new node of that kind takes it as its fill colour (src/prefs.rs:274-284, 376-386) | extensions/essential/mindmap/preferences/mindmap.json |
 | Mindmap | `mindmap.node.lineColor` | Line Color | null | ✅ | in Preferences › Mindmap; a new node takes it as its line colour (src/prefs.rs:284, 388-393) | extensions/essential/mindmap/preferences/mindmap.json |

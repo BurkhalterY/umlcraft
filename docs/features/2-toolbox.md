@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER, C4, AWS and Azure architecture diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
+UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER, C4, AWS, Azure and GCP architecture diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -128,11 +128,11 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Flowchart `flowchart` | FCFlowchartDiagram | Database | ✅ | an FCDatabase in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
 | Flowchart `flowchart` | FCFlowchartDiagram | Direct Access Storage | ✅ | an FCDirectAccessStorage in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
 | Flowchart `flowchart` | FCFlowchartDiagram | Internal Storage | ✅ | an FCInternalStorage in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
-| GCP `gcp.elements` | GCPDiagram | Zone | ❌ | extensions/essential/gcp/toolbox/gcp.json |
-| GCP `gcp.elements` | GCPDiagram | User | ❌ | extensions/essential/gcp/toolbox/gcp.json |
-| GCP `gcp.elements` | GCPDiagram | Product | ❌ | extensions/essential/gcp/toolbox/gcp.json |
-| GCP `gcp.elements` | GCPDiagram | Service | ❌ | extensions/essential/gcp/toolbox/gcp.json |
-| GCP `gcp.elements` | GCPDiagram | Path | ❌ | extensions/essential/gcp/toolbox/gcp.json |
+| GCP `gcp.elements` | GCPDiagram | Zone | ✅ | a GCPZone ("GCPZone1") of kind project: a box rounded by 2 in its kind's fill colour (20 kinds, #F6F6F6 for a project), its name at the top left, dashed (4, 4) when optional; it holds the GCP cards drawn or dropped in it (src/gcp.rs; src/app.rs:915) | extensions/essential/gcp/toolbox/gcp.json |
+| GCP `gcp.elements` | GCPDiagram | User | 🟡 | a GCPUser: a card rounded by 2 with a #E2E2E2 line and shadow, its 48 × 48 icon (Users.png) centred at the top and its name under it (src/gcp.rs). The GCP icon set is not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/gcp/toolbox/gcp.json |
+| GCP `gcp.elements` | GCPDiagram | Product | 🟡 | a GCPProduct "Compute Engine": a card with its 32 × 32 icon (Compute-Engine.svg), its name and grey product line; `expanded` shows `expandedInfo` and the machine, disk and modifier icons with the cores, ram and disks in blue pills, `multiInstance` a second card behind (src/gcp.rs). The GCP icon set is not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as placeholders with their initials | extensions/essential/gcp/toolbox/gcp.json |
+| GCP `gcp.elements` | GCPDiagram | Service | 🟡 | a GCPService: a card with its 32 × 32 icon (Application-System.png) at the left and its name centred top to bottom right of it (src/gcp.rs). The GCP icon set is not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/gcp/toolbox/gcp.json |
+| GCP `gcp.elements` | GCPDiagram | Path | ✅ | a GCPPath between two GCP elements with a filled arrow head, blue, grey, green or red by its `pathType` and dotted when optional, its name 15 px off its middle (src/gcp.rs `path_style`; src/render.rs) | extensions/essential/gcp/toolbox/gcp.json |
 | Mindmap `mindmap` | MMMindmapDiagram | Node | ✅ | an MMNode ("MMNode1"…) in the mind map that owns the diagram, a box rounded by 14 with its word-wrapped name (src/app.rs:798-808; src/notations.rs:68-145) | extensions/essential/mindmap/toolbox/mindmap.json |
 | Mindmap `mindmap` | MMMindmapDiagram | Edge | ✅ | an MMEdge between two nodes, a plain line without arrows or label (src/app.rs:1389; src/views.rs) | extensions/essential/mindmap/toolbox/mindmap.json |
 | Requirements `sysml.requirement` | SysMLRequirementDiagram | Package | ❌ | extensions/essential/sysml/toolbox/sysml.json |
