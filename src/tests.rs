@@ -6148,3 +6148,43 @@ fn gcp_diagrams_have_zones_cards_products_and_paths() {
     let m0 = pr.children(pr.root)[0].1;
     assert_eq!((pr.ty(m0), pr.name(m0).as_str()), ("GCPModel", "GCP Architecture"));
 }
+
+#[test]
+fn cloud_quick_edits_open_the_icon_picker() {
+    use crate::canvas::{item_buttons, ItemKey};
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "GCPDiagram"));
+    let p = a.change(|a| a.create_node("GCPProduct", rect(0.0, 0.0, 1.0, 1.0))).unwrap();
+    let pm = a.repo.refd(p, "model").unwrap();
+    let z = a.change(|a| a.create_node("GCPZone", rect(300.0, 0.0, 200.0, 100.0))).unwrap();
+    // a product's name edit has the GCP Product Icon button; a zone's has none
+    a.edit_view(p, None);
+    let ed = a.editing.clone().unwrap();
+    assert!(matches!(ed.kind, crate::app::EditKind::Name(m) if m == pm));
+    let keys = item_buttons(&a.repo, ed.host, &ed.kind);
+    assert_eq!(keys.iter().map(|k| (k.1, k.3)).collect::<Vec<_>>(), vec![("GCP Product Icon", ItemKey::CloudIcon)]);
+    a.editing = None;
+    a.edit_view(z, None);
+    let ed = a.editing.clone().unwrap();
+    assert!(item_buttons(&a.repo, ed.host, &ed.kind).is_empty());
+    a.editing = None;
+    // the picker opens on the product's folder and renames its product line; without the icon
+    // folder it asks for the file name, and it draws in a frame either way
+    a.open_icon_picker(pm);
+    let ip = a.icon_picker.clone().unwrap();
+    assert_eq!((ip.base, ip.field, ip.selected.as_deref()), ("gcp/products", "product", Some("Compute-Engine.svg")));
+    let _ = ctx.run_ui(egui::RawInput::default(), |ui| a.icon_picker_ui(ui.ctx()));
+    assert!(a.icon_picker.is_some(), "it stays open until OK or Cancel");
+    let dir = std::env::temp_dir().join(format!("umlcraft-cloud-picker-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("gcp/products")).unwrap();
+    let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="12" fill="#4284F3"/></svg>"##;
+    std::fs::write(dir.join("gcp/products/Cloud-Run.svg"), svg).unwrap();
+    crate::cloud::set_icon_dir(Some(dir.clone()));
+    let _ = ctx.run_ui(egui::RawInput::default(), |ui| a.icon_picker_ui(ui.ctx()));
+    crate::cloud::set_icon_dir(None);
+    assert!(a.icon_picker.is_some());
+    let _ = std::fs::remove_dir_all(&dir);
+}
