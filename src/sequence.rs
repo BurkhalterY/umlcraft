@@ -356,6 +356,21 @@ pub fn layout(r: &mut Repo, ms: &dyn Measure, d: Eid) {
 /// (UMLSeqLifelineView.sizeAsCanonicalForm and arrangeAsCanonicalForm, elements.js:11230-11270).
 pub fn layout_lifeline(r: &mut Repo, ms: &dyn Measure, v: Eid) {
     let Some(m) = r.refd(v, "model").filter(|m| r.alive(*m)) else { return };
+    if actor_icon(r, v) {
+        // the iconic form: the actor in the top 40 px, the name under it, then the line
+        // (sizeAsIconicForm and arrangeAsIconicForm, elements.js:11247-11251, 11293-11311)
+        let min_w = views::name_min_width(r, ms, v, m, None, false).max(ICON_MIN);
+        let w = r.f(v, "width").max(min_w);
+        r.set(v, "width", json!(w));
+        let (x, y) = (r.f(v, "left"), r.f(v, "top"));
+        let nh = views::layout_name(r, ms, v, m, x, y + HEAD_H, w, None, false);
+        if let Some(nm) = r.refd(v, "nameCompartment").and_then(|nc| r.refd(nc, "nameLabel")) {
+            r.set(nm, "underline", json!(false));
+        }
+        let h = r.f(v, "height").max(HEAD_H + nh + LINE_MIN_H);
+        r.set(v, "height", json!(h));
+        return;
+    }
     let min_w = views::name_min_width(r, ms, v, m, None, false).max(HEAD_MIN_W);
     let w = r.f(v, "width").max(min_w);
     r.set(v, "width", json!(w));
@@ -378,6 +393,15 @@ pub fn layout_lifeline(r: &mut Repo, ms: &dyn Measure, v: Eid) {
     r.set(v, "height", json!(h));
 }
 
+const ICON_MIN: f64 = 24.0; // ICONICVIEW_ICONMINWIDTH (elements.js:73-74)
+
+/// Whether a lifeline shows as the icon of the actor its role is typed by (stereotypeDisplay "icon",
+/// UMLSeqLifelineView.drawIcon, elements.js:11111-11130). Other role types keep the box.
+pub fn actor_icon(r: &Repo, v: Eid) -> bool {
+    r.str(v, "stereotypeDisplay") == "icon"
+        && r.refd(v, "model").and_then(|m| r.refd(m, "represent")).and_then(|a| r.refd(a, "type")).map(|t| r.ty(t) == "UMLActor").unwrap_or(false)
+}
+
 /// Draw a lifeline: its head (a second one behind for a multi-instance lifeline, a bar each side for
 /// an active class), its name and its dashed line (drawAsCanonicalForm and UMLLinePartView.drawObject,
 /// elements.js:11085-11092, 11310-11360).
@@ -386,6 +410,18 @@ pub fn draw_lifeline(c: &mut dyn Canvas, r: &Repo, v: Eid, fill: Rgba, line: Rgb
     let hb = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "top") + r.f(nc, "height")).unwrap_or(b.y + HEAD_H);
     let head = R { x: b.x, y: b.y, w: b.w, h: hb - b.y };
     let m = r.refd(v, "model");
+    if actor_icon(r, v) {
+        // the actor's figure, as wide as its ratio allows in the top 40 px (computeIconRect)
+        let ih = HEAD_H;
+        let iw = b.w.min(ih * views::ACTOR_ICON_W / views::ACTOR_ICON_H);
+        crate::render::draw_stick_figure(c, R { x: b.x + (b.w - iw) / 2.0, y: b.y, w: iw, h: ih }, fill, line);
+        if let Some(lp) = r.refd(v, "linePart") {
+            let lb = rect(r, lp);
+            let cx = lb.x + lb.w / 2.0;
+            crate::render::dashes(c, &[P { x: cx, y: lb.y }, P { x: cx, y: lb.y + lb.h }], line, 3.0, 3.0);
+        }
+        return;
+    }
     let pts = |b: R| vec![P { x: b.x, y: b.y }, P { x: b.x + b.w, y: b.y }, P { x: b.x + b.w, y: b.y + b.h }, P { x: b.x, y: b.y + b.h }];
     if r.bool(v, "showShadow") {
         let s = Rgba(crate::render::SHADOW_COLOR.0, crate::render::SHADOW_COLOR.1, crate::render::SHADOW_COLOR.2, (255.0 * crate::render::SHADOW_ALPHA) as u8);
@@ -449,6 +485,14 @@ pub fn create_fragment_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> 
     let oc = r.create("UMLInteractionOperandCompartmentView", &[("model", r.ref_to(model)), ("font", json!(views::FONT)), ("parentStyle", json!(true))], Some((v, "subViews")));
     r.set_ref(v, "operandCompartment", Some(oc));
     v
+}
+
+/// An operand's view in a fragment's operand compartment, `h` high, with its guard label.
+pub fn create_operand_view(r: &mut Repo, compartment: Eid, operand: Eid, h: f64) -> Eid {
+    let ov = r.create("UMLInteractionOperandView", &[("model", r.ref_to(operand)), ("font", json!(views::FONT)), ("parentStyle", json!(true)), ("height", json!(h))], Some((compartment, "subViews")));
+    let gl = label(r, ov, operand);
+    r.set_ref(ov, "guardLabel", Some(gl));
+    ov
 }
 
 /// A continuation's or an interaction use's view (UMLContinuationView, UMLInteractionUseView,
@@ -567,12 +611,7 @@ pub fn layout_fragment(r: &mut Repo, ms: &dyn Measure, v: Eid) {
                 for &o in &operands {
                     let ov = match old.iter().copied().find(|x| r.refd(*x, "model") == Some(o)) {
                         Some(ov) => ov,
-                        None => {
-                            let ov = r.create("UMLInteractionOperandView", &[("model", r.ref_to(o)), ("font", json!(views::FONT)), ("parentStyle", json!(true)), ("height", json!(OPERAND_MIN_H))], Some((oc, "subViews")));
-                            let gl = label(r, ov, o);
-                            r.set_ref(ov, "guardLabel", Some(gl));
-                            ov
-                        }
+                        None => create_operand_view(r, oc, o, OPERAND_MIN_H),
                     };
                     views_.push(ov);
                 }

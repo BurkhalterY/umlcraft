@@ -22,6 +22,7 @@ mod layout;
 mod markdown;
 mod mermaid;
 mod mermaid_kinds;
+mod mermaid_sequence;
 mod canvas;
 mod icons;
 mod input;

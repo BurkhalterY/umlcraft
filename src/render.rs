@@ -149,6 +149,17 @@ pub fn fit_ratio(b: R, w: f64, h: f64) -> R {
 /// polygons and arcs, fr, frr, fe, fp and fa fill them, and %l, %f, %a and %p set the line colour,
 /// the fill colour, the opacity and a dash pattern (graphics.js:2384-2654). %w (line width) is read
 /// but UMLCraft draws one-pixel lines.
+/// The actor's stick figure in the box `b`: head, body, arms and legs.
+pub fn draw_stick_figure(c: &mut dyn Canvas, b: R, fill: Rgba, line: Rgba) {
+    let (ix, iy, iw, ih) = (b.x, b.y, b.w, b.h);
+    let head_h = ih * 0.34 - 1.0;
+    c.ellipse(P { x: ix + iw / 2.0, y: iy + 1.0 + head_h / 2.0 }, iw * 0.34, head_h / 2.0, Some(fill), Some(line));
+    let p = |fx: f64, fy: f64| P { x: ix + iw * fx, y: iy + ih * fy };
+    c.polyline(&[p(0.5, 0.34), p(0.5, 0.66)], line, false);
+    c.polyline(&[p(0.14, 0.46), p(0.86, 0.46)], line, false);
+    c.polyline(&[p(0.0, 1.0), p(0.5, 0.66), p(1.0, 1.0)], line, false);
+}
+
 pub fn draw_icon_script(c: &mut dyn Canvas, b: R, script: &str, line0: Rgba, fill0: Rgba) {
     let (mut sw, mut sh) = (100.0, 100.0);
     let mut cmds: Vec<Vec<String>> = vec![];
@@ -294,13 +305,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         "actor" => {
             let ih = b.h - views::NAME_MIN_H;
             let iw = b.w.min(ih * views::ACTOR_ICON_W / views::ACTOR_ICON_H);
-            let (ix, iy) = (b.x + (b.w - iw) / 2.0, b.y);
-            let head_h = ih * 0.34 - 1.0;
-            c.ellipse(P { x: ix + iw / 2.0, y: iy + 1.0 + head_h / 2.0 }, iw * 0.34, head_h / 2.0, Some(fill), Some(line));
-            let p = |fx: f64, fy: f64| P { x: ix + iw * fx, y: iy + ih * fy };
-            c.polyline(&[p(0.5, 0.34), p(0.5, 0.66)], line, false);
-            c.polyline(&[p(0.14, 0.46), p(0.86, 0.46)], line, false);
-            c.polyline(&[p(0.0, 1.0), p(0.5, 0.66), p(1.0, 1.0)], line, false);
+            draw_stick_figure(c, R { x: b.x + (b.w - iw) / 2.0, y: b.y, w: iw, h: ih }, fill, line);
             draw_name(c, r, v);
             return;
         }

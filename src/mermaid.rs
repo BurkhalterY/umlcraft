@@ -4,7 +4,7 @@
 //! UMLCraft reads Mermaid's class diagram syntax itself: classes (with labels, generics and
 //! annotations), members, namespaces, relations with cardinalities and labels, lollipop interfaces,
 //! notes and `direction`. Flowcharts, ER diagrams, mind maps and state diagrams are made by
-//! mermaid_kinds.rs; sequence and requirement diagrams are refused.
+//! mermaid_kinds.rs, sequence diagrams by mermaid_sequence.rs; requirement diagrams are refused.
 
 use crate::app::{App, AssocInit, Tool};
 use crate::layout::{Dir, Seps};
@@ -305,21 +305,63 @@ pub fn member_text(m: &str) -> (String, bool, bool, bool) {
     }
 }
 
+/// Whether a diagram of the Mermaid kind `ty` can be generated into `base` (the factories' base
+/// checks: class-factory.js:40-50, sequence-factory.js:66-75, er-factory.js:31-37,
+/// flowchart-factory.js:31-37, mindmap-factory.js:32-38, state-factory.js:36-46). The class
+/// factory also takes the project, where it makes a "Package by Mermaid".
+pub fn base_ok(a: &App, ty: &str, base: Eid) -> bool {
+    let r = &a.repo;
+    if !r.alive(base) || a.is_diagram(base) {
+        return false;
+    }
+    match ty {
+        "class" => base == r.root || r.kind_of(base, "UMLPackage"),
+        "er" => r.kind_of(base, "UMLPackage"),
+        "sequence" | "state" => r.kind_of(base, "UMLPackage") || r.kind_of(base, "UMLClassifier") || r.ty(base) == "UMLOperation",
+        _ => r.kind_of(base, "ExtensibleModel"),
+    }
+}
+
+/// The error when the base does not fit (the same factories).
+pub fn base_error(ty: &str) -> &'static str {
+    match ty {
+        "class" | "er" => "Base element must be a UMLPackage",
+        "sequence" | "state" => "Base element must be a package, classifer or operation",
+        _ => "Base element must be a model element",
+    }
+}
+
 impl App {
-    /// Generate the class diagram, in one undo step, then lay it out and open it. Returns the diagram.
+    /// The dialog's and the API's generation: into the element focused in the explorer when the kind
+    /// accepts it, otherwise as with no base (the original always passes no base,
+    /// main.js:135-150; using the focused element is UMLCraft's choice).
     pub fn generate_mermaid(&mut self, code: &str, ms: &dyn Measure) -> Result<Eid, String> {
         let ty = diagram_type(code)?;
+        let base = self.focus.filter(|f| *f != self.repo.root && base_ok(self, ty, *f));
+        self.generate_mermaid_in(code, base, ms)
+    }
+
+    /// `mermaid:generate-diagram(code, base?)`: generate the diagram of the code's kind, in one undo
+    /// step, laid out and opened, in `base` or by default in the project (handleGenerateDiagram,
+    /// main.js:155-185). Returns the diagram.
+    pub fn generate_mermaid_in(&mut self, code: &str, base: Option<Eid>, ms: &dyn Measure) -> Result<Eid, String> {
+        let ty = diagram_type(code)?;
         match ty {
-            "flowchart" => return self.generate_flowchart(code, ms),
-            "er" => return self.generate_er(code, ms),
-            "mindmap" => return self.generate_mindmap(code, ms),
-            "state" => return self.generate_state(code, ms),
+            "flowchart" => return self.generate_flowchart(code, base, ms),
+            "er" => return self.generate_er(code, base, ms),
+            "mindmap" => return self.generate_mindmap(code, base, ms),
+            "state" => return self.generate_state(code, base, ms),
+            "sequence" => return self.generate_sequence(code, base, ms),
             "class" => {}
             _ => return Err(format!("UMLCraft cannot generate {ty} diagrams from Mermaid yet.")),
         }
         let md = parse_class_diagram(code)?;
-        // the container: the selected package, or a new "Package by Mermaid" in the project
-        let base = self.focus.filter(|f| self.repo.alive(*f) && self.repo.kind_of(*f, "UMLPackage"));
+        // the container: the base package, or a new "Package by Mermaid" in the project
+        let base = match base {
+            Some(b) if b != self.repo.root && base_ok(self, "class", b) => Some(b),
+            Some(b) if b != self.repo.root => return Err(base_error("class").into()),
+            _ => None,
+        };
         let undo = self.undo.len();
         let d = self.change(|a| {
             let root = a.repo.root;
@@ -474,6 +516,7 @@ impl App {
                 ui.menu_button("Examples", |ui| {
                     for (label, text) in [
                         ("Class Diagram", SAMPLE),
+                        ("Sequence Diagram", crate::mermaid_sequence::SEQUENCE_SAMPLE),
                         ("State Diagram", crate::mermaid_kinds::STATE_SAMPLE),
                         ("Flowchart", crate::mermaid_kinds::FLOWCHART_SAMPLE),
                         ("Entity Relationship Diagram", crate::mermaid_kinds::ER_SAMPLE),

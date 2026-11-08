@@ -2469,7 +2469,7 @@ fn mermaid_class_diagrams() {
     let views = a.repo.list(d, "ownedViews");
     assert_eq!(views.iter().filter(|v| a.repo.ty(**v) == "UMLClassView").count(), 4);
     assert_eq!(views.iter().filter(|v| crate::views::is_edge(&a.repo, **v)).count(), 3);
-    assert!(a.generate_mermaid("sequenceDiagram\nA->>B: hi", &ms).is_err());
+    assert!(a.generate_mermaid("gantt\n title x", &ms).is_err());
     Repo::parse(&a.repo.serialize()).unwrap();
 }
 
@@ -5600,7 +5600,7 @@ fn mermaid_makes_flowcharts_er_diagrams_mind_maps_and_statecharts() {
     }
     let er = a.repo.all().find(|e| a.repo.ty(*e) == "ERDEntity" && a.repo.name(*e) == "LOAN").unwrap();
     assert_eq!(a.repo.list(er, "columns").len(), 4);
-    assert!(a.generate_mermaid("sequenceDiagram\n A->>B: hi", &ms).is_err());
+    assert!(a.generate_mermaid("gantt\n title x", &ms).is_err());
     Repo::parse(&a.repo.serialize()).unwrap();
 }
 
@@ -6878,4 +6878,68 @@ fn staruml1_import_reports_a_bad_file() {
     assert!(a.message.is_some());
     // the project is not replaced
     assert_eq!(a.repo.name(a.repo.root), "Untitled");
+}
+
+#[test]
+fn mermaid_makes_sequence_diagrams() {
+    use crate::mermaid_sequence::{line, parse_sequence, SEQUENCE_SAMPLE};
+    // parsing: participants in order of appearance, aliases, activations, blocks and notes
+    let sd = parse_sequence("sequenceDiagram\n  participant A as Alice\n  A->>+B: hi\n  B-->>-A: ok\n  loop every day\n    A-)C: ping\n  end\n  Note over A,C: done\n  autonumber").unwrap();
+    let ids: Vec<(&str, &str)> = sd.actors.iter().map(|a| (a.id.as_str(), a.description.as_str())).collect();
+    assert_eq!(ids, vec![("A", "Alice"), ("B", "B"), ("C", "C")]);
+    let tys: Vec<u8> = sd.messages.iter().map(|m| m.ty).collect();
+    assert_eq!(tys, vec![line::SOLID, line::ACTIVE_START, line::DOTTED, line::ACTIVE_END, line::LOOP_START, line::SOLID_POINT, line::LOOP_END, line::NOTE, line::AUTONUMBER]);
+    assert_eq!((sd.messages[4].text.as_str(), sd.messages[7].from.as_deref(), sd.messages[7].to.as_deref()), ("every day", Some("A"), Some("C")));
+    // errors: an unclosed block, deactivating an inactive participant, a created participant without its message
+    assert!(parse_sequence("sequenceDiagram\n loop x\n A->>B: hi").is_err());
+    assert!(parse_sequence("sequenceDiagram\n A->>-B: hi").is_err());
+    assert!(parse_sequence("sequenceDiagram\n create participant C\n A->>B: hi").is_err());
+    assert!(parse_sequence("sequenceDiagram\n else x").is_err());
+
+    let ms = measure();
+    let mut a = App::new(None);
+    a.focus = None;
+    let before = a.undo.len();
+    let d = a.generate_mermaid(SEQUENCE_SAMPLE, &ms).unwrap();
+    assert_eq!(a.undo.len(), before + 1, "one undo step");
+    let r = &a.repo;
+    assert_eq!((r.ty(d), r.name(d).as_str()), ("UMLSequenceDiagram", "Sequence Diagram by Mermaid"));
+    let inter = r.parent(d).unwrap();
+    let collab = r.parent(inter).unwrap();
+    assert_eq!((r.name(inter).as_str(), r.name(collab).as_str(), r.parent(collab)), ("Interaction by Mermaid", "Collaboration by Mermaid", Some(r.root)));
+    assert!(r.bool(d, "showActivation") && !r.bool(d, "showSequenceNumber"));
+    // roles and lifelines; the actor typed onto its role, its lifeline in icon form
+    let roles: Vec<String> = r.list(collab, "attributes").into_iter().map(|x| r.name(x)).collect();
+    assert_eq!(roles, vec!["ReaderRole", "Front deskRole", "LoanRole"]);
+    let actor = r.list(collab, "ownedElements").into_iter().find(|x| r.ty(*x) == "UMLActor").unwrap();
+    assert_eq!(r.refd(r.list(collab, "attributes")[0], "type"), Some(actor));
+    let lifelines: Vec<crate::model::Eid> = r.list(d, "ownedViews").into_iter().filter(|v| r.ty(*v) == "UMLSeqLifelineView").collect();
+    assert_eq!(lifelines.len(), 3);
+    assert_eq!((r.f(lifelines[0], "left"), r.f(lifelines[1], "left"), r.f(lifelines[2], "left")), (25.0, 175.0, 325.0));
+    assert!(crate::sequence::actor_icon(r, lifelines[0]) && !crate::sequence::actor_icon(r, lifelines[1]));
+    // messages: sorts, 60 px apart from y = 110 with 30 more before a fragment
+    let msgs: Vec<crate::model::Eid> = r.list(inter, "messages");
+    let sorts: Vec<(String, String)> = msgs.iter().map(|m| (r.name(*m), r.str(*m, "messageSort"))).collect();
+    let want = [("Borrow a book", "synchCall"), ("Check the card", "synchCall"), ("Here it is", "asynchSignal"), ("Join the waiting list", "reply"), ("new", "createMessage"), ("Done", "synchCall")];
+    assert_eq!(sorts, want.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect::<Vec<_>>());
+    let mviews: Vec<crate::model::Eid> = r.list(d, "ownedViews").into_iter().filter(|v| r.ty(*v) == "UMLSeqMessageView").collect();
+    let ys: Vec<f64> = mviews.iter().map(|v| crate::views::points_of(r, *v)[0].y).collect();
+    assert_eq!(ys, vec![110.0, 170.0, 260.0, 320.0, 380.0, 500.0]);
+    // the alt fragment with its two guarded operands, around the Desk and Reader lifelines
+    let cf = r.list(inter, "fragments")[0];
+    assert_eq!(r.str(cf, "interactionOperator"), "alt");
+    let guards: Vec<String> = r.list(cf, "operands").into_iter().map(|o| r.str(o, "guard")).collect();
+    assert_eq!(guards, vec!["the book is in", "it is lent"]);
+    let fv = r.list(d, "ownedViews").into_iter().find(|v| r.ty(*v) == "UMLCombinedFragmentView").unwrap();
+    assert_eq!((r.f(fv, "left"), r.f(fv, "top"), r.f(fv, "top") + r.f(fv, "height")), (45.0, 205.0, 400.0));
+    // the note right of Loan, 100 wide, on its row
+    let n = r.list(d, "ownedViews").into_iter().find(|v| r.ty(*v) == "UMLNoteView").unwrap();
+    assert_eq!((r.str(n, "text").as_str(), r.f(n, "top"), r.f(n, "width")), ("due in 3 weeks", 440.0, 100.0));
+    // into an explicit base: a package is accepted, a diagram refused
+    let pkg = a.change(|a| Some(a.repo.create("UMLPackage", &[("name", serde_json::json!("P"))], Some((a.repo.root, "ownedElements"))))).unwrap();
+    let d2 = a.generate_mermaid_in("sequenceDiagram\n A->>B: hi", Some(pkg), &ms).unwrap();
+    assert_eq!(a.repo.parent(a.repo.parent(a.repo.parent(d2).unwrap()).unwrap()), Some(pkg));
+    assert_eq!(a.generate_mermaid_in("sequenceDiagram\n A->>B: hi", Some(d2), &ms), Err("Base element must be a package, classifer or operation".to_string()));
+    assert_eq!(a.generate_mermaid_in("classDiagram\n A <|-- B", Some(d2), &ms), Err("Base element must be a UMLPackage".to_string()));
+    Repo::parse(&a.repo.serialize()).unwrap();
 }
