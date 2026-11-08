@@ -6070,3 +6070,98 @@ fn sysml_block_definition_diagrams_have_blocks_with_compartments() {
     let text = a.repo.serialize();
     Repo::parse(&text).unwrap();
 }
+
+#[test]
+fn sysml_internal_block_and_parametric_diagrams_have_parts_ports_and_parameters() {
+    use crate::canvas::ItemKey;
+    use crate::sysml::Quick;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let bdd = a.change(|a| a.add_diagram(Some(root), "SysMLBlockDefinitionDiagram"));
+    let model = a.repo.parent(bdd).unwrap();
+    let bv = a.change(|a| a.create_node("SysMLBlock", rect(50.0, 50.0, 1.0, 1.0))).unwrap();
+    let b2v = a.change(|a| a.create_node("SysMLBlock", rect(300.0, 50.0, 1.0, 1.0))).unwrap();
+    let (bm, b2) = (a.repo.refd(bv, "model").unwrap(), a.repo.refd(b2v, "model").unwrap());
+    a.sysml_item_key(b2v, b2, None, ItemKey::SysML(Quick::AddItem("flowProperties")));
+    let fp = a.repo.list(b2, "flowProperties")[0];
+    a.repo.set(fp, "direction", json!("in"));
+    // an internal block diagram is offered on a block only, and goes in it
+    assert_eq!(crate::sysml::diagram_offered(&a.repo, Some(model), "SysMLInternalBlockDiagram"), Some(false));
+    assert_eq!(crate::sysml::diagram_offered(&a.repo, Some(bm), "SysMLInternalBlockDiagram"), Some(true));
+    let d = a.change(|a| a.add_diagram(Some(bm), "SysMLInternalBlockDiagram"));
+    assert_eq!(a.repo.parent(d), Some(bm));
+    let frame = a.repo.list(d, "ownedViews")[0];
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(frame, "nameLabel").unwrap(), "text"), "[Block] Block1 [InternalBlockDiagram1]");
+    assert_eq!(a.repo.str(a.repo.refd(frame, "frameTypeLabel").unwrap(), "text"), "ibd");
+    // Part and Reference: properties of the diagram's block, with a part view
+    let pv = a.change(|a| a.create_node("SysMLPart", rect(100.0, 100.0, 1.0, 1.0))).unwrap();
+    let rv = a.change(|a| a.create_node("SysMLReference", rect(100.0, 300.0, 1.0, 1.0))).unwrap();
+    let pm = a.repo.refd(pv, "model").unwrap();
+    assert_eq!((a.repo.ty(pv), a.repo.name(pm).as_str(), a.repo.field_of(pm).as_deref(), a.repo.str(pm, "aggregation").as_str()), ("SysMLPartView", "Part1", Some("parts"), "composite"));
+    assert_eq!(a.repo.field_of(a.repo.refd(rv, "model").unwrap()).as_deref(), Some("references"));
+    // a block dropped on the diagram becomes a part typed by it
+    let dropped = a.drop_model(b2, crate::views::P { x: 400.0, y: 100.0 }).unwrap()[0];
+    let p2 = a.repo.refd(dropped, "model").unwrap();
+    assert_eq!((a.repo.name(p2).as_str(), a.repo.refd(p2, "type")), ("Part2", Some(b2)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nl = a.repo.refd(a.repo.refd(dropped, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "Part2: Block2");
+    assert_eq!(a.repo.f(nl, "left"), a.repo.f(dropped, "left") + 10.0 + crate::views::PAD, "the name sits 10 px in");
+    // ports: on a typed part they go to its type, on the frame to the diagram's block
+    let x2 = a.repo.f(dropped, "left") + a.repo.f(dropped, "width");
+    let port = a.change(|a| a.create_feature_box("SysMLPort", crate::views::P { x: x2 - 1.0, y: 110.0 }, rect(0.0, 0.0, 0.0, 0.0))).unwrap();
+    assert_eq!(a.repo.parent(a.repo.refd(port, "model").unwrap()), Some(b2));
+    assert_eq!(a.create_feature_box("SysMLPort", crate::views::P { x: 101.0, y: 101.0 }, rect(0.0, 0.0, 0.0, 0.0)).err(), Some("Port should be placed in a typed part".to_string()));
+    let fport = a.change(|a| a.create_feature_box("SysMLPort", crate::views::P { x: 9.0, y: 500.0 }, rect(0.0, 0.0, 0.0, 0.0))).unwrap();
+    assert_eq!((a.repo.parent(a.repo.refd(fport, "model").unwrap()), a.repo.refd(fport, "containerView")), (Some(bm), Some(frame)));
+    // an item flow on a connector between typed ports
+    let port_m = a.repo.refd(port, "model").unwrap();
+    let fport_m = a.repo.refd(fport, "model").unwrap();
+    let t = tool("SysMLConnector", AssocInit::Plain);
+    let e = a.change(|a| a.create_edge(&t, fport, port)).unwrap();
+    let c = a.repo.refd(e, "model").unwrap();
+    a.ask_item_flow(c);
+    assert!(a.select_one.is_none(), "untyped ends refuse");
+    a.repo.set_ref(port_m, "type", Some(b2));
+    a.repo.set_ref(fport_m, "type", Some(bm));
+    a.ask_item_flow(c);
+    assert_eq!(a.select_one.as_ref().map(|s| s.options.clone()), Some(vec!["From Block2 To Block1", "From Block1 To Block2"]));
+    a.select_one = None;
+    a.add_item_flow(c, true);
+    let f = a.repo.all_of("SysMLItemFlow")[0];
+    assert_eq!((a.repo.refd(f, "source"), a.repo.refd(f, "target"), a.repo.ref_list(f, "realizingConnectors")), (Some(bm), Some(b2), vec![c]));
+    a.repo.set_ref_list(f, "conveyed", &[fp]);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(e, "itemFlowToHeadLabel").unwrap(), "text"), "FlowProperty1");
+    // Create Block on a part: a new block in the part's block, as its type
+    a.create_sysml_type(pm, "SysMLBlock", "Engine");
+    let eng = a.repo.refd(pm, "type").unwrap();
+    assert_eq!((a.repo.ty(eng), a.repo.name(eng).as_str(), a.repo.parent(eng)), ("SysMLBlock", "Engine", Some(bm)));
+    // a parametric diagram in a constraint block, with a constraint property and its parameters
+    a.diagram = Some(bdd);
+    let cbv = a.change(|a| a.create_node("SysMLConstraintBlock", rect(50.0, 400.0, 1.0, 1.0))).unwrap();
+    let cb2v = a.change(|a| a.create_node("SysMLConstraintBlock", rect(300.0, 400.0, 1.0, 1.0))).unwrap();
+    let (cb, cb2) = (a.repo.refd(cbv, "model").unwrap(), a.repo.refd(cb2v, "model").unwrap());
+    let par = a.change(|a| a.add_diagram(Some(cb), "SysMLParametricDiagram"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, par);
+    assert_eq!(a.repo.str(a.repo.refd(a.repo.list(par, "ownedViews")[0], "frameTypeLabel").unwrap(), "text"), "par");
+    let cpv = a.change(|a| a.create_node("SysMLConstraintProperty", rect(100.0, 100.0, 160.0, 100.0))).unwrap();
+    let cp = a.repo.refd(cpv, "model").unwrap();
+    assert_eq!((a.repo.ty(cpv), a.repo.name(cp).as_str(), a.repo.field_of(cp).as_deref()), ("SysMLConstraintPropertyView", "Constraint1", Some("constraints")));
+    a.sysml_item_key(cpv, cp, None, ItemKey::SysML(Quick::ConstraintParameter));
+    assert!(a.repo.all_of("SysMLProperty").iter().all(|p| a.repo.field_of(*p).as_deref() != Some("parameters")), "an untyped constraint property refuses");
+    a.repo.set_ref(cp, "type", Some(cb2));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, par);
+    a.sysml_item_key(cpv, cp, None, ItemKey::SysML(Quick::ConstraintParameter));
+    let prm = a.repo.list(cb2, "parameters")[0];
+    let prv = a.repo.list(par, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "SysMLConstraintParameterView").unwrap();
+    assert_eq!((a.repo.name(prm).as_str(), a.repo.refd(prv, "containerView")), ("Parameter1", Some(cpv)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, par);
+    assert_eq!(a.repo.f(prv, "left"), 100.0 + a.repo.f(cpv, "width") - 14.0 + 1.0, "against the inside of the right side");
+    // the parameter tool on the frame: a parameter of the diagram's constraint block
+    let fpv = a.change(|a| a.create_feature_box("SysMLConstraintParameter", crate::views::P { x: 9.0, y: 500.0 }, rect(0.0, 0.0, 0.0, 0.0))).unwrap();
+    assert_eq!(a.repo.parent(a.repo.refd(fpv, "model").unwrap()), Some(cb));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

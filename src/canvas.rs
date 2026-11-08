@@ -2185,6 +2185,7 @@ impl App {
         let mut edge_note: Option<Eid> = None;
         let mut edge_constraint: Option<Eid> = None;
         let mut comm_message: Option<(Eid, bool)> = None;
+        let mut item_flow: Option<Eid> = None;
         let mut add_subst: Option<Eid> = None;
         let mut picked_order: Option<(Eid, &'static str)> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
@@ -2475,6 +2476,13 @@ impl App {
                                 }
                             }
                         }
+                        // a SysML connector's Create Item Flow (quickedits/sysml.json "sysml.connector")
+                        if self.repo.ty(e) == "SysMLConnectorView" {
+                            let b = ui.add(egui::Button::new(egui::RichText::new("+ Item Flow").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Create Item Flow");
+                            if b.is_pointer_button_down_on() {
+                                item_flow = Some(*m);
+                            }
+                        }
                     }
                     // an association's Order of Ends, a property of its line (quickedits/uml.json "uml.end-order")
                     if let (Some(e), true) = (edge, self.repo.ty(*m) == "UMLAssociation") {
@@ -2506,7 +2514,7 @@ impl App {
                     ed.fresh = true;
                 }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if key.is_some() || related.is_some() || edge_note.is_some() || edge_constraint.is_some() || comm_message.is_some() || add_subst.is_some() {
+                if key.is_some() || related.is_some() || edge_note.is_some() || edge_constraint.is_some() || comm_message.is_some() || item_flow.is_some() || add_subst.is_some() {
                     commit = Some(true);
                 } else if esc {
                     commit = Some(false);
@@ -2541,6 +2549,9 @@ impl App {
             if let Some(v) = self.add_comm_message(e, forward) {
                 self.select(vec![v]);
             }
+        }
+        if let Some(c) = item_flow.filter(|c| self.repo.alive(*c)) {
+            self.ask_item_flow(c);
         }
         // the new substitution is selected in the explorer (uml-commands.js:1026-1034)
         if let Some(b) = add_subst.filter(|b| self.repo.alive(*b)) {

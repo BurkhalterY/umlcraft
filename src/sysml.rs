@@ -116,7 +116,19 @@ pub fn view_of(model_ty: &str) -> Option<&'static str> {
 
 /// Whether a view is one of the SysML boxes this module lays out and draws.
 pub fn is_view(view_ty: &str) -> bool {
-    specs(view_ty).is_some() || floating(view_ty)
+    specs(view_ty).is_some() || floating(view_ty) || matches!(view_ty, "SysMLPartView" | "SysMLConstraintPropertyView")
+}
+
+/// The tools that make a property of the block that owns the diagram, and its view: (field, view)
+/// (sysml-factory.js:429-461).
+pub fn property_tool(kind: &str) -> Option<(&'static str, &'static str)> {
+    Some(match kind {
+        "SysMLPart" => ("parts", "SysMLPartView"),
+        "SysMLReference" => ("references", "SysMLPartView"),
+        "SysMLValue" => ("values", "SysMLPartView"),
+        "SysMLConstraintProperty" => ("constraints", "SysMLConstraintPropertyView"),
+        _ => return None,
+    })
 }
 
 /// The SysML views that sit on another box's border at a fixed size: ports and constraint
@@ -484,8 +496,13 @@ fn title_height(ms: &dyn Measure) -> f64 {
 pub fn layout(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
     let ty = r.ty(v).to_string();
     let Some(m) = r.refd(v, "model").filter(|m| r.alive(*m)) else { return Info::default() };
-    if ty == "SysMLPortView" {
-        views::layout_port(r, ms, v, m);
+    match ty.as_str() {
+        "SysMLPortView" => views::layout_port(r, ms, v, m),
+        "SysMLPartView" | "SysMLConstraintPropertyView" => layout_part(r, ms, v, m),
+        "SysMLConstraintParameterView" => layout_parameter(r, ms, v, m),
+        _ => {}
+    }
+    if specs(&ty).is_none() {
         return Info { shape: "sysml", ..Default::default() };
     }
     let specs = specs(&ty).unwrap_or(&[]);
@@ -567,9 +584,36 @@ fn shown(r: &Repo, v: Eid) -> bool {
 pub fn draw(c: &mut dyn Canvas, r: &Repo, v: Eid, fill: Rgba, line: Rgba, fc: Rgba) {
     let ty = r.ty(v);
     let b = views::node_rect(r, v);
-    if ty == "SysMLPortView" {
-        draw_port(c, r, v, line, fill, fc);
-        return;
+    match ty {
+        "SysMLPortView" => return draw_port(c, r, v, line, fill, fc),
+        "SysMLConstraintParameterView" => {
+            c.rect(b, Some(fill), Some(line));
+            for f in ["stereotypeLabel", "nameLabel", "propertyLabel"] {
+                if let Some(lv) = r.refd(v, f) {
+                    crate::render::draw_label(c, r, lv, fc);
+                }
+            }
+            return;
+        }
+        // a part: a box, solid when composite and dashed otherwise, without a shadow (UMLPartView,
+        // elements.js:6977-6984); a constraint property: a box rounded by 8 (elements.js:1765-1775)
+        "SysMLPartView" | "SysMLConstraintPropertyView" => {
+            if ty == "SysMLConstraintPropertyView" {
+                c.polygon(&crate::render::round_rect(b, 8.0), Some(fill), Some(line));
+            } else {
+                c.rect(b, Some(fill), None);
+                let pts = [P { x: b.x, y: b.y }, P { x: b.x + b.w, y: b.y }, P { x: b.x + b.w, y: b.y + b.h }, P { x: b.x, y: b.y + b.h }, P { x: b.x, y: b.y }];
+                let composite = r.refd(v, "model").map(|m| r.str(m, "aggregation") == "composite").unwrap_or(false);
+                if composite {
+                    c.polyline(&pts, line, false);
+                } else {
+                    crate::render::dashes(c, &pts, line, 5.0, 5.0);
+                }
+            }
+            crate::render::draw_name(c, r, v);
+            return;
+        }
+        _ => {}
     }
     let Some(specs) = specs(ty) else { return };
     crate::render::shadow_rect(c, r, v, b);
@@ -589,14 +633,207 @@ pub fn draw(c: &mut dyn Canvas, r: &Repo, v: Eid, fill: Rgba, line: Rgba, fc: Rg
     crate::render::draw_name(c, r, v);
 }
 
+/// The room around a part's or a constraint property's name (sizeAsCanonicalForm and
+/// arrangeAsCanonicalForm, elements.js:1490-1505, 1790-1805).
+const PART_MARGIN: f64 = 10.0;
+/// A constraint parameter's square (CONSTRAINT_PARAMETER_MINWIDTH, elements.js:27-28).
+const PARAMETER_SIZE: f64 = 14.0;
+
+/// A part, reference, value or constraint property: its "name: Type[mult]" at the top, 10 px in
+/// from every side (SysMLPartView, SysMLConstraintPropertyView, elements.js:1480-1810).
+fn layout_part(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    let text = views::feature_text(r, v, m);
+    let min_w = ((ms.width(&text, 1) + 2.0 * views::PAD).ceil()).max(views::name_min_width(r, ms, v, m, None, false)) + 2.0 * PART_MARGIN;
+    views::grow(r, v, min_w, views::NAME_MIN_H + 2.0 * PART_MARGIN);
+    let (x, y, w) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"));
+    let nh = views::layout_name(r, ms, v, m, x + PART_MARGIN, y + PART_MARGIN, w - 2.0 * PART_MARGIN, None, false);
+    views::grow(r, v, min_w, nh + 2.0 * PART_MARGIN);
+    if let Some(nm) = r.refd(v, "nameCompartment").and_then(|nc| r.refd(nc, "nameLabel")) {
+        r.set(nm, "text", json!(text));
+        let underline = r.bool(m, "isStatic");
+        r.set(nm, "underline", json!(underline));
+    }
+}
+
+/// A constraint parameter: a 14 × 14 square against the inside of the nearest side of its constraint
+/// property (or frame), with "name: Type[mult]" floating by it (SysMLConstraintParameterView.update and
+/// arrange, elements.js:1840-1905).
+fn layout_parameter(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    let (mut x, mut y) = (r.f(v, "left"), r.f(v, "top"));
+    if let Some(host) = r.refd(v, "containerView").filter(|h| r.alive(*h)) {
+        let b = views::node_rect(r, host);
+        let (x1, y1, x2, y2) = (b.x, b.y, b.x + b.w, b.y + b.h);
+        let c = P { x: x + PARAMETER_SIZE / 2.0, y: y + PARAMETER_SIZE / 2.0 };
+        let (td, bd, ld, rd) = ((y1 - c.y).abs(), (y2 - c.y).abs(), (x1 - c.x).abs(), (x2 - c.x).abs());
+        if td < bd && td < ld && td < rd {
+            y = y1;
+        } else if bd < td && bd < ld && bd < rd {
+            y = y2 - PARAMETER_SIZE + 1.0;
+        } else if ld < td && ld < bd && ld < rd {
+            x = x1;
+        } else {
+            x = x2 - PARAMETER_SIZE + 1.0;
+        }
+        x = x.max(x1).min(x2 - PARAMETER_SIZE + 1.0);
+        y = y.max(y1).min(y2 - PARAMETER_SIZE + 1.0);
+    }
+    views::set_box(r, v, x, y, PARAMETER_SIZE, PARAMETER_SIZE);
+    let show = Show { vis: r.bool(v, "showVisibility"), mult: r.bool(v, "showMultiplicity"), sig: true, ty: r.bool(v, "showType"), prop: false };
+    let name = views::attribute_text(r, m, show);
+    let st = views::stereotype_text(r, m);
+    let name = if st.is_empty() { name } else { name.trim_start_matches(st.as_str()).trim_start().to_string() };
+    for (field, text) in [("nameLabel", name), ("stereotypeLabel", st), ("propertyLabel", String::new())] {
+        if let Some(lv) = r.refd(v, field) {
+            views::place_floating_label(r, ms, v, lv, &text, true);
+            if field == "nameLabel" {
+                let underline = r.bool(m, "isStatic");
+                r.set(lv, "underline", json!(underline));
+            }
+        }
+    }
+}
+
+/// The direction a block's flow properties run: in, out, inout, or none (SysMLBlock.getFlowType,
+/// elements.js:500-525).
+pub fn flow_type(r: &Repo, block: Eid) -> Option<&'static str> {
+    let (mut i, mut o) = (false, false);
+    for fp in r.list(block, "flowProperties").into_iter().filter(|x| r.alive(*x)) {
+        match r.str(fp, "direction").as_str() {
+            "in" => i = true,
+            "out" => o = true,
+            _ => {
+                i = true;
+                o = true;
+            }
+        }
+    }
+    match (i, o) {
+        (true, true) => Some("inout"),
+        (true, false) => Some("in"),
+        (false, true) => Some("out"),
+        _ => None,
+    }
+}
+
 /// A port: a filled square on its box's border with its labels floating by it (UMLPortView,
-/// elements.js:6950-6953).
+/// elements.js:6950-6953); a port typed by a block with flow properties shows their direction with
+/// arrows across it, pointing in, out or both ways (SysMLPortView.drawObject, elements.js:1515-1600).
 fn draw_port(c: &mut dyn Canvas, r: &Repo, v: Eid, line: Rgba, fill: Rgba, fc: Rgba) {
-    c.rect(views::node_rect(r, v), Some(fill), Some(line));
+    let b = views::node_rect(r, v);
+    c.rect(b, Some(fill), Some(line));
+    let flow = r.refd(v, "model").and_then(|m| r.refd(m, "type")).filter(|t| r.kind_of(*t, "SysMLBlock")).and_then(|t| flow_type(r, t));
+    let side = r.refd(v, "containerView").filter(|h| r.alive(*h)).map(|h| {
+        let hb = views::node_rect(r, h);
+        let p = views::port_junction(hb, P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 });
+        if (p.x - hb.x).abs() < 2.0 {
+            "left"
+        } else if (p.x - (hb.x + hb.w)).abs() < 2.0 {
+            "right"
+        } else if (p.y - hb.y).abs() < 2.0 {
+            "top"
+        } else if (p.y - (hb.y + hb.h)).abs() < 2.0 {
+            "bottom"
+        } else {
+            "else"
+        }
+    });
+    if let (Some(flow), Some(side)) = (flow, side) {
+        // outward is the way out of the box through this side
+        let (inward, outward) = match side {
+            "left" => ("right", "left"),
+            "right" => ("left", "right"),
+            "top" => ("down", "up"),
+            "bottom" => ("up", "down"),
+            _ => ("", ""),
+        };
+        match flow {
+            "in" => port_arrow(c, b, inward, false, line),
+            "out" => port_arrow(c, b, outward, false, line),
+            _ => {
+                port_arrow(c, b, outward, false, line);
+                port_arrow(c, b, inward, true, line);
+            }
+        }
+    }
     for f in ["stereotypeLabel", "nameLabel", "propertyLabel"] {
         if let Some(lv) = r.refd(v, f) {
             crate::render::draw_label(c, r, lv, fc);
         }
+    }
+}
+
+/// An arrow across a port, 2 px in from its sides, with a 3 px head; only the head with `head_only`
+/// (SysMLPortView.drawArrow, elements.js:1530-1565).
+fn port_arrow(c: &mut dyn Canvas, b: R, dir: &str, head_only: bool, line: Rgba) {
+    let m = 2.0;
+    let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+    let (t, bt, l, rt) = (P { x: ctr.x, y: b.y + m }, P { x: ctr.x, y: b.y + b.h - m }, P { x: b.x + m, y: ctr.y }, P { x: b.x + b.w - m, y: ctr.y });
+    let p = |x: f64, y: f64| P { x, y };
+    let (from, to, h1, h2) = match dir {
+        "up" => (bt, t, p(t.x - 3.0, t.y + 3.0), p(t.x + 3.0, t.y + 3.0)),
+        "down" => (t, bt, p(bt.x - 3.0, bt.y - 3.0), p(bt.x + 3.0, bt.y - 3.0)),
+        "left" => (rt, l, p(l.x + 3.0, l.y - 3.0), p(l.x + 3.0, l.y + 3.0)),
+        "right" => (l, rt, p(rt.x - 3.0, rt.y - 3.0), p(rt.x - 3.0, rt.y + 3.0)),
+        _ => return,
+    };
+    if !head_only {
+        c.polyline(&[from, to], line, false);
+    }
+    c.polyline(&[h1, to, h2], line, false);
+}
+
+/// A connector's item flows towards its head (end2) or its tail: their item properties, or what they
+/// convey, joined by commas (SysMLConnector.getItemFlows, SysMLConnectorView.update,
+/// elements.js:620-650, 1640-1690).
+pub fn item_flow_text(r: &Repo, connector: Eid, to_head: bool) -> String {
+    let end = r.child(connector, if to_head { "end2" } else { "end1" });
+    let target = end.and_then(|e| r.refd(e, "reference")).and_then(|p| r.refd(p, "type"));
+    let Some(target) = target else { return String::new() };
+    let mut texts = vec![];
+    for f in r.list(connector, "ownedElements").into_iter().filter(|f| r.alive(*f) && r.ty(*f) == "SysMLItemFlow" && r.refd(*f, "target") == Some(target)) {
+        let t = match r.refd(f, "itemProperty").filter(|p| r.alive(*p)) {
+            Some(p) => views::attribute_text(r, p, Show::ALL),
+            None => r.ref_list(f, "conveyed").iter().map(|x| r.name(*x)).collect::<Vec<_>>().join(", "),
+        };
+        if !t.is_empty() {
+            texts.push(t);
+        }
+    }
+    texts.join(", ")
+}
+
+/// A filled arrow head on a connector where each item flow label hangs, pointing towards the end
+/// the items flow to (SysMLConnectorView.drawFlow and drawObject, elements.js:1690-1770).
+pub fn draw_item_flows(c: &mut dyn Canvas, r: &Repo, e: Eid, pts: &[P], line: Rgba) {
+    if r.ty(e) != "SysMLConnectorView" || pts.len() < 2 {
+        return;
+    }
+    for (field, to_head) in [("itemFlowToHeadLabel", true), ("itemFlowToTailLabel", false)] {
+        let Some(l) = r.refd(e, field).filter(|l| shown(r, *l) && !r.str(*l, "text").is_empty()) else { continue };
+        let lb = views::node_rect(r, l);
+        let cp = P { x: lb.x + lb.w / 2.0, y: lb.y + lb.h / 2.0 };
+        // the closest segment and the point on it
+        let mut best = (0usize, pts[0], f64::INFINITY);
+        for i in 0..pts.len() - 1 {
+            let (a, b) = (pts[i], pts[i + 1]);
+            let (dx, dy) = (b.x - a.x, b.y - a.y);
+            let l2 = dx * dx + dy * dy;
+            let t = if l2 > 0.0 { (((cp.x - a.x) * dx + (cp.y - a.y) * dy) / l2).clamp(0.0, 1.0) } else { 0.0 };
+            let q = P { x: a.x + t * dx, y: a.y + t * dy };
+            let d = ((cp.x - q.x).powi(2) + (cp.y - q.y).powi(2)).sqrt();
+            if d < best.2 {
+                best = (i, q, d);
+            }
+        }
+        let (i, tip, _) = best;
+        let back = if to_head { pts[i] } else { pts[i + 1] };
+        let th = (back.y - tip.y).atan2(back.x - tip.x);
+        let k = 11.0;
+        let a1 = th - std::f64::consts::PI / 8.0;
+        let a2 = th + std::f64::consts::PI / 8.0;
+        let p1 = P { x: tip.x + k * a1.cos(), y: tip.y + k * a1.sin() };
+        let p2 = P { x: tip.x + k * a2.cos(), y: tip.y + k * a2.sin() };
+        c.polygon(&[p1, tip, p2], Some(line), Some(line));
     }
 }
 
@@ -630,6 +867,21 @@ impl App {
     /// ("Requirement1"…), its view made at the drawn box (_modelAndViewFn, sysml-factory.js:92-94).
     /// None for the tools SysML leaves to UML.
     pub fn create_sysml_node(&mut self, d: Eid, kind: &str, rect: R) -> Option<Option<Eid>> {
+        // Part, Reference, Value and Constraint Property: a property of the block that owns the
+        // diagram (blockPropertyPrecondition, sysml-factory.js:30-35, 429-461)
+        if let Some((field, view_ty)) = property_tool(kind) {
+            let Some(block) = self.repo.parent(d).filter(|p| self.repo.kind_of(*p, "SysMLBlock")) else {
+                self.toast_error("SysMLProperty should be placed in a Block");
+                return Some(None);
+            };
+            let m = self.new_sysml_item(block, field)?;
+            if field == "constraints" {
+                self.repo.set(m, "aggregation", json!("composite"));
+            }
+            let v = create_part_view(&mut self.repo, d, view_ty, m, rect);
+            self.apply_view_defaults(v);
+            return Some(Some(v));
+        }
         view_of(kind)?;
         let parent = self.package_for(Some(d));
         let name = self.new_name(parent, kind);
@@ -725,19 +977,118 @@ impl App {
                 }
             })
         };
+        let floating_on = |a: &mut App, host: Eid, ty: &str| {
+            a.change(|a| {
+                let v = create_floating_view(&mut a.repo, d, ty, m, host, p);
+                a.apply_view_defaults(v);
+                v
+            })
+        };
         if r.ty(d) == "SysMLBlockDefinitionDiagram" && r.ty(m) == "SysMLPort" {
             let owner = r.parent(m);
             let Some(host) = under(&|v| r.kind_of(v, "SysMLBlockView") && r.refd(v, "model") == owner) else {
                 return Some(Err("Port should be dropped on it's parent Block".into()));
             };
+            return Some(Ok(vec![floating_on(self, host, "SysMLPortView")]));
+        }
+        // an internal block or parametric diagram (viewForInternalBlockDiagramFn, sysml-factory.js:263-376)
+        if !r.kind_of(d, "SysMLInternalBlockDiagram") {
+            return None;
+        }
+        let block = r.parent(d);
+        let owner = r.parent(m);
+        if r.kind_of(m, "SysMLProperty") {
+            // a property of the diagram's block: a part view, or a constraint property view for one
+            // of its constraints
+            if owner.is_some() && owner == block {
+                let ty = if r.field_of(m).as_deref() == Some("constraints") { "SysMLConstraintPropertyView" } else { "SysMLPartView" };
+                let v = self.change(|a| {
+                    let v = create_part_view(&mut a.repo, d, ty, m, R { x: p.x, y: p.y, w: 1.0, h: 1.0 });
+                    a.apply_view_defaults(v);
+                    v
+                });
+                return Some(Ok(vec![v]));
+            }
+            // a constraint block's parameter: onto a constraint property typed by that block
+            if r.field_of(m).as_deref() == Some("parameters") && owner.map(|o| r.kind_of(o, "SysMLConstraintBlock")).unwrap_or(false) {
+                let Some(host) = under(&|v| r.ty(v) == "SysMLConstraintPropertyView" && r.refd(v, "model").and_then(|x| r.refd(x, "type")) == owner) else {
+                    return Some(Err("Constraint Parameter should be dropped on a it's parent Constraint Parameter".into()));
+                };
+                return Some(Ok(vec![floating_on(self, host, "SysMLConstraintParameterView")]));
+            }
+            return Some(Err("Only part in the block context can be dropped".into()));
+        }
+        // a port: onto a part typed by its block, or onto the frame
+        if r.ty(m) == "SysMLPort" {
+            let Some(host) = under(&|v| (r.ty(v) == "SysMLPartView" && r.refd(v, "model").and_then(|x| r.refd(x, "type")) == owner) || r.ty(v) == "UMLFrameView") else {
+                return Some(Err("Port should be dropped on a part whose type is the port's parent Block".into()));
+            };
+            return Some(Ok(vec![floating_on(self, host, "SysMLPortView")]));
+        }
+        // a block: a new composite part of the diagram's block, typed by it
+        if r.kind_of(m, "SysMLBlock") {
+            let block = block.filter(|b| r.kind_of(*b, "SysMLBlock"))?;
             let v = self.change(|a| {
-                let v = create_floating_view(&mut a.repo, d, "SysMLPortView", m, host, p);
+                let part = a.new_sysml_item(block, "parts")?;
+                a.repo.set_ref(part, "type", Some(m));
+                let v = create_part_view(&mut a.repo, d, "SysMLPartView", part, R { x: p.x, y: p.y, w: 1.0, h: 1.0 });
                 a.apply_view_defaults(v);
-                v
+                Some(v)
             });
-            return Some(Ok(vec![v]));
+            return Some(Ok(v.into_iter().collect()));
         }
         None
+    }
+
+    /// Create Block, Create Value Type, Create ConstraintBlock: a new element of that kind named as
+    /// typed, in the owner of the edited element (of its block, for a constraint property), set as
+    /// its type (handleCreateBlock and the others, sysml-commands.js:96-170, 230-252).
+    pub fn create_sysml_type(&mut self, e: Eid, kind: &str, text: &str) {
+        let name = text.trim().to_string();
+        if !self.repo.alive(e) || name.is_empty() {
+            return;
+        }
+        let owner = if kind == "SysMLConstraintBlock" { self.repo.parent(e).and_then(|p| self.repo.parent(p)) } else { self.repo.parent(e) };
+        let Some(owner) = owner else { return };
+        let kind = kind.to_string();
+        let t = self.change(|a| {
+            let t = a.repo.create(&kind, &[("name", json!(name))], Some((owner, "ownedElements")));
+            a.repo.set_ref(e, "type", Some(t));
+            t
+        });
+        self.reveal(t);
+    }
+
+    /// Create Item Flow on a connector: both ends must be typed; then a dialog asks which way the
+    /// items flow (handleCreateItemFlow, sysml-commands.js:175-215).
+    pub fn ask_item_flow(&mut self, c: Eid) {
+        let ty = |end: &str| self.repo.child(c, end).and_then(|x| self.repo.refd(x, "reference")).and_then(|p| self.repo.refd(p, "type")).filter(|t| self.repo.kind_of(*t, "UMLClassifier"));
+        let (Some(t1), Some(t2)) = (ty("end1"), ty("end2")) else {
+            self.toast_error("Connected Parts (or Ports) should be typed");
+            return;
+        };
+        let (n1, n2) = (self.repo.name(t1), self.repo.name(t2));
+        self.select_one = Some(crate::app::SelectOne {
+            message: "Select direction of ItemFlow".into(),
+            // the dialog's options are static texts; these two are made once per request
+            options: vec![Box::leak(format!("From {n2} To {n1}").into_boxed_str()), Box::leak(format!("From {n1} To {n2}").into_boxed_str())],
+            selected: 0,
+            purpose: crate::app::SelectPurpose::ItemFlow(c),
+        });
+    }
+
+    /// The item flow itself: from one end's type to the other's, in the connector, realized by it.
+    pub fn add_item_flow(&mut self, c: Eid, to_end2: bool) {
+        let ty = |end: &str| self.repo.child(c, end).and_then(|x| self.repo.refd(x, "reference")).and_then(|p| self.repo.refd(p, "type"));
+        let (Some(t1), Some(t2)) = (ty("end1"), ty("end2")) else { return };
+        let (s, t) = if to_end2 { (t1, t2) } else { (t2, t1) };
+        let f = self.change(|a| {
+            let (rs, rt) = (a.repo.ref_to(s), a.repo.ref_to(t));
+            let f = a.repo.create("SysMLItemFlow", &[("source", rs), ("target", rt)], Some((c, "ownedElements")));
+            a.repo.set_ref_list(f, "realizingConnectors", &[c]);
+            f
+        });
+        self.reveal(f);
     }
 
     /// Add an item to one of a box's compartments, showing the compartment, and edit it
@@ -781,8 +1132,46 @@ impl App {
                 let rel = crate::related::Related { label: "Add Composited Block", kind: "SysMLBlock", rel: "UMLAssociation", init: crate::app::AssocInit::CompositeTail, from_new: false, place: crate::related::Place::Below };
                 self.add_related(host, rel);
             }
+            // the Element Picker on blocks, value types or constraint blocks (handleSelectBlock and
+            // the others, sysml-commands.js:84-95)
+            Quick::SelectType(kind) => self.open_typed_picker(m, "type", kind),
+            Quick::CreateType(kind) => {
+                let what = match kind {
+                    "SysMLBlock" => "Enter name of Block to create",
+                    "SysMLValueType" => "Enter name of ValueType to create",
+                    _ => "Enter name of a ConstraintBlock to create",
+                };
+                self.input_dialog = Some(crate::input::InputDialog { message: what.into(), text: String::new(), action: crate::input::InputAction::CreateSysMLType(m, kind), fresh: true });
+            }
+            // Add Constraint Parameter: on the constraint property's right border, under the ones
+            // there (the original picks a random point inside it, sysml-commands.js:254-272)
+            Quick::ConstraintParameter => {
+                let Some(d) = self.diagram else { return };
+                let b = views::node_rect(&self.repo, host);
+                let n = self.repo.list(d, "ownedViews").into_iter().filter(|v| self.repo.refd(*v, "containerView") == Some(host) && self.repo.ty(*v) == "SysMLConstraintParameterView").count() as f64;
+                let at = P { x: b.x + b.w, y: (b.y + 30.0 + 20.0 * n).min(b.y + b.h - PARAMETER_SIZE) };
+                let made = self.change(|a| a.create_sysml_feature(d, host, "SysMLConstraintParameter", at).map_err(|e| a.toast_error(&e)).ok());
+                if let Some(v) = made {
+                    self.select(vec![v]);
+                    self.pending_edit = Some(v);
+                }
+            }
         }
     }
+}
+
+/// A part's, reference's, value's or constraint property's view (SysMLPartView,
+/// SysMLConstraintPropertyView).
+fn create_part_view(r: &mut Repo, diagram: Eid, ty: &str, model: Eid, rect: R) -> Eid {
+    let m = r.ref_to(model);
+    let v = r.create(
+        ty,
+        &[("model", m), ("font", json!(views::FONT)), ("parentStyle", json!(false)), ("showVisibility", json!(false)), ("left", json!(rect.x)), ("top", json!(rect.y)), ("width", json!(rect.w)), ("height", json!(rect.h))],
+        Some((diagram, "ownedViews")),
+    );
+    let nc = views::name_compartment(r, v, model);
+    r.set_ref(v, "nameCompartment", Some(nc));
+    v
 }
 
 /// A port's or a constraint parameter's view: a 14 × 14 square at the point, its labels floating by
@@ -898,6 +1287,7 @@ pub fn icon_key(ty: &str) -> &'static str {
         "SysMLConform" => "generalization",
         "SysMLRequirementDiagram" => "SysMLRequirementDiagram",
         "SysMLBlockDefinitionDiagram" => "diagram-class",
+        "SysMLInternalBlockDiagram" | "SysMLParametricDiagram" => "SysMLInternalBlockDiagram",
         _ if ty.ends_with("Diagram") => "diagram",
         _ => "class",
     }
@@ -915,15 +1305,47 @@ pub enum Quick {
     AddPort,
     /// Add Composited Block on a block
     CompositedBlock,
+    /// Select Block, Value Type or ConstraintBlock as the type of a part, port, constraint property
+    /// or parameter
+    SelectType(&'static str),
+    /// Create Block, Value Type or ConstraintBlock as its type
+    CreateType(&'static str),
+    /// Add Constraint Parameter on a constraint property
+    ConstraintParameter,
 }
 
 type Button = (&'static str, &'static str, &'static str, crate::canvas::ItemKey);
 
 /// The buttons of a SysML element's name edit, besides the related-element ones
 /// (quickedits/sysml.json). None for the elements SysML leaves to UML.
-pub fn item_buttons(r: &Repo, _host: Option<Eid>, m: Eid) -> Option<Vec<Button>> {
+pub fn item_buttons(r: &Repo, host: Option<Eid>, m: Eid) -> Option<Vec<Button>> {
     use crate::canvas::ItemKey;
     let add = |label: &'static str, hint: &'static str, field: &'static str| -> Button { (label, hint, "", ItemKey::SysML(Quick::AddItem(field))) };
+    let q = |label: &'static str, hint: &'static str, q: Quick| -> Button { (label, hint, "", ItemKey::SysML(q)) };
+    let block_type = [q("Block…", "Select Block", Quick::SelectType("SysMLBlock")), q("+ Block", "Create Block", Quick::CreateType("SysMLBlock"))];
+    // a part, port, constraint property or parameter, by the view edited ("sysml.part", "sysml.port",
+    // "sysml.constraint-property", "sysml.constraint-parameter")
+    match host.map(|h| r.ty(h)) {
+        Some("SysMLPartView") => {
+            let mut v = block_type.to_vec();
+            v.extend([q("ValueType…", "Select Value Type", Quick::SelectType("SysMLValueType")), q("+ ValueType", "Create Value Type", Quick::CreateType("SysMLValueType")), q("+ Port", "Add Port", Quick::AddPort)]);
+            return Some(v);
+        }
+        Some("SysMLPortView") => {
+            let mut v = block_type.to_vec();
+            v.extend([("+ Prov", "Add Provided Interface", "", ItemKey::PortInterface(true)), ("+ Req", "Add Required Interface", "", ItemKey::PortInterface(false))]);
+            return Some(v);
+        }
+        Some("SysMLConstraintPropertyView") => {
+            return Some(vec![
+                q("Constraint…", "Select ConstraintBlock", Quick::SelectType("SysMLConstraintBlock")),
+                q("+ Constraint", "Create ConstraintBlock", Quick::CreateType("SysMLConstraintBlock")),
+                q("+ Param", "Add Constraint Parameter", Quick::ConstraintParameter),
+            ]);
+        }
+        Some("SysMLConstraintParameterView") => return Some(block_type.to_vec()),
+        _ => {}
+    }
     Some(match r.ty(m) {
         // a requirement only adds a sub-requirement, a related element ("sysml.requirement")
         "SysMLRequirement" => vec![],
@@ -1003,7 +1425,10 @@ pub fn preferences() -> Vec<(&'static str, &'static str, &'static str, crate::pr
     fill("InterfaceBlock", "sysml.interface-block.fillColor", &[]);
     fill("ConstraintBlock", "sysml.constraint-block.fillColor", &[]);
     fill("ValueType", "sysml.value-type.fillColor", &[]);
+    fill("Part", "sysml.part.fillColor", &[]);
     fill("Port", "sysml.port.fillColor", &[]);
+    fill("ConstraintProperty", "sysml.constraint-property.fillColor", &[]);
+    fill("ConstraintParameter", "sysml.constraint-parameter.fillColor", &[]);
     v
 }
 
@@ -1016,6 +1441,9 @@ pub fn fill_pref(view_ty: &str) -> Option<&'static str> {
         "SysMLConstraintBlockView" => "sysml.constraint-block.fillColor",
         "SysMLValueTypeView" => "sysml.value-type.fillColor",
         "SysMLPortView" => "sysml.port.fillColor",
+        "SysMLPartView" => "sysml.part.fillColor",
+        "SysMLConstraintPropertyView" => "sysml.constraint-property.fillColor",
+        "SysMLConstraintParameterView" => "sysml.constraint-parameter.fillColor",
         _ => return None,
     })
 }

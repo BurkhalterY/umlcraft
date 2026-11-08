@@ -583,9 +583,28 @@ const SYSML_BLOCK: Group = Group {
     ],
 };
 const SYSML_BLOCK_GROUPS: &[Group] = &[SYSML_BLOCK, ANNOTATIONS];
+const SYSML_INTERNAL_BLOCK: Group = Group {
+    id: "sysml.internal-block",
+    label: "Internal Block",
+    items: &[
+        node("Part", "SysMLPart", "part"),
+        node("Reference", "SysMLReference", "part"),
+        node("Value", "SysMLValue", "part"),
+        node("Port", "SysMLPort", "port"),
+        node("Frame", "Frame", "frame"),
+        line("Connector", "SysMLConnector", "association", AssocInit::Plain),
+    ],
+};
+const SYSML_PARAMETRIC: Group = Group {
+    id: "sysml.parametric",
+    label: "Parametric",
+    items: &[node("Constraint Property", "SysMLConstraintProperty", "SysMLConstraintProperty"), node("Constraint Parameter", "SysMLConstraintParameter", "SysMLConstraintParameter")],
+};
+const SYSML_INTERNAL_BLOCK_GROUPS: &[Group] = &[SYSML_INTERNAL_BLOCK, ANNOTATIONS];
+const SYSML_PARAMETRIC_GROUPS: &[Group] = &[SYSML_INTERNAL_BLOCK, SYSML_PARAMETRIC, ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 23] = [
+const DIAGRAM_KINDS: [(&str, &str); 25] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -611,6 +630,8 @@ const DIAGRAM_KINDS: [(&str, &str); 23] = [
     // the SysML kinds (sysml/menus/sysml.json)
     ("Requirement Diagram", "SysMLRequirementDiagram"),
     ("Block Definition Diagram", "SysMLBlockDefinitionDiagram"),
+    ("Internal Block Diagram", "SysMLInternalBlockDiagram"),
+    ("Parametric Diagram", "SysMLParametricDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -1915,6 +1936,8 @@ impl App {
                 Some("C4Diagram") => self.open_groups.insert("c4"),
                 Some("SysMLRequirementDiagram") => self.open_groups.insert("sysml.requirement"),
                 Some("SysMLBlockDefinitionDiagram") => self.open_groups.insert("sysml.block"),
+                Some("SysMLInternalBlockDiagram") => self.open_groups.insert("sysml.internal-block"),
+                Some("SysMLParametricDiagram") => self.open_groups.insert("sysml.parametric"),
                 // both groups open on a wireframe diagram ("auto-expands")
                 Some("WFWireframeDiagram") => self.open_groups.insert("wireframe.frames") | self.open_groups.insert("wireframe.components"),
                 Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
@@ -1954,6 +1977,8 @@ impl App {
             Some("C4Diagram") => C4_GROUPS,
             Some("SysMLRequirementDiagram") => SYSML_REQUIREMENT_GROUPS,
             Some("SysMLBlockDefinitionDiagram") => SYSML_BLOCK_GROUPS,
+            Some("SysMLInternalBlockDiagram") => SYSML_INTERNAL_BLOCK_GROUPS,
+            Some("SysMLParametricDiagram") => SYSML_PARAMETRIC_GROUPS,
             Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
             Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
             Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,

@@ -196,7 +196,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLAssociationClassLink", Some("UMLModelElement"), vec![("classSide", n()), ("associationSide", n())]);
     // information flows: an item conveyed along a flow between elements (field names estimated)
     def("UMLInformationItem", Some("UMLClassifier"), vec![("represented", n())]);
-    def("UMLInformationFlow", Some("UMLDirectedRelationship"), vec![("conveyed", n())]);
+    def("UMLInformationFlow", Some("UMLDirectedRelationship"), vec![("conveyed", n()), ("realizingConnectors", n()), ("realizingActivityEdges", n()), ("realizingMessages", n())]);
     // objects, their slots and the links between them (object diagrams; field names estimated)
     def("UMLInstance", Some("UMLModelElement"), vec![("classifier", n()), ("slots", n())]);
     def("UMLObject", Some("UMLInstance"), vec![]);

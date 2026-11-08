@@ -404,6 +404,19 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(9.0, 9.5), (11.0, 9.5)], Y);
             line(&[(10.0, 8.5), (10.0, 10.5)], Y);
         }
+        "SysMLConstraintProperty" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(13.0 * s, 9.0 * s)), (2.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "SysMLConstraintParameter" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(10.0 * s, 9.0 * s)), (2.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            rect_at(9.0, 6.0, 5.0, 5.0, Y);
+        }
+        "SysMLInternalBlockDiagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            rect_at(3.5, 5.0, 4.0, 4.0, G);
+            rect_at(9.0, 8.0, 4.0, 4.0, G);
+            line(&[(7.5, 7.0), (9.0, 10.0)], G);
+        }
         "SysMLRequirementDiagram" => {
             rect_at(1.5, 1.5, 13.0, 13.0, G);
             rect_at(4.0, 4.0, 8.0, 8.0, G);

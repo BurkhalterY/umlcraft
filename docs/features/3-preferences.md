@@ -73,10 +73,10 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | SysML | `sysml.interface-block.fillColor` | Fill Color | null | ✅ | a new interface block's fill colour (src/sysml.rs:1011-1023) | extensions/essential/sysml/preferences/sysml.json |
 | SysML | `sysml.constraint-block.fillColor` | Fill Color | null | ✅ | a new constraint block's fill colour (src/sysml.rs:1011-1023) | extensions/essential/sysml/preferences/sysml.json |
 | SysML | `sysml.value-type.fillColor` | Fill Color | null | ✅ | a new value type's fill colour (src/sysml.rs:1011-1023) | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.part.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.part.fillColor` | Fill Color | null | ✅ | a new part, reference or value view's fill colour (src/sysml.rs:1436-1451) | extensions/essential/sysml/preferences/sysml.json |
 | SysML | `sysml.port.fillColor` | Fill Color | null | ✅ | a new SysML port's fill colour (src/sysml.rs:1011-1023) | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.constraint-property.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.constraint-parameter.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.constraint-property.fillColor` | Fill Color | null | ✅ | a new constraint property's fill colour (src/sysml.rs:1436-1451) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.constraint-parameter.fillColor` | Fill Color | null | ✅ | a new constraint parameter's fill colour (src/sysml.rs:1436-1451) | extensions/essential/sysml/preferences/sysml.json |
 | UML | `uml.package.fillColor` | Fill Color | null | ✅ in Preferences › UML › package; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.model.fillColor` | Fill Color | null | ✅ in Preferences › UML › model; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.subsystem.fillColor` | Fill Color | null | ✅ in Preferences › UML › subsystem; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |

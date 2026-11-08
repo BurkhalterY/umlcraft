@@ -432,7 +432,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLTimeConstraint" => (1.0, 1.0),
         "UMLDurationConstraint" => (crate::sequence::DURATION_MIN_W, crate::sequence::DURATION_MIN_H),
         // a click makes a flowchart node at its smallest size, as in the original (factory.js:279-292)
-        _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) || kind == "ERDEntity" || crate::c4::tool(kind).is_some() || crate::wireframe::is_node_type(kind) || crate::sysml::view_of(kind).is_some() => (1.0, 1.0),
+        _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) || kind == "ERDEntity" || crate::c4::tool(kind).is_some() || crate::wireframe::is_node_type(kind) || crate::sysml::view_of(kind).is_some() || crate::sysml::property_tool(kind).is_some() => (1.0, 1.0),
         _ => (100.0, 60.0),
     }
 }
@@ -2711,6 +2711,10 @@ pub(crate) fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> 
         let prop = |end: Option<Eid>| if show_prop { end.map(|x| property_text(r, x)).unwrap_or_default() } else { String::new() };
         out.push(("tailPropertyLabel", prop(e1)));
         out.push(("headPropertyLabel", prop(e2)));
+    }
+    if r.ty(e) == "SysMLConnectorView" {
+        out.push(("itemFlowToHeadLabel", crate::sysml::item_flow_text(r, m, true)));
+        out.push(("itemFlowToTailLabel", crate::sysml::item_flow_text(r, m, false)));
     }
     out
 }

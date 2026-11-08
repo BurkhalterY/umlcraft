@@ -79,6 +79,8 @@ pub enum SelectPurpose {
     /// Model › Add › Entry, Do or Exit Activity on a state, or Effect on a transition: the kind of
     /// behaviour, created in that field (uml-commands.js:109-190).
     BehaviorKind(Eid, &'static str),
+    /// A SysML connector's Create Item Flow: the direction (sysml-commands.js:175-215).
+    ItemFlow(Eid),
 }
 
 /// The behaviour kinds of an entry, do or exit activity or an effect (uml-commands.js:111-116).
@@ -736,6 +738,7 @@ impl App {
                 self.expanded.insert(owner);
                 self.reveal(b);
             }
+            SelectPurpose::ItemFlow(c) if self.repo.alive(c) => self.add_item_flow(c, d.selected == 1),
             _ => {}
         }
     }

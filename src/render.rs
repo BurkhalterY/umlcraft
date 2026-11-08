@@ -1219,6 +1219,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
             }
         }
     }
+    crate::sysml::draw_item_flows(c, r, e, &pts, line);
     let fc = color(r, e, "fontColor", BLACK);
     for sv in r.list(e, "subViews") {
         if r.kind_of(sv, "LabelView") || r.ty(sv) == "EdgeLabelView" {
