@@ -425,6 +425,10 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         _ if pseudostate_kind(kind).is_some() => pseudostate_min(pseudostate_kind(kind).unwrap_or("initial")),
         "UMLConnectionPointReference" => (CONNECTION_POINT_SIZE, CONNECTION_POINT_SIZE),
         "UMLNaryAssociationNode" => (NARY_MIN_W, NARY_MIN_H),
+        // sequence fragments take their smallest size on a click (elements.js:212-229)
+        "UMLCombinedFragment" => (crate::sequence::FRAGMENT_MIN_W * 2.0, crate::sequence::FRAGMENT_MIN_H * 3.0),
+        "UMLInteractionUse" => (crate::sequence::FRAGMENT_MIN_W * 2.0, crate::sequence::FRAGMENT_MIN_H),
+        "UMLContinuation" | "UMLStateInvariant" => crate::sequence::INVARIANT_MIN,
         // a click makes a flowchart node at its smallest size, as in the original (factory.js:279-292)
         _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) || kind == "ERDEntity" || crate::c4::tool(kind).is_some() => (1.0, 1.0),
         _ => (100.0, 60.0),
@@ -2099,7 +2103,15 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
     if t == "ERDEntityView" {
         return crate::erd::layout(r, ms, v);
     }
+    if matches!(t.as_str(), "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView") {
+        crate::sequence::layout_fragment(r, ms, v);
+        return Info { shape: "fragment", ..Default::default() };
+    }
     if t == "UMLSeqLifelineView" {
+        let invariants: Vec<Eid> = r.list(v, "subViews").into_iter().filter(|x| r.ty(*x) == "UMLStateInvariantView").collect();
+        for iv in invariants {
+            crate::sequence::layout_invariant(r, ms, v, iv);
+        }
         crate::sequence::layout_lifeline(r, ms, v);
         return Info { shape: "lifeline", ..Default::default() };
     }

@@ -565,6 +565,11 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         "lifeline" => {
             crate::sequence::draw_lifeline(c, r, v, fill, line);
             draw_name(c, r, v);
+            crate::sequence::draw_invariants(c, r, v, fill, line, fc);
+            return;
+        }
+        "fragment" => {
+            crate::sequence::draw_fragment(c, r, v, fill, line, fc);
             return;
         }
         "endpoint" => {

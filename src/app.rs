@@ -605,6 +605,7 @@ impl App {
             "UMLPackageDiagram" => "PackageDiagram",
             "UMLProfile" => "Profile",
             "UMLStereotype" => "Stereotype",
+            "UMLInteractionOperand" => "Operand",
             // a flowchart's elements drop "FC" (FCModelElement.getDisplayClassName); its diagram is a
             // "FlowchartDiagram" (flowchart/elements.js:42-75)
             "FCFlowchartDiagram" => "FlowchartDiagram",
@@ -820,6 +821,35 @@ impl App {
             let rr = self.repo.ref_to(role);
             let m = self.repo.create(kind, &[("name", json!(name)), ("represent", rr)], Some((inter, "participants")));
             let v = crate::sequence::create_lifeline_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // combined fragments (with one operand), continuations and interaction uses are fragments of
+        // the interaction; a state invariant covers the lifeline it is dropped on and sits on its line
+        // (combinedFragmentFn, stateInvariantFn, uml-factory.js:1506-1550, 1687-1716, 3736-3744)
+        if matches!(kind, "UMLCombinedFragment" | "UMLContinuation" | "UMLInteractionUse" | "UMLStateInvariant") {
+            let inter = self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLInteraction")?;
+            let lifeline = (kind == "UMLStateInvariant").then(|| {
+                self.repo.list(d, "ownedViews").into_iter().rev().find(|v| self.repo.ty(*v) == "UMLSeqLifelineView" && { let b = views::node_rect(&self.repo, *v); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h })
+            });
+            if lifeline == Some(None) {
+                return None;
+            }
+            let name = self.new_name(inter, kind);
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((inter, "fragments")));
+            if kind == "UMLCombinedFragment" {
+                self.repo.set(m, "interactionOperator", json!("seq"));
+                self.repo.create("UMLInteractionOperand", &[("name", json!("Operand1"))], Some((m, "operands")));
+            }
+            let v = match lifeline.flatten() {
+                Some(lv) => {
+                    let lm = self.repo.refd(lv, "model")?;
+                    self.repo.set_ref(m, "covered", Some(lm));
+                    crate::sequence::create_invariant_view(&mut self.repo, lv, m, rect.y)
+                }
+                None if kind == "UMLCombinedFragment" => crate::sequence::create_fragment_view(&mut self.repo, d, m, rect),
+                None => crate::sequence::create_box_view(&mut self.repo, d, m, rect),
+            };
             self.apply_view_defaults(v);
             return Some(v);
         }

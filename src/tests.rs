@@ -5484,3 +5484,56 @@ fn sequence_diagrams_have_lifelines_messages_and_activations() {
     assert!(a.repo.str(nl, "text").ends_with(": Order"));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn sequence_fragments_invariants_and_interaction_uses() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 40.0, 100.0, 300.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // a combined fragment with one operand, then a second operand
+    let cf = a.change(|a| a.create_node("UMLCombinedFragment", rect(20.0, 120.0, 300.0, 150.0))).unwrap();
+    let cm = a.repo.refd(cf, "model").unwrap();
+    assert_eq!((a.repo.str(cm, "interactionOperator").as_str(), a.repo.list(cm, "operands").len()), ("seq", 1));
+    assert_eq!(a.repo.name(a.repo.list(cm, "operands")[0]), "Operand1");
+    let o2 = a.change(|a| a.add_feature(cm, "UMLInteractionOperand")).unwrap();
+    assert_eq!(a.repo.name(o2), "Operand2");
+    a.repo.set(o2, "guard", json!("else"));
+    a.repo.set(cm, "interactionOperator", json!("alt"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let oc = a.repo.refd(cf, "operandCompartment").unwrap();
+    let ovs = a.repo.list(oc, "subViews");
+    assert_eq!(ovs.len(), 2);
+    let (b1, b2) = (crate::views::node_rect(&a.repo, ovs[0]), crate::views::node_rect(&a.repo, ovs[1]));
+    assert_eq!(b1.y + b1.h, b2.y, "operands are stacked");
+    assert_eq!(b2.y + b2.h, 120.0 + 150.0, "the last one reaches the bottom");
+    assert_eq!(a.repo.str(a.repo.refd(ovs[1], "guardLabel").unwrap(), "text"), "[else]");
+    assert_eq!(a.repo.str(a.repo.refd(cf, "frameTypeLabel").unwrap(), "text"), "alt");
+    // a state invariant on the lifeline, centred on its line
+    let sv = a.change(|a| a.create_node("UMLStateInvariant", rect(100.0, 300.0, 50.0, 20.0))).unwrap();
+    let sm = a.repo.refd(sv, "model").unwrap();
+    assert_eq!(a.repo.refd(sm, "covered"), a.repo.refd(l1, "model"));
+    assert_eq!(a.repo.parent(sv), Some(l1), "kept in the lifeline view's sub-views");
+    a.repo.set(sm, "invariant", json!("ready"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let lp = a.repo.refd(l1, "linePart").unwrap();
+    let sb = crate::views::node_rect(&a.repo, sv);
+    assert_eq!(sb.x + sb.w / 2.0, a.repo.f(lp, "left"));
+    // a continuation and an interaction use referring to another interaction
+    let cv = a.change(|a| a.create_node("UMLContinuation", rect(400.0, 120.0, 10.0, 10.0))).unwrap();
+    assert_eq!(a.repo.name(a.repo.refd(cv, "model").unwrap()), "Continuation1");
+    let iu = a.change(|a| a.create_node("UMLInteractionUse", rect(400.0, 200.0, 160.0, 30.0))).unwrap();
+    let im = a.repo.refd(iu, "model").unwrap();
+    let other = a.repo.create("UMLInteraction", &[("name", json!("Login"))], Some((a.repo.parent(inter).unwrap(), "ownedElements")));
+    a.repo.set_ref(im, "refersTo", Some(other));
+    a.repo.set(im, "arguments", json!("user"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(iu, "nameLabel").unwrap(), "text"), "Login(user)");
+    assert_eq!(a.repo.list(inter, "fragments").len(), 4);
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("{ready}") && svg.contains("[else]") && svg.contains(">ref<"));
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

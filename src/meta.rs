@@ -286,6 +286,10 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLStateInvariantView", Some("NodeView"), vec![("invariantLabel", n())]);
     def("UMLContinuationView", Some("NodeView"), vec![("nameLabel", n())]);
     def("UMLInteractionUseView", Some("NodeView"), vec![("nameLabel", n()), ("frameTypeLabel", n()), ("wordWrap", d(json!(false)))]);
+    def("UMLInteractionOperandView", Some("NodeView"), vec![("guardLabel", n())]);
+    def("UMLListCompartmentView", Some("NodeView"), vec![]);
+    def("UMLInteractionOperandCompartmentView", Some("UMLListCompartmentView"), vec![]);
+    def("UMLCombinedFragmentView", Some("UMLCustomFrameView"), vec![("operandCompartment", n())]);
     def("UMLPartView", Some("UMLGeneralNodeView"), vec![("showMultiplicity", d(json!(true)))]);
     def("UMLMetaClassView", Some("UMLGeneralNodeView"), vec![]);
     // artifact, component and node instances: drawn like their classifiers (base type estimated)

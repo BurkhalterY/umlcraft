@@ -207,6 +207,8 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                 ],
                 "UMLUseCase" => vec![("+ Ext", "Add Extension Point", "Ctrl+Enter", ItemKey::Add)],
                 "ERDEntity" => vec![("+ Col", "Add Column", "Ctrl+Enter", ItemKey::Add)],
+                // a combined fragment's Add Operand (quickedits/uml.json "uml.combined-fragment")
+                "UMLCombinedFragment" => vec![("+ Operand", "Add Operand", "", ItemKey::AddOperand)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
                 // classes, interfaces, signals, data types, components, nodes, artifacts: Add Reception
                 // too, which has no key; stereotypes have none (actors take no attributes in UMLCraft)
@@ -266,6 +268,8 @@ pub enum ItemKey {
     AddRegion,
     /// A state's Add Connection Point Reference
     AddConnectionPoint,
+    /// A combined fragment's Add Operand
+    AddOperand,
     /// An action's Add Input Pin (true) or Add Output Pin (false)
     AddPin(bool),
     /// A composite state's Add Internal Transition
@@ -1500,13 +1504,38 @@ impl App {
             self.editing = Some(Editing { kind: EditKind::Name(m), text, rect, multiline: c4, center: !c4, fresh: true, host: None, orig: None });
             return;
         }
+        // an operand of a combined fragment edits its guard, a state invariant on a lifeline its
+        // invariant (quickedits/uml.json "uml.interaction-operand", "uml.state-invariant")
+        if let Some(p) = p {
+            let parts: Vec<Eid> = match t.as_str() {
+                "UMLCombinedFragmentView" => self.repo.refd(v, "operandCompartment").map(|oc| self.repo.list(oc, "subViews")).unwrap_or_default(),
+                "UMLSeqLifelineView" => self.repo.list(v, "subViews").into_iter().filter(|x| self.repo.ty(*x) == "UMLStateInvariantView").collect(),
+                _ => vec![],
+            };
+            for part in parts {
+                let b = node_rect(&self.repo, part);
+                if in_rect(p, &b) {
+                    if let Some(pm) = self.repo.refd(part, "model") {
+                        let rect = R { x: b.x + 4.0, y: if t == "UMLCombinedFragmentView" { b.y + 10.0 } else { b.y }, w: b.w.max(120.0) - 8.0, h: 19.0 };
+                        self.editing = Some(Editing { kind: EditKind::Name(pm), text: crate::parse::name_text(&self.repo, pm), rect, multiline: false, center: false, fresh: true, host: Some(v), orig: None });
+                        return;
+                    }
+                }
+            }
+        }
+        // an interaction use selects the interaction it refers to (uml/main.js:90-96)
+        if t == "UMLInteractionUseView" {
+            if let Some(target) = self.repo.refd(m, "refersTo") {
+                self.reveal(target);
+            }
+        }
         if let Some(iv) = p.and_then(|p| self.row_at(v, p)) {
             if self.edit_row(v, iv) {
                 return;
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || self.repo.ty(v) == "ERDEntityView" || crate::c4::is_node_view(self.repo.ty(v))));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || matches!(self.repo.ty(v), "ERDEntityView" | "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView") || crate::c4::is_node_view(self.repo.ty(v))));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
@@ -1738,6 +1767,11 @@ impl App {
                     self.select(vec![v]);
                 }
             }
+            (ItemKey::AddOperand, _) => {
+                if let Some(o) = self.change(|a| a.add_feature(m, "UMLInteractionOperand")) {
+                    self.reveal(o);
+                }
+            }
             (ItemKey::Activity(field), _) => self.ask_behavior_kind(m, field),
             (ItemKey::InternalTransition, _) => match self.add_internal_transition(m) {
                 Ok(t) => self.reveal(t),
@@ -1806,7 +1840,7 @@ impl App {
             // a transition's expression is split by hand (uml-transition.pegjs)
             EditKind::Name(m) if self.repo.ty(*m) == "UMLTransition" => None,
             // a lifeline's and a message's expressions are split by hand (uml-lifeline.pegjs, uml-message.pegjs)
-            EditKind::Name(m) if matches!(self.repo.ty(*m), "UMLLifeline" | "UMLMessage") => None,
+            EditKind::Name(m) if matches!(self.repo.ty(*m), "UMLLifeline" | "UMLMessage" | "UMLInteractionOperand" | "UMLStateInvariant") => None,
             // other notations' elements take their name as typed (flowchart.json "fc.set-name")
             EditKind::Name(m) if crate::meta::plain_named(self.repo.ty(*m)) => None,
             EditKind::Name(_) => Some(Grammar::Name),
@@ -1902,6 +1936,13 @@ impl App {
                             }
                         }
                     });
+                }
+            }
+            EditKind::Name(m) if matches!(self.repo.ty(m), "UMLInteractionOperand" | "UMLStateInvariant") => {
+                let field = if self.repo.ty(m) == "UMLStateInvariant" { "invariant" } else { "guard" };
+                if self.repo.alive(m) && self.repo.str(m, field) != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| a.repo.set(m, field, serde_json::json!(t)));
                 }
             }
             EditKind::Name(m) if self.repo.ty(m) == "UMLMessage" => {

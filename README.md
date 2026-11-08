@@ -91,7 +91,7 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
       <h3>Use case diagrams</h3>
       Actors, use cases, use case subjects and packages, with associations, generalizations, dependencies, includes and extends. Boundaries stay behind what they contain and carry it along when you move them.
       <br><br>
-      Sequence diagrams (lifelines, every kind of message, activations), composite structure diagrams (ports, parts, connectors), statechart diagrams (states, pseudostates, transitions), activity diagrams (actions, control and object nodes, regions, flows) ER diagrams (entities, columns and crow's-foot relationships), flowcharts (all 27 symbols and flows), data flow diagrams, mind maps and C4 diagrams are editable too. Every other diagram kind in a StarUML file (communication, timing, BPMN, SysML and more) opens, is drawn from its saved shapes, and is saved back exactly as it was.
+      Sequence diagrams (lifelines, every kind of message, activations), composite structure diagrams (ports, parts, connectors), statechart diagrams (states, pseudostates, transitions), activity diagrams (actions, control and object nodes, regions, flows), ER diagrams (entities, columns and crow's-foot relationships), flowcharts (all 27 symbols and flows), data flow diagrams, mind maps and C4 diagrams are editable too. Every other diagram kind in a StarUML file (communication, timing, BPMN, SysML and more) opens, is drawn from its saved shapes, and is saved back exactly as it was.
     </td>
   </tr>
 </table>

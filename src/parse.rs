@@ -103,6 +103,13 @@ pub fn name_text(r: &Repo, e: Eid) -> String {
     if r.ty(e) == "UMLLifeline" {
         return lifeline_text(r, e);
     }
+    // an operand's edit is its guard, a state invariant's its invariant (quickedits/uml.json)
+    if r.ty(e) == "UMLInteractionOperand" {
+        return r.str(e, "guard");
+    }
+    if r.ty(e) == "UMLStateInvariant" {
+        return r.str(e, "invariant");
+    }
     if r.ty(e) == "UMLMessage" {
         return message_text(r, e);
     }

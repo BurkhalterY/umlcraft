@@ -417,3 +417,312 @@ pub fn draw_endpoint(c: &mut dyn Canvas, r: &Repo, v: Eid, fill: Rgba, line: Rgb
         c.ellipse(P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 }, b.w / 2.0, b.h / 2.0, Some(line), Some(line));
     }
 }
+
+// ------------------------------------------------------------------ fragments
+
+const PAD: f64 = 5.0; // COMPARTMENT_*_PADDING
+const LABEL_GAP: f64 = 5.0; // LABEL_INTERVAL (elements.js)
+pub const FRAGMENT_MIN_W: f64 = 80.0; // FRAME_MINWIDTH (elements.js:218-229)
+pub const FRAGMENT_MIN_H: f64 = 30.0;
+pub const OPERAND_MIN_H: f64 = 30.0;
+const GUARD_X: f64 = 20.0;
+const GUARD_Y: f64 = 15.0;
+pub const INVARIANT_MIN: (f64, f64) = (50.0, 20.0); // elements.js:212-216
+
+fn label(r: &mut Repo, parent: Eid, model: Eid) -> Eid {
+    let m = r.ref_to(model);
+    r.create("LabelView", &[("model", m), ("font", json!(views::FONT)), ("parentStyle", json!(true))], Some((parent, "subViews")))
+}
+
+/// A combined fragment's view: a frame with its operator and name in the tab, and a compartment of
+/// operand views (UMLCombinedFragmentView, elements.js:12495-12520).
+pub fn create_fragment_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Eid {
+    let v = r.create(
+        "UMLCombinedFragmentView",
+        &[("model", r.ref_to(model)), ("font", json!(views::FONT)), ("parentStyle", json!(false)), ("left", json!(rect.x)), ("top", json!(rect.y)), ("width", json!(rect.w)), ("height", json!(rect.h))],
+        Some((diagram, "ownedViews")),
+    );
+    let nl = label(r, v, model);
+    r.set_ref(v, "nameLabel", Some(nl));
+    let tl = label(r, v, model);
+    r.set_ref(v, "frameTypeLabel", Some(tl));
+    let oc = r.create("UMLInteractionOperandCompartmentView", &[("model", r.ref_to(model)), ("font", json!(views::FONT)), ("parentStyle", json!(true))], Some((v, "subViews")));
+    r.set_ref(v, "operandCompartment", Some(oc));
+    v
+}
+
+/// A continuation's or an interaction use's view (UMLContinuationView, UMLInteractionUseView,
+/// elements.js:12098-12110, 12603-12620).
+pub fn create_box_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Eid {
+    let ty = if r.ty(model) == "UMLContinuation" { "UMLContinuationView" } else { "UMLInteractionUseView" };
+    let v = r.create(
+        ty,
+        &[("model", r.ref_to(model)), ("font", json!(views::FONT)), ("parentStyle", json!(false)), ("left", json!(rect.x)), ("top", json!(rect.y)), ("width", json!(rect.w)), ("height", json!(rect.h))],
+        Some((diagram, "ownedViews")),
+    );
+    let nl = label(r, v, model);
+    r.set_ref(v, "nameLabel", Some(nl));
+    if ty == "UMLInteractionUseView" {
+        let tl = label(r, v, model);
+        r.set_ref(v, "frameTypeLabel", Some(tl));
+    }
+    v
+}
+
+/// A state invariant on a lifeline: a rounded box with `{invariant}` on its line, kept in the
+/// lifeline view's sub-views (stateInvariantFn, uml-factory.js:1506-1550).
+pub fn create_invariant_view(r: &mut Repo, lifeline: Eid, model: Eid, y: f64) -> Eid {
+    let v = r.create(
+        "UMLStateInvariantView",
+        &[("model", r.ref_to(model)), ("font", json!(views::FONT)), ("parentStyle", json!(false)), ("left", json!(0)), ("top", json!(y)), ("width", json!(INVARIANT_MIN.0)), ("height", json!(INVARIANT_MIN.1))],
+        Some((lifeline, "subViews")),
+    );
+    let l = label(r, v, model);
+    r.set(l, "horizontalAlignment", json!(2));
+    r.set(l, "verticalAlignment", json!(5));
+    r.set_ref(v, "invariantLabel", Some(l));
+    v
+}
+
+fn set_label(r: &mut Repo, l: Eid, text: &str, b: R, bold: bool, ms: &dyn Measure) {
+    r.set(l, "text", json!(text));
+    r.set(l, "font", json!(views::font_str(&ms.face(), ms.size(), if bold { 1 } else { 0 })));
+    if text.is_empty() {
+        r.set_raw(l, "visible", json!(false));
+    } else {
+        r.remove(l, "visible");
+    }
+    set_rect(r, l, b);
+}
+
+/// The text of an interaction use: `recipient = Interaction(arguments): value`
+/// (UMLInteractionUseView.update, elements.js:12625-12650).
+pub fn interaction_use_text(r: &Repo, m: Eid) -> String {
+    let mut s = String::new();
+    if let Some(x) = r.refd(m, "returnValueRecipient") {
+        s += &format!("{} = ", r.name(x));
+    }
+    if let Some(x) = r.refd(m, "refersTo") {
+        s += &r.name(x);
+    }
+    let args = r.str(m, "arguments");
+    if !args.is_empty() {
+        s += &format!("({args})");
+    }
+    let rv = r.str(m, "returnValue");
+    if !rv.is_empty() {
+        s += &format!(": {rv}");
+    }
+    s
+}
+
+/// Lay out a combined fragment, a continuation or an interaction use (sizeObject and arrangeObject
+/// of their views, elements.js:12098-12720).
+pub fn layout_fragment(r: &mut Repo, ms: &dyn Measure, v: Eid) {
+    let Some(m) = r.refd(v, "model").filter(|m| r.alive(*m)) else { return };
+    let lh = ms.size();
+    let (x, y) = (r.f(v, "left"), r.f(v, "top"));
+    match r.ty(v) {
+        "UMLContinuationView" => {
+            let name = r.name(m);
+            let tw = ms.width(&name, 0).ceil();
+            let w = r.f(v, "width").max(tw).max(INVARIANT_MIN.0);
+            let h = r.f(v, "height").max(lh).max(INVARIANT_MIN.1);
+            set_rect(r, v, R { x, y, w, h });
+            if let Some(l) = r.refd(v, "nameLabel") {
+                set_label(r, l, &name, R { x: x + (w - tw) / 2.0, y: y + (h - lh) / 2.0, w: tw, h: lh }, false, ms);
+            }
+        }
+        "UMLInteractionUseView" => {
+            let text = interaction_use_text(r, m);
+            let (rw, nw) = (ms.width("ref", 1).ceil(), ms.width(&text, 0).ceil());
+            let hh = lh + 2.0 * PAD;
+            let w = r.f(v, "width").max(rw + 2.0 * PAD + lh + nw).max(FRAGMENT_MIN_W);
+            let h = r.f(v, "height").max(hh).max(FRAGMENT_MIN_H);
+            set_rect(r, v, R { x, y, w, h });
+            if let Some(l) = r.refd(v, "frameTypeLabel") {
+                set_label(r, l, "ref", R { x: x + PAD, y: y + PAD, w: rw, h: lh }, true, ms);
+            }
+            if let Some(l) = r.refd(v, "nameLabel") {
+                let nx = x + PAD + rw + hh / 2.0 + 2.0 * PAD;
+                set_label(r, l, &text, R { x: nx, y: y + PAD, w: (x + w - PAD - nx).max(0.0), h: lh }, false, ms);
+            }
+        }
+        _ => {
+            // a combined fragment: the operator (bold) and name in the tab, then the operands
+            let op = r.raw(m, "interactionOperator").and_then(|v| v.as_str().map(String::from)).unwrap_or_else(|| "seq".into());
+            let name = r.name(m);
+            let (tw, nw) = (ms.width(&op, 1).ceil(), ms.width(&name, 0).ceil());
+            let hh = lh + 2.0 * PAD;
+            let tab_w = tw + nw + if !op.is_empty() && !name.is_empty() { LABEL_GAP } else { 0.0 } + 2.0 * PAD + hh / 2.0;
+            let operands: Vec<Eid> = r.list(m, "operands").into_iter().filter(|o| r.alive(*o)).collect();
+            let comp = r.refd(v, "operandCompartment");
+            // one operand view per operand, keeping their heights
+            let mut views_: Vec<Eid> = vec![];
+            if let Some(oc) = comp {
+                let old = r.list(oc, "subViews");
+                for &o in &operands {
+                    let ov = match old.iter().copied().find(|x| r.refd(*x, "model") == Some(o)) {
+                        Some(ov) => ov,
+                        None => {
+                            let ov = r.create("UMLInteractionOperandView", &[("model", r.ref_to(o)), ("font", json!(views::FONT)), ("parentStyle", json!(true)), ("height", json!(OPERAND_MIN_H))], Some((oc, "subViews")));
+                            let gl = label(r, ov, o);
+                            r.set_ref(ov, "guardLabel", Some(gl));
+                            ov
+                        }
+                    };
+                    views_.push(ov);
+                }
+                for x in old {
+                    if !views_.contains(&x) {
+                        r.detach(x);
+                    }
+                }
+                r.set_list(oc, "subViews", views_.clone());
+            }
+            let guard_text = |r: &Repo, o: Eid| {
+                let g = r.str(o, "guard");
+                if g.is_empty() { g } else { format!("[{g}]") }
+            };
+            let min_ops: f64 = views_.iter().map(|ov| r.f(*ov, "height").max(OPERAND_MIN_H)).sum::<f64>();
+            let last_min = views_.last().map(|_| OPERAND_MIN_H).unwrap_or(0.0);
+            let fixed: f64 = views_.iter().take(views_.len().saturating_sub(1)).map(|ov| r.f(*ov, "height").max(OPERAND_MIN_H)).sum::<f64>();
+            let min_h = if views_.is_empty() { (hh + 30.0).max(FRAGMENT_MIN_H) } else { hh + fixed + last_min };
+            let _ = min_ops;
+            let guard_w = views_.iter().filter_map(|ov| r.refd(*ov, "model")).map(|o| ms.width(&guard_text(r, o), 0).ceil() + 2.0 * GUARD_X).fold(FRAGMENT_MIN_W, f64::max);
+            let w = r.f(v, "width").max((tab_w + 10.0).max(FRAGMENT_MIN_W)).max(guard_w);
+            let h = r.f(v, "height").max(min_h);
+            set_rect(r, v, R { x, y, w, h });
+            if let Some(l) = r.refd(v, "frameTypeLabel") {
+                set_label(r, l, &op, R { x: x + PAD, y: y + PAD, w: tw, h: lh }, true, ms);
+            }
+            if let Some(l) = r.refd(v, "nameLabel") {
+                let nx = if op.is_empty() { x + PAD } else { x + PAD + tw + 2.0 * LABEL_GAP };
+                set_label(r, l, &name, R { x: nx, y: y + PAD, w: nw, h: lh }, false, ms);
+            }
+            if let Some(oc) = comp {
+                set_rect(r, oc, R { x, y: y + hh, w, h: h - hh });
+                if views_.is_empty() {
+                    r.set_raw(oc, "visible", json!(false));
+                } else {
+                    r.remove(oc, "visible");
+                }
+            }
+            let mut top = y + hh;
+            let n = views_.len();
+            for (i, ov) in views_.into_iter().enumerate() {
+                let oh = if i + 1 == n { (y + h - top).max(OPERAND_MIN_H) } else { r.f(ov, "height").max(OPERAND_MIN_H) };
+                set_rect(r, ov, R { x, y: top, w, h: oh });
+                if let (Some(gl), Some(o)) = (r.refd(ov, "guardLabel"), r.refd(ov, "model")) {
+                    let g = guard_text(r, o);
+                    let gw = ms.width(&g, 0).ceil();
+                    set_label(r, gl, &g, R { x: x + GUARD_X, y: top + GUARD_Y, w: gw, h: lh }, false, ms);
+                }
+                top += oh;
+            }
+        }
+    }
+}
+
+/// A state invariant: at least 50 × 20, centred on its lifeline's line, `{invariant}` in the middle
+/// (UMLStateInvariantView.sizeObject and arrangeObject, elements.js:12035-12060).
+pub fn layout_invariant(r: &mut Repo, ms: &dyn Measure, lifeline: Eid, v: Eid) {
+    let Some(m) = r.refd(v, "model").filter(|m| r.alive(*m)) else { return };
+    let text = format!("{{{}}}", r.str(m, "invariant"));
+    let (tw, lh) = (ms.width(&text, 0).ceil(), ms.size());
+    let w = r.f(v, "width").max(tw).max(INVARIANT_MIN.0);
+    let h = r.f(v, "height").max(lh).max(INVARIANT_MIN.1);
+    let cx = r.refd(lifeline, "linePart").map(|lp| r.f(lp, "left")).unwrap_or(r.f(lifeline, "left") + r.f(lifeline, "width") / 2.0);
+    let y = r.f(v, "top");
+    set_rect(r, v, R { x: cx - w / 2.0, y, w, h });
+    if let Some(l) = r.refd(v, "invariantLabel") {
+        set_label(r, l, &text, R { x: cx - tw / 2.0, y: y + (h - lh) / 2.0, w: tw, h: lh }, false, ms);
+    }
+}
+
+fn draw_text(c: &mut dyn Canvas, r: &Repo, l: Eid, fc: Rgba) {
+    if r.raw(l, "visible").and_then(|v| v.as_bool()) == Some(false) {
+        return;
+    }
+    let t = r.str(l, "text");
+    let font = r.str(l, "font");
+    let size = font.split(';').nth(1).and_then(|s| s.parse::<f64>().ok()).unwrap_or(13.0);
+    let style = font.split(';').nth(2).and_then(|s| s.parse::<u8>().ok()).unwrap_or(0);
+    c.text(&t, rect(r, l), 0, style, size, fc, false);
+}
+
+/// The tab of a frame: a box over the top-left corner, its bottom-right corner cut by half its height
+/// (UMLCustomFrameView.drawObject, elements.js:12218-12245).
+fn frame_tab(c: &mut dyn Canvas, b: R, right_of_labels: f64, label_bottom: f64, fill: Option<Rgba>, line: Rgba) {
+    let y = label_bottom + PAD;
+    let h = y - b.y;
+    let x = right_of_labels + PAD + h / 2.0;
+    let pts = [P { x: b.x, y: b.y }, P { x: b.x, y }, P { x: x - h / 2.0, y }, P { x, y: b.y + h / 2.0 }, P { x, y: b.y }];
+    c.polygon(&pts, fill, Some(line));
+}
+
+/// Draw a combined fragment, a continuation or an interaction use.
+pub fn draw_fragment(c: &mut dyn Canvas, r: &Repo, v: Eid, fill: Rgba, line: Rgba, fc: Rgba) {
+    let b = rect(r, v);
+    let corners = |b: R| vec![P { x: b.x, y: b.y }, P { x: b.x + b.w, y: b.y }, P { x: b.x + b.w, y: b.y + b.h }, P { x: b.x, y: b.y + b.h }];
+    match r.ty(v) {
+        "UMLContinuationView" => {
+            c.polygon(&crate::flowchart::round_box(b, 10.0), Some(fill), Some(line));
+            if let Some(l) = r.refd(v, "nameLabel") {
+                draw_text(c, r, l, fc);
+            }
+        }
+        "UMLInteractionUseView" => {
+            c.polygon(&corners(b), Some(fill), Some(line));
+            if let Some(tl) = r.refd(v, "frameTypeLabel") {
+                let lb = rect(r, tl);
+                frame_tab(c, b, lb.x + lb.w, lb.y + lb.h, None, line);
+                draw_text(c, r, tl, fc);
+            }
+            if let Some(l) = r.refd(v, "nameLabel") {
+                draw_text(c, r, l, fc);
+            }
+        }
+        _ => {
+            // the frame is not filled: what it covers shows through (UMLCustomFrameView.drawObject)
+            let mut pts = corners(b);
+            pts.push(pts[0]);
+            c.polyline(&pts, line, false);
+            let labels: Vec<Eid> = ["frameTypeLabel", "nameLabel"].iter().filter_map(|f| r.refd(v, f)).collect();
+            let shown: Vec<R> = labels.iter().filter(|l| r.raw(**l, "visible").and_then(|x| x.as_bool()) != Some(false)).map(|l| rect(r, *l)).collect();
+            let right = shown.iter().map(|l| l.x + l.w).fold(b.x + PAD, f64::max);
+            let bottom = shown.iter().map(|l| l.y + l.h).fold(b.y + PAD, f64::max);
+            frame_tab(c, b, right, bottom, Some(fill), line);
+            for l in labels {
+                draw_text(c, r, l, fc);
+            }
+            if let Some(oc) = r.refd(v, "operandCompartment") {
+                for (i, ov) in r.list(oc, "subViews").into_iter().enumerate() {
+                    let ob = rect(r, ov);
+                    if i > 0 {
+                        crate::render::dashes(c, &[P { x: ob.x, y: ob.y }, P { x: ob.x + ob.w - 1.0, y: ob.y }], line, 10.0, 3.0);
+                    }
+                    if let Some(gl) = r.refd(ov, "guardLabel") {
+                        draw_text(c, r, gl, fc);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Draw the state invariants of a lifeline (a rounded box with `{invariant}`).
+pub fn draw_invariants(c: &mut dyn Canvas, r: &Repo, lifeline: Eid, fill: Rgba, line: Rgba, fc: Rgba) {
+    for v in r.list(lifeline, "subViews") {
+        if r.ty(v) != "UMLStateInvariantView" {
+            continue;
+        }
+        c.polygon(&crate::flowchart::round_box(rect(r, v), 10.0), Some(fill), Some(line));
+        if let Some(l) = r.refd(v, "invariantLabel") {
+            let lb = rect(r, l);
+            let font = r.str(l, "font");
+            let size = font.split(';').nth(1).and_then(|s| s.parse::<f64>().ok()).unwrap_or(13.0);
+            c.text(&r.str(l, "text"), lb, 2, 0, size, fc, false);
+        }
+    }
+}
