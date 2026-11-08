@@ -183,7 +183,7 @@ cargo test --release
 On Linux, install the GTK 3, xkbcommon and OpenGL development packages first (on Debian and Ubuntu: `libgtk-3-dev libxkbcommon-dev libgl1-mesa-dev`).
 
 > [!IMPORTANT]
-> **Status:** UMLCraft is in early alpha. Class, package, object, use case, information flow, profile, component and deployment diagrams are editable; other diagram kinds open, show and save but cannot be edited yet. On macOS, double-clicking a `.mdj` file starts UMLCraft but does not open the file yet; use File › Open. Please file issues with your system and a screenshot.
+> **Status:** UMLCraft is in early alpha. Every StarUML diagram kind is editable: UML, ER, flowchart, data flow, mind map, C4, SysML, BPMN, wireframe and AWS, Azure and GCP architecture diagrams. On macOS, double-clicking a `.mdj` file starts UMLCraft but does not open the file yet; use File › Open. Please file issues with your system and a screenshot.
 
 ## Downloads
 
