@@ -62,6 +62,15 @@ pub trait Canvas: Measure {
     }
     /// A picture given as a data URL, stretched over the box; surfaces that cannot show one skip it.
     fn image(&mut self, _b: R, _data_url: &str) {}
+    /// A polyline `width` units wide (the original's lineWidth 3 borders); surfaces that cannot set
+    /// a width draw it as lines side by side.
+    fn thick_polyline(&mut self, pts: &[P], color: Rgba, width: f64) {
+        let k = ((width - 1.0) / 2.0).max(0.0);
+        for (dx, dy) in [(0.0, 0.0), (-k, 0.0), (k, 0.0), (0.0, -k), (0.0, k)] {
+            let s: Vec<P> = pts.iter().map(|p| P { x: p.x + dx, y: p.y + dy }).collect();
+            self.polyline(&s, color, false);
+        }
+    }
     fn rect(&mut self, r: R, fill: Option<Rgba>, stroke: Option<Rgba>) {
         let pts = [P { x: r.x, y: r.y }, P { x: r.x + r.w, y: r.y }, P { x: r.x + r.w, y: r.y + r.h }, P { x: r.x, y: r.y + r.h }];
         self.polygon(&pts, fill, stroke);
@@ -83,7 +92,7 @@ fn shown(r: &Repo, v: Eid) -> bool {
     !matches!(r.raw(v, "visible"), Some(serde_json::Value::Bool(false)) | Some(serde_json::Value::Null))
 }
 
-fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
+pub(crate) fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
     if !shown(r, lv) {
         return;
     }
@@ -613,6 +622,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             crate::c4::draw(c, r, v, fill, line, fc);
             return;
         }
+        "bpmn" => {
+            crate::bpmn_draw::draw(c, r, v, fill, line, fc);
+            return;
+        }
         "erd-entity" => {
             crate::erd::draw(c, r, v, fill, line, fc);
             return;
@@ -1097,6 +1110,10 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     if views::is_freeline(r, e) {
         return draw_freeline(c, r, e, &pts);
     }
+    // BPMN lines draw their own patterns and ends (bpmn/elements.js)
+    if crate::bpmn::is_edge_view(r.ty(e)) {
+        return crate::bpmn_draw::draw_edge(c, r, e, &pts);
+    }
     let line = color(r, e, "lineColor", BLACK);
     let ty = r.ty(e).to_string();
     let mut dashed = matches!(
@@ -1347,6 +1364,9 @@ impl Canvas for Svg<'_> {
     fn polyline(&mut self, pts: &[P], color: Rgba, dashed: bool) {
         let dash = if dashed { format!(" stroke-dasharray=\"{DASH}\"") } else { String::new() };
         self.out += &format!("<polyline points=\"{}\" fill=\"none\"{}{dash}/>\n", pts_attr(pts), paint("stroke", Some(color)));
+    }
+    fn thick_polyline(&mut self, pts: &[P], color: Rgba, width: f64) {
+        self.out += &format!("<polyline points=\"{}\" fill=\"none\" stroke-width=\"{width}\"{}/>\n", pts_attr(pts), paint("stroke", Some(color)));
     }
     fn polygon(&mut self, pts: &[P], fill: Option<Rgba>, stroke: Option<Rgba>) {
         self.out += &format!("<polygon points=\"{}\"{}{}/>\n", pts_attr(pts), paint("fill", fill), paint("stroke", stroke));

@@ -10,15 +10,15 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 |---|---|---|---|---|---|
 | AWS | `aws.arrow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/aws/preferences/aws.json |
 | Azure | `azure.arrow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/azure/preferences/azure.json |
-| BPMN | `bpmn.activity.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.event.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.message.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.gateway.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.dataobject.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.conversation.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.sequence-flow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.message-flow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.conversation-link.lineStyle` | Line Style | 2 | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.activity.fillColor` | Fill Color | "#ffffff" | ✅ | in Preferences › BPMN; a new box of that kind takes it as its fill colour (src/prefs.rs:284-289, 418-419; src/bpmn.rs:147-158) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.event.fillColor` | Fill Color | "#ffffff" | ✅ | in Preferences › BPMN; a new box of that kind takes it as its fill colour (src/prefs.rs:284-289, 418-419; src/bpmn.rs:147-158) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.message.fillColor` | Fill Color | "#ffffff" | ✅ | in Preferences › BPMN; a new box of that kind takes it as its fill colour (src/prefs.rs:284-289, 418-419; src/bpmn.rs:147-158) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.gateway.fillColor` | Fill Color | "#ffffff" | ✅ | in Preferences › BPMN; a new box of that kind takes it as its fill colour (src/prefs.rs:284-289, 418-419; src/bpmn.rs:147-158) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.dataobject.fillColor` | Fill Color | "#ffffff" | ✅ | in Preferences › BPMN; a new box of that kind takes it as its fill colour (src/prefs.rs:284-289, 418-419; src/bpmn.rs:147-158) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.conversation.fillColor` | Fill Color | "#ffffff" | ✅ | in Preferences › BPMN; a new box of that kind takes it as its fill colour (src/prefs.rs:284-289, 418-419; src/bpmn.rs:147-158) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.sequence-flow.lineStyle` | Line Style | 2 | ✅ | in Preferences › BPMN; a new line of that kind takes it, or the general line style when it is rectilinear, as the original's `||` does (src/prefs.rs:290-294, 447-449) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.message-flow.lineStyle` | Line Style | 2 | ✅ | in Preferences › BPMN; a new line of that kind takes it, or the general line style when it is rectilinear, as the original's `||` does (src/prefs.rs:290-294, 447-449) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.conversation-link.lineStyle` | Line Style | 2 | ✅ | in Preferences › BPMN; a new line of that kind takes it, or the general line style when it is rectilinear, as the original's `||` does (src/prefs.rs:290-294, 447-449) | extensions/essential/bpmn/preferences/bpmn.json |
 | C4 Model | `c4.person.fillColor` | Fill Color | "#38bcff" | ✅ | in Preferences › C4 Model; a new element of that kind takes it as its fill colour (src/prefs.rs:272-277, 396-399) | extensions/essential/c4/preferences/c4.json |
 | C4 Model | `c4.software-system.fillColor` | Fill Color | "#6dceff" | ✅ | in Preferences › C4 Model; a new element of that kind takes it as its fill colour (src/prefs.rs:272-277, 396-399) | extensions/essential/c4/preferences/c4.json |
 | C4 Model | `c4.container.fillColor` | Fill Color | "#a3e0ff" | ✅ | in Preferences › C4 Model; a new element of that kind takes it as its fill colour (src/prefs.rs:272-277, 396-399) | extensions/essential/c4/preferences/c4.json |

@@ -312,6 +312,98 @@ const OVERVIEW_GROUPS: &[Group] = &[
     },
     ANNOTATIONS,
 ];
+// a BPMN diagram (bpmn/toolbox/bpmn.json); the node tools take the model type as icon
+const BPMN_GROUPS: &[Group] = &[
+    Group {
+        id: "bpmn.basic",
+        label: "BPMN Basic",
+        items: &[
+            node("Task", "BPMNTask", "BPMNTask"),
+            node("Gateway", "BPMNExclusiveGateway", "BPMNExclusiveGateway"),
+            node("Start Event", "BPMNStartEvent", "BPMNStartEvent"),
+            node("End Event", "BPMNEndEvent", "BPMNEndEvent"),
+            line("Sequence Flow", "BPMNSequenceFlow", "BPMNSequenceFlow", AssocInit::Plain),
+        ],
+    },
+    Group {
+        id: "bpmn.artifact",
+        label: "BPMN Artifact",
+        items: &[node("Text Annotation", "BPMNTextAnnotation", "BPMNTextAnnotation"), node("Group", "BPMNGroup", "BPMNGroup"), line("Association", "BPMNAssociation", "BPMNAssociation", AssocInit::Plain)],
+    },
+    Group {
+        id: "bpmn.swimlanes",
+        label: "BPMN Swimlanes",
+        items: &[node("Pool", "BPMNParticipant", "BPMNParticipant"), node("Pool (Vert)", "BPMNParticipantVert", "BPMNParticipantVert"), node("Lane", "BPMNLane", "BPMNLane"), node("Lane (Vert)", "BPMNLaneVert", "BPMNLaneVert")],
+    },
+    Group {
+        id: "bpmn.activities",
+        label: "BPMN Activities",
+        items: &[
+            node("Task", "BPMNTask", "BPMNTask"),
+            node("Send Task", "BPMNSendTask", "BPMNSendTask"),
+            node("Receive Task", "BPMNReceiveTask", "BPMNReceiveTask"),
+            node("Service Task", "BPMNServiceTask", "BPMNServiceTask"),
+            node("User Task", "BPMNUserTask", "BPMNUserTask"),
+            node("Manual Task", "BPMNManualTask", "BPMNManualTask"),
+            node("Business Rule Task", "BPMNBusinessRuleTask", "BPMNBusinessRuleTask"),
+            node("Script Task", "BPMNScriptTask", "BPMNScriptTask"),
+            node("Call Activity", "BPMNCallActivity", "BPMNCallActivity"),
+            node("Sub Process", "BPMNSubProcess", "BPMNSubProcess"),
+            node("Ad-Hoc Sub Process", "BPMNAdHocSubProcess", "BPMNAdHocSubProcess"),
+            node("Transaction", "BPMNTransaction", "BPMNTransaction"),
+        ],
+    },
+    Group {
+        id: "bpmn.gateways",
+        label: "BPMN Gateways",
+        items: &[
+            node("Gateway (Exclusive)", "BPMNExclusiveGateway", "BPMNExclusiveGateway"),
+            node("Gateway (Event-Based)", "BPMNEventBasedGateway", "BPMNEventBasedGateway"),
+            node("Gateway (Inclusive)", "BPMNInclusiveGateway", "BPMNInclusiveGateway"),
+            node("Gateway (Complex)", "BPMNComplexGateway", "BPMNComplexGateway"),
+            node("Gateway (Parallel)", "BPMNParallelGateway", "BPMNParallelGateway"),
+        ],
+    },
+    Group {
+        id: "bpmn.events",
+        label: "BPMN Events",
+        items: &[
+            node("Start Event", "BPMNStartEvent", "BPMNStartEvent"),
+            node("Intermediate Event (Throw)", "BPMNIntermediateThrowEvent", "BPMNIntermediateEvent"),
+            node("Intermediate Event (Catch)", "BPMNIntermediateCatchEvent", "BPMNIntermediateEvent"),
+            node("Boundary Event", "BPMNBoundaryEvent", "BPMNBoundaryEvent"),
+            node("End Event", "BPMNEndEvent", "BPMNEndEvent"),
+        ],
+    },
+    Group {
+        id: "bpmn.data",
+        label: "BPMN Data",
+        items: &[
+            node("Data Object", "BPMNDataObject", "BPMNDataObject"),
+            node("Data Store", "BPMNDataStore", "BPMNDataStore"),
+            node("Data Input", "BPMNDataInput", "BPMNDataInput"),
+            node("Data Output", "BPMNDataOutput", "BPMNDataOutput"),
+            line("Data Association", "BPMNDataAssociation", "BPMNDataAssociation", AssocInit::Plain),
+        ],
+    },
+    Group { id: "bpmn.message", label: "BPMN Message", items: &[node("Message", "BPMNMessage", "BPMNMessage"), line("Message Flow", "BPMNMessageFlow", "BPMNMessageFlow", AssocInit::Plain)] },
+    Group {
+        id: "bpmn.choreography",
+        label: "BPMN Choreography",
+        items: &[node("Choreography Task", "BPMNChoreographyTask", "BPMNChoreographyTask"), node("Sub Choreography", "BPMNSubChoreography", "BPMNSubChoreography"), line("Message Link", "BPMNMessageLink", "BPMNMessageLink", AssocInit::Plain)],
+    },
+    Group {
+        id: "bpmn.conversation",
+        label: "BPMN Conversation",
+        items: &[
+            node("Conversation", "BPMNConversation", "BPMNConversation"),
+            node("Sub Conversation", "BPMNSubConversation", "BPMNSubConversation"),
+            node("Call Conversation", "BPMNCallConversation", "BPMNCallConversation"),
+            line("Conversation Link", "BPMNConversationLink", "BPMNConversationLink", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
 // a C4 diagram (c4/toolbox/c4.json)
 const C4_GROUPS: &[Group] = &[
     Group {
@@ -542,7 +634,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 21] = [
+const DIAGRAM_KINDS: [(&str, &str); 22] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -565,6 +657,7 @@ const DIAGRAM_KINDS: [(&str, &str); 21] = [
     ("ER Diagram", "ERDDiagram"),
     ("C4 Diagram", "C4Diagram"),
     ("Wireframe Diagram", "WFWireframeDiagram"),
+    ("BPMN Diagram", "BPMNDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -821,6 +914,8 @@ impl App {
         if t == "ERDEntity" {
             adds.push(("Column", "ERDColumn", true));
         }
+        // BPMN processes, their elements, events and event definitions (bpmn/menus/bpmn.json)
+        adds.extend(crate::bpmn::add_kinds(&self.repo, e));
         if self.repo.kind_of(e, "DFDElement") {
             adds.extend([("ExternalEntity", "DFDExternalEntity", false), ("Process", "DFDProcess", false), ("DataStore", "DFDDataStore", false)]);
         }
@@ -927,7 +1022,7 @@ impl App {
         if is_pkg || is_classifier || other {
             let dfd = self.repo.kind_of(e, "DFDElement");
             ui.menu_button("Add Diagram", |ui| {
-                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram") || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
+                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram" | "BPMNDiagram") || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
                 for (l, k) in kinds {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
@@ -1200,6 +1295,7 @@ impl App {
                 ];
             }
             "C4Container" => return vec![("name", "text"), ("technology", "text"), ("description", "multiline"), ("kind", "enum")],
+            _ if t.starts_with("BPMN") && !self.is_diagram(e) => return crate::bpmn::fields(r, e),
             _ if r.kind_of(e, "C4Element") => return vec![("name", "text"), ("technology", "text"), ("description", "multiline")],
             _ if r.kind_of(e, "DFDElement") => return vec![("name", "text"), ("id", "text")],
             "WFMobileFrame" => return vec![("name", "text"), ("id", "text"), ("orientation", "enum")],
@@ -1341,6 +1437,7 @@ impl App {
     fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
         match (ty, field) {
             ("UMLTransition", "kind") => return &["external", "internal", "local"],
+            (t, f) if t.starts_with("BPMN") && crate::bpmn::enum_options(f).is_some() => return crate::bpmn::enum_options(f).unwrap_or(&[]),
             ("ERDRelationshipEnd", "cardinality") => return &["0..1", "1", "0..*", "1..*"],
             // WFOrientationKind, WFPositionKind (wireframe/metamodel.json)
             ("WFMobileFrame", "orientation") => return &["portrait", "landscape"],
@@ -1854,6 +1951,8 @@ impl App {
                 Some("MMMindmapDiagram") => self.open_groups.insert("mindmap"),
                 Some("ERDDiagram") => self.open_groups.insert("erd"),
                 Some("C4Diagram") => self.open_groups.insert("c4"),
+                // Basic, Artifact and Swimlanes open on a BPMN diagram ("auto-expands")
+                Some("BPMNDiagram") => self.open_groups.insert("bpmn.basic") | self.open_groups.insert("bpmn.artifact") | self.open_groups.insert("bpmn.swimlanes"),
                 // both groups open on a wireframe diagram ("auto-expands")
                 Some("WFWireframeDiagram") => self.open_groups.insert("wireframe.frames") | self.open_groups.insert("wireframe.components"),
                 Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
@@ -1891,6 +1990,7 @@ impl App {
             Some("MMMindmapDiagram") => MINDMAP_GROUPS,
             Some("ERDDiagram") => ERD_GROUPS,
             Some("C4Diagram") => C4_GROUPS,
+            Some("BPMNDiagram") => BPMN_GROUPS,
             Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
             Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
             Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,

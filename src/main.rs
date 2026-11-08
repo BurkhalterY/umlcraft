@@ -7,6 +7,8 @@
 mod align;
 mod api;
 mod app;
+mod bpmn;
+mod bpmn_draw;
 mod c4;
 mod communication;
 mod cli;

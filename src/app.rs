@@ -919,6 +919,11 @@ impl App {
             self.apply_view_defaults(v);
             return Some(v);
         }
+        // a BPMN element goes in the diagram's owner, or in the lane or pool it is drawn in; a boundary
+        // event on the box under the point (bpmn-factory.js:98-145, toolbox/bpmn.json)
+        if let Some(v) = self.create_bpmn_node(d, kind, rect) {
+            return v;
+        }
         // a C4 element goes in the element that owns the diagram, named after its class ("C4Person1"…);
         // the container tools set its kind (c4-factory.js:70-90, toolbox/c4.json)
         if let Some((ty, ckind)) = crate::c4::tool(kind) {
@@ -1122,6 +1127,17 @@ impl App {
         if let Some(ok) = crate::timing::can_contain(ct, self.repo.ty(v)) {
             return ok && container != v;
         }
+        // a BPMN pool holds lanes and flow elements, a lane flow elements (bpmn/elements.js:2898-2910, 3007-3016)
+        if crate::bpmn::is_node_view(ct) || crate::bpmn::is_node_view(self.repo.ty(v)) {
+            let mut c = Some(container);
+            while let Some(x) = c {
+                if x == v {
+                    return false;
+                }
+                c = self.repo.refd(x, "containerView");
+            }
+            return crate::bpmn::can_contain(ct, self.repo.ty(v));
+        }
         // a wireframe frame or panel holds widgets, a tab list holds tabs (wireframe/elements.js)
         if crate::wireframe::is_node_view(ct) || crate::wireframe::is_node_view(self.repo.ty(v)) {
             let mut c = Some(container);
@@ -1261,6 +1277,10 @@ impl App {
         list.retain(|x| !vs.contains(x));
         list.extend(vs.iter().copied());
         self.repo.set_list(d, "ownedViews", list);
+        // BPMN pools and lanes stay behind what they hold
+        if self.repo.ty(d) == "BPMNDiagram" {
+            crate::bpmn::restack(&mut self.repo, d);
+        }
     }
 
     /// The two ends of a relationship model: (tail, head) = (source, target) or (end1, end2) references.
@@ -1315,6 +1335,8 @@ impl App {
             "ERDDiagram" => vec!["Hyperlink", "Diagram", "ERDEntity", "ERDColumn", "ERDRelationship"],
             // C4Diagram.canAcceptModel (c4/elements.js:75-80)
             "C4Diagram" => vec!["Hyperlink", "Diagram", "C4Element", "C4Relationship"],
+            // BPMNDiagram.canAcceptModel (bpmn/elements.js:65-80)
+            "BPMNDiagram" => vec!["Hyperlink", "Diagram", "BPMNParticipant", "BPMNLane", "BPMNActivity", "BPMNEvent", "BPMNGateway", "BPMNSequenceFlow", "BPMNMessage", "BPMNMessageFlow"],
             // UMLInteractionOverviewDiagram.canAcceptModel (elements.js:13823-13834)
             "UMLInteractionOverviewDiagram" => vec!["Hyperlink", "Diagram", "UMLInteractionUse", "UMLInteraction"],
             // UMLSequenceDiagram.canAcceptModel (elements.js:10958-10985), and
@@ -1342,7 +1364,7 @@ impl App {
         }
         let ty = self.repo.ty(m);
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
-        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || crate::bpmn::is_node_type(ty) || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
@@ -1445,7 +1467,7 @@ impl App {
             }
             return Ok(v.into_iter().collect());
         }
-        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) {
+        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) && !crate::bpmn::is_node_type(&ty) {
             return Ok(vec![]);
         }
         // a hidden view of it is shown again instead of a second one
@@ -1597,6 +1619,10 @@ impl App {
         }
         // a communication diagram's connectors and messages (uml-factory.js:1231-1330, 1956-1965)
         if let Some(ok) = crate::communication::can_link(r, kind, tail, head) {
+            return ok;
+        }
+        // BPMN lines (bpmn-factory.js:20-25)
+        if let Some(ok) = crate::bpmn::can_link(r, kind, tail, head) {
             return ok;
         }
         if views::is_edge(r, tail) || views::is_edge(r, head) {
@@ -2078,6 +2104,10 @@ impl App {
     }
 
     pub fn add_model(&mut self, parent: Eid, ty: &str) -> Eid {
+        // a BPMN element: an event definition in its event's definitions, a gateway with its direction
+        if ty.starts_with("BPMN") {
+            return self.add_bpmn_model(parent, ty);
+        }
         let name = self.new_name(parent, ty);
         let m = self.repo.create(ty, &[("name", json!(name))], Some((parent, "ownedElements")));
         add_stereotype_icon(&mut self.repo, m);
@@ -2093,6 +2123,13 @@ impl App {
     }
 
     pub fn add_diagram(&mut self, parent: Option<Eid>, ty: &str) -> Eid {
+        // a BPMN diagram goes in a BPMN root element or activity, else in a new process (bpmn-factory.js:28-57)
+        if ty == "BPMNDiagram" {
+            let d = self.add_bpmn_diagram(parent);
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
         let target = match parent {
             Some(p) if self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" || self.repo.kind_of(p, "UMLClassifier") => p,
             // an activity diagram added on an activity goes in it (uml-factory.js:574)

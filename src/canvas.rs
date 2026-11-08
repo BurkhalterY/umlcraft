@@ -94,6 +94,10 @@ impl Canvas for ScreenCanvas<'_> {
             self.painter.add(Shape::line(ps, st));
         }
     }
+    fn thick_polyline(&mut self, pts: &[P], color: Rgba, width: f64) {
+        let ps: Vec<Pos2> = pts.iter().map(|p| self.pos(*p)).collect();
+        self.painter.add(Shape::line(ps, Stroke::new(((self.zoom * width) as f32).max(1.0), c32(color))));
+    }
     fn polygon(&mut self, pts: &[P], fill: Option<Rgba>, stroke: Option<Rgba>) {
         let ps: Vec<Pos2> = pts.iter().map(|p| self.pos(*p)).collect();
         let st = stroke.map(|c| self.stroke(c)).unwrap_or(Stroke::NONE);
@@ -254,6 +258,9 @@ pub fn item_buttons(r: &crate::model::Repo, host: Option<Eid>, kind: &EditKind) 
                 ],
                 // a combined fragment's Add Operand (quickedits/uml.json "uml.combined-fragment")
                 "UMLCombinedFragment" => vec![("+ Operand", "Add Operand", "", ItemKey::AddOperand)],
+                // a BPMN pool's Add Lane, an activity's Add Boundary Event, an event's definitions and a
+                // choreography's participants and messages (quickedits/bpmn.json)
+                _ if t.starts_with("BPMN") => crate::bpmn::buttons(r, *m).into_iter().map(|(a, b, c, q)| (a, b, c, ItemKey::Bpmn(q))).collect(),
                 // a tab list's Add Tab (wireframe/quickedits/wireframe.json "wireframe.tab-list")
                 "WFTabList" => vec![("+ Tab", "Add Tab", "", ItemKey::AddTab)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
@@ -319,6 +326,8 @@ pub enum ItemKey {
     AddOperand,
     /// A tab list's Add Tab
     AddTab,
+    /// A BPMN quick edit button
+    Bpmn(crate::bpmn::Quick),
     /// A lifeline's Select Type (false) or Create Type (true)
     LifelineType(bool),
     /// A lifeline's message buttons
@@ -1486,7 +1495,7 @@ impl App {
             Drag::CreateEdge { tail, start, .. } => {
                 let Some(tool) = self.tool else { return };
                 // a self-connection tool joins the view under the release point to itself (factory.js:273-277)
-                let hit = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject" | "UMLForwardMessage" | "UMLReverseMessage"));
+                let hit = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject" | "UMLForwardMessage" | "UMLReverseMessage" | "BPMNAssociation"));
                 let selfish = matches!(tool.label, "Self Transition" | "Self Message" | "Self Connector");
                 let (tail, hit) = if selfish { (hit.unwrap_or(tail), hit) } else { (tail, hit) };
                 // a message keeps the height it is drawn at; a found message comes from an endpoint at
@@ -1626,6 +1635,15 @@ impl App {
         if t == "UMLNoteView" || t == "UMLTextView" || t == "UMLTextBoxView" || t == "UMLCustomTextView" {
             let text = self.repo.str(v, "text");
             self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None, orig: None });
+            return;
+        }
+        // a BPMN box's name or a text annotation's text (quickedits/bpmn.json); the BPMN lines
+        // without a name have no inline edit
+        if let Some(e) = self.bpmn_edit(v) {
+            self.editing = e;
+            return;
+        }
+        if crate::bpmn::is_edge_view(&t) && self.repo.refd(v, "nameLabel").is_none() {
             return;
         }
         let Some(m) = self.repo.refd(v, "model") else { return };
@@ -1949,6 +1967,7 @@ impl App {
                 Some(role) => self.open_element_picker(role, "type"),
                 None => self.toast_error("Lifeline should represent a role. (connect 'represent' field to an Attribute of the container Collaboration)"),
             },
+            (ItemKey::Bpmn(q), _) => self.bpmn_quick(host, q),
             (ItemKey::AddTab, _) => {
                 if let Some(t) = self.change(|a| a.add_tab(host)) {
                     self.select(vec![t]);
@@ -2172,6 +2191,12 @@ impl App {
                 if self.repo.alive(m) && crate::parse::message_text(&self.repo, m) != e.text {
                     let t = e.text.clone();
                     self.change(|a| crate::parse::apply_message(&mut a.repo, m, &t));
+                }
+            }
+            EditKind::Name(m) if self.repo.ty(m) == "BPMNTextAnnotation" => {
+                if self.repo.alive(m) && self.repo.str(m, "text") != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| a.repo.set(m, "text", serde_json::json!(t)));
                 }
             }
             EditKind::Name(m) if self.repo.ty(m) == "C4Relationship" => {
@@ -2531,7 +2556,13 @@ impl App {
                 // a line's name edit has Add Note too (quickedits/uml.json, uml-commands.js:684)
                 if let (None, EditKind::Name(m)) = (ed.host, &ed.kind) {
                     let edge = self.diagram.and_then(|d| self.repo.list(d, "ownedViews").into_iter().find(|v| is_edge(&self.repo, *v) && self.repo.refd(*v, "model") == Some(*m)));
-                    if let Some(e) = edge {
+                    // a BPMN flow's only button is Add Text Annotation (quickedits/bpmn.json "bpmn.sequence-flow")
+                    if let Some(e) = edge.filter(|e| crate::bpmn::is_edge_view(self.repo.ty(*e))) {
+                        let b = ui.add(egui::Button::new(egui::RichText::new("+ Text Annotation").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Text Annotation");
+                        if b.is_pointer_button_down_on() {
+                            edge_note = Some(e);
+                        }
+                    } else if let Some(e) = edge {
                         let b = ui.add(egui::Button::new(egui::RichText::new("+ Note").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Note");
                         if b.is_pointer_button_down_on() {
                             edge_note = Some(e);
@@ -2606,7 +2637,11 @@ impl App {
             self.add_related(h, a);
         }
         if let Some(e) = edge_note.filter(|e| self.repo.alive(*e)) {
-            self.add_note_to_edge(e);
+            if crate::bpmn::is_edge_view(self.repo.ty(e)) {
+                self.add_annotation_to_edge(e);
+            } else {
+                self.add_note_to_edge(e);
+            }
         }
         if let Some(e) = edge_constraint.filter(|e| self.repo.alive(*e)) {
             self.add_constraint_to(e);
