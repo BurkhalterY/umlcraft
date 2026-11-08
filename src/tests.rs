@@ -6073,3 +6073,30 @@ fn a_port_label_drags_around_its_port() {
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     assert!((crate::views::node_rect(&a.repo, l).y - b2.y - 20.0).abs() <= 1.0);
 }
+
+#[test]
+fn a_line_label_resizes_across_with_its_handles() {
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    a.change(|a| a.repo.set(m, "name", json!("owns")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let l = a.repo.refd(e, "nameLabel").unwrap();
+    a.select(vec![l]);
+    let b = crate::views::node_rect(&a.repo, l);
+    // the right handle sits 4 px outside the right edge, at mid height
+    let at = Pos2::new((b.x + b.w + 4.0) as f32, (b.y + b.h / 2.0) as f32);
+    a.on_press(canvas, at, Modifiers::NONE);
+    assert!(matches!(a.drag, Some(crate::app::Drag::Resize { .. })));
+    a.on_move(canvas, at + egui::vec2(40.0, 0.0));
+    a.on_release(canvas.min, at + egui::vec2(40.0, 0.0));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let w = a.repo.f(l, "width");
+    assert!(w >= b.w + 30.0, "{} -> {w}", b.w);
+}
