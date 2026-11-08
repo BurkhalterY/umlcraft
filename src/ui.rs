@@ -2139,6 +2139,10 @@ impl App {
                         self.import_xmi_dialog();
                         ui.close();
                     }
+                    if ui.button("StarUML 1 File (.uml)...").clicked() {
+                        self.cmd_import_staruml_v1(&measure);
+                        ui.close();
+                    }
                 });
                 ui.menu_button("Export", |ui| {
                     if ui.button("Fragment...").clicked() {
@@ -2918,6 +2922,18 @@ impl App {
         }
         if let Some(p) = rfd::FileDialog::new().set_title("Open Model").add_filter("Models", &["mdj"]).add_filter("All Files", &["*"]).pick_file() {
             self.open_path(p);
+        }
+    }
+
+    /// The original replaces the project without asking; UMLCraft asks to save changes first.
+    /// Dialog title and filters of extensions/default/staruml-v1/main.js:29, 101.
+    fn cmd_import_staruml_v1(&mut self, ms: &EguiMeasure) {
+        if !self.confirm_discard(ms) {
+            return;
+        }
+        let dialog = rfd::FileDialog::new().set_title("Select a StarUML 1 file (.uml)").add_filter("UML model (StarUML V1)", &["uml"]).add_filter("All Files", &["*"]);
+        if let Some(p) = dialog.pick_file() {
+            self.import_staruml_v1(p);
         }
     }
 

@@ -42,6 +42,7 @@ mod render;
 mod selector;
 mod sequence;
 mod splitter;
+mod staruml_v1;
 mod style;
 mod tags;
 mod templates;

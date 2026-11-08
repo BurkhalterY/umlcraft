@@ -459,6 +459,16 @@ impl App {
         }
     }
 
+    /// File › Import › StarUML 1 File (.uml): the file becomes the new, unsaved project
+    /// (extensions/default/staruml-v1/main.js:34 loadFile, project-manager.js:204 loadFromJson).
+    pub fn import_staruml_v1(&mut self, p: PathBuf) {
+        let text = std::fs::read(&p).map(|b| String::from_utf8_lossy(&b).into_owned()).map_err(|e| e.to_string());
+        match text.and_then(|t| crate::staruml_v1::import(&t)) {
+            Ok(repo) => self.set_project(repo, None),
+            Err(e) => self.message = Some(("Failed to import the file.".into(), e)),
+        }
+    }
+
     /// Bring label texts and sizes up to date in every diagram, as the original does when drawing.
     pub fn prepare_for_save(&mut self, ms: &dyn Measure) {
         for d in self.repo.all_of("Diagram") {

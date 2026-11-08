@@ -6145,3 +6145,545 @@ fn a_box_grows_over_children_that_extend_it() {
     let cw = a.repo.f(c, "width");
     assert_eq!(a.repo.f(p, "left") + a.repo.f(p, "width"), 300.0 + cw + 5.0);
 }
+
+// ------------------------------------------------------------ StarUML 1 import (staruml_v1.rs)
+
+/// A StarUML 1 file around these project contents, in the XPD format the importer reads.
+fn v1_file(body: &str) -> String {
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<XPD:PROJECT xmlns:XPD="http://www.staruml.com" version="1">
+<XPD:HEADER><XPD:PROFILES><XPD:PROFILE>UMLStandard</XPD:PROFILE></XPD:PROFILES></XPD:HEADER>
+<XPD:BODY>
+<XPD:OBJ name="DocumentElement" type="UMLProject" guid="P">
+<XPD:ATTR name="Title" type="string">Imported</XPD:ATTR>
+<XPD:ATTR name="Author" type="string">Ann</XPD:ATTR>
+{body}
+</XPD:OBJ>
+</XPD:BODY>
+</XPD:PROJECT>"#
+    )
+}
+
+/// Import a StarUML 1 file into a new App, save it and give the saved JSON with a finder by id.
+fn import_v1(body: &str) -> (App, Value) {
+    let ms = measure();
+    let mut a = App::new(None);
+    let repo = crate::staruml_v1::import(&v1_file(body)).expect("import");
+    a.set_project(repo, None);
+    a.prepare_for_save(&ms);
+    let v: Value = serde_json::from_str(&a.repo.serialize()).unwrap();
+    (a, v)
+}
+
+fn find<'a>(v: &'a Value, id: &str) -> &'a Value {
+    fn walk<'a>(v: &'a Value, id: &str) -> Option<&'a Value> {
+        match v {
+            Value::Object(m) => {
+                if m.get("_id").and_then(|x| x.as_str()) == Some(id) {
+                    return Some(v);
+                }
+                m.values().find_map(|x| walk(x, id))
+            }
+            Value::Array(a) => a.iter().find_map(|x| walk(x, id)),
+            _ => None,
+        }
+    }
+    walk(v, id).unwrap_or_else(|| panic!("no element {id}"))
+}
+
+fn all_of_type<'a>(v: &'a Value, ty: &str, out: &mut Vec<&'a Value>) {
+    match v {
+        Value::Object(m) => {
+            if m.get("_type").and_then(|x| x.as_str()) == Some(ty) {
+                out.push(v);
+            }
+            m.values().for_each(|x| all_of_type(x, ty, out));
+        }
+        Value::Array(a) => a.iter().for_each(|x| all_of_type(x, ty, out)),
+        _ => {}
+    }
+}
+
+const V1_CLASS_MODEL: &str = r##"
+<XPD:ATTR name="#OwnedElements" type="integer">1</XPD:ATTR>
+<XPD:OBJ name="OwnedElements[0]" type="UMLModel" guid="M">
+<XPD:ATTR name="Name" type="string">Design</XPD:ATTR>
+<XPD:REF name="Namespace">P</XPD:REF>
+<XPD:ATTR name="#OwnedDiagrams" type="integer">1</XPD:ATTR>
+<XPD:OBJ name="OwnedDiagrams[0]" type="UMLClassDiagram" guid="D">
+<XPD:ATTR name="Name" type="string">Classes</XPD:ATTR>
+<XPD:ATTR name="DefaultDiagram" type="boolean">True</XPD:ATTR>
+<XPD:OBJ name="DiagramView" type="UMLClassDiagramView" guid="DV">
+<XPD:ATTR name="#OwnedViews" type="integer">3</XPD:ATTR>
+<XPD:OBJ name="OwnedViews[0]" type="UMLClassView" guid="V1">
+<XPD:ATTR name="FontFace" type="string">Tahoma</XPD:ATTR>
+<XPD:ATTR name="FontSize" type="integer">9</XPD:ATTR>
+<XPD:ATTR name="FontStyle" type="integer">3</XPD:ATTR>
+<XPD:ATTR name="FillColor" type="string">$0080FFFF</XPD:ATTR>
+<XPD:ATTR name="LineColor" type="string">clRed</XPD:ATTR>
+<XPD:ATTR name="Left" type="integer">40</XPD:ATTR>
+<XPD:ATTR name="Top" type="integer">32</XPD:ATTR>
+<XPD:ATTR name="Width" type="integer">120</XPD:ATTR>
+<XPD:ATTR name="Height" type="integer">70</XPD:ATTR>
+<XPD:ATTR name="StereotypeDisplay" type="UMLStereotypeDisplayKind">sdkIcon</XPD:ATTR>
+<XPD:REF name="Model">C1</XPD:REF>
+<XPD:OBJ name="NameCompartment" type="UMLNameCompartmentView" guid="V1N">
+<XPD:REF name="Model">C1</XPD:REF>
+<XPD:OBJ name="NameLabel" type="LabelView" guid="V1NL">
+<XPD:ATTR name="FontStyle" type="integer">1</XPD:ATTR>
+<XPD:ATTR name="Text" type="string">Order</XPD:ATTR>
+</XPD:OBJ>
+<XPD:OBJ name="StereotypeLabel" type="LabelView" guid="V1SL">
+<XPD:ATTR name="Visible" type="boolean">False</XPD:ATTR>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:OBJ name="AttributeCompartment" type="UMLAttributeCompartmentView" guid="V1A">
+<XPD:REF name="Model">C1</XPD:REF>
+</XPD:OBJ>
+<XPD:OBJ name="OperationCompartment" type="UMLOperationCompartmentView" guid="V1O">
+<XPD:ATTR name="Visible" type="boolean">False</XPD:ATTR>
+<XPD:REF name="Model">C1</XPD:REF>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedViews[1]" type="UMLClassView" guid="V2">
+<XPD:ATTR name="Left" type="integer">300</XPD:ATTR>
+<XPD:ATTR name="Top" type="integer">32</XPD:ATTR>
+<XPD:ATTR name="Width" type="integer">120</XPD:ATTR>
+<XPD:ATTR name="Height" type="integer">70</XPD:ATTR>
+<XPD:REF name="Model">C2</XPD:REF>
+<XPD:OBJ name="NameCompartment" type="UMLNameCompartmentView" guid="V2N">
+<XPD:OBJ name="NameLabel" type="LabelView" guid="V2NL">
+<XPD:ATTR name="Text" type="string">Line</XPD:ATTR>
+</XPD:OBJ>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedViews[2]" type="UMLAssociationView" guid="VA">
+<XPD:ATTR name="LineStyle" type="LineStyleKind">lsRectilinear</XPD:ATTR>
+<XPD:ATTR name="Points" type="Points">160,67;300,67</XPD:ATTR>
+<XPD:REF name="Model">A</XPD:REF>
+<XPD:REF name="Head">V2</XPD:REF>
+<XPD:REF name="Tail">V1</XPD:REF>
+<XPD:OBJ name="HeadMultiplicityLabel" type="EdgeLabelView" guid="VAHM">
+<XPD:ATTR name="Alpha" type="real">0.5</XPD:ATTR>
+<XPD:ATTR name="Distance" type="real">15</XPD:ATTR>
+<XPD:ATTR name="EdgePosition" type="EdgePositionKind">epHead</XPD:ATTR>
+<XPD:REF name="HostEdge">VA</XPD:REF>
+</XPD:OBJ>
+</XPD:OBJ>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:ATTR name="#OwnedElements" type="integer">7</XPD:ATTR>
+<XPD:OBJ name="OwnedElements[0]" type="UMLClass" guid="C1">
+<XPD:ATTR name="Name" type="string">Order</XPD:ATTR>
+<XPD:ATTR name="StereotypeName" type="string">entity</XPD:ATTR>
+<XPD:ATTR name="IsAbstract" type="boolean">True</XPD:ATTR>
+<XPD:REF name="Namespace">M</XPD:REF>
+<XPD:ATTR name="#Attributes" type="integer">1</XPD:ATTR>
+<XPD:OBJ name="Attributes[0]" type="UMLAttribute" guid="C1a">
+<XPD:ATTR name="Name" type="string">id</XPD:ATTR>
+<XPD:ATTR name="Visibility" type="UMLVisibilityKind">vkPrivate</XPD:ATTR>
+<XPD:ATTR name="OwnerScope" type="UMLScopeKind">skClassifier</XPD:ATTR>
+<XPD:ATTR name="Changeability" type="UMLChangeableKind">ckFrozen</XPD:ATTR>
+<XPD:ATTR name="TypeExpression" type="string">int</XPD:ATTR>
+<XPD:ATTR name="InitialValue" type="string">0</XPD:ATTR>
+<XPD:REF name="Owner">C1</XPD:REF>
+</XPD:OBJ>
+<XPD:ATTR name="#Operations" type="integer">1</XPD:ATTR>
+<XPD:OBJ name="Operations[0]" type="UMLOperation" guid="C1o">
+<XPD:ATTR name="Name" type="string">total</XPD:ATTR>
+<XPD:ATTR name="Concurrency" type="UMLCallConcurrencyKind">cckGuarded</XPD:ATTR>
+<XPD:ATTR name="#Parameters" type="integer">2</XPD:ATTR>
+<XPD:OBJ name="Parameters[0]" type="UMLParameter" guid="C1p1">
+<XPD:ATTR name="Name" type="string">line</XPD:ATTR>
+<XPD:REF name="Type_">C2</XPD:REF>
+</XPD:OBJ>
+<XPD:OBJ name="Parameters[1]" type="UMLParameter" guid="C1p2">
+<XPD:ATTR name="DirectionKind" type="UMLParameterDirectionKind">pdkReturn</XPD:ATTR>
+<XPD:ATTR name="TypeExpression" type="string">double</XPD:ATTR>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:ATTR name="#TaggedValues" type="integer">1</XPD:ATTR>
+<XPD:OBJ name="TaggedValues[0]" type="TaggedValue" guid="C1t">
+<XPD:ATTR name="ProfileName" type="string">Java</XPD:ATTR>
+<XPD:ATTR name="TagDefinitionSetName" type="string">Class</XPD:ATTR>
+<XPD:ATTR name="Name" type="string">final</XPD:ATTR>
+<XPD:ATTR name="DataValue" type="string">true</XPD:ATTR>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedElements[1]" type="UMLClass" guid="C2">
+<XPD:ATTR name="Name" type="string">Line</XPD:ATTR>
+<XPD:REF name="Namespace">M</XPD:REF>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedElements[2]" type="UMLAssociation" guid="A">
+<XPD:REF name="Namespace">M</XPD:REF>
+<XPD:ATTR name="#Connections" type="integer">2</XPD:ATTR>
+<XPD:OBJ name="Connections[0]" type="UMLAssociationEnd" guid="A1">
+<XPD:ATTR name="Aggregation" type="UMLAggregationKind">akComposite</XPD:ATTR>
+<XPD:ATTR name="IsNavigable" type="boolean">False</XPD:ATTR>
+<XPD:REF name="Participant">C1</XPD:REF>
+</XPD:OBJ>
+<XPD:OBJ name="Connections[1]" type="UMLAssociationEnd" guid="A2">
+<XPD:ATTR name="Name" type="string">lines</XPD:ATTR>
+<XPD:ATTR name="Multiplicity" type="string">1..*</XPD:ATTR>
+<XPD:ATTR name="Ordering" type="UMLOrderingKind">okOrdered</XPD:ATTR>
+<XPD:REF name="Participant">C2</XPD:REF>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedElements[3]" type="UMLComponent" guid="K">
+<XPD:ATTR name="Name" type="string">Billing</XPD:ATTR>
+<XPD:ATTR name="#Residents" type="integer">1</XPD:ATTR>
+<XPD:REF name="Residents[0]">C1</XPD:REF>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedElements[4]" type="UMLRealization" guid="R">
+<XPD:REF name="Client">C2</XPD:REF>
+<XPD:REF name="Supplier">K</XPD:REF>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedElements[5]" type="UMLException" guid="X">
+<XPD:ATTR name="Name" type="string">Overdraft</XPD:ATTR>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedElements[6]" type="UMLPrimitive" guid="T">
+<XPD:ATTR name="Name" type="string">money</XPD:ATTR>
+</XPD:OBJ>
+</XPD:OBJ>
+"##;
+
+#[test]
+fn imports_a_staruml1_class_model() {
+    let (a, v) = import_v1(V1_CLASS_MODEL);
+    // the file becomes a new, unsaved project with its default diagram open (main.js:51)
+    assert_eq!(a.filename, None);
+    assert!(!a.modified);
+    assert_eq!(v["_type"], "Project");
+    assert_eq!(v["name"], "Imported");
+    assert_eq!(v["author"], "Ann");
+    assert!(v.get("_parent").is_none());
+    let d = a.diagram.expect("default diagram is open");
+    assert_eq!(a.repo.name(d), "Classes");
+
+    let c1 = find(&v, "C1");
+    assert_eq!(c1["_type"], "UMLClass");
+    assert_eq!(c1["_parent"]["$ref"], "M");
+    // string stereotypes stay strings: UMLCraft has no UML Standard Profile to link them to
+    assert_eq!(c1["stereotype"], "entity");
+    assert_eq!(c1["isAbstract"], true);
+    let at = find(&v, "C1a");
+    assert_eq!(at["_parent"]["$ref"], "C1");
+    assert_eq!(at["visibility"], "private");
+    assert_eq!(at["isStatic"], true);
+    assert_eq!(at["isReadOnly"], true);
+    assert_eq!(at["type"], "int");
+    assert_eq!(at["defaultValue"], "0");
+    let op = find(&v, "C1o");
+    assert_eq!(op["concurrency"], "guarded");
+    assert_eq!(find(&v, "C1p1")["type"]["$ref"], "C2");
+    assert_eq!(find(&v, "C1p2")["direction"], "return");
+    // tagged values become tags named profile.set.name
+    let tag = &c1["tags"][0];
+    assert_eq!(tag["_type"], "Tag");
+    assert_eq!(tag["name"], "Java.Class.final");
+    assert_eq!(tag["value"], "true");
+    // V1-only fields are not written
+    assert!(c1.get("isRoot").is_none() && c1.get("isSpecification").is_none());
+
+    let assoc = find(&v, "A");
+    assert_eq!(assoc["end1"]["_type"], "UMLAssociationEnd");
+    assert_eq!(assoc["end1"]["aggregation"], "composite");
+    assert!(assoc["end1"].get("navigable").is_none(), "unspecified is the default");
+    assert_eq!(assoc["end1"]["reference"]["$ref"], "C1");
+    assert_eq!(assoc["end2"]["navigable"], "navigable");
+    assert_eq!(assoc["end2"]["multiplicity"], "1..*");
+    assert_eq!(assoc["end2"]["isOrdered"], true);
+
+    // semantic conversions
+    let k = find(&v, "K");
+    let cr = &k["ownedElements"][0];
+    assert_eq!(cr["_type"], "UMLComponentRealization");
+    assert_eq!(cr["source"]["$ref"], "C1");
+    assert_eq!(cr["target"]["$ref"], "K");
+    assert_eq!(find(&v, "R")["_type"], "UMLComponentRealization");
+    assert_eq!(find(&v, "X")["_type"], "UMLSignal");
+    assert_eq!(find(&v, "X")["stereotype"], "exception");
+    assert_eq!(find(&v, "T")["_type"], "UMLPrimitiveType");
+
+    // views: geometry, font (points to pixels), colours ($00BBGGRR and named), enums
+    let v1 = find(&v, "V1");
+    assert_eq!(v1["_type"], "UMLClassView");
+    assert_eq!(v1["_parent"]["$ref"], "D");
+    assert_eq!(v1["model"]["$ref"], "C1");
+    assert_eq!(v1["font"], "Tahoma;12;3");
+    assert_eq!(v1["fillColor"], "#FFFF80");
+    assert_eq!(v1["lineColor"], "#FF0000");
+    assert_eq!(v1["left"], 40);
+    assert_eq!(v1["stereotypeDisplay"], "icon");
+    assert_eq!(v1["suppressOperations"], true);
+    assert!(v1.get("suppressAttributes").is_none(), "false is the default");
+    assert_eq!(v1["nameCompartment"]["$ref"], "V1N");
+    assert_eq!(find(&v, "V1NL")["text"], "Order");
+    assert_eq!(find(&v, "V1N")["_parent"]["$ref"], "V1");
+    // a missing template parameter compartment is made, hidden
+    let tp = v1["templateParameterCompartment"]["$ref"].as_str().unwrap();
+    assert_eq!(find(&v, tp)["_type"], "UMLTemplateParameterCompartmentView");
+    // the second class view has no compartments in the file: they are made, hidden
+    let v2 = find(&v, "V2");
+    assert_eq!(v2["suppressAttributes"], true);
+    assert_eq!(v2["suppressOperations"], true);
+    assert_eq!(v2["font"], "Arial;11;0");
+    let va = find(&v, "VA");
+    assert!(va.get("lineStyle").is_none(), "rectilinear (0) is the default");
+    assert_eq!(find(&v, "V1")["_type"], "UMLClassView");
+    // "x,y;x,y" becomes "x:y;x:y" (the ends are then fitted to the boxes, as when drawing)
+    let raw = crate::staruml_v1::convert(&v1_file(V1_CLASS_MODEL)).unwrap();
+    assert_eq!(find(&raw, "VA")["points"], "160:67;300:67");
+    assert_eq!(va["head"]["$ref"], "V2");
+    assert_eq!(va["headMultiplicityLabel"]["$ref"], "VAHM");
+    let hm = find(&v, "VAHM");
+    assert!(hm.get("edgePosition").is_none(), "head (0) is the default");
+    assert_eq!(hm["distance"], 15);
+    assert_eq!(hm["alpha"], 0.5);
+    // the stereotype, name and property labels of an edge are made when missing
+    let nl = va["nameLabel"]["$ref"].as_str().unwrap();
+    assert_eq!(find(&v, nl)["_type"], "EdgeLabelView");
+    // every reference of the diagram resolves
+    let mut views = vec![];
+    for ty in ["UMLClassView", "UMLAssociationView", "UMLNameCompartmentView", "LabelView", "EdgeLabelView"] {
+        all_of_type(&v, ty, &mut views);
+    }
+    for view in views {
+        for key in ["model", "head", "tail", "hostEdge", "nameCompartment", "nameLabel"] {
+            if let Some(id) = view.get(key).and_then(|r| r["$ref"].as_str()) {
+                assert!(a.repo.by_ref(&json!({ "$ref": id })).is_some(), "{key} of {} resolves", view["_id"]);
+            }
+        }
+    }
+}
+
+const V1_BEHAVIOR_MODEL: &str = r##"
+<XPD:ATTR name="#OwnedElements" type="integer">3</XPD:ATTR>
+<XPD:OBJ name="OwnedElements[0]" type="UMLModel" guid="M">
+<XPD:ATTR name="Name" type="string">Behavior</XPD:ATTR>
+<XPD:ATTR name="#OwnedCollaborationInstanceSets" type="integer">1</XPD:ATTR>
+<XPD:OBJ name="OwnedCollaborationInstanceSets[0]" type="UMLCollaborationInstanceSet" guid="CIS">
+<XPD:ATTR name="Name" type="string">Ordering</XPD:ATTR>
+<XPD:ATTR name="#InteractionInstanceSets" type="integer">1</XPD:ATTR>
+<XPD:OBJ name="InteractionInstanceSets[0]" type="UMLInteractionInstanceSet" guid="IIS">
+<XPD:ATTR name="Name" type="string">PlaceOrder</XPD:ATTR>
+<XPD:ATTR name="#OwnedDiagrams" type="integer">1</XPD:ATTR>
+<XPD:OBJ name="OwnedDiagrams[0]" type="UMLSequenceDiagram" guid="SD">
+<XPD:ATTR name="Name" type="string">Sequence</XPD:ATTR>
+<XPD:ATTR name="MessageSignature" type="UMLMessageSignatureKind">mskNameAndType</XPD:ATTR>
+<XPD:ATTR name="ShowActivation" type="boolean">False</XPD:ATTR>
+<XPD:OBJ name="DiagramView" type="UMLSequenceDiagramView" guid="SDV">
+<XPD:ATTR name="#OwnedViews" type="integer">3</XPD:ATTR>
+<XPD:OBJ name="OwnedViews[0]" type="UMLSeqObjectView" guid="LV1">
+<XPD:ATTR name="Left" type="integer">20</XPD:ATTR>
+<XPD:REF name="Model">O1</XPD:REF>
+<XPD:OBJ name="LifeLine" type="UMLLifeLineView" guid="LV1L">
+<XPD:REF name="Model">O1</XPD:REF>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedViews[1]" type="UMLSeqObjectView" guid="LV2">
+<XPD:ATTR name="Left" type="integer">200</XPD:ATTR>
+<XPD:REF name="Model">O2</XPD:REF>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedViews[2]" type="UMLSeqStimulusView" guid="MV">
+<XPD:ATTR name="Points" type="Points">60,100;240,100</XPD:ATTR>
+<XPD:REF name="Model">S</XPD:REF>
+<XPD:REF name="Head">LV2</XPD:REF>
+<XPD:REF name="Tail">LV1L</XPD:REF>
+</XPD:OBJ>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:ATTR name="#ParticipatingStimuli" type="integer">1</XPD:ATTR>
+<XPD:OBJ name="ParticipatingStimuli[0]" type="UMLStimulus" guid="S">
+<XPD:ATTR name="Name" type="string">submit</XPD:ATTR>
+<XPD:ATTR name="Iteration" type="string">*</XPD:ATTR>
+<XPD:REF name="Sender">O1</XPD:REF>
+<XPD:REF name="Receiver">O2</XPD:REF>
+<XPD:OBJ name="Action" type="UMLCallAction" guid="SA">
+<XPD:ATTR name="IsAsynchronous" type="boolean">True</XPD:ATTR>
+<XPD:REF name="Operation">OP</XPD:REF>
+</XPD:OBJ>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:ATTR name="#ParticipatingInstances" type="integer">2</XPD:ATTR>
+<XPD:OBJ name="ParticipatingInstances[0]" type="UMLObject" guid="O1">
+<XPD:ATTR name="Name" type="string">client</XPD:ATTR>
+</XPD:OBJ>
+<XPD:OBJ name="ParticipatingInstances[1]" type="UMLObject" guid="O2">
+<XPD:ATTR name="Name" type="string">shop</XPD:ATTR>
+<XPD:ATTR name="IsMultiInstance" type="boolean">True</XPD:ATTR>
+<XPD:REF name="Classifier">SHOP</XPD:REF>
+</XPD:OBJ>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedElements[1]" type="UMLStateMachine" guid="SM">
+<XPD:ATTR name="Name" type="string">Lifecycle</XPD:ATTR>
+<XPD:OBJ name="Top" type="UMLCompositeState" guid="TOP">
+<XPD:ATTR name="#Subvertices" type="integer">4</XPD:ATTR>
+<XPD:OBJ name="Subvertices[0]" type="UMLPseudostate" guid="BAR">
+<XPD:ATTR name="PseudostateKind" type="UMLPseudostateKind">pkSynchronization</XPD:ATTR>
+</XPD:OBJ>
+<XPD:OBJ name="Subvertices[1]" type="UMLSimpleState" guid="S1">
+<XPD:ATTR name="Name" type="string">Open</XPD:ATTR>
+</XPD:OBJ>
+<XPD:OBJ name="Subvertices[2]" type="UMLCompositeState" guid="S2">
+<XPD:ATTR name="Name" type="string">Busy</XPD:ATTR>
+<XPD:ATTR name="#Subvertices" type="integer">1</XPD:ATTR>
+<XPD:OBJ name="Subvertices[0]" type="UMLPseudostate" guid="CH">
+<XPD:ATTR name="PseudostateKind" type="UMLPseudostateKind">pkDecision</XPD:ATTR>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:OBJ name="Subvertices[3]" type="UMLFinalState" guid="F">
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:ATTR name="#Transitions" type="integer">3</XPD:ATTR>
+<XPD:OBJ name="Transitions[0]" type="UMLTransition" guid="T1">
+<XPD:ATTR name="GuardCondition" type="string">ok</XPD:ATTR>
+<XPD:REF name="Source">S1</XPD:REF>
+<XPD:REF name="Target">BAR</XPD:REF>
+</XPD:OBJ>
+<XPD:OBJ name="Transitions[1]" type="UMLTransition" guid="T2">
+<XPD:REF name="Source">S2</XPD:REF>
+<XPD:REF name="Target">BAR</XPD:REF>
+</XPD:OBJ>
+<XPD:OBJ name="Transitions[2]" type="UMLTransition" guid="T3">
+<XPD:REF name="Source">BAR</XPD:REF>
+<XPD:REF name="Target">F</XPD:REF>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedElements[2]" type="UMLActivityGraph" guid="AG">
+<XPD:ATTR name="Name" type="string">Checkout</XPD:ATTR>
+<XPD:ATTR name="#Partitions" type="integer">1</XPD:ATTR>
+<XPD:OBJ name="Partitions[0]" type="UMLPartition" guid="PA">
+<XPD:ATTR name="Name" type="string">Shop</XPD:ATTR>
+</XPD:OBJ>
+<XPD:OBJ name="Top" type="UMLCompositeState" guid="ATOP">
+<XPD:ATTR name="#Subvertices" type="integer">4</XPD:ATTR>
+<XPD:OBJ name="Subvertices[0]" type="UMLPseudostate" guid="AI">
+<XPD:ATTR name="PseudostateKind" type="UMLPseudostateKind">pkInitial</XPD:ATTR>
+</XPD:OBJ>
+<XPD:OBJ name="Subvertices[1]" type="UMLActionState" guid="AS">
+<XPD:ATTR name="Name" type="string">Pay</XPD:ATTR>
+<XPD:ATTR name="IsDynamic" type="boolean">True</XPD:ATTR>
+</XPD:OBJ>
+<XPD:OBJ name="Subvertices[2]" type="UMLPseudostate" guid="AD">
+<XPD:ATTR name="PseudostateKind" type="UMLPseudostateKind">pkDecision</XPD:ATTR>
+</XPD:OBJ>
+<XPD:OBJ name="Subvertices[3]" type="UMLObjectFlowState" guid="AO">
+<XPD:ATTR name="Name" type="string">Receipt</XPD:ATTR>
+</XPD:OBJ>
+</XPD:OBJ>
+<XPD:ATTR name="#Transitions" type="integer">2</XPD:ATTR>
+<XPD:OBJ name="Transitions[0]" type="UMLTransition" guid="AT1">
+<XPD:REF name="Source">AI</XPD:REF>
+<XPD:REF name="Target">AS</XPD:REF>
+</XPD:OBJ>
+<XPD:OBJ name="Transitions[1]" type="UMLTransition" guid="AT2">
+<XPD:REF name="Source">AS</XPD:REF>
+<XPD:REF name="Target">AO</XPD:REF>
+</XPD:OBJ>
+<XPD:ATTR name="#OwnedDiagrams" type="integer">1</XPD:ATTR>
+<XPD:OBJ name="OwnedDiagrams[0]" type="UMLActivityDiagram" guid="AGD">
+<XPD:ATTR name="Name" type="string">Activity</XPD:ATTR>
+<XPD:OBJ name="DiagramView" type="UMLActivityDiagramView" guid="AGDV">
+<XPD:ATTR name="#OwnedViews" type="integer">3</XPD:ATTR>
+<XPD:OBJ name="OwnedViews[0]" type="UMLPseudostateView" guid="AIV">
+<XPD:REF name="Model">AI</XPD:REF>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedViews[1]" type="UMLTransitionView" guid="AT1V">
+<XPD:REF name="Model">AT1</XPD:REF>
+</XPD:OBJ>
+<XPD:OBJ name="OwnedViews[2]" type="UMLTransitionView" guid="AT2V">
+<XPD:REF name="Model">AT2</XPD:REF>
+</XPD:OBJ>
+</XPD:OBJ>
+</XPD:OBJ>
+</XPD:OBJ>
+"##;
+
+#[test]
+fn imports_staruml1_interactions_state_machines_and_activities() {
+    let (_a, v) = import_v1(V1_BEHAVIOR_MODEL);
+    // a collaboration instance set is a collaboration; its objects become attributes
+    let cis = find(&v, "CIS");
+    assert_eq!(cis["_type"], "UMLCollaboration");
+    let o2 = find(&v, "O2");
+    assert_eq!(o2["_type"], "UMLAttribute");
+    assert_eq!(o2["_parent"]["$ref"], "CIS");
+    assert_eq!(o2["type"]["$ref"], "SHOP");
+    assert_eq!(o2["multiplicity"], "0..*");
+    let inter = find(&v, "IIS");
+    assert_eq!(inter["_type"], "UMLInteraction");
+    // a sequence diagram keeps its flags
+    let sd = find(&v, "SD");
+    assert_eq!(sd["_type"], "UMLSequenceDiagram");
+    assert_eq!(sd["_parent"]["$ref"], "IIS");
+    assert_ne!(sd["showSignature"], false, "true is the default, left out on save");
+    assert_eq!(sd["showActivation"], false);
+    // one lifeline per lifeline view, representing the role
+    let lifelines = inter["participants"].as_array().unwrap();
+    assert_eq!(lifelines.len(), 2);
+    assert_eq!(lifelines[0]["_type"], "UMLLifeline");
+    assert_eq!(lifelines[0]["name"], "client");
+    assert_eq!(lifelines[0]["represent"]["$ref"], "O1");
+    let lv1 = find(&v, "LV1");
+    assert_eq!(lv1["_type"], "UMLSeqLifelineView");
+    assert_eq!(lv1["model"]["$ref"], lifelines[0]["_id"]);
+    assert_eq!(find(&v, "LV1L")["_type"], "UMLLinePartView");
+    // a stimulus is a message between the lifelines, its sort from the V1 action
+    let m = find(&v, "S");
+    assert_eq!(m["_type"], "UMLMessage");
+    assert_eq!(m["source"]["$ref"], lifelines[0]["_id"]);
+    assert_eq!(m["target"]["$ref"], lifelines[1]["_id"]);
+    assert_eq!(m["messageSort"], "asynchCall");
+    assert_eq!(m["signature"]["$ref"], "OP");
+    assert_eq!(m["tags"][0]["name"], "_iteration");
+    assert_eq!(find(&v, "MV")["_type"], "UMLSeqMessageView");
+
+    // the top state of a state machine becomes its region
+    let sm = find(&v, "SM");
+    let region = &sm["regions"][0];
+    assert_eq!(region["_type"], "UMLRegion");
+    let verts: Vec<&str> = region["vertices"].as_array().unwrap().iter().map(|x| x["_id"].as_str().unwrap()).collect();
+    assert_eq!(verts, ["BAR", "S1", "S2", "F"]);
+    assert_eq!(region["transitions"].as_array().unwrap().len(), 3);
+    assert_eq!(find(&v, "T1")["guard"], "ok");
+    // two in, one out: a join
+    assert_eq!(find(&v, "BAR")["kind"], "join");
+    assert_eq!(find(&v, "S1")["_type"], "UMLState");
+    let s2 = find(&v, "S2");
+    assert_eq!(s2["_type"], "UMLState");
+    assert_eq!(s2["regions"][0]["vertices"][0]["_id"], "CH");
+    // a decision outside an activity is a choice
+    assert_eq!(find(&v, "CH")["kind"], "choice");
+    assert_eq!(find(&v, "F")["_type"], "UMLFinalState");
+
+    // an activity graph is an activity with nodes, control flows and partitions
+    let act = find(&v, "AG");
+    assert_eq!(act["_type"], "UMLActivity");
+    assert_eq!(act["groups"][0]["_type"], "UMLActivityPartition");
+    let nodes: Vec<(&str, &str)> = act["nodes"].as_array().unwrap().iter().map(|x| (x["_id"].as_str().unwrap(), x["_type"].as_str().unwrap())).collect();
+    assert_eq!(nodes, [("AI", "UMLInitialNode"), ("AS", "UMLAction"), ("AD", "UMLDecisionNode"), ("AO", "UMLObjectNode")]);
+    assert_eq!(find(&v, "AS")["tags"][0]["name"], "_isDynamic");
+    assert_eq!(find(&v, "AT1")["_type"], "UMLControlFlow");
+    assert_eq!(find(&v, "AT2")["_type"], "UMLObjectFlow");
+    assert!(act.get("regions").is_none());
+    assert_eq!(find(&v, "AIV")["_type"], "UMLControlNodeView");
+    assert_eq!(find(&v, "AT1V")["_type"], "UMLControlFlowView");
+    assert_eq!(find(&v, "AT2V")["_type"], "UMLObjectFlowView");
+}
+
+#[test]
+fn staruml1_import_reports_a_bad_file() {
+    assert!(crate::staruml_v1::import("not xml").is_err());
+    assert!(crate::staruml_v1::import("<XPD:PROJECT xmlns:XPD=\"x\"><XPD:HEADER/></XPD:PROJECT>").is_err());
+    let mut a = App::new(None);
+    let p = std::env::temp_dir().join(format!("umlcraft-v1-{}.uml", std::process::id()));
+    std::fs::write(&p, "<broken").unwrap();
+    a.import_staruml_v1(p.clone());
+    std::fs::remove_file(&p).ok();
+    assert!(a.message.is_some());
+    // the project is not replaced
+    assert_eq!(a.repo.name(a.repo.root), "Untitled");
+}

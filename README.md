@@ -126,6 +126,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 |---|---|
 | Window, widgets and drawing | [egui](https://github.com/emilk/egui) through eframe, rendered with OpenGL (glow) |
 | `.mdj` reading and writing | [serde_json](https://github.com/serde-rs/json) with preserved key order |
+| StarUML 1 `.uml` import | [roxmltree](https://github.com/RazrFalcon/roxmltree) |
 | File dialogs | [rfd](https://github.com/PolyMeilex/rfd) (GTK on Linux and FreeBSD, native elsewhere) |
 | PNG pictures | [image](https://github.com/image-rs/image) |
 | Diagram text | the system's Arial, or Liberation Sans, which has the same metrics |
@@ -154,6 +155,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/splitter.rs` | Panel splitters: drag a panel's edge to resize it, or below 10 px to hide it |
 | `src/main.rs`, `src/cli.rs`, `src/selector.rs` | Start-up, the window, and the command line (`umlcraft image`, `pdf`, `html`, `--help`) with the element selector language |
 | `src/app.rs`, `src/ui.rs`, `src/icons.rs`, `src/prefs.rs`, `src/tags.rs`, `src/palette.rs`, `src/find.rs`, `src/validate.rs` | Project state, undo, open and save, and the panels, menus and icons |
+| `src/staruml_v1.rs` | File › Import › StarUML 1 File: reading old `.uml` projects into the current model |
 | `src/tests.rs` | Round-trips of StarUML files, editing, saving and keyboard shortcuts |
 | `packaging/`, `.github/workflows/release.yml` | Installers for every system and the workflow that builds them |
 

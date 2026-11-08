@@ -45,6 +45,27 @@ returned nothing).
 | Older files | a project with `documentVersion` below 1 (or none) is migrated on load: use case subject views go to the back of their diagram | `src/engine/document-compatibility-resolver.js:25-41` |
 | Unknown element kinds | kept exactly as read and written back unchanged (UMLCraft rule) | — |
 
+## StarUML 1 import (.uml)
+
+Read from `extensions/default/staruml-v1` (main.js, reader.js, uml-readers.js); implemented in `src/staruml_v1.rs`.
+
+| Rule | Value | Source |
+|---|---|---|
+| Menu, dialog | File › Import › "StarUML 1 File (.uml)..."; dialog title "Select a StarUML 1 file (.uml)", filters "UML model (StarUML V1)" (`uml`) and "All Files" | `menus/staruml-v1.json`, main.js:29, 98 |
+| Result | the file replaces the project (no file name, not modified); the original does not ask to save first, UMLCraft does | main.js:54, `src/engine/project-manager.js:204` loadFromJson |
+| XML | the project is the `OBJ` named `DocumentElement` inside `BODY` (or `XPD:BODY`); tags are matched by local name | main.js:45, reader.js:61 |
+| Values | `ATTR` typed `string`, `integer`, `real`, `boolean` (`True`/`False`, any case), `Points`; other types are enumerations; `REF` holds an id; `OBJ` is an object, typed by its V1 type, id in `guid` | reader.js:61-230 |
+| Lists | `ATTR name="#Items"` gives the count, then `Items[0]` … `Items[n-1]` | reader.js:179 |
+| Points | V1 `x,y;x,y` becomes `x:y;x:y` | reader.js:76 |
+| Colours | V1 `$00BBGGRR` (also `$1FFFFFFF` for clNone) becomes `#RRGGBB`; 23 Delphi names (`clRed` …) are mapped first; defaults line `#000000`, fill `#FFFFFF`, font `#000000` | reader.js:232 |
+| Font | `FontFace;round(FontSize / 0.75);style`, defaults Arial and 8 pt (so `Arial;11;0`); V1 style bits 1 bold, 2 italic (underline dropped) | uml-readers.js:152 |
+| Line style / edge position defaults | oblique (1) / middle (1) when the file does not say | uml-readers.js:263, 291 |
+| Enumerations | V1 literal prefixes `vk` visibility, `ak` aggregation (Aggregate = shared), `pdk` direction, `cck` concurrency, `sdk` stereotype display; scope, changeability and ordering are numbers turned into `isStatic`, `isReadOnly`, `isOrdered` | uml-readers.js:324-395, 1390 |
+| Pseudostate `pkSynchronization` | a join when it has more incoming than outgoing transitions, else a fork | uml-readers.js:2198 |
+| Missing sub-views | made: namespace and property labels of a name compartment; stereotype, name and property edge labels; hidden attribute and operation compartments (so the box suppresses them) | uml-readers.js:72, 1399-1490 |
+| Profiles | a file listing `UMLStandard` gets the UML Standard Profile and its string stereotypes re-linked; UMLCraft has no profiles, so stereotypes stay text | main.js:58 |
+| Deliberate differences | UMLPrimitive becomes UMLPrimitiveType and UMLSimpleState becomes UMLState (the original keeps types its metamodel lacks, so those elements are lost); `iokStrict` stays `strict` (the original maps it to an undefined constant); a decision outside an activity is a `choice` (the original leaves the number 1); uninterpreted and terminate actions of messages give `synchCall`/`asynchCall` (the original's test never matches); a combined fragment's contained views are not duplicated | uml-readers.js:537, 1263, 385, 2267, 1005, 1750 |
+
 ## Where things go
 
 | Rule | Source |

@@ -117,7 +117,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Tools › Generate Diagram by Mermaid... | `mermaid:show-mermaid-dialog` |  | ✅ | opens the Mermaid dialog; class diagrams only (src/ui.rs:1915-1918; src/mermaid.rs:463) | extensions/default/mermaid/menus/mermaid.json |
 | View › Minimap | `minimap:toggle` | `ctrl-alt-m` | ✅ | check item in the View menu; the state is kept in `view.minimap.visibility`, on by default (src/ui.rs:1967; src/prefs.rs:95, 122; src/canvas.rs:579, 826) | extensions/default/minimap/menus/minimap.json |
 | View › Relationships | `relationship-view:toggle` | `ctrl-alt-r` | ✅ | check item in the View menu; the panel's visibility is kept in `view.relationships.visibility` (src/ui.rs:1970; src/prefs.rs:93, 120) | extensions/default/relationship-view/menus/relationship-view.json |
-| File › Import › StarUML 1 File (.uml)... | `staruml-v1:import` |  | ❌ |  | extensions/default/staruml-v1/menus/staruml-v1.json |
+| File › Import › StarUML 1 File (.uml)... | `staruml-v1:import` |  | ✅ | same menu place, dialog title and filters (src/ui.rs:2142, 2930); asks to save changes first, which the original does not | extensions/default/staruml-v1/menus/staruml-v1.json |
 | File › New From Template › AWS Architecture | `aws:new-from-template` |  | ❌ | no templates | extensions/essential/aws/menus/aws.json |
 | Model › Add Diagram › AWS Architecture Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/aws/menus/aws.json |
 | Model › Add › AWS Model | `factory:create-model` |  | ❌ |  | extensions/essential/aws/menus/aws.json |
