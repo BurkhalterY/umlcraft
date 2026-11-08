@@ -8200,3 +8200,32 @@ fn the_clipboard_uses_the_originals_layout() {
     a.paste_text(&star);
     assert!(a.repo.children(model).iter().any(|(_, e)| a.repo.name(*e) == "FromStarUML"));
 }
+
+#[test]
+fn dragging_the_end_of_a_straight_rectilinear_line_adds_a_corner() {
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 200.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 100.0, 200.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLDependency", AssocInit::Plain), c1, c2)).unwrap();
+    a.change(|a| a.repo.set(e, "lineStyle", json!(0)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let pts = crate::views::points_of(&a.repo, e);
+    assert_eq!(pts.len(), 2);
+    a.select(vec![e]);
+    let end = pts[1];
+    let at = Pos2::new(end.x as f32, end.y as f32);
+    a.on_press(canvas, at, Modifiers::NONE);
+    assert!(matches!(a.drag, Some(crate::app::Drag::Reconnect { .. })));
+    // released lower on the same box
+    a.on_move(canvas, at + egui::vec2(10.0, 60.0));
+    a.on_release(canvas.min, at + egui::vec2(10.0, 60.0));
+    assert_eq!(a.repo.refd(e, "head"), Some(c2));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let pts = crate::views::points_of(&a.repo, e);
+    assert!(pts.len() >= 3, "{pts:?}");
+    assert!(pts.windows(2).all(|w| (w[0].x - w[1].x).abs() < 0.5 || (w[0].y - w[1].y).abs() < 0.5), "orthogonal: {pts:?}");
+}

@@ -2396,6 +2396,19 @@ pub(crate) fn center(r: &R) -> P {
     P { x: r.x + r.w / 2.0, y: r.y + r.h / 2.0 }
 }
 
+/// Where a rectilinear line from `p` meets the box grown by 1 straight on: across at p's height when
+/// p is level with the box, down at p's x when above or below it, else as `junction`.
+fn square_end(r: &R, p: P) -> P {
+    let (x1, y1, x2, y2) = (r.x - 1.0, r.y - 1.0, r.x + r.w + 1.0, r.y + r.h + 1.0);
+    if p.y > y1 && p.y < y2 && (p.x <= x1 || p.x >= x2) {
+        return P { x: if p.x <= x1 { x1 } else { x2 }, y: p.y };
+    }
+    if p.x > x1 && p.x < x2 && (p.y <= y1 || p.y >= y2) {
+        return P { x: p.x, y: if p.y <= y1 { y1 } else { y2 } };
+    }
+    junction(r, p)
+}
+
 /// Where the line from the box centre towards p leaves the box grown by 1 (core.js:2700).
 pub fn junction(r: &R, p: P) -> P {
     let (x1, y1, x2, y2) = (r.x - 1.0, r.y - 1.0, r.x + r.w + 1.0, r.y + r.h + 1.0);
@@ -2579,8 +2592,14 @@ fn layout_edge(r: &mut Repo, ms: &dyn Measure, e: Eid, info: &HashMap<Eid, Info>
         }
     } else {
         let n = pts.len();
-        pts[0] = junction(&tr, pts[1]);
-        pts[n - 1] = junction(&hr, pts[n - 2]);
+        if rectilinear(style) {
+            // a rectilinear end meets its box square, on the axis of its neighbouring point
+            pts[0] = square_end(&tr, pts[1]);
+            pts[n - 1] = square_end(&hr, pts[n - 2]);
+        } else {
+            pts[0] = junction(&tr, pts[1]);
+            pts[n - 1] = junction(&hr, pts[n - 2]);
+        }
     }
     layout_qualifiers(r, ms, e, &mut pts, tr, hr);
     r.set(e, "points", json!(format_points(&pts)));

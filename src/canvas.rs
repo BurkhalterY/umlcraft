@@ -1605,9 +1605,36 @@ impl App {
                 }
             }
             Drag::Reconnect { edge, tail, .. } => {
-                if let Some(to) = self.hit_view(p, true) {
-                    if let Err(msg) = self.reconnect(edge, tail, to) {
-                        self.toast(&msg);
+                let old = self.repo.refd(edge, if tail { "tail" } else { "head" });
+                match self.hit_view(p, true) {
+                    Some(to) if Some(to) != old => {
+                        if let Err(msg) = self.reconnect(edge, tail, to) {
+                            self.toast(&msg);
+                        }
+                    }
+                    _ => {
+                        // released on its own box or nowhere: a straight rectilinear line gets a corner,
+                        // so the moved end stays orthogonal (diagram-editor.js:1959-1979, 1782-1817)
+                        let pts = points_of(&self.repo, edge);
+                        let style = self.repo.val(edge, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+                        if views::rectilinear(style) && pts.len() == 2 {
+                            let (fixed, moved) = if tail { (pts[1], pts[0]) } else { (pts[0], pts[1]) };
+                            let to = P { x: self.snap_v(p.x).max(0.0), y: self.snap_v(p.y).max(0.0) };
+                            if (to.x - moved.x).abs() >= 1.0 || (to.y - moved.y).abs() >= 1.0 {
+                                // two corners half way, so the path stays orthogonal; the original inserts
+                                // one, but UMLCraft re-routes rectilinear lines of three points or fewer
+                                let horizontal = (fixed.y - moved.y).abs() < 0.5;
+                                let (c1, c2) = if horizontal {
+                                    let mx = ((fixed.x + to.x) / 2.0).round();
+                                    (P { x: mx, y: fixed.y }, P { x: mx, y: to.y })
+                                } else {
+                                    let my = ((fixed.y + to.y) / 2.0).round();
+                                    (P { x: fixed.x, y: my }, P { x: to.x, y: my })
+                                };
+                                let new = if tail { vec![to, c2, c1, fixed] } else { vec![fixed, c1, c2, to] };
+                                self.change(|a| a.repo.set(edge, "points", json!(views::format_points(&new))));
+                            }
+                        }
                     }
                 }
             }
