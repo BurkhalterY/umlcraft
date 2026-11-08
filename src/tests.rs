@@ -9086,3 +9086,22 @@ fn the_canvas_menu_starts_with_add_and_add_diagram() {
     let texts = painted_texts(&ctx, |ui| a.canvas_menu(ui));
     assert_eq!(&texts[..3], &["Add".to_string(), "Add Diagram".to_string(), "Paste".to_string()]);
 }
+
+#[test]
+fn the_explorer_shows_a_lifelines_type() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let l = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 100.0, 100.0, 60.0))).unwrap();
+    let lm = a.repo.refd(l, "model").unwrap();
+    // UMLLifeline.getNodeText (elements.js:3840-3855): no type, the name alone
+    assert_eq!(a.label_of(lm), "Lifeline1");
+    let c = a.change(|a| Some(a.repo.create("UMLClass", &[("name", json!("Customer"))], Some((root, "ownedElements"))))).unwrap();
+    let role = a.repo.refd(lm, "represent").unwrap();
+    a.change(|a| a.repo.set_ref(role, "type", Some(c)));
+    assert_eq!(a.label_of(lm), "Lifeline1: Customer");
+    a.change(|a| a.repo.set(lm, "name", json!("")));
+    assert_eq!(a.label_of(lm), ": Customer");
+    a.change(|a| a.repo.set_ref(role, "type", None));
+    assert_eq!(a.label_of(lm), "(Lifeline)");
+}

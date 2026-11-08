@@ -900,6 +900,13 @@ impl App {
         if t == "Tag" {
             return format!("{name} = {}", r.str(e, "value"));
         }
+        // a lifeline: `name: Type`, the type of the role it represents (UMLLifeline.getNodeText and
+        // getTypeString, elements.js:3787-3800, 3840-3855)
+        if t == "UMLLifeline" {
+            let ty = r.refd(e, "represent").map(|a| views::type_name(r, a, "type")).unwrap_or_default();
+            let text = if ty.is_empty() { name } else { format!("{name}: {ty}") };
+            return if text.is_empty() { "(Lifeline)".into() } else { text };
+        }
         // a hyperlink: its name with showName, else what it links to (core.js:1322-1333)
         if t == "Hyperlink" {
             let url = r.str(e, "url");
