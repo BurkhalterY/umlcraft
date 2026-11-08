@@ -6165,3 +6165,51 @@ fn sysml_internal_block_and_parametric_diagrams_have_parts_ports_and_parameters(
     assert_eq!(a.repo.parent(a.repo.refd(fpv, "model").unwrap()), Some(cb));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn sysml_viewpoints_and_compartment_toggles() {
+    use crate::model::Eid;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLPackageDiagram"));
+    let sv = a.change(|a| a.create_node("SysMLStakeholder", rect(50.0, 50.0, 1.0, 1.0))).unwrap();
+    let vpv = a.change(|a| a.create_node("SysMLViewpoint", rect(300.0, 50.0, 1.0, 1.0))).unwrap();
+    let vv = a.change(|a| a.create_node("SysMLView", rect(300.0, 300.0, 1.0, 1.0))).unwrap();
+    let (s, vp, v) = (a.repo.refd(sv, "model").unwrap(), a.repo.refd(vpv, "model").unwrap(), a.repo.refd(vv, "model").unwrap());
+    assert_eq!((a.repo.name(s).as_str(), a.repo.name(vp).as_str(), a.repo.name(v).as_str()), ("Stakeholder1", "Viewpoint1", "View1"));
+    a.repo.set(s, "concern", json!("safety"));
+    a.repo.set_ref_list(vp, "stakeholders", &[s]);
+    a.repo.set(vp, "purpose", json!("review"));
+    // a view conforms to a viewpoint, and exposes the stakeholder
+    let conform = tool("SysMLConform", AssocInit::Plain);
+    let e = a.change(|a| a.create_edge(&conform, vv, vpv)).unwrap();
+    let x = a.change(|a| a.create_edge(&tool("SysMLExpose", AssocInit::Plain), vv, sv)).unwrap();
+    assert_eq!((a.repo.ty(e), a.repo.ty(x)), ("SysMLConformView", "SysMLExposeView"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let rows = |a: &App, view: Eid| -> Vec<String> { a.repo.list(a.repo.refd(view, "propertyValueCompartment").unwrap(), "subViews").iter().map(|r| a.repo.str(*r, "text")).collect() };
+    assert_eq!(rows(&a, sv), vec!["concern = \"safety\""]);
+    assert_eq!(rows(&a, vpv), vec!["/stakeholder = Stakeholder1", "/concern = \"safety\"", "purpose = \"review\""]);
+    assert_eq!(rows(&a, vv), vec!["/viewpoint = Viewpoint1", "/stakeholder = Stakeholder1"]);
+    let label = |a: &App, edge: Eid| a.repo.str(a.repo.refd(edge, "stereotypeLabel").unwrap(), "text");
+    assert_eq!((label(&a, e).as_str(), label(&a, x).as_str()), ("«conform»", "«expose»"));
+    let st = a.repo.refd(a.repo.refd(sv, "nameCompartment").unwrap(), "stereotypeLabel").unwrap();
+    assert_eq!(a.repo.str(st, "text"), "«stakeholder»");
+    // Format › Suppress Property Values hides the values; on a block the SysML toggles apply
+    a.select(vec![sv]);
+    assert_eq!(a.flag_state("suppressPropertyValues"), Some(false));
+    a.toggle_flag("suppressPropertyValues");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.raw(a.repo.refd(sv, "propertyValueCompartment").unwrap(), "visible"), Some(&json!(false)));
+    let bdd = a.change(|a| a.add_diagram(Some(root), "SysMLBlockDefinitionDiagram"));
+    let b = a.change(|a| a.create_node("SysMLBlock", rect(50.0, 50.0, 1.0, 1.0))).unwrap();
+    a.select(vec![b]);
+    for f in ["suppressConstraints", "suppressParts", "suppressPorts", "suppressReferences", "suppressValues", "suppressProperties", "suppressFlowProperties"] {
+        assert_eq!(a.flag_state(f), Some(true), "{f}");
+    }
+    assert!(a.flag_views("suppressPropertyValues").is_empty(), "a block has no property values");
+    a.toggle_flag("suppressParts");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, bdd);
+    assert!(a.repo.raw(a.repo.refd(b, "partCompartment").unwrap(), "visible").is_none());
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

@@ -87,6 +87,10 @@ pub fn define(def: &mut dyn FnMut(&'static str, Option<&'static str>, Attrs)) {
 
 // ------------------------------------------------------------------ kinds
 
+/// Format › Suppress Property Values, Constraints, Parts, Ports, References, Values, Properties and
+/// Flow Properties toggle these flags on the selected views that have them (sysml-commands.js:361-368).
+pub const SUPPRESS_FLAGS: [&str; 8] = ["suppressPropertyValues", "suppressConstraints", "suppressParts", "suppressPorts", "suppressReferences", "suppressValues", "suppressProperties", "suppressFlowProperties"];
+
 /// The four SysML diagram kinds, with their Model › Add Diagram labels (menus/sysml.json).
 pub const DIAGRAMS: [(&str, &str); 4] = [
     ("Requirement Diagram", "SysMLRequirementDiagram"),
@@ -1243,6 +1247,12 @@ pub fn fields(r: &Repo, e: Eid) -> Option<Vec<(&'static str, &'static str)>> {
         f.extend_from_slice(more);
         f
     };
+    let viewpoint = |more: &[(&'static str, &'static str)]| {
+        let mut f = classifier.clone();
+        f.push(("isActive", "bool"));
+        f.extend_from_slice(more);
+        f
+    };
     let attribute = vec![
         ("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("type", "type"), ("multiplicity", "text"), ("isReadOnly", "bool"),
         ("isOrdered", "bool"), ("isUnique", "bool"), ("defaultValue", "text"), ("isDerived", "bool"), ("aggregation", "enum"), ("isID", "bool"),
@@ -1250,6 +1260,13 @@ pub fn fields(r: &Repo, e: Eid) -> Option<Vec<(&'static str, &'static str)>> {
     Some(match r.ty(e) {
         "SysMLRequirement" => class(&[("id", "text"), ("text", "text")]),
         "SysMLBlock" | "SysMLInterfaceBlock" | "SysMLConstraintBlock" => class(&[("isEncapsulated", "bool")]),
+        "SysMLStakeholder" => {
+            let mut f = classifier.clone();
+            f.push(("concern", "multiline"));
+            f
+        }
+        "SysMLView" => viewpoint(&[]),
+        "SysMLViewpoint" => viewpoint(&[("stakeholders", "reflist"), ("purpose", "text"), ("language", "text"), ("presentation", "text")]),
         "SysMLValueType" => {
             let mut f = classifier;
             f.extend([("unit", "ref"), ("quantityKind", "ref")]);
@@ -1365,6 +1382,8 @@ pub fn item_buttons(r: &Repo, host: Option<Eid>, m: Eid) -> Option<Vec<Button>> 
         // "sysml.constraint-block": its "sysml.add-constraint" names no component, so only Add
         // Parameter shows
         "SysMLConstraintBlock" => vec![add("+ Param", "Add Parameter", "parameters")],
+        // "sysml.classifier": attributes and operations, no receptions
+        "SysMLStakeholder" | "SysMLView" | "SysMLViewpoint" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ("+ Op", "Add Operation", "Ctrl+Shift+Enter", ItemKey::AddOperation)],
         _ => return None,
     })
 }

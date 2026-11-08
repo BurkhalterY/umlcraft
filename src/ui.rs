@@ -539,7 +539,7 @@ const ACTIVITY_GROUPS: &[Group] = &[
 // a composite structure diagram: the two class groups and Composite Structure (uml.json)
 const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE, ANNOTATIONS];
 // a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
-const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
+const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], SYSML_VIEWPOINTS, ANNOTATIONS];
 
 // SysML diagrams (sysml/toolbox/sysml.json)
 const SYSML_REQUIREMENTS: Group = Group {
@@ -557,7 +557,19 @@ const SYSML_REQUIREMENTS: Group = Group {
         line("Containment", "Containment", "containment", AssocInit::Plain),
     ],
 };
-const SYSML_REQUIREMENT_GROUPS: &[Group] = &[SYSML_REQUIREMENTS, ANNOTATIONS];
+// the Viewpoints group, on requirement, block definition and package diagrams
+const SYSML_VIEWPOINTS: Group = Group {
+    id: "sysml.viewpoint",
+    label: "Viewpoints",
+    items: &[
+        node("Stakeholder", "SysMLStakeholder", "class"),
+        node("View", "SysMLView", "class"),
+        node("Viewpoint", "SysMLViewpoint", "class"),
+        line("Conform", "SysMLConform", "generalization", AssocInit::Plain),
+        line("Expose", "SysMLExpose", "dependency", AssocInit::Plain),
+    ],
+};
+const SYSML_REQUIREMENT_GROUPS: &[Group] = &[SYSML_REQUIREMENTS, SYSML_VIEWPOINTS, ANNOTATIONS];
 const SYSML_BLOCK: Group = Group {
     id: "sysml.block",
     label: "Block",
@@ -582,7 +594,7 @@ const SYSML_BLOCK: Group = Group {
         line("Containment", "Containment", "containment", AssocInit::Plain),
     ],
 };
-const SYSML_BLOCK_GROUPS: &[Group] = &[SYSML_BLOCK, ANNOTATIONS];
+const SYSML_BLOCK_GROUPS: &[Group] = &[SYSML_BLOCK, SYSML_VIEWPOINTS, ANNOTATIONS];
 const SYSML_INTERNAL_BLOCK: Group = Group {
     id: "sysml.internal-block",
     label: "Internal Block",
@@ -2549,7 +2561,8 @@ impl App {
             });
         }
         for (field, label) in FORMAT_TOGGLES {
-            if self.flag_views(field).is_empty() {
+            // the SysML toggles are only in the menus (style-editor-view.js has none)
+            if self.flag_views(field).is_empty() || crate::sysml::SUPPRESS_FLAGS.contains(&field) {
                 continue;
             }
             let mut on = self.flag_state(field) == Some(true);
@@ -2714,7 +2727,7 @@ impl App {
     pub(crate) fn format_toggles(&mut self, ui: &mut egui::Ui) {
         for (i, (field, label)) in FORMAT_TOGGLES.into_iter().enumerate() {
             // UML display toggles after Auto Resize, Show Shadow and Inherit Style, then the Suppress ones
-            if i == 3 || field == "suppressAttributes" {
+            if i == 3 || field == "suppressAttributes" || field == "suppressPropertyValues" {
                 ui.separator();
             }
             let has = !self.flag_views(field).is_empty();
@@ -3453,7 +3466,7 @@ pub struct WorkingRow(pub Eid);
 pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 16] = [
+const FORMAT_TOGGLES: [(&str, &str); 24] = [
     ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
     ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
     ("parentStyle", "Inherit Style                     Ctrl+Shift+K"),
@@ -3470,6 +3483,15 @@ const FORMAT_TOGGLES: [(&str, &str); 16] = [
     ("suppressReceptions", "Suppress Receptions            Ctrl+Shift+E"),
     ("suppressLiterals", "Suppress Literals                 Ctrl+Shift+T"),
     ("suppressColumns", "Suppress Columns               Ctrl+Shift+U"),
+    // SysML (sysml/menus/sysml.json), between separators
+    ("suppressPropertyValues", "Suppress Property Values"),
+    ("suppressConstraints", "Suppress Constraints"),
+    ("suppressParts", "Suppress Parts"),
+    ("suppressPorts", "Suppress Ports"),
+    ("suppressReferences", "Suppress References"),
+    ("suppressValues", "Suppress Values"),
+    ("suppressProperties", "Suppress Properties"),
+    ("suppressFlowProperties", "Suppress Flow Properties"),
 ];
 
 /// The small padlock shown on a locked toolbox item.

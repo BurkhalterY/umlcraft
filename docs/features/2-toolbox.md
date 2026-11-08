@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER and C4 diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
+UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER, C4 and SysML diagrams (the SysML Viewpoints group also on package diagrams); every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -170,11 +170,11 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Connector | ✅ | a SysMLConnector between two parts or ports, owned by the diagram's block; its item flows show by its middle with a filled arrow head towards the end they flow to (src/sysml.rs:788-843, 958-968) | extensions/essential/sysml/toolbox/sysml.json |
 | Parametric `sysml.parametric` | SysMLParametricDiagram | Constraint Property | ✅ | a composite SysMLProperty ("Constraint1"…) in the constraints of the constraint block that owns the diagram, a box rounded by 8 with "name: Type" (src/sysml.rs:584-634, 869-896) | extensions/essential/sysml/toolbox/sysml.json |
 | Parametric `sysml.parametric` | SysMLParametricDiagram | Constraint Parameter | ✅ | a composite SysMLProperty ("Parameter1"…) in the parameters of the constraint block typing the constraint property under the point, or of the diagram's constraint block on the frame; a 14 × 14 square against the inside of the nearest side, its "name: Type" floating by it (src/sysml.rs:661-696, 921-956) | extensions/essential/sysml/toolbox/sysml.json |
-| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Stakeholder | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | View | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Viewpoint | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Conform | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Expose | ❌ | extensions/essential/sysml/toolbox/sysml.json |
+| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Stakeholder | ✅ | a SysMLStakeholder ("Stakeholder1"…) in the diagram's owner, on requirement, block definition and package diagrams: «stakeholder» over its name and its concern as a property value; its inline edit adds attributes and operations (src/ui.rs:542, 561-572; src/sysml.rs:354-410, 1386) | extensions/essential/sysml/toolbox/sysml.json |
+| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | View | ✅ | a SysMLView with «view», listing the viewpoints it conforms to and their stakeholders as /viewpoint and /stakeholder (src/sysml.rs:354-410) | extensions/essential/sysml/toolbox/sysml.json |
+| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Viewpoint | ✅ | a SysMLViewpoint with «viewpoint», listing its stakeholders and their concerns (/stakeholder, /concern), purpose, language and presentation (src/sysml.rs:354-410) | extensions/essential/sysml/toolbox/sysml.json |
+| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Conform | ✅ | a SysMLConform between two model elements, drawn as a generalization labelled «conform» (src/sysml.rs) | extensions/essential/sysml/toolbox/sysml.json |
+| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Expose | ✅ | a SysMLExpose between two model elements, drawn as a dependency labelled «expose» (src/sysml.rs) | extensions/essential/sysml/toolbox/sysml.json |
 | Information Flows `uml.information-flow` | UMLInformationFlowDiagram | Information Item | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Information Flows `uml.information-flow` | UMLInformationFlowDiagram | Information Flow | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Package | ✅ | extensions/essential/uml/toolbox/uml.json |
