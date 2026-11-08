@@ -2372,6 +2372,8 @@ impl App {
         let zr = Rect::from_min_max(Pos2::new(rect.right() - 57.0, rect.top()), rect.right_bottom());
         p.vline(zr.left(), rect.y_range(), Stroke::new(1.0, BORDER()));
         p.text(zr.center(), Align2::CENTER_CENTER, format!("{}%", (self.zoom * 100.0).round()), FontId::proportional(13.0), TEXT());
+        // display only, with the tooltip "Zoom Level" (statusbar.html:7)
+        ui.interact(zr, egui::Id::new("zoom-level"), Sense::hover()).on_hover_text("Zoom Level");
         let vr = Rect::from_min_max(Pos2::new(zr.left() - 33.0, rect.top()), Pos2::new(zr.left(), rect.bottom()));
         p.vline(vr.left(), rect.y_range(), Stroke::new(1.0, BORDER()));
         // validation indicator: green OK, or red when the last validation found errors; a click toggles
@@ -2387,8 +2389,8 @@ impl App {
             p.circle_filled(c, 7.5, OK_GREEN);
             p.add(egui::Shape::line(vec![c + Vec2::new(-3.5, 0.0), c + Vec2::new(-1.0, 2.5), c + Vec2::new(3.5, -2.5)], Stroke::new(2.0, LAYER0())));
         }
-        let tip = if errors { "Validation errors" } else { "Validation OK" };
-        if ui.interact(vr, egui::Id::new("validation-indicator"), Sense::click()).on_hover_text(tip).clicked() {
+        // the tooltip is the item's title, whatever the result (statusbar.html:6)
+        if ui.interact(vr, egui::Id::new("validation-indicator"), Sense::click()).on_hover_text("Validation Results").clicked() {
             self.show_validation = !self.show_validation;
         }
         // theme button: a moon in the dark theme, a sun in the light one; a click switches theme.default
