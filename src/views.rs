@@ -386,6 +386,16 @@ pub fn pseudostate_kind(tool: &str) -> Option<&'static str> {
     })
 }
 
+/// The tools whose toolbox rubber band is a point: the element takes its own size, not the drag's
+/// (the "point" items of extensions/essential/uml/toolbox/uml.json).
+pub fn is_point_tool(kind: &str) -> bool {
+    matches!(
+        kind,
+        "UMLEndpoint" | "UMLGate" | "UMLStateInvariant" | "UMLTimeConstraint" | "UMLTimingState" | "UMLTimeTick" | "UMLInitialNode" | "UMLActivityFinalNode" | "UMLMergeNode" | "UMLDecisionNode"
+            | "UMLFinalState" | "UMLFlowFinalNode" | "UMLActivityEdgeConnector" | "Initial" | "Choice" | "Junction" | "ShallowHistory" | "DeepHistory" | "EntryPoint" | "ExitPoint" | "Terminate"
+    )
+}
+
 pub fn default_size(kind: &str) -> (f64, f64) {
     match kind {
         // a click makes a UML box at its smallest size: the click's empty rectangle, grown by the

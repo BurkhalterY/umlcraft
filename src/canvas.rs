@@ -1431,7 +1431,11 @@ impl App {
                     return;
                 }
                 let raw = rect_of(start, p);
-                let r = if raw.w < 10.0 || raw.h < 10.0 {
+                // a "point" tool makes its element where it was pressed, whatever the drag (toolbox/uml.json)
+                let r = if views::is_point_tool(tool.kind) {
+                    let (w, h) = views::default_size(tool.kind);
+                    R { x: self.snap_v(start.x), y: self.snap_v(start.y), w, h }
+                } else if raw.w < 10.0 || raw.h < 10.0 {
                     let (w, h) = views::default_size(tool.kind);
                     R { x: self.snap_v(start.x), y: self.snap_v(start.y), w, h }
                 } else {

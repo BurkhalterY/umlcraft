@@ -7394,3 +7394,21 @@ fn cloud_quick_edits_open_the_icon_picker() {
     assert!(a.icon_picker.is_some());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn a_point_tool_ignores_the_drag() {
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.change(|a| a.add_diagram(Some(a.repo.root), "UMLActivityDiagram"));
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(800.0, 600.0));
+    a.tool = Some(Tool { label: "", kind: "UMLDecisionNode", icon: "", line: false, init: AssocInit::Plain });
+    a.on_press(canvas, Pos2::new(100.0, 100.0), Modifiers::NONE);
+    a.on_move(canvas, Pos2::new(300.0, 250.0));
+    a.on_release(canvas.min, Pos2::new(300.0, 250.0));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let v = a.selection[0];
+    let (w, h) = crate::views::default_size("UMLDecisionNode");
+    assert_eq!((a.repo.f(v, "width"), a.repo.f(v, "height")), (w, h));
+    assert!((a.repo.f(v, "left") - 100.0).abs() <= 5.0);
+}
