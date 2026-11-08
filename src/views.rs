@@ -169,6 +169,22 @@ fn label_lines(r: &Repo, ms: &dyn Measure, lv: Eid, width: f64) -> usize {
     }
 }
 
+/// Whether a compartment item inherits its box's style: parentStyle, true unless it is set false
+/// (UMLAttributeView and the like, elements.js:4395, 4457).
+pub fn inherits(r: &Repo, iv: Eid) -> bool {
+    r.raw(iv, "parentStyle") != Some(&json!(false))
+}
+
+/// The line height of a compartment item: the box's font size while it inherits the box's style,
+/// otherwise its own (View.setup, core.js:1658-1666).
+fn item_size(r: &Repo, ms: &dyn Measure, iv: Eid) -> f64 {
+    if inherits(r, iv) {
+        ms.size()
+    } else {
+        view_font(r, iv).1
+    }
+}
+
 /// Give a label the face and size of the layout, keeping its own style.
 fn set_label_font(r: &mut Repo, ms: &dyn Measure, lv: Eid, style: Option<i64>) {
     let st = style.unwrap_or_else(|| font_style_of(r, lv));
@@ -1929,9 +1945,13 @@ pub(crate) fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid]
         let st = r.bool(items[i], "isStatic");
         r.set(*iv, "underline", json!(st));
         let italic = if r.bool(items[i], "isAbstract") { 2 } else { 0 };
-        set_label_font(r, ms, *iv, None);
+        // an item with Inherit Style turned off keeps its own font (View.setup, core.js:1658-1666)
+        if inherits(r, *iv) {
+            set_label_font(r, ms, *iv, None);
+        }
         r.set(*iv, "wordWrap", json!(wrap));
-        let tw = if wrap { widest_word(ms, t, italic) } else { ms.width(t, italic) };
+        let k = item_size(r, ms, *iv) / ms.size().max(1.0);
+        let tw = k * if wrap { widest_word(ms, t, italic) } else { ms.width(t, italic) };
         min_w = min_w.max(tw.ceil() + 2.0 * PAD);
     }
     let rows: Vec<Row> = shown.into_iter().map(|iv| Row { iv }).collect();
@@ -1944,15 +1964,15 @@ pub(crate) fn list_height(r: &Repo, ms: &dyn Measure, rows: &[Row], w: f64) -> f
     if rows.is_empty() {
         return EMPTY_H;
     }
-    let lines: usize = rows.iter().map(|row| label_lines(r, ms, row.iv, w - 2.0 * PAD + 1.0)).sum();
-    2.0 * PAD + lines as f64 * ms.size() + ITEM_GAP * (rows.len() as f64 - 1.0)
+    let lines: f64 = rows.iter().map(|row| label_lines(r, ms, row.iv, w - 2.0 * PAD + 1.0) as f64 * item_size(r, ms, row.iv)).sum();
+    2.0 * PAD + lines + ITEM_GAP * (rows.len() as f64 - 1.0)
 }
 
 pub(crate) fn place_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, x: f64, y: f64, w: f64, h: f64, rows: &[Row]) {
     set_box(r, comp, x, y, w + 1.0, h);
     let mut cy = y + PAD;
     for row in rows {
-        let lh = label_lines(r, ms, row.iv, w - 2.0 * PAD + 1.0) as f64 * ms.size();
+        let lh = label_lines(r, ms, row.iv, w - 2.0 * PAD + 1.0) as f64 * item_size(r, ms, row.iv);
         set_box(r, row.iv, x + PAD, cy, w - 2.0 * PAD + 1.0, lh);
         cy += lh + ITEM_GAP;
     }

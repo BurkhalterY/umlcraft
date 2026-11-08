@@ -4136,6 +4136,41 @@ fn new_kinds_take_their_fill_colour_preference() {
 }
 
 #[test]
+fn inherit_style_on_a_compartment_item() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    a.change(|a| a.add_feature(m, "UMLAttribute"));
+    a.change(|a| a.add_feature(m, "UMLAttribute"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let comp = a.repo.refd(c, "attributeCompartment").unwrap();
+    let items = a.repo.list(comp, "subViews");
+    let (iv, other) = (items[0], items[1]);
+    assert!(crate::views::inherits(&a.repo, iv), "an item inherits by default");
+    let h0 = a.repo.f(iv, "height");
+    // the box's font colour, until the item stops inheriting
+    let box_fc = crate::render::color(&a.repo, c, "fontColor", crate::render::BLACK);
+    a.change(|a| a.repo.set(iv, "fontColor", json!("#ff0000")));
+    assert_eq!(crate::render::item_color(&a.repo, iv, box_fc), box_fc);
+    a.select(vec![iv]);
+    a.toggle_flag("parentStyle");
+    assert!(!crate::views::inherits(&a.repo, iv));
+    assert_eq!(crate::render::item_color(&a.repo, iv, box_fc), crate::render::Rgba(255, 0, 0, 255));
+    // its own font size is kept and gives its row height; the other item still follows the box
+    a.set_font(None, Some(20.0));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(crate::views::view_font(&a.repo, iv).1, 20.0);
+    assert!(a.repo.f(iv, "height") > h0, "{} > {h0}", a.repo.f(iv, "height"));
+    assert_eq!(crate::views::view_font(&a.repo, other).1, 13.0);
+    // inheriting again, it takes the box's font back
+    a.toggle_flag("parentStyle");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(crate::views::view_font(&a.repo, iv).1, 13.0);
+}
+
+#[test]
 fn inherit_style_toggles_and_leaves_the_rubber_band() {
     use egui::{Modifiers, Pos2};
     let mut a = App::new(None);

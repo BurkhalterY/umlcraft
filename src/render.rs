@@ -99,6 +99,16 @@ fn shown(r: &Repo, v: Eid) -> bool {
     !matches!(r.raw(v, "visible"), Some(serde_json::Value::Bool(false)) | Some(serde_json::Value::Null))
 }
 
+/// A compartment item's text colour: the box's while it inherits the box's style, otherwise its
+/// own fontColor (View.setup, core.js:1658-1666).
+pub(crate) fn item_color(r: &Repo, iv: Eid, fc: Rgba) -> Rgba {
+    if views::inherits(r, iv) {
+        fc
+    } else {
+        color(r, iv, "fontColor", BLACK)
+    }
+}
+
 pub(crate) fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
     if !shown(r, lv) {
         return;
@@ -341,7 +351,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             draw_stick_figure(c, R { x: b.x + (b.w - iw) / 2.0, y: b.y, w: iw, h: ih }, fill, line);
             draw_name(c, r, v);
             for row in info.iter().flat_map(|i| i.compartments.iter()).flat_map(|comp| comp.rows.iter()) {
-                draw_label(c, r, row.iv, fc);
+                draw_label(c, r, row.iv, item_color(r, row.iv, fc));
             }
             return;
         }
@@ -397,7 +407,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
                     let dx = rx * (1.0 - k * k).sqrt();
                     c.polyline(&[P { x: ctr.x - dx, y: comp.y }, P { x: ctr.x + dx, y: comp.y }], line, false);
                     for row in &comp.rows {
-                        draw_label(c, r, row.iv, fc);
+                        draw_label(c, r, row.iv, item_color(r, row.iv, fc));
                     }
                 }
             }
@@ -430,7 +440,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             if let Some(i) = info {
                 for comp in &i.compartments {
                     for row in &comp.rows {
-                        draw_label(c, r, row.iv, fc);
+                        draw_label(c, r, row.iv, item_color(r, row.iv, fc));
                     }
                 }
             }
@@ -985,7 +995,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         }
         for comp in &i.compartments {
             for row in &comp.rows {
-                draw_label(c, r, row.iv, fc);
+                draw_label(c, r, row.iv, item_color(r, row.iv, fc));
             }
         }
         if i.is_active {
@@ -1000,7 +1010,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         c.polygon(&pts[..4], Some(fill), None);
         c.polyline(&pts, line, true);
         for row in &i.templ.as_ref().unwrap().rows {
-            draw_label(c, r, row.iv, fc);
+            draw_label(c, r, row.iv, item_color(r, row.iv, fc));
         }
     }
     if r.has(v, "nameCompartment") {
