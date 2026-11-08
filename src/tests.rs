@@ -2183,6 +2183,10 @@ fn layout_diagram_command() {
     let undo = a.undo.len();
     a.layout_diagram(crate::layout::Dir::TopBottom);
     assert_eq!(a.undo.len(), undo + 1, "one undo step");
+    // every line becomes a curve (Diagram.layout, core.js:4327, 4366-4374)
+    let lines: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| crate::views::is_edge(&a.repo, *v)).collect();
+    assert!(!lines.is_empty());
+    assert!(lines.iter().all(|e| a.repo.val(*e, "lineStyle").and_then(|v| v.as_i64()) == Some(3)));
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     // no two top-level boxes overlap
     let boxes: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| crate::views::is_node(&a.repo, *v) && !a.repo.has(*v, "containerView")).map(|v| crate::views::node_rect(&a.repo, v)).collect();

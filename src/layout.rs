@@ -42,6 +42,8 @@ pub struct Seps {
 
 /// The separations of Format › Layout (estimated).
 pub const SEPS: Seps = Seps { node: 50.0, edge: 10.0, rank: 50.0 };
+/// The curve line style (EdgeView.LS_CURVE, core.js), which a layout gives every line.
+pub const LS_CURVE: i64 = 3;
 
 /// The result: each box's top-left corner, and for each line the bend points it passes through
 /// (from its first end to its second), all relative to (0, 0).
@@ -427,14 +429,16 @@ impl App {
                 }
             }
             for (k, (e, t, h)) in lines.iter().enumerate() {
-                let style = a.repo.val(*e, "lineStyle").and_then(|v| v.as_i64()).unwrap_or(0);
+                // every laid-out line becomes a curve through the layout's bend points
+                // (Diagram.layout: lineStyle = EdgeView.LS_CURVE, core.js:4327, 4366-4374)
+                a.repo.set(*e, "lineStyle", json!(LS_CURVE));
                 let tail = views::node_rect(&a.repo, a.repo.refd(*e, "tail").unwrap());
                 let head = views::node_rect(&a.repo, a.repo.refd(*e, "head").unwrap());
                 let c = |b: R| P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
                 // bend points run from the head (above) to the tail; the line runs tail to head
                 let mut bends: Vec<P> = placed.bends[k].iter().map(|p| P { x: p.x + ox, y: p.y + oy }).collect();
                 bends.reverse();
-                if t == h || style == 0 || bends.is_empty() {
+                if t == h || bends.is_empty() {
                     bends.clear();
                 }
                 let mut pts = vec![c(tail)];
