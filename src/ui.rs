@@ -882,7 +882,7 @@ impl App {
             p.add(egui::Shape::convex_polygon(tri, TEXT(), Stroke::NONE));
         }
         let ir = Rect::from_min_size(Pos2::new(x0 + 16.0, rect.center().y - 8.0), Vec2::splat(16.0));
-        icons::draw(p, ir, icons::key_for(&self.repo, e));
+        icons::draw_for(p, ir, &self.repo, e);
         let mut label = self.label_of(e);
         if self.show_stereotype {
             // a SysML relationship shows its keyword (getNodeText, sysml/elements.js:259-375)
@@ -1246,7 +1246,7 @@ impl App {
                         for e in hits {
                             ui.horizontal(|ui| {
                                 let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                                icons::draw(ui.painter(), ir, icons::key_for(&self.repo, e));
+                                icons::draw_for(ui.painter(), ir, &self.repo, e);
                                 let parent = self.repo.parent(e).map(|p| self.repo.name(p)).filter(|n| !n.is_empty());
                                 let text = match parent {
                                     Some(p) => format!("{} — {p}", self.label_of(e)),
@@ -1657,7 +1657,7 @@ impl App {
                     let mut fw = w;
                     if let Some(t) = linked {
                         let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                        icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
+                        icons::draw_for(ui.painter(), ir, &self.repo, t);
                         fw -= 16.0 + ui.spacing().item_spacing.x;
                     }
                     let combo = field == "multiplicity";
@@ -1742,7 +1742,7 @@ impl App {
                             for x in &items {
                                 ui.horizontal(|ui| {
                                     let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                                    icons::draw(ui.painter(), ir, icons::key_for(&self.repo, *x));
+                                    icons::draw_for(ui.painter(), ir, &self.repo, *x);
                                     ui.label(egui::RichText::new(self.repo.name(*x)).size(12.0).color(TEXT()));
                                 });
                             }
@@ -1833,7 +1833,7 @@ impl App {
                 "link" => {
                     if let Some(t) = self.repo.refd(obj, &field).filter(|t| self.repo.alive(*t)) {
                         let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                        icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
+                        icons::draw_for(ui.painter(), ir, &self.repo, t);
                         ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT()));
                     } else {
                         ui.label(egui::RichText::new("—").size(12.0).color(DIM()));
@@ -1847,7 +1847,7 @@ impl App {
                     match shared[0].filter(|_| shared.iter().all(|x| *x == shared[0])) {
                         Some(t) => {
                             let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                            icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
+                            icons::draw_for(ui.painter(), ir, &self.repo, t);
                             ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT()));
                         }
                         None => {
@@ -3364,7 +3364,7 @@ impl App {
                 let text = format!("{}  ({})", self.repo.name(d), path.join("::"));
                 ui.horizontal(|ui| {
                     let (r, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                    icons::draw(ui.painter(), r, icons::key_for(&self.repo, d));
+                    icons::draw_for(ui.painter(), r, &self.repo, d);
                     let resp = ui.selectable_label(chosen == Some(i), text);
                     if resp.clicked() {
                         chosen = Some(i);

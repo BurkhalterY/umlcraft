@@ -7811,3 +7811,22 @@ fn model_add_offers_ports_and_collaborations() {
     assert_eq!((a.repo.ty(p), a.repo.field_of(p).as_deref()), ("UMLPort", Some("attributes")));
     assert_eq!(a.repo.name(p), "Port1");
 }
+
+#[test]
+fn a_stereotype_small_icon_replaces_the_tree_icon() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let pr = a.change(|a| a.add_model(root, "UMLProfile"));
+    let st = a.change(|a| a.add_model(pr, "UMLStereotype"));
+    let icon = a.repo.child(st, "icon").expect("a stereotype has an icon");
+    let m = a.change(|a| a.add_model(root, "UMLModel"));
+    let c = a.change(|a| a.add_model(m, "UMLClass"));
+    a.change(|a| a.repo.set_ref(c, "stereotype", Some(st)));
+    assert_eq!(crate::icons::stereotype_small_icon(&a.repo, c), None);
+    let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="red"/></svg>"#;
+    a.change(|a| a.repo.set(icon, "smallIcon", json!(svg)));
+    assert_eq!(crate::icons::stereotype_small_icon(&a.repo, c).as_deref(), Some(svg));
+    // a single quote makes the original reject it
+    a.change(|a| a.repo.set(icon, "smallIcon", json!(svg.replace('"', "'"))));
+    assert_eq!(crate::icons::stereotype_small_icon(&a.repo, c), None);
+}

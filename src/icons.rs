@@ -95,6 +95,36 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
     }
 }
 
+/// The small icon SVG of the element's stereotype, if it has one: shown instead of the element's
+/// own icon in the explorer and the other trees (UMLModelElement.getNodeIcon, elements.js:500-511;
+/// loadStereotypeIcons, uml/main.js:104-123, which rejects an SVG containing `'`).
+pub fn stereotype_small_icon(r: &Repo, e: Eid) -> Option<String> {
+    let st = r.refd(e, "stereotype").filter(|s| r.alive(*s) && r.ty(*s) == "UMLStereotype")?;
+    let icon = r.child(st, "icon")?;
+    let svg = r.str(icon, "smallIcon");
+    let svg = svg.trim();
+    (!svg.is_empty() && !svg.contains('\'')).then(|| svg.to_string())
+}
+
+/// Draw an element's tree icon: its stereotype's small icon when there is one, else its own icon.
+pub fn draw_for(p: &Painter, rect: Rect, r: &Repo, e: Eid) {
+    if let Some(svg) = stereotype_small_icon(r, e) {
+        let ctx = p.ctx().clone();
+        let id = egui::Id::new(("stereotype-small-icon", svg.len(), svg.get(..64).unwrap_or(""), svg.get(svg.len().saturating_sub(64)..).unwrap_or("")));
+        let tex = ctx.data_mut(|d| d.get_temp::<Option<egui::TextureHandle>>(id)).unwrap_or_else(|| {
+            let url = format!("data:image/svg+xml;base64,{}", crate::picture::base64_encode(svg.as_bytes()));
+            let t = crate::picture::decode(&url).map(|img| ctx.load_texture("stereotype-icon", egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()), egui::TextureOptions::LINEAR));
+            ctx.data_mut(|d| d.insert_temp(id, t.clone()));
+            t
+        });
+        if let Some(t) = tex {
+            p.image(t.id(), rect, Rect::from_min_max(egui::Pos2::ZERO, egui::Pos2::new(1.0, 1.0)), egui::Color32::WHITE);
+            return;
+        }
+    }
+    draw(p, rect, key_for(r, e));
+}
+
 #[allow(non_snake_case)]
 pub fn draw(p: &Painter, rect: Rect, key: &str) {
     // monochrome icons take the theme's text colour
