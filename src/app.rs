@@ -150,6 +150,8 @@ pub struct App {
     pub editing: Option<Editing>,
     /// When a rejected inline edit started shaking (it cannot close for 400 ms, quickedit-manager.js:407-427).
     pub edit_shake: Option<std::time::Instant>,
+    /// The multiplicity typed in the open association end edit's combo, not yet applied.
+    pub edit_combo: Option<(Eid, String)>,
     pub info: HashMap<Eid, Info>,
     pub expanded: HashSet<Eid>,
     pub search: String,
@@ -302,6 +304,7 @@ impl App {
             hover: None,
             editing: None,
             edit_shake: None,
+            edit_combo: None,
             info: HashMap::new(),
             expanded: HashSet::new(),
             search: String::new(),
@@ -1367,7 +1370,8 @@ impl App {
             ],
             "UMLObjectDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier", "UMLInstance", "UMLSlot", "UMLDependency", "UMLLink"],
             "UMLStatechartDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLVertex", "UMLTransition", "UMLStateMachine"],
-            "UMLActivityDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLActivityNode", "UMLActivityEdge", "UMLActivity"],
+            // UMLActivityDiagram.canAcceptModel takes pins too (elements.js:9638-9649)
+            "UMLActivityDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLActivityNode", "UMLActivityEdge", "UMLActivity", "UMLPin"],
             // FCFlowchartDiagram.canAcceptModel (flowchart/elements.js:68-75)
             "FCFlowchartDiagram" => vec!["Hyperlink", "Diagram", "FCModelElement", "FCFlow"],
             "DFDDiagram" => vec!["Hyperlink", "Diagram", "DFDExternalEntity", "DFDProcess", "DFDDataStore", "DFDDataFlow"],
@@ -1410,7 +1414,9 @@ impl App {
         }
         let ty = self.repo.ty(m);
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
-        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || crate::bpmn::is_node_type(ty) || crate::sysml::droppable(ty) || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        // ports, parts, pins and connection point references go onto their parent's box (drop_feature)
+        let feature = matches!(ty, "UMLPort" | "UMLAttribute" | "UMLInputPin" | "UMLOutputPin" | "UMLConnectionPointReference");
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || feature || views::node_kind(ty).is_some() || crate::bpmn::is_node_type(ty) || crate::sysml::droppable(ty) || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
@@ -1448,6 +1454,9 @@ impl App {
                 self.reveal(link);
             }
             return Ok(v.into_iter().collect());
+        }
+        if let Some(res) = self.drop_feature(d, m, p) {
+            return res;
         }
         if views::edge_view_of(&ty).is_some() && self.rel_ends(m).is_some() {
             return self.drop_relationship(d, m, p);
@@ -1589,13 +1598,51 @@ impl App {
         }
     }
 
+    /// A port, part, pin or connection point reference dragged from the explorer goes onto its
+    /// parent's box under the point; elsewhere it is refused with the original's alert: a port on
+    /// its classifier or on a part of that type, a part (any attribute) on its classifier, a pin on
+    /// its action, a connection point reference on its state (viewForGeneralDiagramFn,
+    /// viewForStatechartDiagramFn, viewForActivityDiagramFn, uml-factory.js:2466-2510, 3412-3478).
+    fn drop_feature(&mut self, d: Eid, m: Eid, p: P) -> Option<Result<Vec<Eid>, String>> {
+        let ty = self.repo.ty(m).to_string();
+        let dt = self.repo.ty(d).to_string();
+        let general = matches!(dt.as_str(), "UMLClassDiagram" | "UMLPackageDiagram" | "UMLObjectDiagram" | "UMLComponentDiagram" | "UMLDeploymentDiagram" | "UMLProfileDiagram" | "UMLUseCaseDiagram");
+        let parent = self.repo.parent(m);
+        let host = self.hit_view(p, true);
+        let hm = host.and_then(|h| self.repo.refd(h, "model"));
+        let hty = host.map(|h| self.repo.ty(h).to_string()).unwrap_or_default();
+        let on_parent = hm.is_some() && hm == parent;
+        let classifier_box = on_parent && hm.map(|x| self.repo.kind_of(x, "UMLClassifier")).unwrap_or(false) && views::node_kind(self.repo.ty(hm.unwrap())).map(|k| k.view == hty).unwrap_or(false);
+        let (ok, refused) = match ty.as_str() {
+            "UMLPort" if general => (classifier_box || (hty == "UMLPartView" && hm.and_then(|x| self.repo.refd(x, "type")) == parent), "Port should be dropped on it's parent Classifier or Part"),
+            "UMLAttribute" if general => (classifier_box, "Part (Attribute) should be dropped on it's parent Classifier"),
+            "UMLInputPin" | "UMLOutputPin" if dt == "UMLActivityDiagram" => (on_parent && hty == "UMLActionView", "Pin should be dropped on it's parent Action"),
+            "UMLConnectionPointReference" if dt == "UMLStatechartDiagram" => (on_parent && hty == "UMLStateView", "ConnectionPointReference should be dropped on it's parent State"),
+            _ => return None,
+        };
+        let Some(h) = host.filter(|_| ok) else { return Some(Err(refused.into())) };
+        let v = self.change(|a| {
+            let v = match ty.as_str() {
+                "UMLPort" => views::create_port_view(&mut a.repo, d, m, h, p),
+                "UMLAttribute" => views::create_part_view(&mut a.repo, d, m, h, R { x: p.x, y: p.y, w: 0.0, h: 0.0 }),
+                "UMLConnectionPointReference" => views::create_connection_point_view(&mut a.repo, d, m, h, p),
+                _ => views::create_pin_view(&mut a.repo, d, m, h, p),
+            };
+            a.apply_view_defaults(v);
+            v
+        });
+        Some(Ok(vec![v]))
+    }
+
     fn drop_relationship(&mut self, d: Eid, m: Eid, p: P) -> Result<Vec<Eid>, String> {
         let (t, h) = self.rel_ends(m).unwrap();
         if let Some(e) = self.shown_view(d, m) {
             let mut sel = vec![e];
             sel.extend([self.repo.refd(e, "tail"), self.repo.refd(e, "head")].into_iter().flatten());
             self.select(sel);
-            return Err("Relationship View is already existed in this Diagram.".into());
+            // a connector's own words (uml-factory.js:2525, 2657)
+            let what = if self.repo.ty(m) == "UMLConnector" { "Connector" } else { "Relationship" };
+            return Err(format!("{what} View is already existed in this Diagram."));
         }
         let e = self.change(|a| {
             let tv = match a.shown_view(d, t) {
@@ -2053,6 +2100,8 @@ impl App {
             "UMLSlot" => self.repo.kind_of(owner, "UMLInstance"),
             // template parameters on classes, interfaces and the other boxes with compartments
             "UMLTemplateParameter" => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase" && t != "UMLEnumeration",
+            // an actor takes attributes and operations (quickedits/uml.json "uml.actor"), not receptions
+            "UMLAttribute" | "UMLOperation" if t == "UMLActor" => true,
             _ => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase",
         }
     }

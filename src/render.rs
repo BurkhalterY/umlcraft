@@ -312,10 +312,14 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             return;
         }
         "actor" => {
-            let ih = b.h - views::NAME_MIN_H;
+            // the figure above the name; attributes and operations may follow under it
+            let ih = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "top") - b.y).filter(|h| *h > 0.0).unwrap_or(b.h - views::NAME_MIN_H);
             let iw = b.w.min(ih * views::ACTOR_ICON_W / views::ACTOR_ICON_H);
             draw_stick_figure(c, R { x: b.x + (b.w - iw) / 2.0, y: b.y, w: iw, h: ih }, fill, line);
             draw_name(c, r, v);
+            for row in info.iter().flat_map(|i| i.compartments.iter()).flat_map(|comp| comp.rows.iter()) {
+                draw_label(c, r, row.iv, fc);
+            }
             return;
         }
         "artifact" => {

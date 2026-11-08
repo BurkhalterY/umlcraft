@@ -160,7 +160,7 @@ fn contains(outer: &R, inner: &R) -> bool {
 }
 
 /// A short button text for an "add related element" action: "Add Sub-Class" → "+ Sub-Class".
-fn short_label(l: &str) -> String {
+pub(crate) fn short_label(l: &str) -> String {
     format!("+ {}", l.trim_start_matches("Add "))
 }
 
@@ -230,6 +230,7 @@ pub fn item_buttons(r: &crate::model::Repo, host: Option<Eid>, kind: &EditKind) 
                 "UMLAction" => vec![
                     ("+ Out Pin", "Add Output Pin", "", ItemKey::AddPin(false)),
                     ("+ In Pin", "Add Input Pin", "", ItemKey::AddPin(true)),
+                    ("+ Trigger", "Add Trigger Event", "", ItemKey::AddTrigger),
                     ("+ Decision", "Add Decision", "", ItemKey::Scaffold("UMLDecisionNode")),
                     ("+ Merge", "Add Merge", "", ItemKey::Scaffold("UMLMergeNode")),
                     ("+ Fork", "Add Fork", "", ItemKey::Scaffold("UMLForkNode")),
@@ -270,8 +271,8 @@ pub fn item_buttons(r: &crate::model::Repo, host: Option<Eid>, kind: &EditKind) 
                 _ if crate::cloud::icon_base(t).is_some() => vec![("Icon…", crate::cloud::icon_hint(t), "", ItemKey::CloudIcon)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
                 // classes, interfaces, signals, data types, components, nodes, artifacts: Add Reception
-                // too, which has no key; stereotypes have none (actors take no attributes in UMLCraft)
-                "UMLStereotype" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP],
+                // too, which has no key; stereotypes and actors have none
+                "UMLStereotype" | "UMLActor" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP],
                 _ if r.kind_of(*m, "UMLClassifier") && t != "UMLActor" => vec![("+ Attr", "Add Attribute", "Ctrl+Enter", ItemKey::Add), ADD_OP, ("+ Rec", "Add Reception", "", ItemKey::AddReception)],
                 _ => vec![],
             }
@@ -355,6 +356,10 @@ pub enum ItemKey {
     Activity(&'static str),
     /// A SysML element's buttons (quickedits/sysml.json)
     SysML(crate::sysml::Quick),
+    /// An action's or a transition's Add Trigger Event: a new UMLEvent in its triggers
+    AddTrigger,
+    /// A transition's Add Effect Behavior: asks which kind of behaviour
+    AddEffect,
 }
 
 impl App {
@@ -2142,6 +2147,14 @@ impl App {
                 }
             }
             (ItemKey::Activity(field), _) => self.ask_behavior_kind(m, field),
+            // a new UMLEvent in the triggers, and a behaviour of the kind asked for in the effects
+            // (uml-commands.js:3456-3490)
+            (ItemKey::AddTrigger, _) => {
+                if let Some(t) = self.change(|a| a.add_feature(m, "UMLEvent")) {
+                    self.reveal(t);
+                }
+            }
+            (ItemKey::AddEffect, _) => self.ask_behavior_kind(m, "effects"),
             (ItemKey::InternalTransition, _) => match self.add_internal_transition(m) {
                 Ok(t) => self.reveal(t),
                 Err(e) => self.toast_error(&e),
@@ -2208,8 +2221,9 @@ impl App {
             EditKind::Name(m) if self.repo.kind_of(*m, "UMLInstance") => Some(Grammar::Object),
             // a transition's expression is split by hand (uml-transition.pegjs)
             EditKind::Name(m) if self.repo.ty(*m) == "UMLTransition" => None,
-            // a lifeline's and a message's expressions are split by hand (uml-lifeline.pegjs, uml-message.pegjs)
-            EditKind::Name(m) if matches!(self.repo.ty(*m), "UMLLifeline" | "UMLMessage" | "UMLInteractionOperand" | "UMLStateInvariant") => None,
+            // a lifeline's expression (uml-lifeline.pegjs); a message's is split by hand (uml-message.pegjs)
+            EditKind::Name(m) if self.repo.ty(*m) == "UMLLifeline" => Some(Grammar::Lifeline),
+            EditKind::Name(m) if matches!(self.repo.ty(*m), "UMLMessage" | "UMLInteractionOperand" | "UMLStateInvariant") => None,
             // other notations' elements take their name as typed (flowchart.json "fc.set-name")
             EditKind::Name(m) if crate::meta::plain_named(self.repo.ty(*m)) => None,
             EditKind::Name(_) => Some(Grammar::Name),
@@ -2255,8 +2269,13 @@ impl App {
         self.edit_shake = None;
         // the canvas takes the keyboard back, so Enter can open the edit again (quickedit-manager.js:680-682)
         self.refocus_canvas = true;
+        let combo = self.edit_combo.take();
         if !commit {
             return;
+        }
+        // a multiplicity typed in an end's combo applies too (quickedit-manager.js:485-516)
+        if let Some((end, t)) = combo.filter(|(end, t)| self.repo.alive(*end) && self.repo.str(*end, "multiplicity") != *t) {
+            self.change(|a| a.repo.set(end, "multiplicity", json!(t)));
         }
         match e.kind {
             EditKind::Text(v) if self.repo.ty(v) == "UMLConstraintView" => {
@@ -2385,6 +2404,7 @@ impl App {
     }
 
     fn inline_editor(&mut self, ui: &mut egui::Ui, rect: Rect) {
+        use crate::quickedit::{Act, Comp, Pick, Side, ROW_H};
         let Some(mut ed) = self.editing.take() else { return };
         if ed.orig.is_none() {
             ed.orig = Some(ed.text.clone());
@@ -2405,108 +2425,179 @@ impl App {
         }
         let w = ((ed.rect.w * self.zoom) as f32).max(60.0);
         let h = ((ed.rect.h * self.zoom) as f32).max(if ed.multiline { 40.0 } else { 20.0 });
+        let comps = self.quick_components(&ed);
+        // an end that shows its owner attribute keeps its name out of reach (`_tailEndSole`)
+        let read_only = matches!(ed.kind, EditKind::Name(m) if crate::quickedit::end_owned(&self.repo, m));
         let mut commit = None;
         let mut key: Option<ItemKey> = None;
-        let mut related: Option<crate::related::Related> = None;
-        let mut edge_note: Option<Eid> = None;
-        let mut edge_constraint: Option<Eid> = None;
-        let mut comm_message: Option<(Eid, bool)> = None;
-        let mut item_flow: Option<Eid> = None;
-        let mut add_subst: Option<Eid> = None;
-        let mut picked_order: Option<(Eid, &'static str)> = None;
-        egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
-            egui::Frame::NONE.fill(Color32::WHITE).stroke(Stroke::new(1.0, c32(render::SELECT_COLOR))).show(ui, |ui| {
-                ui.visuals_mut().override_text_color = Some(Color32::BLACK);
-                ui.visuals_mut().extreme_bg_color = Color32::WHITE;
-                // the editor uses the edited view's font size (quickedit-manager.js:365-381)
-                let size = match (&ed.kind, ed.host) {
-                    (EditKind::Text(v), _) => views::view_font(&self.repo, *v).1,
-                    (_, Some(h)) => views::view_font(&self.repo, h).1,
-                    _ => 13.0,
-                };
-                let font = FontId::new((size * self.zoom) as f32, diagram_family(0));
-                let te = if ed.multiline {
-                    egui::TextEdit::multiline(&mut ed.text).desired_width(w).desired_rows(((h / 16.0) as usize).max(2))
-                } else {
-                    egui::TextEdit::singleline(&mut ed.text).desired_width(w)
-                };
-                let te = te.font(font).frame(egui::Frame::NONE).horizontal_align(if ed.center { egui::Align::Center } else { egui::Align::Min });
-                // Enter commits a note too; Shift+Enter is the new line (quickedit-manager.js:326-332)
-                let mut plain_enter = false;
-                if ed.multiline {
-                    ui.input_mut(|i| {
-                        i.events.retain(|e| match e {
-                            egui::Event::Key { key: egui::Key::Enter, pressed: true, modifiers, .. } if !modifiers.shift => {
-                                plain_enter = true;
-                                false
-                            }
-                            _ => true,
-                        })
-                    });
-                }
-                // item keys on a class name or a compartment item, taken before the text field sees them
-                if let (Some(_), false) = (ed.host, ed.multiline) {
-                    let item = matches!(ed.kind, EditKind::Feature(_));
-                    let k = ui.input_mut(|i| {
-                        use egui::{Key, Modifiers};
-                        let cs = Modifiers::COMMAND | Modifiers::SHIFT;
-                        if i.consume_key(cs, Key::Enter) {
-                            Some(ItemKey::AddOperation)
-                        } else if i.consume_key(Modifiers::COMMAND, Key::Enter) {
-                            Some(ItemKey::Add)
-                        } else if item && i.consume_key(Modifiers::COMMAND, Key::Delete) {
-                            Some(ItemKey::Delete)
-                        } else if item && i.consume_key(Modifiers::COMMAND, Key::ArrowUp) {
-                            Some(ItemKey::Move(true))
-                        } else if item && i.consume_key(Modifiers::COMMAND, Key::ArrowDown) {
-                            Some(ItemKey::Move(false))
-                        } else if i.consume_key(Modifiers::NONE, Key::ArrowUp) {
-                            Some(ItemKey::Nav(true))
-                        } else if i.consume_key(Modifiers::NONE, Key::ArrowDown) {
-                            Some(ItemKey::Nav(false))
-                        } else {
-                            None
-                        }
-                    });
-                    if k.is_some() {
-                        key = k;
+        let mut act: Option<Act> = None;
+        let mut pick: Option<Pick> = None;
+        let mut plain_enter = false;
+        let size = match (&ed.kind, ed.host) {
+            (EditKind::Text(v), _) => views::view_font(&self.repo, *v).1,
+            (_, Some(h)) => views::view_font(&self.repo, h).1,
+            _ => 13.0,
+        };
+        let main = egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
+            egui::Frame::NONE
+                .fill(Color32::WHITE)
+                .stroke(Stroke::new(1.0, c32(render::SELECT_COLOR)))
+                .show(ui, |ui| {
+                    ui.visuals_mut().override_text_color = Some(Color32::BLACK);
+                    ui.visuals_mut().extreme_bg_color = Color32::WHITE;
+                    // the editor uses the edited view's font size (quickedit-manager.js:365-381)
+                    let font = FontId::new((size * self.zoom) as f32, diagram_family(0));
+                    let te = if ed.multiline {
+                        egui::TextEdit::multiline(&mut ed.text).desired_width(w).desired_rows(((h / 16.0) as usize).max(2))
+                    } else {
+                        egui::TextEdit::singleline(&mut ed.text).desired_width(w)
+                    };
+                    let te = te.font(font).frame(egui::Frame::NONE).interactive(!read_only).horizontal_align(if ed.center { egui::Align::Center } else { egui::Align::Min });
+                    // Enter commits a note too; Shift+Enter is the new line (quickedit-manager.js:326-332)
+                    if ed.multiline {
+                        ui.input_mut(|i| {
+                            i.events.retain(|e| match e {
+                                egui::Event::Key { key: egui::Key::Enter, pressed: true, modifiers, .. } if !modifiers.shift => {
+                                    plain_enter = true;
+                                    false
+                                }
+                                _ => true,
+                            })
+                        });
                     }
-                }
-                // a visibility dropdown left of the field (quickedits/uml.json "uml.visibility")
-                let vis_target = match &ed.kind {
-                    EditKind::Name(m) | EditKind::Feature(m) if crate::meta::order_of(self.repo.ty(*m), "visibility").is_some() => Some(*m),
-                    _ => None,
-                };
-                let mut picked_vis: Option<&'static str> = None;
-                let r = ui
-                    .horizontal(|ui| {
-                        if let Some(m) = vis_target {
-                            let cur = views::vis_symbol(&self.repo.str(m, "visibility"));
-                            ui.menu_button(egui::RichText::new(if cur.is_empty() { "+" } else { cur }).monospace().color(Color32::WHITE), |ui| {
-                                for (sym, v) in [("+", "public"), ("#", "protected"), ("-", "private"), ("~", "package")] {
-                                    if ui.button(format!("{sym}  {v}")).clicked() {
-                                        picked_vis = Some(v);
-                                        ui.close();
-                                    }
-                                }
-                            });
+                    // item keys on a class name or a compartment item, taken before the text field sees them
+                    if let (Some(_), false) = (ed.host, ed.multiline) {
+                        let item = matches!(ed.kind, EditKind::Feature(_));
+                        key = ui.input_mut(|i| {
+                            use egui::{Key, Modifiers};
+                            let cs = Modifiers::COMMAND | Modifiers::SHIFT;
+                            if i.consume_key(cs, Key::Enter) {
+                                Some(ItemKey::AddOperation)
+                            } else if i.consume_key(Modifiers::COMMAND, Key::Enter) {
+                                Some(ItemKey::Add)
+                            } else if item && i.consume_key(Modifiers::COMMAND, Key::Delete) {
+                                Some(ItemKey::Delete)
+                            } else if item && i.consume_key(Modifiers::COMMAND, Key::ArrowUp) {
+                                Some(ItemKey::Move(true))
+                            } else if item && i.consume_key(Modifiers::COMMAND, Key::ArrowDown) {
+                                Some(ItemKey::Move(false))
+                            } else if i.consume_key(Modifiers::NONE, Key::ArrowUp) {
+                                Some(ItemKey::Nav(true))
+                            } else if i.consume_key(Modifiers::NONE, Key::ArrowDown) {
+                                Some(ItemKey::Nav(false))
+                            } else {
+                                None
+                            }
+                        });
+                    }
+                    let r = ui.add(te);
+                    if ed.fresh {
+                        r.request_focus();
+                        if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), r.id) {
+                            let all = egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(ed.text.chars().count()));
+                            state.cursor.set_char_range(Some(all));
+                            state.store(ui.ctx(), r.id);
                         }
-                        let resp = ui.add(te);
-                        // the item buttons with a key, on a box's name or item (taken on press, as the
-                        // field loses focus before a release)
-                        if ed.host.is_some() && !ed.multiline {
-                            for (label, hint, keys, k) in item_buttons(&self.repo, ed.host, &ed.kind) {
-                                let tip = if keys.is_empty() { hint.to_string() } else { format!("{hint} ({keys})") };
-                                let b = ui.add(egui::Button::new(egui::RichText::new(label).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(tip);
+                        ed.fresh = false;
+                    }
+                    r
+                })
+                .inner
+        });
+        let field = main.inner;
+        let frect = main.response.rect;
+        // the left and right sections, a row of 25 px each: the left one grows leftwards from the
+        // field, the right one rightwards (quickedit-manager.js:274-311)
+        let mut combo = self.edit_combo.take();
+        let mut combo_id: Option<egui::Id> = None;
+        let mut combo_done = false;
+        let rows: std::collections::BTreeSet<(u8, usize)> = comps.iter().map(|c| (c.side as u8, c.row)).collect();
+        for (side_n, row) in rows {
+            let side = if side_n == Side::Left as u8 { Side::Left } else { Side::Right };
+            let y = frect.min.y + ROW_H * (row as f32 - 1.0);
+            let (at, pivot) = match side {
+                Side::Left => (Pos2::new(frect.min.x - 2.0, y), Align2::RIGHT_TOP),
+                Side::Right => (Pos2::new(frect.max.x + 4.0, y), Align2::LEFT_TOP),
+            };
+            let mut here: Vec<&Comp> = comps.iter().filter(|c| c.side == side && c.row == row).map(|c| &c.comp).collect();
+            // the left section's first component is the one nearest the field
+            if side == Side::Left {
+                here.reverse();
+            }
+            egui::Area::new(egui::Id::new(("inline-editor", side_n, row))).fixed_pos(at).pivot(pivot).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    ui.visuals_mut().widgets.inactive.weak_bg_fill = Color32::from_rgb(0xee, 0xee, 0xee);
+                    ui.visuals_mut().widgets.hovered.weak_bg_fill = Color32::from_rgb(0xdd, 0xdd, 0xdd);
+                    let small = |t: &str| egui::RichText::new(t).size(11.0).color(Color32::BLACK);
+                    for c in here {
+                        match c {
+                            Comp::Button { label, hint, act: a } => {
+                                let b = ui.add(egui::Button::new(small(label)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(hint.as_str());
+                                // taken on press: the text field loses focus (and the edit closes) before a release
                                 if b.is_pointer_button_down_on() {
-                                    key = Some(k);
+                                    act = Some(*a);
                                 }
                             }
+                            Comp::Menu { shown, hint, items } => {
+                                ui.menu_button(small(&format!("{shown} ▾")), |ui| {
+                                    for (text, cur, p) in items {
+                                        if ui.selectable_label(*cur, text.as_str()).clicked() {
+                                            pick = Some(p.clone());
+                                            ui.close();
+                                        }
+                                    }
+                                })
+                                .response
+                                .on_hover_text(hint.as_str());
+                            }
+                            Comp::Combo(end) => {
+                                // the typed multiplicity applies when it loses the keyboard or the
+                                // edit closes; a choice is written into it and applies at once
+                                // (quickedit-manager.js:485-516)
+                                let mut text = match combo.take() {
+                                    Some((e, t)) if e == *end => t,
+                                    _ => self.repo.str(*end, "multiplicity"),
+                                };
+                                let resp = ui.add(egui::TextEdit::singleline(&mut text).desired_width(40.0).font(FontId::proportional(11.0)).text_color(Color32::BLACK).background_color(Color32::WHITE)).on_hover_text("Multiplicity");
+                                combo_id = Some(resp.id);
+                                if resp.lost_focus() {
+                                    combo_done = true;
+                                }
+                                ui.menu_button(small("▾"), |ui| {
+                                    for o in crate::ui::MULTIPLICITIES {
+                                        if ui.selectable_label(text == o, o).clicked() {
+                                            text = o.to_string();
+                                            pick = Some(Pick::Set(*end, "multiplicity", serde_json::json!(o)));
+                                            ui.close();
+                                        }
+                                    }
+                                })
+                                .response
+                                .on_hover_text("Multiplicity");
+                                combo = Some((*end, text));
+                            }
                         }
-                        resp
-                    })
-                    .inner;
-                if let (Some(v), Some(m)) = (picked_vis, vis_target) {
+                    }
+                });
+            });
+        }
+        let combo_focus = combo_id.map(|id| ui.ctx().memory(|m| m.focused()) == Some(id)).unwrap_or(false);
+        // a typed multiplicity that lost the keyboard applies, and the field takes it back
+        if let (true, Some((end, t))) = (combo_done && !combo_focus, &combo) {
+            if self.repo.alive(*end) && self.repo.str(*end, "multiplicity") != *t {
+                let (end, t) = (*end, t.clone());
+                self.change(|a| a.repo.set(end, "multiplicity", serde_json::json!(t)));
+            }
+            if !ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                ed.fresh = true;
+            }
+        }
+        self.edit_combo = combo;
+        // a dropdown's choice applies at once and the edit stays open
+        if let Some(p) = pick.clone() {
+            match p {
+                Pick::Visibility(m, v) => {
                     self.change(|a| a.repo.set(m, "visibility", serde_json::json!(v)));
                     // keep the typed text in step: a leading symbol is replaced by the new one
                     if let EditKind::Feature(_) = ed.kind {
@@ -2518,273 +2609,33 @@ impl App {
                             None => format!("{sym}{rest}"),
                         };
                     }
-                    ed.fresh = true;
                 }
-                // ERD quick edits (quickedits/erd.json): a relationship end's cardinality, a relationship's
-                // Identifying, a column's Primary Key
-                let mut picked_end: Option<(&'static str, String)> = None;
-                let mut picked_flag: Option<(Eid, &'static str, bool)> = None;
-                let erd_target = match ed.kind {
-                    EditKind::Name(x) | EditKind::Feature(x) if self.repo.ty(x).starts_with("ERD") || self.repo.ty(x) == "UMLMessage" => Some(x),
-                    _ => None,
-                };
-                if let Some(x) = erd_target {
-                    let ty = self.repo.ty(x).to_string();
-                    ui.horizontal(|ui| {
-                        let menu = |ui: &mut egui::Ui, shown: &str, hint: &str, add: &mut dyn FnMut(&mut egui::Ui)| {
-                            ui.menu_button(egui::RichText::new(format!("{shown} ▾")).size(11.0).color(Color32::WHITE), |ui| add(ui)).response.on_hover_text(hint);
-                        };
-                        match ty.as_str() {
-                            // a message's sort (quickedits/uml.json "uml.set-message-sort")
-                            "UMLMessage" => {
-                                let cur = self.repo.str(x, "messageSort");
-                                menu(ui, &cur, "MessageSort", &mut |ui| {
-                                    for val in ["synchCall", "asynchCall", "asynchSignal", "createMessage", "deleteMessage", "reply"] {
-                                        if ui.selectable_label(cur == val, val).clicked() {
-                                            picked_end = Some(("messageSort", val.to_string()));
-                                            ui.close();
-                                        }
-                                    }
-                                });
-                            }
-                            "ERDRelationshipEnd" => {
-                                let cur = self.repo.str(x, "cardinality");
-                                let cur = if cur.is_empty() { "1".to_string() } else { cur };
-                                let shown = crate::erd::CARDINALITIES.iter().find(|c| c.0 == cur).map(|c| c.1).unwrap_or("One and Only One");
-                                menu(ui, shown, "Cardinality", &mut |ui| {
-                                    for (val, label) in crate::erd::CARDINALITIES {
-                                        if ui.selectable_label(cur == val, label).clicked() {
-                                            picked_end = Some(("cardinality", val.to_string()));
-                                            ui.close();
-                                        }
-                                    }
-                                });
-                            }
-                            "ERDRelationship" | "ERDColumn" => {
-                                let (field, hint, yes, no) = if ty == "ERDColumn" { ("primaryKey", "Primary Key", "Primary Key", "Not Key") } else { ("identifying", "Identifying", "Identifying", "Non-Identifying") };
-                                let cur = if ty == "ERDColumn" { self.repo.bool(x, field) } else { self.repo.raw(x, field).and_then(|v| v.as_bool()).unwrap_or(true) };
-                                menu(ui, if cur { yes } else { no }, hint, &mut |ui| {
-                                    for (val, label) in [(true, yes), (false, no)] {
-                                        if ui.selectable_label(cur == val, label).clicked() {
-                                            picked_flag = Some((x, field, val));
-                                            ui.close();
-                                        }
-                                    }
-                                });
-                            }
-                            _ => {}
-                        }
-                    });
-                }
-                if let Some((x, field, val)) = picked_flag {
-                    self.change(|a| a.repo.set(x, field, serde_json::json!(val)));
-                    ed.fresh = true;
-                }
-                // the cloud quick edits' dropdowns: an Azure group's Dashed and Rounded, a GCP zone's
-                // Zone Type (quickedits/azure.json, gcp.json)
-                let mut picked_cloud: Option<(Eid, &'static str, serde_json::Value)> = None;
-                if let EditKind::Name(x) = ed.kind {
-                    let menus = crate::cloud::dropdowns(&self.repo, x);
-                    if !menus.is_empty() {
-                        ui.horizontal(|ui| {
-                            for (field, hint, options) in menus {
-                                let cur = self.repo.val(x, field).unwrap_or(serde_json::Value::Null);
-                                let shown = options.iter().find(|o| o.0 == cur).map(|o| o.1).unwrap_or("—");
-                                ui.menu_button(egui::RichText::new(format!("{shown} ▾")).size(11.0).color(Color32::WHITE), |ui| {
-                                    for (value, label) in &options {
-                                        if ui.selectable_label(cur == *value, *label).clicked() {
-                                            picked_cloud = Some((x, field, value.clone()));
-                                            ui.close();
-                                        }
-                                    }
-                                })
-                                .response
-                                .on_hover_text(hint);
-                            }
-                        });
-                    }
-                }
-                if let Some((x, field, val)) = picked_cloud.clone() {
+                Pick::Set(x, field, val) => {
                     self.change(|a| a.repo.set(x, field, val));
-                    ed.fresh = true;
                 }
-                // an association end: aggregation, navigability and multiplicity dropdowns
-                // (quickedits/uml.json "uml.association-end1/2")
-                let mut picked_owner: Option<Option<Eid>> = None;
-                let mut add_qualifier = false;
-                if let EditKind::Name(end) = ed.kind {
-                    if self.repo.ty(end) == "UMLAssociationEnd" || self.repo.ty(end) == "UMLLinkEnd" {
-                        ui.horizontal(|ui| {
-                            let fields: [(&'static str, &str, &[&str]); 3] = [
-                                ("aggregation", "Aggregation Kind", &["none", "shared", "composite"]),
-                                ("navigable", "Navigability", &["unspecified", "navigable", "notNavigable"]),
-                                ("multiplicity", "Multiplicity", &crate::ui::MULTIPLICITIES),
-                            ];
-                            for (field, hint, options) in fields {
-                                let cur = self.repo.str(end, field);
-                                let shown = if cur.is_empty() { "—".to_string() } else { cur.clone() };
-                                ui.menu_button(egui::RichText::new(format!("{shown} ▾")).size(11.0).color(Color32::WHITE), |ui| {
-                                    for o in options {
-                                        if ui.selectable_label(cur == *o, *o).clicked() {
-                                            picked_end = Some((field, o.to_string()));
-                                            ui.close();
-                                        }
-                                    }
-                                })
-                                .response
-                                .on_hover_text(hint);
-                            }
-                            // Select Owner Attribute: an attribute of the classifier at the other end
-                            if self.repo.ty(end) == "UMLAssociationEnd" {
-                                let cur = self.repo.refd(end, "ownerAttribute");
-                                let shown = cur.map(|c| self.repo.name(c)).unwrap_or_else(|| "—".to_string());
-                                ui.menu_button(egui::RichText::new(format!("{shown} ▾")).size(11.0).color(Color32::WHITE), |ui| {
-                                    if ui.selectable_label(cur.is_none(), "(none)").clicked() {
-                                        picked_owner = Some(None);
-                                        ui.close();
-                                    }
-                                    for a in self.owner_attribute_options(end) {
-                                        if ui.selectable_label(cur == Some(a), self.repo.name(a)).clicked() {
-                                            picked_owner = Some(Some(a));
-                                            ui.close();
-                                        }
-                                    }
-                                })
-                                .response
-                                .on_hover_text("Owner Attribute");
-                                // Add Qualifier: a new attribute in the end's qualifiers (quickedits/uml.json "uml.association-end1/2")
-                                let b = ui.add(egui::Button::new(egui::RichText::new("+ Qual").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Qualifier");
-                                if b.clicked() {
-                                    add_qualifier = true;
-                                }
-                            }
-                        });
-                    }
-                }
-                if let (true, EditKind::Name(end)) = (add_qualifier, &ed.kind) {
-                    let end = *end;
-                    let q = self.change(|a| a.add_qualifier(end));
-                    self.reveal(q);
-                    ed.fresh = true;
-                }
-                if let (Some(owner), EditKind::Name(end)) = (picked_owner, &ed.kind) {
-                    let end = *end;
+                Pick::Owner(end, owner) => {
                     self.change(|a| a.repo.set_ref(end, "ownerAttribute", owner));
-                    ed.fresh = true;
                 }
-                if let (Some((field, value)), EditKind::Name(end)) = (picked_end.clone(), &ed.kind) {
-                    let end = *end;
-                    self.change(|a| a.repo.set(end, field, serde_json::json!(value)));
-                    ed.fresh = true;
-                }
-                if ed.fresh {
-                    r.request_focus();
-                    if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), r.id) {
-                        let all = egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(ed.text.chars().count()));
-                        state.cursor.set_char_range(Some(all));
-                        state.store(ui.ctx(), r.id);
-                    }
-                    ed.fresh = false;
-                }
-                // the "add related element" buttons of a box's name edit (quickedits/uml.json)
-                if let (Some(h), EditKind::Name(m)) = (ed.host, &ed.kind) {
-                    let acts = crate::related::actions(self.repo.ty(*m));
-                    if self.repo.refd(h, "model") == Some(*m) && !acts.is_empty() && !views::is_edge(&self.repo, h) {
-                        ui.horizontal_wrapped(|ui| {
-                            ui.set_max_width(w.max(220.0));
-                            // a class also gets Add Template Parameter (quickedits/uml.json "uml.class")
-                            if self.repo.ty(*m) == "UMLClass" {
-                                let b = ui.add(egui::Button::new(egui::RichText::new("T").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Template Parameter");
-                                if b.is_pointer_button_down_on() {
-                                    key = Some(ItemKey::AddTemplateParameter);
-                                }
-                            }
-                            for a in acts {
-                                let b = ui.add(egui::Button::new(egui::RichText::new(short_label(a.label)).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(a.label);
-                                // taken on press: the text field loses focus (and the edit closes) before a release
-                                if b.is_pointer_button_down_on() {
-                                    related = Some(a);
-                                }
-                            }
-                        });
-                    }
-                }
-                // a line's name edit has Add Note too (quickedits/uml.json, uml-commands.js:684)
-                if let (None, EditKind::Name(m)) = (ed.host, &ed.kind) {
-                    let edge = self.diagram.and_then(|d| self.repo.list(d, "ownedViews").into_iter().find(|v| is_edge(&self.repo, *v) && self.repo.refd(*v, "model") == Some(*m)));
-                    // a BPMN flow's only button is Add Text Annotation (quickedits/bpmn.json "bpmn.sequence-flow")
-                    if let Some(e) = edge.filter(|e| crate::bpmn::is_edge_view(self.repo.ty(*e))) {
-                        let b = ui.add(egui::Button::new(egui::RichText::new("+ Text Annotation").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Text Annotation");
-                        if b.is_pointer_button_down_on() {
-                            edge_note = Some(e);
-                        }
-                    } else if let Some(e) = edge {
-                        let b = ui.add(egui::Button::new(egui::RichText::new("+ Note").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Note");
-                        if b.is_pointer_button_down_on() {
-                            edge_note = Some(e);
-                        }
-                        let b = ui.add(egui::Button::new(egui::RichText::new("+ Constraint").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Constraint");
-                        if b.is_pointer_button_down_on() {
-                            edge_constraint = Some(e);
-                        }
-                        // a communication connector's Add Forward / Reverse Message (quickedits/uml.json "uml.connector-comm")
-                        if self.repo.ty(e) == "UMLConnectorView" && self.diagram.map(|d| self.repo.ty(d) == "UMLCommunicationDiagram").unwrap_or(false) {
-                            for (label, hint, forward) in [("+ Fwd", "Add Forward Message", true), ("+ Rev", "Add Reverse Message", false)] {
-                                let b = ui.add(egui::Button::new(egui::RichText::new(label).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(hint);
-                                if b.is_pointer_button_down_on() {
-                                    comm_message = Some((e, forward));
-                                }
-                            }
-                        }
-                        // a SysML connector's Create Item Flow (quickedits/sysml.json "sysml.connector")
-                        if self.repo.ty(e) == "SysMLConnectorView" {
-                            let b = ui.add(egui::Button::new(egui::RichText::new("+ Item Flow").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Create Item Flow");
-                            if b.is_pointer_button_down_on() {
-                                item_flow = Some(*m);
-                            }
-                        }
-                    }
-                    // an association's Order of Ends, a property of its line (quickedits/uml.json "uml.end-order")
-                    if let (Some(e), true) = (edge, self.repo.ty(*m) == "UMLAssociation") {
-                        let cur = self.repo.str(e, "showEndOrder");
-                        let opts = [("hide", "Hide"), ("forward", "Forward (End1 to End2)"), ("backward", "Backward (End2 to End1)")];
-                        let shown = opts.iter().find(|o| o.0 == cur).map(|o| o.1).unwrap_or("Hide");
-                        ui.menu_button(egui::RichText::new(format!("{} ▾", shown.split(' ').next().unwrap_or(""))).size(11.0).color(Color32::WHITE), |ui| {
-                            for (value, label) in opts {
-                                if ui.selectable_label(cur == value, label).clicked() {
-                                    picked_order = Some((e, value));
-                                    ui.close();
-                                }
-                            }
-                        })
-                        .response
-                        .on_hover_text("Order of Ends");
-                    }
-                    // a template binding adds a parameter substitution (quickedits/uml.json "uml.template-binding")
-                    if self.repo.ty(*m) == "UMLTemplateBinding" {
-                        let b = ui.add(egui::Button::new(egui::RichText::new("+ Subst").size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text("Add Template Parameter Substitution");
-                        if b.is_pointer_button_down_on() {
-                            add_subst = Some(*m);
-                        }
-                    }
-                }
-                // the choice applies at once and the edit stays open
-                if let Some((e, value)) = picked_order {
-                    self.change(|a| a.repo.set(e, "showEndOrder", serde_json::json!(value)));
-                    ed.fresh = true;
-                }
-                let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if key.is_some() || related.is_some() || edge_note.is_some() || edge_constraint.is_some() || comm_message.is_some() || item_flow.is_some() || add_subst.is_some() {
-                    commit = Some(true);
-                } else if esc {
-                    commit = Some(false);
-                } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
-                    commit = Some(true);
-                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() && picked_order.is_none() && picked_flag.is_none() && picked_cloud.is_none() {
-                    commit = Some(true);
-                }
-            });
-        });
+            }
+            ed.fresh = true;
+        }
+        // Add Qualifier keeps the edit open
+        if let Some(Act::Qualifier(end)) = act {
+            let q = self.change(|a| a.add_qualifier(end));
+            self.reveal(q);
+            ed.fresh = true;
+            act = None;
+        }
+        let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
+        if key.is_some() || act.is_some() {
+            commit = Some(true);
+        } else if esc {
+            commit = Some(false);
+        } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
+            commit = Some(true);
+        } else if field.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && pick.is_none() && !combo_focus {
+            commit = Some(true);
+        }
         let (host, kind) = (ed.host, ed.kind.clone());
         self.editing = Some(ed);
         if let Some(c) = commit {
@@ -2794,34 +2645,38 @@ impl App {
             }
         }
         if let (Some(k), Some(h)) = (key, host) {
-            self.item_key(h, kind, k);
+            self.item_key(h, kind.clone(), k);
         }
-        if let (Some(a), Some(h)) = (related, host) {
-            self.add_related(h, a);
-        }
-        if let Some(e) = edge_note.filter(|e| self.repo.alive(*e)) {
-            if crate::bpmn::is_edge_view(self.repo.ty(e)) {
-                self.add_annotation_to_edge(e);
-            } else {
-                self.add_note_to_edge(e);
+        match act {
+            Some(Act::Key(h, k)) if self.repo.alive(h) => self.item_key(h, kind, k),
+            Some(Act::Related(a)) => {
+                if let Some(h) = host {
+                    self.add_related(h, a);
+                }
             }
-        }
-        if let Some(e) = edge_constraint.filter(|e| self.repo.alive(*e)) {
-            self.add_constraint_to(e);
-        }
-        if let Some((e, forward)) = comm_message.filter(|(e, _)| self.repo.alive(*e)) {
-            if let Some(v) = self.add_comm_message(e, forward) {
-                self.select(vec![v]);
+            Some(Act::EdgeNote(e)) if self.repo.alive(e) => {
+                if crate::bpmn::is_edge_view(self.repo.ty(e)) {
+                    self.add_annotation_to_edge(e);
+                } else {
+                    self.add_note_to_edge(e);
+                }
             }
-        }
-        if let Some(c) = item_flow.filter(|c| self.repo.alive(*c)) {
-            self.ask_item_flow(c);
-        }
-        // the new substitution is selected in the explorer (uml-commands.js:1026-1034)
-        if let Some(b) = add_subst.filter(|b| self.repo.alive(*b)) {
-            if let Some(s) = self.change(|a| a.add_feature(b, "UMLTemplateParameterSubstitution")) {
-                self.reveal(s);
+            Some(Act::EdgeConstraint(e)) if self.repo.alive(e) => {
+                self.add_constraint_to(e);
             }
+            Some(Act::CommMessage(e, forward)) if self.repo.alive(e) => {
+                if let Some(v) = self.add_comm_message(e, forward) {
+                    self.select(vec![v]);
+                }
+            }
+            Some(Act::ItemFlow(c)) if self.repo.alive(c) => self.ask_item_flow(c),
+            // the new substitution is selected in the explorer (uml-commands.js:1026-1034)
+            Some(Act::Subst(b)) if self.repo.alive(b) => {
+                if let Some(s) = self.change(|a| a.add_feature(b, "UMLTemplateParameterSubstitution")) {
+                    self.reveal(s);
+                }
+            }
+            _ => {}
         }
     }
 

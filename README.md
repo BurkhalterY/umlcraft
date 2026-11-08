@@ -156,7 +156,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/picker.rs` | The Element Picker ("Select Element") and the name lookup of type and stereotype fields |
 | `src/picture.rs` | Pictures of Image views: files read into data URLs with their natural size, and decoded for drawing |
 | `src/pdf.rs`, `src/pdf_font.rs` | Print to PDF: the dialog, its remembered options, and a small PDF writer that draws diagrams as vector shapes with embedded font subsets |
-| `src/canvas.rs`, `src/parse.rs`, `src/align.rs`, `src/clipboard.rs`, `src/style.rs`, `src/related.rs` | The diagram canvas, the typed attribute and operation lines, Format › Alignment, cut, copy and paste, view colours, and the inline edit's "add related element" buttons |
+| `src/canvas.rs`, `src/parse.rs`, `src/align.rs`, `src/clipboard.rs`, `src/style.rs`, `src/related.rs`, `src/quickedit.rs` | The diagram canvas, the typed attribute and operation lines, Format › Alignment, cut, copy and paste, view colours, the inline edit's "add related element" buttons, and where its dropdowns and buttons sit around the field |
 | `src/splitter.rs` | Panel splitters: drag a panel's edge to resize it, or below 10 px to hide it |
 | `src/main.rs`, `src/cli.rs`, `src/selector.rs` | Start-up, the window, and the command line (`umlcraft ejs`, `image`, `pdf`, `html`, `exec`, `--help`) with the element selector language |
 | `src/app.rs`, `src/ui.rs`, `src/icons.rs`, `src/prefs.rs`, `src/tags.rs`, `src/palette.rs`, `src/find.rs`, `src/validate.rs` | Project state, undo, open and save, and the panels, menus and icons |
