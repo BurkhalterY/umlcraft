@@ -2319,6 +2319,26 @@ impl App {
         });
     }
 
+    /// Add and Add Diagram, acting on the focused element (or the project): in the Model menu and at
+    /// the top of the canvas menu (menus/linux.json "diagram-canvas").
+    pub(crate) fn add_menus(&mut self, ui: &mut egui::Ui) {
+        let target = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f)).unwrap_or(self.repo.root);
+        ui.add_enabled_ui(!self.add_kinds(target).is_empty() || self.repo.kind_of(target, "ExtensibleModel"), |ui| {
+            ui.menu_button("Add", |ui| self.add_items(ui, target));
+        });
+        ui.menu_button("Add Diagram", |ui| {
+            let sel = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f));
+            let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, sel, k).unwrap_or(true)).collect();
+            for (l, k) in kinds {
+                if ui.button(l).clicked() {
+                    let f = self.focus;
+                    self.change(|a| a.add_diagram(f, k));
+                    ui.close();
+                }
+            }
+        });
+    }
+
     fn status_ui(&mut self, ui: &mut egui::Ui) {
         let rect = ui.max_rect();
         let p = ui.painter();
@@ -2579,22 +2599,7 @@ impl App {
                 });
             });
             ui.menu_button("Model", |ui| {
-                // Model › Add and Add Diagram act on the focused element (or the project)
-                let target = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f)).unwrap_or(self.repo.root);
-                ui.add_enabled_ui(!self.add_kinds(target).is_empty() || self.repo.kind_of(target, "ExtensibleModel"), |ui| {
-                    ui.menu_button("Add", |ui| self.add_items(ui, target));
-                });
-                ui.menu_button("Add Diagram", |ui| {
-                    let sel = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f));
-                    let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, sel, k).unwrap_or(true)).collect();
-                    for (l, k) in kinds {
-                        if ui.button(l).clicked() {
-                            let f = self.focus;
-                            self.change(|a| a.add_diagram(f, k));
-                            ui.close();
-                        }
-                    }
-                });
+                self.add_menus(ui);
                 if ui.add(self.key_button("Find...", "find:find")).clicked() {
                     self.open_find();
                     ui.close();

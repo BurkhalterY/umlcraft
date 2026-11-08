@@ -2812,8 +2812,12 @@ impl App {
         });
     }
 
-    fn canvas_menu(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn canvas_menu(&mut self, ui: &mut egui::Ui) {
         self.last_area = crate::app::Area::Canvas;
+        // Add and Add Diagram come first, on the clicked element or, on empty canvas, the project
+        // (menus/linux.json "diagram-canvas"; handleCreateDiagram, default-commands.js:1357-1362)
+        self.add_menus(ui);
+        ui.separator();
         let Some(v) = self.ctx_target.filter(|v| self.repo.alive(*v)) else {
             if ui.add(self.key_button("Paste", "edit:paste")).clicked() {
                 self.cmd_paste();

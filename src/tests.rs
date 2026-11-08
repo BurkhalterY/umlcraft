@@ -9050,3 +9050,39 @@ fn an_instance_deploys_on_a_node_instance() {
     assert_eq!(a.repo.refd(m, "source"), a.repo.refd(ai, "model"));
     assert_eq!(a.repo.refd(m, "target"), a.repo.refd(ni, "model"));
 }
+
+/// The texts a piece of UI paints in one frame.
+fn painted_texts(ctx: &egui::Context, mut f: impl FnMut(&mut egui::Ui)) -> Vec<String> {
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| f(ui));
+    });
+    out.textures_delta.clear();
+    let mut texts = vec![];
+    for s in out.shapes {
+        if let egui::Shape::Text(t) = s.shape {
+            texts.push(t.galley.job.text.clone());
+        }
+    }
+    texts
+}
+
+#[test]
+fn the_canvas_menu_starts_with_add_and_add_diagram() {
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 160.0, 80.0))).unwrap();
+    // on a box: Add and Add Diagram, then the clipboard items (menus/linux.json "diagram-canvas")
+    a.ctx_target = Some(c);
+    a.select(vec![c]);
+    let texts = painted_texts(&ctx, |ui| a.canvas_menu(ui));
+    let at = |t: &str| texts.iter().position(|x| x == t);
+    assert_eq!(at("Add"), Some(0), "{texts:?}");
+    assert_eq!(at("Add Diagram"), Some(1));
+    assert!(at("Cut").unwrap() > 1);
+    // and on empty canvas, before Paste
+    a.ctx_target = None;
+    a.select(vec![]);
+    let texts = painted_texts(&ctx, |ui| a.canvas_menu(ui));
+    assert_eq!(&texts[..3], &["Add".to_string(), "Add Diagram".to_string(), "Paste".to_string()]);
+}
