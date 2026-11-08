@@ -1613,7 +1613,7 @@ pub fn display_name(r: &Repo, m: Eid) -> String {
 /// elements.js:9912-9934, 10232-10241): an action that calls an activity shows "name:Activity", one
 /// calling a behaviour with no name of its own shows the behaviour's name, and an object node shows
 /// "name: Type". Other boxes show their display name.
-fn box_name(r: &Repo, m: Eid) -> String {
+pub(crate) fn box_name(r: &Repo, m: Eid) -> String {
     let name = r.name(m);
     if r.kind_of(m, "UMLAction") {
         if let Some(sub) = r.refd(m, "subactivity").filter(|s| r.ty(*s) == "UMLActivity") {
@@ -2233,7 +2233,17 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         layout_hyperlink(r, ms, v);
         return Info { shape: "hyperlink", ..Default::default() };
     }
-    if t == "UMLFrameView" || t == "UMLInteractionInlineView" {
+    if t == "UMLTimingLifelineView" || t == "UMLTimingStateView" || t == "UMLTimeSegmentView" || t == "UMLTimeTickView" {
+        // placed by their frame (crate::timing::layout)
+        let shape = match t.as_str() {
+            "UMLTimingLifelineView" => "timing-lifeline",
+            "UMLTimingStateView" => "timing-state",
+            "UMLTimeSegmentView" => "time-segment",
+            _ => "time-tick",
+        };
+        return Info { shape, ..Default::default() };
+    }
+    if t == "UMLFrameView" || t == "UMLInteractionInlineView" || t == "UMLTimingFrameView" {
         layout_frame(r, ms, v);
         return Info { shape: "frame", ..Default::default() };
     }
@@ -2783,6 +2793,9 @@ pub fn layout_diagram(r: &mut Repo, ms: &dyn Measure, d: Eid) -> HashMap<Eid, In
             info.insert(*v, i);
         }
     }
+    if r.ty(d) == "UMLTimingDiagram" {
+        crate::timing::layout(r, ms, d);
+    }
     for v in &views {
         // only line kinds UMLCraft knows are re-routed; others keep the points they were saved with
         if r.alive(*v) && KNOWN_EDGE_VIEWS.contains(&r.ty(*v)) && is_edge(r, *v) {
@@ -2800,6 +2813,22 @@ pub fn layout_diagram(r: &mut Repo, ms: &dyn Measure, d: Eid) -> HashMap<Eid, In
     }
     if r.ty(d) == "UMLInteractionOverviewDiagram" {
         crate::overview::layout_inlines(r, ms, d, &mut info);
+    }
+    if r.ty(d) == "UMLTimingDiagram" {
+        crate::timing::layout_messages(r, ms, d);
+        for v in &views {
+            if r.alive(*v) && r.ty(*v) == "UMLTimeConstraintLinkView" {
+                layout_edge(r, ms, *v, &info);
+                // from a time segment, the link starts at its middle height (UMLTimeConstraintLinkView.arrangeObject)
+                if let Some(t) = r.refd(*v, "tail").filter(|t| r.ty(*t) == "UMLTimeSegmentView") {
+                    let mut pts = points_of(r, *v);
+                    if let Some(p) = pts.first_mut() {
+                        p.y = (r.f(t, "top") + r.f(t, "height") / 2.0).round();
+                    }
+                    r.set(*v, "points", json!(format_points(&pts)));
+                }
+            }
+        }
     }
     for v in &views {
         if r.alive(*v) && r.ty(*v) == "UMLCommMessageView" {

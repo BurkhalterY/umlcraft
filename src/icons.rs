@@ -326,6 +326,24 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(7.0, 8.5), (4.0, 11.0), (7.0, 13.5)], B);
         }
         // communication diagram tools: a connector with a short arrow beside it
+        "timing-lifeline" => {
+            line(&[(1.0, 14.0), (15.0, 14.0)], Y);
+            line(&[(4.0, 3.0), (4.0, 11.0)], Y);
+            line(&[(6.0, 5.0), (10.0, 5.0), (10.0, 10.0), (15.0, 10.0)], B);
+        }
+        "state-condition" => {
+            line(&[(1.0, 5.0), (6.0, 5.0)], Y);
+            line(&[(1.0, 11.0), (6.0, 11.0)], Y);
+            dashed(&[(8.0, 5.0), (15.0, 5.0)], B);
+            dashed(&[(8.0, 11.0), (15.0, 11.0)], B);
+        }
+        "time-segment" => line(&[(1.0, 11.0), (7.0, 11.0), (7.0, 5.0), (15.0, 5.0)], B),
+        "time-tick" => {
+            line(&[(1.0, 6.0), (15.0, 6.0)], Y);
+            for x in [3.0, 8.0, 13.0] {
+                line(&[(x, 6.0), (x, 10.0)], Y);
+            }
+        }
         "time-constraint" => {
             line(&[(1.0, 13.0), (15.0, 13.0)], B);
             dashed(&[(8.0, 13.0), (8.0, 7.0)], B);

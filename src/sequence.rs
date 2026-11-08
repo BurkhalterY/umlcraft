@@ -848,6 +848,11 @@ pub fn create_duration_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> 
         &[("model", m.clone()), ("font", json!(views::FONT)), ("parentStyle", json!(false)), ("left", json!(rect.x)), ("top", json!(rect.y)), ("width", json!(DURATION_MIN_W)), ("height", json!(rect.h.max(DURATION_MIN_H)))],
         Some((diagram, "ownedViews")),
     );
+    // on a timing diagram it lies across
+    if r.ty(diagram) == "UMLTimingDiagram" {
+        r.set(v, "width", json!(rect.w.max(DURATION_MIN_H)));
+        r.set(v, "height", json!(DURATION_MIN_W));
+    }
     let l = r.create(
         "NodeLabelView",
         &[("model", m), ("font", json!(views::FONT)), ("parentStyle", json!(true)), ("alpha", json!(3.0 * std::f64::consts::FRAC_PI_4)), ("distance", json!(20)), ("height", json!(views::LABEL_H))],
@@ -887,9 +892,16 @@ pub fn layout_time(r: &mut Repo, ms: &dyn Measure, v: Eid) {
 /// A duration constraint is 14 wide, stretching down only; its label sits up and left of it
 /// (sizeObject, arrangeObject; NodeParasiticView.arrange, core.js:3600-3616).
 pub fn layout_duration(r: &mut Repo, ms: &dyn Measure, v: Eid) {
-    r.set(v, "width", json!(DURATION_MIN_W));
-    let h = r.f(v, "height").max(DURATION_MIN_H);
-    r.set(v, "height", json!(h));
+    // on a timing diagram it lies across: 14 high, stretching right
+    if timing(r, v) {
+        r.set(v, "height", json!(DURATION_MIN_W));
+        let w = r.f(v, "width").max(DURATION_MIN_H);
+        r.set(v, "width", json!(w));
+    } else {
+        r.set(v, "width", json!(DURATION_MIN_W));
+        let h = r.f(v, "height").max(DURATION_MIN_H);
+        r.set(v, "height", json!(h));
+    }
     let (Some(m), Some(l)) = (r.refd(v, "model"), r.refd(v, "nameLabel")) else { return };
     let t = interval_text(r, m);
     let (face, size) = views::view_font(r, v);
@@ -907,6 +919,10 @@ pub fn layout_duration(r: &mut Repo, ms: &dyn Measure, v: Eid) {
 /// Draw a duration constraint: a line across its top and its bottom, and a double arrow between
 /// them down its middle (UMLDurationConstraintView.drawObject); and its label.
 pub fn draw_duration(c: &mut dyn Canvas, r: &Repo, v: Eid, line: Rgba, fc: Rgba) {
+    if timing(r, v) {
+        draw_duration_across(c, r, v, line, fc);
+        return;
+    }
     let b = rect(r, v);
     let (x1, y1, x2, y2) = (b.x, b.y, b.x + b.w, b.y + b.h);
     let seg = |c: &mut dyn Canvas, a: (f64, f64), z: (f64, f64)| c.polyline(&[P { x: a.0, y: a.1 }, P { x: z.0, y: z.1 }], line, false);
@@ -917,6 +933,27 @@ pub fn draw_duration(c: &mut dyn Canvas, r: &Repo, v: Eid, line: Rgba, fc: Rgba)
     let a = DURATION_ARROW;
     c.polyline(&[P { x: cx - a, y: y1 + a * 2.0 }, P { x: cx, y: y1 }, P { x: cx + a, y: y1 + a * 2.0 }], line, false);
     c.polyline(&[P { x: cx - a, y: y2 - a * 2.0 }, P { x: cx, y: y2 }, P { x: cx + a, y: y2 - a * 2.0 }], line, false);
+    if let Some(l) = r.refd(v, "nameLabel") {
+        draw_text(c, r, l, fc);
+    }
+}
+
+fn timing(r: &Repo, v: Eid) -> bool {
+    r.parent(v).map(|d| r.ty(d) == "UMLTimingDiagram").unwrap_or(false)
+}
+
+/// On a timing diagram: a bar at each end and a double arrow across the middle.
+fn draw_duration_across(c: &mut dyn Canvas, r: &Repo, v: Eid, line: Rgba, fc: Rgba) {
+    let b = rect(r, v);
+    let (x1, y1, x2, y2) = (b.x, b.y, b.x + b.w, b.y + b.h);
+    let seg = |c: &mut dyn Canvas, a: (f64, f64), z: (f64, f64)| c.polyline(&[P { x: a.0, y: a.1 }, P { x: z.0, y: z.1 }], line, false);
+    seg(c, (x1, y1), (x1, y2));
+    seg(c, (x2, y1), (x2, y2));
+    let cy = y1 + (b.h / 2.0).round();
+    seg(c, (x1, cy), (x2, cy));
+    let a = DURATION_ARROW;
+    c.polyline(&[P { x: x1 + a * 2.0, y: cy - a }, P { x: x1, y: cy }, P { x: x1 + a * 2.0, y: cy + a }], line, false);
+    c.polyline(&[P { x: x2 - a * 2.0, y: cy - a }, P { x: x2, y: cy }, P { x: x2 - a * 2.0, y: cy + a }], line, false);
     if let Some(l) = r.refd(v, "nameLabel") {
         draw_text(c, r, l, fc);
     }

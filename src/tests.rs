@@ -5817,3 +5817,82 @@ fn interaction_overview_diagrams_call_interactions() {
     crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn timing_diagrams_have_lifelines_states_segments_and_messages() {
+    use crate::views::Measure;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLTimingDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(inter), a.repo.name(d).as_str()), ("UMLInteraction", "TimingDiagram1"));
+    let f = a.repo.list(d, "ownedViews")[0];
+    assert_eq!((a.repo.ty(f), a.repo.f(f, "left"), a.repo.f(f, "width")), ("UMLTimingFrameView", 5.0, 695.0));
+    // a lifeline only goes in a frame; it spans the frame
+    assert!(a.change(|a| a.create_node("UMLLifeline", rect(800.0, 800.0, 1.0, 1.0))).is_none());
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 60.0, 1.0, 1.0))).unwrap();
+    let l2 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 400.0, 1.0, 1.0))).unwrap();
+    assert_eq!((a.repo.ty(l1), a.repo.refd(l1, "containerView")), ("UMLTimingLifelineView", Some(f)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // states in a lifeline, by the tool or Create State/Condition
+    let s1 = a.change(|a| a.create_node("UMLTimingState", rect(100.0, a.repo.f(l1, "top") + 10.0, 1.0, 1.0))).unwrap();
+    a.diagram = Some(d);
+    let s2 = a.add_timing(l1).unwrap();
+    let s1m = a.repo.refd(s1, "model").unwrap();
+    let l1m = a.repo.refd(l1, "model").unwrap();
+    assert_eq!((a.repo.ty(s1m), a.repo.name(s1m).as_str(), a.repo.parent(s1m)), ("UMLConstraint", "State-Condition1", Some(l1m)));
+    assert_eq!(a.repo.name(a.repo.refd(s2, "model").unwrap()), "State-Condition2");
+    a.repo.set(s1m, "name", json!("Waiting a long while"));
+    let s3 = a.add_timing(l2).unwrap();
+    // time segments on the states: state invariants of the interaction
+    let g1 = a.change(|a| a.time_segment(d, s1, rect(400.0, 0.0, 40.0, 1.0))).unwrap();
+    let g2 = a.add_timing(s2).unwrap();
+    let g3 = a.add_timing(s3).unwrap();
+    let g1m = a.repo.refd(g1, "model").unwrap();
+    assert_eq!((a.repo.ty(g1m), a.repo.parent(g1m), a.repo.refd(g1m, "covered"), a.repo.refd(g1m, "invariant")), ("UMLStateInvariant", Some(inter), Some(l1m), Some(s1m)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // lifelines stack down the frame, states 25 px into them, segments from the end of the longest state name
+    assert_eq!((a.repo.f(l1, "left"), a.repo.f(l1, "width")), (5.0, 695.0));
+    assert_eq!(a.repo.f(l2, "top"), a.repo.f(l1, "top") + a.repo.f(l1, "height"));
+    assert_eq!(a.repo.f(s1, "top"), a.repo.f(l1, "top") + 25.0);
+    let start = a.repo.f(s1, "left") + ms.width("Waiting a long while", 0).ceil() + 5.0;
+    let starts: Vec<f64> = [g1, g2, g3].iter().map(|g| a.repo.f(*g, "left")).collect();
+    assert_eq!(starts[0].min(starts[1]), start, "the first segment starts after the names");
+    assert_eq!(starts[2], start);
+    assert_eq!(a.repo.f(g1, "height"), 25.0);
+    // a message between two segments, its ends at their middles
+    let msg = tool("UMLMessage", AssocInit::Plain);
+    assert!(a.can_connect(&msg, g1, g3));
+    let gx = a.repo.f(g1, "left") + 5.0;
+    a.line_from = Some((crate::views::P { x: gx, y: 0.0 }, crate::views::P { x: gx + 3.0, y: 0.0 }));
+    let e = a.change(|a| a.create_edge(&msg, g1, g3)).unwrap();
+    let em = a.repo.refd(e, "model").unwrap();
+    assert_eq!((a.repo.refd(em, "source"), a.repo.refd(em, "target")), (Some(l1m), a.repo.refd(l2, "model")));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let pts = crate::views::points_of(&a.repo, e);
+    assert_eq!(pts[0].y, (a.repo.f(g1, "top") + 12.5).round());
+    assert_eq!(pts[0].x, a.repo.f(g1, "left"), "snapped to the segment's start");
+    // time ticks along the bottom of the frame, from the start
+    let t1 = a.change(|a| a.create_node("UMLTimeTick", rect(300.0, 590.0, 1.0, 1.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(t1, "left"), a.repo.f(t1, "top")), (start, 5.0 + 595.0 - 5.0));
+    // a time constraint on a segment, and a duration constraint lying across in the frame
+    let tc = a.change(|a| a.create_node("UMLTimeConstraint", rect(a.repo.f(g1, "left") + 2.0, a.repo.f(g1, "top") + 5.0, 1.0, 1.0))).unwrap();
+    assert_eq!(a.repo.parent(a.repo.refd(tc, "model").unwrap()), Some(g1m));
+    let dc = a.change(|a| a.create_node("UMLDurationConstraint", rect(300.0, 300.0, 80.0, 30.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(dc, "width"), a.repo.f(dc, "height"), a.repo.refd(dc, "containerView")), (80.0, 14.0, Some(f)));
+    // the quick edits
+    let labels: Vec<&str> = crate::canvas::item_buttons(&a.repo, Some(l1), &crate::app::EditKind::Name(l1m)).into_iter().map(|b| b.1).collect();
+    assert!(labels.contains(&"Create State/Condition"));
+    let labels: Vec<&str> = crate::canvas::item_buttons(&a.repo, Some(s1), &crate::app::EditKind::Name(s1m)).into_iter().map(|b| b.1).collect();
+    assert_eq!(labels, ["Create Time Segment"]);
+    // moving a segment onto another state changes what it covers
+    a.change(|a| a.set_container(&[g1], Some(s3)));
+    assert_eq!(a.repo.refd(g1m, "invariant"), a.repo.refd(s3, "model"));
+    assert_eq!(a.repo.refd(g1m, "covered"), a.repo.refd(l2, "model"));
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

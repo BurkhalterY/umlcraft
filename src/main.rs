@@ -46,6 +46,7 @@ mod style;
 mod tags;
 mod templates;
 mod thumbs;
+mod timing;
 mod ui;
 mod validate;
 mod views;

@@ -226,6 +226,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLProfileDiagram", Some("UMLDiagram"), vec![]);
     def("UMLSequenceDiagram", Some("UMLDiagram"), vec![("showSequenceNumber", d(json!(true))), ("sequenceNumbering", d(json!("auto"))), ("showSignature", d(json!(true))), ("showActivation", d(json!(true)))]);
     def("UMLInteractionOverviewDiagram", Some("UMLDiagram"), vec![]);
+    def("UMLTimingDiagram", Some("UMLDiagram"), vec![]);
     def("UMLCommunicationDiagram", Some("UMLDiagram"), vec![("showSequenceNumber", d(json!(true))), ("sequenceNumbering", d(json!("auto"))), ("showSignature", d(json!(true)))]);
 
     // UML views
@@ -310,6 +311,11 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLCustomFrameView", Some("NodeView"), vec![("nameLabel", n()), ("frameTypeLabel", n())]);
     def("UMLFrameView", Some("UMLCustomFrameView"), vec![("showType", d(json!(false))), ("showNamespace", d(json!(false))), ("showDiagramName", d(json!(false)))]);
     def("UMLInteractionInlineView", Some("UMLFrameView"), vec![]);
+    def("UMLTimingFrameView", Some("UMLFrameView"), vec![]);
+    def("UMLTimingStateView", Some("NodeView"), vec![("nameLabel", n())]);
+    def("UMLTimingLifelineView", Some("NodeView"), vec![("showType", d(json!(true))), ("nameLabel", n())]);
+    def("UMLTimeSegmentView", Some("NodeView"), vec![]);
+    def("UMLTimeTickView", Some("NodeView"), vec![("text", d(json!("")))]);
     // plain shapes: a rectangle, a rounded rectangle, an ellipse (elements.js:14332-14378)
     def("ShapeView", Some("NodeView"), vec![]);
     // a picture, kept as a data URL with its natural size (uml/metamodel.json ImageView)
@@ -343,6 +349,7 @@ fn build() -> HashMap<&'static str, Kind> {
         ("stereotypeDisplay", d(json!("label"))), ("showVisibility", d(json!(false))), ("showProperty", d(json!(true))),
         ("nameLabel", n()), ("stereotypeLabel", n()), ("propertyLabel", n()),
     ]);
+    def("UMLTimingMessageView", Some("UMLGeneralEdgeView"), vec![]);
     def("UMLUndirectedRelationshipView", Some("UMLGeneralEdgeView"), vec![
         ("showMultiplicity", d(json!(true))), ("showType", d(json!(true))), ("showEndOrder", d(json!(0))), ("tailRoleNameLabel", n()), ("tailPropertyLabel", n()),
         ("tailMultiplicityLabel", n()), ("headRoleNameLabel", n()), ("headPropertyLabel", n()), ("headMultiplicityLabel", n()),

@@ -562,6 +562,22 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             crate::flowchart::draw(c, r, v, fill, line, fc);
             return;
         }
+        "timing-lifeline" => {
+            crate::timing::draw_lifeline(c, r, v, line, fc);
+            return;
+        }
+        "timing-state" => {
+            crate::timing::draw_state(c, r, v, fc);
+            return;
+        }
+        "time-segment" => {
+            crate::timing::draw_segment(c, r, v, line);
+            return;
+        }
+        "time-tick" => {
+            crate::timing::draw_tick(c, r, v, line, fc);
+            return;
+        }
         "time-constraint" => {
             crate::sequence::draw_time(c, r, v, fc);
             return;
@@ -1090,7 +1106,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     let (mut head, mut tail) = (None, None);
     // a message: dotted for replies and create messages, a filled arrow for calls and deletes, an
     // open one for the others (UMLSeqMessageView.update, elements.js:11700-11725)
-    let seq_sort = (ty == "UMLSeqMessageView").then(|| r.refd(e, "model").map(|m| r.str(m, "messageSort"))).flatten();
+    let seq_sort = (ty == "UMLSeqMessageView" || ty == "UMLTimingMessageView").then(|| r.refd(e, "model").map(|m| r.str(m, "messageSort"))).flatten();
     if let Some(sort) = &seq_sort {
         dashed = matches!(sort.as_str(), "reply" | "createMessage");
         head = Some(if matches!(sort.as_str(), "asynchCall" | "asynchSignal" | "createMessage" | "reply") { End::Arrow } else { End::SolidArrow });
@@ -1104,7 +1120,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         // an extension: a solid line with a filled triangle at the metaclass
         "UMLExtensionView" => head = Some(End::FilledTriangle),
         "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" | "UMLTransitionView" | "UMLControlFlowView" | "UMLObjectFlowView" | "UMLExceptionHandlerView" | "UMLActivityInterruptView" => head = Some(End::Arrow),
-        "UMLSeqMessageView" => {}
+        "UMLSeqMessageView" | "UMLTimingMessageView" => {}
         // a flowchart flow ends in a filled arrow (FCGeneralEdgeView, flowchart/elements.js:200)
         "FCFlowView" | "DFDDataFlowView" => head = Some(End::SolidArrow),
         // a C4 relationship is dotted with a filled arrow (C4RelationshipView, c4/elements.js:590-597)
@@ -1169,7 +1185,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         c.rect(node_rect(r, a), Some(color(r, e, "fillColor", WHITE)), Some(line));
     }
     // a delete message crosses out the end of its lifeline (elements.js:11940-11948)
-    if seq_sort.as_deref() == Some("deleteMessage") {
+    if ty == "UMLSeqMessageView" && seq_sort.as_deref() == Some("deleteMessage") {
         if let Some(h) = r.refd(e, "head") {
             let b = node_rect(r, h);
             let (cx, by) = (b.x + b.w / 2.0, b.y + b.h);

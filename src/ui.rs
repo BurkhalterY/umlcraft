@@ -276,6 +276,23 @@ const COMMUNICATION_GROUPS: &[Group] = &[
     },
     ANNOTATIONS,
 ];
+// a timing diagram (uml.json "uml.timing")
+const TIMING_GROUPS: &[Group] = &[
+    Group {
+        id: "timing",
+        label: "Timing",
+        items: &[
+            node("Lifeline", "UMLLifeline", "timing-lifeline"),
+            node("State/Condition", "UMLTimingState", "state-condition"),
+            node("Time Segment", "UMLTimeSegment", "time-segment"),
+            node("Time Tick", "UMLTimeTick", "time-tick"),
+            node("Time Constraint", "UMLTimeConstraint", "time-constraint"),
+            node("Duration Constraint", "UMLDurationConstraint", "duration-constraint"),
+            line("Message", "UMLMessage", "message", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
 // an interaction overview diagram (uml.json "uml.interaction-overview")
 const OVERVIEW_GROUPS: &[Group] = &[
     Group {
@@ -525,7 +542,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 20] = [
+const DIAGRAM_KINDS: [(&str, &str); 21] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -539,6 +556,7 @@ const DIAGRAM_KINDS: [(&str, &str); 20] = [
     ("Activity Diagram", "UMLActivityDiagram"),
     ("Sequence Diagram", "UMLSequenceDiagram"),
     ("Communication Diagram", "UMLCommunicationDiagram"),
+    ("Timing Diagram", "UMLTimingDiagram"),
     ("Interaction Overview Diagram", "UMLInteractionOverviewDiagram"),
     ("Flowchart Diagram", "FCFlowchartDiagram"),
     // the original's labels (dfd/menus/dfd.json, mindmap/menus/mindmap.json)
@@ -1841,6 +1859,7 @@ impl App {
                 Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
                 Some("UMLCommunicationDiagram") => self.open_groups.insert("communication"),
                 Some("UMLInteractionOverviewDiagram") => self.open_groups.insert("interaction-overview"),
+                Some("UMLTimingDiagram") => self.open_groups.insert("timing"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1876,6 +1895,7 @@ impl App {
             Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
             Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,
             Some("UMLInteractionOverviewDiagram") => OVERVIEW_GROUPS,
+            Some("UMLTimingDiagram") => TIMING_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

@@ -807,6 +807,13 @@ impl App {
         // a lifeline goes in the participants of the diagram's interaction and represents a new role
         // "Role1"… of the classifier that owns the interaction; it is at least 200 high (lifelineFn,
         // uml-factory.js:1105-1180). Endpoints and gates are participants too.
+        // a timing diagram's lifelines, states, time segments and time ticks (uml-factory.js:1105-1180, 1559-1700)
+        if let Some(v) = self.create_timing_node(d, kind, rect) {
+            if let Some(v) = v {
+                self.apply_view_defaults(v);
+            }
+            return v;
+        }
         if matches!(kind, "UMLLifeline" | "UMLEndpoint" | "UMLGate") {
             let inter = self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLInteraction")?;
             let name = self.new_name(inter, kind);
@@ -839,7 +846,13 @@ impl App {
         // joined to the message; a duration constraint belongs to the interaction (timeConstraintFn,
         // durationConstraintFn, uml-factory.js:1718-1840)
         if kind == "UMLTimeConstraint" {
-            let msg = self.repo.list(d, "ownedViews").into_iter().rev().find(|v| self.repo.ty(*v) == "UMLSeqMessageView" && crate::views::points_of(&self.repo, *v).windows(2).any(|w| crate::canvas::dist_to_seg(P { x: rect.x, y: rect.y }, w[0], w[1]) <= 5.0))?;
+            // on a message, or on a timing diagram's message or time segment
+            let at = P { x: rect.x, y: rect.y };
+            let msg = self.repo.list(d, "ownedViews").into_iter().rev().find(|v| match self.repo.ty(*v) {
+                "UMLSeqMessageView" | "UMLTimingMessageView" => crate::views::points_of(&self.repo, *v).windows(2).any(|w| crate::canvas::dist_to_seg(at, w[0], w[1]) <= 5.0),
+                "UMLTimeSegmentView" => { let b = views::node_rect(&self.repo, *v); at.x >= b.x && at.x <= b.x + b.w && at.y >= b.y && at.y <= b.y + b.h }
+                _ => false,
+            })?;
             let mm = self.repo.refd(msg, "model")?;
             let names: HashSet<String> = self.repo.children(mm).into_iter().map(|(_, c)| self.repo.name(c)).collect();
             let name = (1..).map(|i| format!("Time Constraint{i}")).find(|n| !names.contains(n)).unwrap();
@@ -854,6 +867,13 @@ impl App {
             let name = (1..).map(|i| format!("Duration Constraint{i}")).find(|n| !names.contains(n)).unwrap();
             let m = self.repo.create(kind, &[("name", json!(name))], Some((inter, "ownedElements")));
             let v = crate::sequence::create_duration_view(&mut self.repo, d, m, rect);
+            // on a timing diagram, in the frame under its far corner
+            if self.repo.ty(d) == "UMLTimingDiagram" {
+                let (x2, y2) = (rect.x + rect.w, rect.y + rect.h);
+                if let Some(f) = self.repo.list(d, "ownedViews").into_iter().rev().find(|f| self.repo.ty(*f) == "UMLTimingFrameView" && { let b = views::node_rect(&self.repo, *f); x2 >= b.x && x2 <= b.x + b.w && y2 >= b.y && y2 <= b.y + b.h }) {
+                    self.set_container(&[v], Some(f));
+                }
+            }
             self.apply_view_defaults(v);
             return Some(v);
         }
@@ -1085,6 +1105,10 @@ impl App {
     /// hold boxes, and never themselves or a box that contains them.
     pub fn can_contain_view(&self, container: Eid, v: Eid) -> bool {
         let ct = self.repo.ty(container);
+        // a timing frame holds lifelines, a state time segments (elements.js:13440-13460)
+        if let Some(ok) = crate::timing::can_contain(ct, self.repo.ty(v)) {
+            return ok && container != v;
+        }
         // a wireframe frame or panel holds widgets, a tab list holds tabs (wireframe/elements.js)
         if crate::wireframe::is_node_view(ct) || crate::wireframe::is_node_view(self.repo.ty(v)) {
             let mut c = Some(container);
@@ -1167,6 +1191,14 @@ impl App {
                 };
                 a.push(self.repo.ref_to(v));
                 self.repo.set_raw(c, "containedViews", json!(a));
+            }
+            // a time segment moved to another state takes that state and its lifeline; other timing
+            // views keep their models where they are
+            if self.repo.ty(v).starts_with("UMLTim") || self.repo.ty(v) == "UMLDurationConstraintView" {
+                if let (Some(c), "UMLTimeSegmentView") = (to, self.repo.ty(v)) {
+                    crate::timing::segment_moved(&mut self.repo, v, c);
+                }
+                continue;
             }
             // a state or pseudostate goes in the first region of the state it is put in, or of the
             // diagram's state machine when released (uml/main.js:24-41)
@@ -1273,8 +1305,8 @@ impl App {
             // UMLInteractionOverviewDiagram.canAcceptModel (elements.js:13823-13834)
             "UMLInteractionOverviewDiagram" => vec!["Hyperlink", "Diagram", "UMLInteractionUse", "UMLInteraction"],
             // UMLSequenceDiagram.canAcceptModel (elements.js:10958-10985), and
-            // UMLCommunicationDiagram's (elements.js:12914-12946)
-            "UMLSequenceDiagram" | "UMLCommunicationDiagram" => {
+            // UMLCommunicationDiagram's and UMLTimingDiagram's (elements.js:12914-12946, 13374-13389)
+            "UMLSequenceDiagram" | "UMLCommunicationDiagram" | "UMLTimingDiagram" => {
                 // a role of the collaboration that owns the interaction
                 if self.repo.ty(m) == "UMLAttribute" {
                     return self.repo.parent(m) == self.repo.parent(d).and_then(|i| self.repo.parent(i));
@@ -1337,10 +1369,11 @@ impl App {
             return Ok(v.into_iter().collect());
         }
         let comm = self.repo.ty(d) == "UMLCommunicationDiagram";
-        if (self.repo.ty(d) == "UMLSequenceDiagram" || comm) && (self.repo.kind_of(m, "UMLClassifier") || self.repo.ty(m) == "UMLAttribute") {
+        let timing = self.repo.ty(d) == "UMLTimingDiagram";
+        if (self.repo.ty(d) == "UMLSequenceDiagram" || comm || timing) && (self.repo.kind_of(m, "UMLClassifier") || self.repo.ty(m) == "UMLAttribute") {
             let v = self.change(|a| {
                 // a communication lifeline at its smallest (viewForCommunicationDiagramFn, uml-factory.js:2981-3070)
-                let h = if comm { crate::communication::LIFELINE_MIN.1 } else { 200.0 };
+                let h = if comm { crate::communication::LIFELINE_MIN.1 } else if timing { 1.0 } else { 200.0 };
                 let v = a.create_node("UMLLifeline", views::R { x: p.x, y: p.y, w: 100.0, h })?;
                 let lm = a.repo.refd(v, "model")?;
                 let role = a.repo.refd(lm, "represent")?;
@@ -1582,6 +1615,8 @@ impl App {
             "MMEdge" => r.ty(tm) == "MMNode" && r.ty(hm) == "MMNode",
             // a relationship joins two entities (entityLinkPrecondition, erd-factory.js:20-26)
             // a message joins two lifelines, endpoints or gates (messageFn, uml-factory.js:1185-1215)
+            // on a timing diagram, between two time segments (UMLTimingMessageView.canConnectTo)
+            _ if crate::sequence::message_sort(kind).is_some() && r.ty(tail) == "UMLTimeSegmentView" => r.ty(head) == "UMLTimeSegmentView",
             _ if crate::sequence::message_sort(kind).is_some() => r.kind_of(tm, "UMLMessageEndpoint") && r.kind_of(hm, "UMLMessageEndpoint"),
             // a C4 relationship joins two C4 elements (linkPrecondition, c4-factory.js:20-25)
             "C4Relationship" => r.kind_of(tm, "C4Element") && r.kind_of(hm, "C4Element"),
@@ -1640,6 +1675,11 @@ impl App {
         // a message, from line part to line part (or endpoint), at the height it was drawn; found and
         // lost messages start or end at a new endpoint (messageFn, foundMessageFn, lostMessageFn,
         // uml-factory.js:1185-1510)
+        // a timing diagram's message joins two time segments at the points it was drawn between
+        if let (Some(sort), true) = (crate::sequence::message_sort(tool.kind), self.repo.ty(d) == "UMLTimingDiagram") {
+            let (from, to) = self.line_from.take().unwrap_or_default();
+            return self.timing_message(d, sort, tail, head, from, to);
+        }
         if let Some(sort) = crate::sequence::message_sort(tool.kind) {
             let inter = self.repo.parent(d).filter(|p| self.repo.ty(*p) == "UMLInteraction")?;
             let (from, to) = self.line_from.take().unwrap_or_default();
@@ -2070,6 +2110,32 @@ impl App {
             let name = self.new_name(act, ty);
             let d = self.repo.create(ty, &[("name", json!(name))], Some((act, "ownedElements")));
             let f = views::create_frame_view(&mut self.repo, d, Some(d), R { x: 8.0, y: 8.0, w: 692.0, h: 592.0 });
+            self.apply_view_defaults(f);
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
+        // a timing diagram too, with a timing frame (timingDiagramFn, uml-factory.js:374-434)
+        if ty == "UMLTimingDiagram" {
+            let target = match parent {
+                Some(p) if self.repo.ty(p) == "UMLInteraction" || self.repo.kind_of(p, "UMLClassifier") || self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" => p,
+                _ => self.package_for(self.diagram),
+            };
+            let target = if self.repo.ty(target) == "UMLInteraction" {
+                target
+            } else {
+                let holder = if self.repo.kind_of(target, "UMLCollaboration") {
+                    target
+                } else {
+                    let name = self.new_name(target, "UMLCollaboration");
+                    self.repo.create("UMLCollaboration", &[("name", json!(name))], Some((target, "ownedElements")))
+                };
+                let name = self.new_name(holder, "UMLInteraction");
+                self.repo.create("UMLInteraction", &[("name", json!(name))], Some((holder, "ownedElements")))
+            };
+            let name = self.new_name(target, ty);
+            let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
+            let f = crate::timing::create_frame(&mut self.repo, d);
             self.apply_view_defaults(f);
             self.open_diagram(d);
             self.reveal(d);

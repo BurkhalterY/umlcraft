@@ -169,6 +169,17 @@ pub fn item_buttons(r: &crate::model::Repo, host: Option<Eid>, kind: &EditKind) 
     match kind {
         EditKind::Name(m) => {
             let t = r.ty(*m);
+            // a timing lifeline's and state's buttons (quickedits/uml.json "uml.lifeline-timing", "uml.state-timing")
+            if t == "UMLLifeline" && host.map(|h| r.ty(h) == "UMLTimingLifelineView").unwrap_or(false) {
+                return vec![
+                    ("Type…", "Select Type", "", ItemKey::LifelineType(false)),
+                    ("+ Type", "Create Type", "", ItemKey::LifelineType(true)),
+                    ("+ State", "Create State/Condition", "", ItemKey::Timing),
+                ];
+            }
+            if host.map(|h| r.ty(h) == "UMLTimingStateView").unwrap_or(false) {
+                return vec![("+ Segment", "Create Time Segment", "", ItemKey::Timing)];
+            }
             // a communication lifeline's buttons (quickedits/uml.json "uml.lifeline-comm")
             if t == "UMLLifeline" && host.map(|h| r.ty(h) == "UMLCommLifelineView").unwrap_or(false) {
                 use crate::communication::CommAdd::*;
@@ -314,6 +325,8 @@ pub enum ItemKey {
     Seq(crate::sequence::SeqAdd),
     /// A communication lifeline's buttons
     Comm(crate::communication::CommAdd),
+    /// A timing lifeline's Create State/Condition, a timing state's Create Time Segment
+    Timing,
     /// A message's Select / Create (second flag) Operation (first flag false) or Signal (true)
     MessageSignature(bool, bool),
     /// A message's Add Reply Message
@@ -1603,7 +1616,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || matches!(self.repo.ty(v), "ERDEntityView" | "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView" | "UMLCommMessageView") || crate::c4::is_node_view(self.repo.ty(v)) || crate::wireframe::has_name(self.repo.ty(v))));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || matches!(self.repo.ty(v), "ERDEntityView" | "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView" | "UMLCommMessageView" | "UMLTimingStateView" | "UMLTimingLifelineView") || crate::c4::is_node_view(self.repo.ty(v)) || crate::wireframe::has_name(self.repo.ty(v))));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
@@ -1845,6 +1858,11 @@ impl App {
             (ItemKey::AddTab, _) => {
                 if let Some(t) = self.change(|a| a.add_tab(host)) {
                     self.select(vec![t]);
+                }
+            }
+            (ItemKey::Timing, _) => {
+                if let Some(e) = self.add_timing(host) {
+                    self.select(vec![e]);
                 }
             }
             (ItemKey::Comm(what), _) => {
