@@ -1542,6 +1542,11 @@ impl App {
             if t == "UMLExtend" {
                 f.push(("condition", "text"));
             }
+            // a message's visible attributes, its signature and connector references aside
+            // (uml/metamodel.json UMLMessage)
+            if t == "UMLMessage" {
+                f.extend([("messageSort", "enum"), ("sequenceNumber", "text"), ("arguments", "text"), ("assignmentTarget", "text"), ("guard", "text"), ("iteration", "text"), ("isConcurrentIteration", "bool")]);
+            }
             if t == "UMLRoleBinding" {
                 f.push(("roleName", "text"));
             }
@@ -1654,6 +1659,8 @@ impl App {
             ("UMLTransition", "kind") => return &["external", "internal", "local"],
             // UMLConnectorKind (uml/metamodel.json)
             ("UMLConnector", "kind") => return &["assembly", "delegation"],
+            // UMLMessageSort (uml/metamodel.json)
+            ("UMLMessage", "messageSort") => return &["synchCall", "asynchCall", "asynchSignal", "createMessage", "deleteMessage", "reply"],
             (t, f) if t.starts_with("BPMN") && crate::bpmn::enum_options(f).is_some() => return crate::bpmn::enum_options(f).unwrap_or(&[]),
             ("ERDRelationshipEnd", "cardinality") => return &["0..1", "1", "0..*", "1..*"],
             // WFOrientationKind, WFPositionKind (wireframe/metamodel.json)

@@ -5802,6 +5802,12 @@ fn sequence_diagrams_have_lifelines_messages_and_activations() {
     assert_eq!(crate::views::node_rect(&a.repo, act).y, 150.0);
     let mm1 = a.repo.refd(e1, "model").unwrap();
     assert_eq!(a.repo.str(a.repo.refd(e1, "nameLabel").unwrap(), "text"), "1 : Message1");
+    // the Properties edit its sort, number, arguments, guard and iteration (uml/metamodel.json UMLMessage)
+    let fields = a.fields_for(mm1);
+    for f in [("messageSort", "enum"), ("sequenceNumber", "text"), ("arguments", "text"), ("assignmentTarget", "text"), ("guard", "text"), ("iteration", "text"), ("isConcurrentIteration", "bool")] {
+        assert!(fields.contains(&f), "{f:?}");
+    }
+    assert_eq!(App::enum_options("UMLMessage", "messageSort").len(), 6);
     assert_eq!(a.repo.str(a.repo.refd(e2, "model").unwrap(), "messageSort"), "reply");
     // moving the reply above the call renumbers them
     a.repo.set(e2, "points", json!("300:120;100:120"));
