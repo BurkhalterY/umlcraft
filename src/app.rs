@@ -277,6 +277,9 @@ pub struct App {
     pub color_vars: bool,
     /// The Convert / Keep Colors question, asked when a file of StarUML 7 or earlier is opened.
     pub color_prompt: bool,
+    /// The Export Image dialog (Ctrl+Shift+E) is open, with the outcome of its last action.
+    pub export_image_open: bool,
+    pub export_image_result: Option<String>,
     /// The open Element Picker ("Select Element").
     pub element_picker: Option<crate::picker::ElementPicker>,
     /// The Icon Picker of a cloud element (icon-picker-dialog.js).
@@ -390,6 +393,8 @@ impl App {
             print_open: false,
             color_vars: false,
             color_prompt: false,
+            export_image_open: false,
+            export_image_result: None,
             element_picker: None,
             icon_picker: None,
             input_dialog: None,

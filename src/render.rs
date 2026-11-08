@@ -1436,11 +1436,20 @@ pub const PNG_EXTRA: f64 = 30.0;
 /// The diagram as SVG: its bounds grown by BOUNDING_BOX_EXPAND on every side, no background, at
 /// zoom 1, with `extra` more width and height (0 for SVG export, PNG_EXTRA for PNG; diagram-export.js:178).
 pub fn to_svg_sized(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure, extra: f64) -> Option<String> {
+    to_svg_framed(r, d, info, measure, BOUNDING_BOX_EXPAND, extra, None)
+}
+
+/// The diagram as SVG: its bounds grown by `margin` on every side, `extra` more width and height, and
+/// a background rectangle when one is given (the Export Image dialog's Margin and Fill background).
+pub fn to_svg_framed(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure, margin: f64, extra: f64, background: Option<Rgba>) -> Option<String> {
     let b = bounds(r, d)?;
-    let m = BOUNDING_BOX_EXPAND;
+    let m = margin;
     let (x, y) = (b.x - m, b.y - m);
     let (w, h) = (b.w + 2.0 * m + extra, b.h + 2.0 * m + extra);
     let mut svg = Svg { out: String::new(), measure };
+    if let Some(bg) = background {
+        svg.out += &format!("<rect x=\"{x:.2}\" y=\"{y:.2}\" width=\"{w:.2}\" height=\"{h:.2}\"{}/>\n", paint("fill", Some(bg)));
+    }
     draw_diagram(&mut svg, r, d, info);
     Some(format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w:.0}\" height=\"{h:.0}\" viewBox=\"{x:.2} {y:.2} {w:.2} {h:.2}\">\n{}</svg>\n",
@@ -1456,11 +1465,16 @@ pub fn to_svg(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure
 /// scales by the screen's devicePixelRatio; diagram-export.js:120-127). Drawn off-screen, so the
 /// grid and whatever is scrolled out of view do not matter.
 pub fn to_png(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure, scale: f32) -> Result<Vec<u8>, String> {
-    use resvg::{tiny_skia, usvg};
     let svg = to_svg_sized(r, d, info, measure, PNG_EXTRA).ok_or("The diagram is empty.")?;
+    svg_to_png(&svg, scale)
+}
+
+/// Draw an SVG picture into a PNG, `scale` pixels per unit.
+pub fn svg_to_png(svg: &str, scale: f32) -> Result<Vec<u8>, String> {
+    use resvg::{tiny_skia, usvg};
     let mut opt = usvg::Options::default();
     opt.fontdb_mut().load_system_fonts();
-    let tree = usvg::Tree::from_str(&svg, &opt).map_err(|e| e.to_string())?;
+    let tree = usvg::Tree::from_str(svg, &opt).map_err(|e| e.to_string())?;
     let size = tree.size();
     let (w, h) = ((size.width() * scale).ceil() as u32, (size.height() * scale).ceil() as u32);
     let mut pixmap = tiny_skia::Pixmap::new(w.max(1), h.max(1)).ok_or("The picture is too large.")?;

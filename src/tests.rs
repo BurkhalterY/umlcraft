@@ -3293,13 +3293,18 @@ fn receptions_show_when_not_suppressed() {
     assert_eq!(rows.len(), 1);
     assert_eq!(a.repo.str(rows[0], "text"), format!("«signal» +{}", a.repo.name(rcp)));
     assert!(a.repo.f(v, "height") >= h0);
-    // Ctrl+Shift+E toggles it back
+    // Ctrl+Shift+X toggles it back (StarUML 8's key; it reaches egui as a Cut event)
     let ctx = egui::Context::default();
     crate::setup_fonts(&ctx);
-    let ev = egui::Event::Key { key: egui::Key::E, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::COMMAND | egui::Modifiers::SHIFT };
-    let mut out = ctx.run_ui(egui::RawInput { events: vec![ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+    let cs = egui::Modifiers::COMMAND | egui::Modifiers::SHIFT;
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![egui::Event::ModifiersChanged(cs), egui::Event::Cut], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
     out.textures_delta.clear();
     assert!(a.repo.bool(v, "suppressReceptions"));
+    let ev = egui::Event::Key { key: egui::Key::X, physical_key: None, pressed: true, repeat: false, modifiers: cs };
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![egui::Event::ModifiersChanged(cs), ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+    out.textures_delta.clear();
+    assert!(!a.repo.bool(v, "suppressReceptions"));
+    assert!(!a.export_image_open);
 }
 
 #[test]
@@ -7935,4 +7940,64 @@ fn colour_dialog_offers_the_variables() {
     d.take_text();
     a.apply_color_dialog(&d);
     assert_eq!(a.repo.str(c, "fillColor"), "#123456");
+}
+
+#[test]
+fn export_image_dialog_options() {
+    use crate::export::{render_with, Format, ImageOptions};
+    let ms = measure();
+    let dir = std::env::temp_dir().join(format!("umlcraft-export-image-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut a = App::new(None);
+    a.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    a.keep_colors();
+    // the defaults, then remembered options
+    assert_eq!(a.image_options(), ImageOptions::default());
+    let o = ImageOptions { all: true, format: Format::Jpeg, fill: false, scale: 2, margin: 32 };
+    a.set_image_options(&o);
+    let mut b = App::new(None);
+    b.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
+    assert_eq!(b.image_options(), o);
+    // margin and scale set the size; no 30 px extra as File › Export Diagram As has
+    let d = a.diagram.unwrap();
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let bx = crate::render::bounds(&a.repo, d).unwrap();
+    let png = |a: &mut App, o: ImageOptions| image::load_from_memory(&render_with(a, d, &ms, &o).unwrap()).unwrap().to_rgba8();
+    let img = png(&mut a, ImageOptions { format: Format::Png, fill: false, scale: 1, margin: 0, all: false });
+    assert_eq!(img.width(), bx.w.ceil() as u32);
+    assert_eq!(img.get_pixel(0, img.height() - 1).0[3], 0, "transparent without Fill background");
+    let img = png(&mut a, ImageOptions { format: Format::Png, fill: true, scale: 2, margin: 32, all: false });
+    assert_eq!(img.width(), ((bx.w + 64.0) * 2.0).ceil() as u32);
+    // Fill background uses the theme's background colour
+    let corner = |a: &mut App, dark: bool| crate::colorvars::with_theme(dark, || png(a, ImageOptions { format: Format::Png, fill: true, scale: 1, margin: 20, all: false })).get_pixel(1, 1).0;
+    assert_eq!(corner(&mut a, false), [255, 255, 255, 255]);
+    assert_eq!(corner(&mut a, true), [0x19, 0x19, 0x19, 255]);
+    // JPEG is always filled; SVG gets a background rectangle only when asked
+    let jpg = crate::colorvars::with_theme(true, || render_with(&mut a, d, &ms, &ImageOptions { format: Format::Jpeg, fill: false, scale: 1, margin: 20, all: false }).unwrap());
+    let p = image::load_from_memory(&jpg).unwrap().to_rgb8().get_pixel(1, 1).0;
+    assert!(p.iter().all(|c| *c < 0x30), "a dark JPEG background ({p:?})");
+    let svg = |a: &mut App, fill: bool| String::from_utf8(crate::colorvars::with_theme(false, || render_with(a, d, &ms, &ImageOptions { format: Format::Svg, fill, scale: 2, margin: 0, all: false })).unwrap()).unwrap();
+    assert!(svg(&mut a, true).contains("<rect x="));
+    assert!(!svg(&mut a, false).contains("<rect x="));
+    // Export All with the options
+    let n = a.export_all_with(&dir, &ms, &ImageOptions { format: Format::Svg, ..ImageOptions::default() }).unwrap();
+    assert_eq!(n, std::fs::read_dir(dir.join("svg")).unwrap().count());
+    assert!(n >= 1);
+    // Ctrl+Shift+E opens the dialog; Esc closes it
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let cs = egui::Modifiers::COMMAND | egui::Modifiers::SHIFT;
+    let ev = egui::Event::Key { key: egui::Key::E, physical_key: None, pressed: true, repeat: false, modifiers: cs };
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![egui::Event::ModifiersChanged(cs), ev], ..Default::default() }, |ui| a.shortcuts(ui.ctx()));
+    out.textures_delta.clear();
+    assert!(a.export_image_open && a.modal_open());
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| a.dialogs(ui.ctx()));
+    out.textures_delta.clear();
+    assert!(a.export_image_open, "the dialog stays open");
+    let esc = egui::Event::Key { key: egui::Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+    let mut out = ctx.run_ui(egui::RawInput { events: vec![esc], ..Default::default() }, |ui| a.dialogs(ui.ctx()));
+    out.textures_delta.clear();
+    assert!(!a.export_image_open);
+    let _ = std::fs::remove_dir_all(dir);
 }

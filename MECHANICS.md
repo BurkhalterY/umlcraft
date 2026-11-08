@@ -134,6 +134,9 @@ Read from `extensions/default/staruml-v1` (main.js, reader.js, uml-readers.js); 
 | SVG size and background | grown bounds, no extra, no background | `diagram-export.js:178-189` getSVGImageData |
 | Native side | `toPNG` 0xec2c6e/0x101d688 and `image/png` are Electron API table entries only; no function to follow | native_strings_find ev_b82b90eb… |
 | UMLCraft | draws the SVG off-screen with resvg for PNG export, so scrolled-out parts and the grid do not matter; trial watermarks of the original are not copied | `src/render.rs` to_png, to_svg_sized |
+| Export Image dialog (StarUML 8) | `Ctrl+Shift+E`; Range current / all, Format PNG / JPEG / SVG, Fill background (the theme's background colour; JPEG always filled), Scale 1x / 2x (not SVG), Margin 0-32 px; Export..., Export All... (a folder), Copy to Clipboard; stays open; options remembered | https://docs.staruml.io/user-guide/managing-project/ |
+| Export Image picture | the bounds grown by the margin, no extra width (unlike StarUML 7's +30), drawn at the chosen scale, not the screen's; defaults current, PNG, no fill, 1x, 10 px (not documented) | UMLCraft's choice; `src/export.rs` render_with |
+| Suppress Receptions key | StarUML 8 moved it to `Ctrl+Shift+X` and gave `Ctrl+Shift+E` to Export Image; UMLCraft follows StarUML 8 | https://docs.staruml.io/user-guide/keyboard-shortcuts/ |
 
 ## Element Picker and type names
 

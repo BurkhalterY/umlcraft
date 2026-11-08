@@ -65,6 +65,7 @@ pub const COMMANDS: &[Command] = &[
     c("project:open", "Open...", "Ctrl+O"),
     c("project:save", "Save", "Ctrl+S"),
     c("project:save-as", "Save As...", "Ctrl+Shift+S"),
+    c("project:export-image", "Export Image...", "Ctrl+Shift+E"),
     c("project:export-diagram-to-png", "Export Diagram As PNG...", ""),
     c("project:export-diagram-to-jpeg", "Export Diagram As JPEG...", ""),
     c("project:export-diagram-to-svg", "Export Diagram As SVG...", ""),
@@ -103,7 +104,7 @@ pub const COMMANDS: &[Command] = &[
     c("format:show-diagram-name", "Show Diagram Name", "Ctrl+Shift+D"),
     c("format:suppress-attributes", "Suppress Attributes", "Ctrl+Shift+A"),
     c("format:suppress-operations", "Suppress Operations", "Ctrl+Shift+O"),
-    c("format:suppress-receptions", "Suppress Receptions", "Ctrl+Shift+E"),
+    c("format:suppress-receptions", "Suppress Receptions", "Ctrl+Shift+X"),
     c("format:suppress-literals", "Suppress Literals", "Ctrl+Shift+T"),
     // Format › Suppress Columns on ER entities (erd/keymaps/erd.json, erd-commands.js:183)
     c("erd:suppress-columns", "ERD: Suppress Columns", "Ctrl+Shift+U"),
@@ -276,6 +277,7 @@ impl App {
             "project:save-as" => {
                 self.save_as(&ms);
             }
+            "project:export-image" => self.open_export_image(),
             "project:export-diagram-to-png" => self.export_current(ctx, Format::Png),
             "project:export-diagram-to-jpeg" => self.export_current(ctx, Format::Jpeg),
             "project:export-diagram-to-svg" => self.export_current(ctx, Format::Svg),

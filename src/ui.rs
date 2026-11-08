@@ -2395,6 +2395,10 @@ impl App {
                     ui.close();
                 }
                 ui.separator();
+                if ui.button(&menu_label("Export Image...  Ctrl+Shift+E")).clicked() {
+                    self.open_export_image();
+                    ui.close();
+                }
                 ui.menu_button("Export Diagram As", |ui| {
                     use crate::export::Format;
                     for f in [Format::Png, Format::Jpeg, Format::Svg] {
@@ -2987,7 +2991,11 @@ impl App {
                     self.open_color_dialog(field);
                 }
             }
-            for (key, field) in [(Key::R, "autoResize"), (Key::K, "parentStyle"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals")] {
+            // File › Export Image (StarUML 8's keymap, https://docs.staruml.io/user-guide/keyboard-shortcuts/)
+            if hit(sc(cs, Key::E)) {
+                self.open_export_image();
+            }
+            for (key, field) in [(Key::R, "autoResize"), (Key::K, "parentStyle"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::X, "suppressReceptions"), (Key::T, "suppressLiterals")] {
                 if hit(sc(cs, key)) {
                     self.toggle_flag(field);
                 }
@@ -3049,6 +3057,8 @@ impl App {
         match clip {
             // Ctrl+Shift+C also arrives as a Copy event
             Some(egui::Event::Copy) if shift => self.cmd_copy_diagram_image(ctx),
+            // Ctrl+Shift+X (Suppress Receptions, StarUML 8's keymap) arrives as a Cut event
+            Some(egui::Event::Cut) if shift && ctx.input(|i| i.modifiers.command) => self.toggle_flag("suppressReceptions"),
             Some(egui::Event::Copy) => self.cmd_copy(Some(ctx)),
             Some(egui::Event::Cut) => self.cmd_cut(Some(ctx)),
             Some(egui::Event::Paste(t)) => self.paste_text(&t),
@@ -3300,6 +3310,7 @@ impl App {
             || self.mermaid_code.is_some()
             || self.print_open
             || self.color_prompt
+            || self.export_image_open
     }
 
     pub(crate) fn dialogs(&mut self, ctx: &egui::Context) {
@@ -3342,6 +3353,7 @@ impl App {
         self.delete_prompt_ui(ctx);
         self.print_dialog_ui(ctx);
         self.color_prompt_ui(ctx);
+        self.export_image_ui(ctx);
         self.element_picker_ui(ctx);
         self.icon_picker_ui(ctx);
         self.input_dialog_ui(ctx);
@@ -3749,7 +3761,7 @@ const FORMAT_TOGGLES: [(&str, &str); 24] = [
     ("showDiagramName", "Show Diagram Name            Ctrl+Shift+D"),
     ("suppressAttributes", "Suppress Attributes             Ctrl+Shift+A"),
     ("suppressOperations", "Suppress Operations            Ctrl+Shift+O"),
-    ("suppressReceptions", "Suppress Receptions            Ctrl+Shift+E"),
+    ("suppressReceptions", "Suppress Receptions            Ctrl+Shift+X"),
     ("suppressLiterals", "Suppress Literals                 Ctrl+Shift+T"),
     ("suppressColumns", "Suppress Columns               Ctrl+Shift+U"),
     // SysML (sysml/menus/sysml.json), between separators
