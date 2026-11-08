@@ -2652,7 +2652,20 @@ fn new_from_template() {
     assert_eq!(models, vec!["Use Case Model", "Analysis Model", "Design Model", "Implementation Model", "Deployment Model", "UMLStandardProfile"]);
     let d = a.diagram.unwrap();
     assert_eq!((a.repo.ty(d), a.repo.name(d).as_str()), ("UMLUseCaseDiagram", "Use Cases"));
-    assert_eq!(a.repo.all_of("Diagram").len(), 5);
+    // the five model diagrams and the profile's three
+    assert_eq!(a.repo.all_of("Diagram").len(), 8);
+    let p = a.repo.all().find(|e| a.repo.ty(*e) == "UMLProfile").unwrap();
+    let pds: Vec<String> = a.repo.list(p, "ownedElements").into_iter().filter(|e| a.repo.ty(*e) == "UMLProfileDiagram").map(|e| a.repo.name(e)).collect();
+    assert_eq!(pds, ["StandardProfileL2", "Robustness Stereotypes", "StandardProfileL3"]);
+    let l2 = a.repo.list(p, "ownedElements").into_iter().find(|e| a.repo.name(*e) == "StandardProfileL2").unwrap();
+    let views = a.repo.list(l2, "ownedViews");
+    assert_eq!(views.iter().filter(|v| a.repo.ty(**v) == "UMLStereotypeView").count(), 30);
+    assert_eq!(views.iter().filter(|v| a.repo.ty(**v) == "UMLMetaClassView").count(), 8);
+    assert_eq!(views.iter().filter(|v| a.repo.ty(**v) == "UMLExtensionView").count(), 31);
+    assert_eq!(views.iter().filter(|v| a.repo.ty(**v) == "UMLGeneralizationView").count(), 5);
+    // the 4+1 View Model has no profile, as the original's
+    a.set_project(project(&TEMPLATES[2]), None);
+    assert!(a.repo.all().all(|e| a.repo.ty(e) != "UMLProfile"));
     // the file reads back, component and deployment diagrams included
     let text = a.repo.serialize();
     assert!(text.contains("UMLComponentDiagram") && text.contains("UMLDeploymentDiagram"));
