@@ -558,7 +558,7 @@ impl App {
         let mut o = self.print_options();
         let before = o.clone();
         let (mut save, mut cancel) = (false, false);
-        egui::Window::new("Print to PDF").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO).show(ctx, |ui| {
+        crate::dialogs::dialog(ctx, "print", "Print to PDF", |ui| {
             egui::Grid::new("print-grid").num_columns(2).spacing([12.0, 6.0]).show(ui, |ui| {
                 ui.label("Print Range");
                 ui.horizontal(|ui| {

@@ -861,6 +861,7 @@ impl App {
             if let Some(pos) = pointer.interact_pos() {
                 resp.request_focus();
                 self.last_area = crate::app::Area::Canvas;
+                self.tree_cleared = true;
                 // a rejected edit stays open, and the press does nothing else
                 if self.try_close_inline(true) {
                     self.on_press(rect, pos, mods);
@@ -2127,13 +2128,13 @@ impl App {
                     } else {
                         self.open_typed_picker(m, "signature", "UMLSignal");
                     }
+                } else if !create {
+                    // the list picker over the target type's operations, inherited ones included
+                    self.select_message_operation(m);
                 } else if self.message_target_type(m).is_none() {
-                    self.toast_error("Lifeline should have a type.");
-                } else if create {
-                    self.input_dialog = Some(crate::input::InputDialog { message: "Enter an operation name to create".into(), text: String::new(), action: crate::input::InputAction::CreateMessageOperation(m), fresh: true });
+                    self.alert("Lifeline should have a type.");
                 } else {
-                    // the original lists the operations of the target's type, inherited ones included
-                    self.open_typed_picker(m, "signature", "UMLOperation");
+                    self.input_dialog = Some(crate::input::InputDialog { message: "Enter an operation name to create".into(), text: String::new(), action: crate::input::InputAction::CreateMessageOperation(m), fresh: true });
                 }
             }
             (ItemKey::ReplyMessage, _) => {
@@ -2613,11 +2614,13 @@ impl App {
                 Pick::Set(x, field, val) => {
                     self.change(|a| a.repo.set(x, field, val));
                 }
-                Pick::Owner(end, owner) => {
-                    self.change(|a| a.repo.set_ref(end, "ownerAttribute", owner));
-                }
             }
             ed.fresh = true;
+        }
+        if let Some(Act::OwnerAttribute(end)) = act {
+            self.select_owner_attribute(end);
+            act = None;
+            commit = Some(true);
         }
         // Add Qualifier keeps the edit open
         if let Some(Act::Qualifier(end)) = act {
@@ -2741,15 +2744,15 @@ impl App {
     fn canvas_menu(&mut self, ui: &mut egui::Ui) {
         self.last_area = crate::app::Area::Canvas;
         let Some(v) = self.ctx_target.filter(|v| self.repo.alive(*v)) else {
-            if ui.button("Paste").clicked() {
+            if ui.add(self.key_button("Paste", "edit:paste")).clicked() {
                 self.cmd_paste();
                 ui.close();
             }
-            if ui.button("Select All").clicked() {
+            if ui.add(self.key_button("Select All", "edit:select-all")).clicked() {
                 self.select_all();
                 ui.close();
             }
-            if ui.button("Fit To Window").clicked() {
+            if ui.add(self.key_button("Fit To Window", "view:fit-to-window")).clicked() {
                 self.fit();
                 ui.close();
             }
@@ -2777,7 +2780,7 @@ impl App {
             self.line_style_menu(ui);
         }
         ui.menu_button("Format", |ui| {
-            if ui.button("Font...").clicked() {
+            if ui.add(self.key_button("Font...", "format:font")).clicked() {
                 self.open_font_dialog();
                 ui.close();
             }
@@ -2790,31 +2793,31 @@ impl App {
         });
         ui.separator();
         if let Some(m) = m {
-            if ui.button("Select In Explorer").clicked() {
+            if ui.add(self.key_button("Select In Explorer", "edit:select-in-explorer")).clicked() {
                 self.reveal(m);
                 ui.close();
             }
-            if ui.button("Select In Diagram").clicked() {
+            if ui.add(self.key_button("Select In Diagram", "edit:select-in-diagram")).clicked() {
                 self.focus = Some(m);
                 self.select_in_diagram();
                 ui.close();
             }
-            if ui.button("Open Sub-Diagram").clicked() {
+            if ui.add(self.key_button("Open Sub-Diagram", "edit:open-sub-diagram")).clicked() {
                 self.focus = Some(m);
                 self.open_sub_diagram();
                 ui.close();
             }
-            if ui.button("Tag Editor...").clicked() {
+            if ui.add(self.key_button("Tag Editor...", "model:tag-editor")).clicked() {
                 self.focus = Some(m);
                 self.open_tag_editor();
                 ui.close();
             }
         }
-        if ui.button("Delete").clicked() {
+        if ui.add(self.key_button("Delete", "edit:delete")).clicked() {
             self.delete_selection(false);
             ui.close();
         }
-        if m.is_some() && ui.button("Delete from Model").clicked() {
+        if m.is_some() && ui.add(self.key_button("Delete from Model", "edit:delete-from-model")).clicked() {
             self.delete_selection(true);
             ui.close();
         }
@@ -2912,5 +2915,6 @@ impl App {
         }
         self.focus = Some(e);
         self.reveal_pending = Some(e);
+        self.tree_cleared = false;
     }
 }

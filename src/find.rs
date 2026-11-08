@@ -2,7 +2,7 @@
 
 use crate::app::App;
 use crate::model::Eid;
-use egui::{Align2, Vec2};
+use egui::Vec2;
 
 /// The Find dialog's fields.
 #[derive(Clone, Debug, Default)]
@@ -49,7 +49,7 @@ impl App {
     pub fn find_dialog_ui(&mut self, ctx: &egui::Context) {
         let Some(mut fd) = self.find_dialog.clone() else { return };
         let (mut ok, mut cancel) = (false, false);
-        egui::Window::new("Find").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        crate::dialogs::dialog(ctx, "find", "Find", |ui| {
             let r = ui.add(egui::TextEdit::singleline(&mut fd.keyword).hint_text("Keyword").desired_width(260.0));
             if fd.fresh {
                 r.request_focus();

@@ -3,7 +3,6 @@
 
 use crate::app::App;
 use crate::model::Eid;
-use egui::{Align2, Vec2};
 use serde_json::json;
 
 /// What OK does with the text.
@@ -121,7 +120,7 @@ impl App {
     pub fn input_dialog_ui(&mut self, ctx: &egui::Context) {
         let Some(mut dlg) = self.input_dialog.clone() else { return };
         let (mut ok, mut cancel) = (false, false);
-        egui::Window::new("UMLCraft").title_bar(false).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        crate::dialogs::dialog(ctx, "input", "", |ui| {
             ui.set_width(320.0);
             ui.label(&dlg.message);
             let out = egui::TextEdit::singleline(&mut dlg.text).desired_width(f32::INFINITY).show(ui);

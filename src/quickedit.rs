@@ -38,6 +38,8 @@ pub enum Act {
     Subst(Eid),
     /// An association end's Add Qualifier: the edit stays open
     Qualifier(Eid),
+    /// An association end's Select Owner Attribute: the list picker
+    OwnerAttribute(Eid),
 }
 
 /// What a dropdown item sets. It applies at once and the edit stays open.
@@ -45,7 +47,6 @@ pub enum Act {
 pub enum Pick {
     Visibility(Eid, &'static str),
     Set(Eid, &'static str, serde_json::Value),
-    Owner(Eid, Option<Eid>),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -185,11 +186,8 @@ impl App {
                 if !owned {
                     out.push(Placed { side: Side::Left, row: 2, comp: button("+ Qual", "Add Qualifier", Act::Qualifier(m)) });
                 }
-                let cur = r.refd(m, "ownerAttribute");
-                let shown = cur.map(|c| r.name(c)).unwrap_or_else(|| "—".to_string());
-                let mut items = vec![("(none)".to_string(), cur.is_none(), Pick::Owner(m, None))];
-                items.extend(self.owner_attribute_options(m).into_iter().map(|a| (r.name(a), cur == Some(a), Pick::Owner(m, Some(a)))));
-                out.push(Placed { side: Side::Left, row: 2, comp: menu(shown, "Owner Attribute", items) });
+                // Select Owner Attribute opens the Element List Picker (uml-commands.js:1465-1476)
+                out.push(Placed { side: Side::Left, row: 2, comp: button("Owner…", "Select Owner Attribute", Act::OwnerAttribute(m)) });
             }
             if !owned {
                 out.push(Placed { side: Side::Right, row: 1, comp: Comp::Combo(m) });

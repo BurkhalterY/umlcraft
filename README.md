@@ -147,6 +147,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/thumbs.rs` | View › Diagram Thumbnails |
 | `src/relview.rs` | View › Relationships: the relationships of the selected element |
 | `src/input.rs` | The input dialog (Working Diagrams › Rename) |
+| `src/dialogs.rs` | Modal dialogs, the native Information, Alert, Confirmation and error boxes, and the Element List Picker |
 | `src/api.rs` | The local HTTP API on port 58321 (diagram list, images, Mermaid generation) |
 | `src/ejs.rs`, `src/js.rs`, `src/jsregex.rs` | `umlcraft ejs`: EJS templates, the JavaScript subset their code runs in, and its regular expressions |
 | `src/exec.rs` | `umlcraft exec`: the commands it runs, with the scriptable factory and engine commands |

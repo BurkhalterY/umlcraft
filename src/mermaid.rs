@@ -511,7 +511,7 @@ impl App {
     pub fn mermaid_dialog_ui(&mut self, ctx: &egui::Context) {
         let Some(mut code) = self.mermaid_code.clone() else { return };
         let (mut ok, mut cancel) = (false, false);
-        egui::Window::new("Generate Diagram by Mermaid").collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO).show(ctx, |ui| {
+        crate::dialogs::dialog(ctx, "mermaid", "Generate Diagram by Mermaid", |ui| {
             ui.horizontal(|ui| {
                 // the Examples menu (main.js:185-205; the examples are UMLCraft's own)
                 ui.menu_button("Examples", |ui| {

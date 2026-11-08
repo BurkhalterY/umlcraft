@@ -447,6 +447,18 @@ fn diagram_navigation_shortcuts() {
     a.open_diagram(d2);
     press(&mut a, Key::F4, Modifiers::SHIFT);
     assert!(a.open.is_empty(), "Shift+F4 closes all");
+    // while a field is being edited, the edit keys are its own and the other shortcuts still run
+    a.open_diagram(d2);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(c, "model").unwrap();
+    a.select(vec![c]);
+    a.editing = Some(crate::app::Editing { kind: crate::app::EditKind::Name(m), text: String::new(), rect: rect(0.0, 0.0, 10.0, 10.0), multiline: false, center: false, fresh: false, host: None, orig: None });
+    let undo = a.undo.len();
+    press(&mut a, Key::Z, Modifiers::COMMAND);
+    press(&mut a, Key::A, Modifiers::COMMAND | Modifiers::SHIFT);
+    assert_eq!((a.undo.len(), a.repo.val(c, "suppressAttributes").and_then(|v| v.as_bool())), (undo, Some(false)), "Ctrl+Z and Ctrl+Shift+A stay in the field");
+    press(&mut a, Key::G, Modifiers::COMMAND);
+    assert!(!a.show_grid, "Ctrl+G still toggles the grid");
 }
 
 #[test]
@@ -479,10 +491,15 @@ fn select_in_diagram_and_scroll_per_diagram() {
     let v2 = a.change(|a| a.create_view_of(m, rect(40.0, 40.0, 100.0, 60.0))).unwrap();
     a.focus = Some(m);
     a.select_in_diagram();
-    assert_eq!(a.diagram_picker.as_ref().map(|p| p.0.clone()), Some(vec![v1, v2]));
+    assert_eq!(a.list_picker.as_ref().map(|p| (p.title.as_str(), p.items.clone(), p.action.clone())), Some(("Select Diagram to show", vec![d1, d2], crate::dialogs::ListAction::ShowView(vec![v1, v2]))));
+    // OK on the second row shows its view; "Do not specify" shows nothing
+    let mut p = a.list_picker.take().unwrap();
+    p.chosen = Some(1);
+    a.list_picker_ok(p);
+    assert_eq!((a.diagram, a.selection.clone()), (Some(d2), vec![v2]));
 
     // shown nowhere: a toast
-    a.diagram_picker = None;
+    a.list_picker = None;
     let other = a.change(|a| a.add_model(a.repo.root, "UMLClass"));
     a.focus = Some(other);
     a.select_in_diagram();
@@ -2177,7 +2194,7 @@ fn diagram_generator() {
     // without a package selected, an alert
     a.focus = None;
     assert!(a.generate_diagram(Generator::Overview, &ms).is_none());
-    assert_eq!(a.message.take().map(|m| m.0), Some("To generate Overview diagram, select a Package.".to_string()));
+    assert_eq!(a.boxes.pop(), Some((crate::dialogs::BoxKind::Info, "To generate overview diagram, select a Package.".to_string())));
     let pkg = a.repo.all().find(|e| a.repo.ty(*e) == "UMLModel").unwrap();
     let classes = a.repo.list(pkg, "ownedElements").into_iter().filter(|e| a.repo.ty(*e) == "UMLClass").count();
     a.focus = Some(pkg);
@@ -3123,6 +3140,13 @@ fn ownership_dot() {
     let asc = a.repo.refd(e, "model").unwrap();
     let end2 = a.repo.child(asc, "end2").unwrap();
     let before = String::from_utf8(crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap()).unwrap();
+    // Select Owner Attribute lists the attributes of the classifier at the other end
+    a.select_owner_attribute(end2);
+    let p = a.list_picker.take().unwrap();
+    assert_eq!((p.title.as_str(), p.items.clone()), ("Select Owner Attribute", vec![at]));
+    a.list_picker_ok(crate::dialogs::ListPicker { chosen: Some(0), ..p });
+    assert_eq!(a.repo.refd(end2, "ownerAttribute"), Some(at));
+    a.repo.set_ref(end2, "ownerAttribute", None);
     a.repo.set_ref(end2, "ownerAttribute", Some(at));
     let after = String::from_utf8(crate::export::render(&mut a, d, &ms, crate::export::Format::Svg, 1.0).unwrap()).unwrap();
     assert_eq!(after.matches("<ellipse").count(), before.matches("<ellipse").count() + 1, "one dot");
@@ -3955,21 +3979,36 @@ fn link_object_tool() {
 
 #[test]
 fn shortcut_labels_per_platform() {
-    use crate::palette::shortcut_label;
-    assert_eq!(shortcut_label("Ctrl+Shift+P", false), "Ctrl+Shift+P");
-    assert_eq!(shortcut_label("Ctrl+Shift+P", true), "⌘⇧P");
-    assert_eq!(shortcut_label("Alt+Up", true), "⌥↑");
-    assert_eq!(shortcut_label("Ctrl+Up", false), "Ctrl+↑");
-    assert_eq!(shortcut_label("", true), "");
+    use crate::keymap::stroke_label;
+    use egui::{Key, Modifiers};
+    assert_eq!(stroke_label((Modifiers::COMMAND | Modifiers::SHIFT, Key::P), false), "Ctrl+Shift+P");
+    assert_eq!(stroke_label((Modifiers::COMMAND | Modifiers::SHIFT, Key::P), true), "⌘⇧P");
+    assert_eq!(stroke_label((Modifiers::ALT, Key::ArrowUp), true), "⌥↑");
+    assert_eq!(stroke_label((Modifiers::COMMAND, Key::ArrowUp), false), "Ctrl+↑");
 }
 
 #[test]
-fn menu_labels_keep_their_text_off_macos() {
-    use crate::ui::menu_label_for;
-    assert_eq!(menu_label_for("Save As...      Ctrl+Shift+S", false), "Save As...      Ctrl+Shift+S");
-    assert_eq!(menu_label_for("Save As...      Ctrl+Shift+S", true), "Save As...  ⌘⇧S");
-    assert_eq!(menu_label_for("Close Diagram  F4", true), "Close Diagram  F4");
-    assert_eq!(menu_label_for("Plain", true), "Plain");
+fn menu_accelerators_come_from_the_keymap() {
+    use crate::keymap::{parse_stroke, stroke_label};
+    use egui::{Key, Modifiers};
+    assert_eq!(stroke_label((Modifiers::COMMAND | Modifiers::SHIFT, Key::S), false), "Ctrl+Shift+S");
+    assert_eq!(stroke_label((Modifiers::COMMAND | Modifiers::SHIFT, Key::S), true), "⌘⇧S");
+    assert_eq!(stroke_label((Modifiers::NONE, Key::F4), true), "F4");
+    assert_eq!(stroke_label((Modifiers::COMMAND, Key::Minus), false), "Ctrl+-");
+    let mut a = App::new(None);
+    let mac = cfg!(target_os = "macos");
+    let label = |k: &str| stroke_label(parse_stroke(k).unwrap(), mac);
+    // the built-in keys, Ctrl+G among them
+    assert_eq!(a.accel("project:save-as"), label("cmdctrl-shift-s"));
+    assert_eq!(a.accel("view:show-grid"), label("cmdctrl-g"));
+    assert_eq!(a.accel("view:snap-to-grid"), label("cmdctrl-shift-g"));
+    assert_eq!(a.accel("format:stereotype-icon"), label("cmdctrl-shift-4"));
+    assert_eq!(a.accel("help:about"), "");
+    // a user binding is shown, and takes its keystroke from the command that had it
+    a.user_keymap = vec![(parse_stroke("cmdctrl-alt-g").unwrap(), "view:show-grid".into()), (parse_stroke("cmdctrl-s").unwrap(), "view:statusbar".into())];
+    assert_eq!(a.accel("view:show-grid"), label("cmdctrl-alt-g"));
+    assert_eq!(a.accel("view:statusbar"), label("cmdctrl-s"));
+    assert_eq!(a.accel("project:save"), "");
 }
 
 #[test]
@@ -5881,6 +5920,20 @@ fn lifeline_and_message_quick_edits() {
     a.apply_input(crate::input::InputAction::CreateMessageOperation(reply), "done".into());
     let op = a.repo.refd(reply, "signature").unwrap();
     assert_eq!((a.repo.ty(op), a.repo.parent(op)), ("UMLOperation", Some(shop)));
+    // Select Operation: the list picker over the type's operations, inherited ones first
+    let base = a.change(|a| a.add_model(a.repo.parent(shop).unwrap(), "UMLClass"));
+    let inherited = a.change(|a| a.add_feature(base, "UMLOperation")).unwrap();
+    let g = a.change(|a| a.add_model(shop, "UMLGeneralization"));
+    a.repo.set_ref(g, "source", Some(shop));
+    a.repo.set_ref(g, "target", Some(base));
+    a.select_message_operation(reply);
+    let p = a.list_picker.clone().unwrap();
+    assert_eq!((p.title.as_str(), p.items.clone()), ("Select Operation", vec![inherited, op]));
+    a.list_picker_ok(crate::dialogs::ListPicker { chosen: Some(0), ..p });
+    assert_eq!(a.repo.refd(reply, "signature"), Some(inherited));
+    // to a lifeline without a type: the alert "Lifeline should have a type."
+    a.item_key(msgs[0], EditKind::Name(mm), ItemKey::MessageSignature(false, false));
+    assert_eq!(a.boxes.pop(), Some((crate::dialogs::BoxKind::Alert, "Lifeline should have a type.".to_string())));
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     Repo::parse(&a.repo.serialize()).unwrap();
 }
@@ -8275,7 +8328,7 @@ fn quick_edit_components_sit_in_rows_left_and_right() {
     let attr = a.change(|a| a.add_feature(a.repo.refd(c2, "model").unwrap(), "UMLAttribute")).unwrap();
     a.change(|a| a.repo.set_ref(end, "ownerAttribute", Some(attr)));
     let hints: Vec<String> = a.quick_components(&e).iter().map(hint).collect();
-    assert_eq!(hints, ["Owner Attribute", "Navigability"]);
+    assert_eq!(hints, ["Select Owner Attribute", "Navigability"]);
     assert!(crate::quickedit::end_owned(&a.repo, end));
     // a transition's Add Trigger Event and Add Effect Behavior; an action's Add Trigger Event
     let root = a.repo.root;
@@ -8412,4 +8465,48 @@ fn ports_parts_pins_and_connection_points_drop_on_their_parent() {
     let v = a.drop_model(cpr, P { x: 110.0, y: 110.0 }).unwrap()[0];
     assert_eq!(a.repo.ty(v), "UMLConnectionPointReferenceView");
     Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn preference_descriptions_and_font_faces() {
+    use crate::prefs::description;
+    assert_eq!(description("view.font", "Font Face", "View"), "Default font face of view elements.");
+    assert_eq!(description("uml.class.fillColor", "Fill Color", "Class"), "Fill color of Class.");
+    assert_eq!(description("uml.class.suppressAttributes", "Suppress Attributes", "Class"), "Suppress attributes of Class.");
+    assert_eq!(description("uml.class.stereotypeDisplay", "Stereotype Display", "Class"), "Default stereotype display of Class.");
+    // the faces are sorted, as the original lists them
+    let mut sorted = crate::style::FONT_FACES.to_vec();
+    sorted.sort();
+    assert_eq!(sorted, crate::style::FONT_FACES.to_vec());
+}
+
+#[test]
+fn property_editor_numbers_references_and_autocomplete() {
+    use crate::ui::{parse_int, parse_real};
+    // numbers read as parseInt and parseFloat do
+    assert_eq!(parse_int(" 12px"), Some(12));
+    assert_eq!(parse_int("12.7"), Some(12));
+    assert_eq!(parse_int("-3"), Some(-3));
+    assert_eq!(parse_int("px"), None);
+    assert_eq!(parse_real("2.5e3x"), Some(2500.0));
+    assert_eq!(parse_real(".5"), Some(0.5));
+    assert_eq!(parse_real("abc"), None);
+    // a state's submachine is picked among state machines
+    assert_eq!(crate::picker::field_type("submachine"), "UMLStateMachine");
+    assert_eq!(crate::picker::field_type("targetOperation"), "UMLOperation");
+    // type names autocomplete among classifiers, case-insensitive, by substring
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    let names: Vec<String> = a.autocomplete_hits("type", "oo").into_iter().map(|e| a.repo.name(e)).collect();
+    assert!(names.contains(&"Book".to_string()), "{names:?}");
+    assert!(a.autocomplete_hits("type", "OO").iter().all(|e| a.repo.kind_of(*e, "UMLClassifier")));
+    assert!(a.autocomplete_hits("stereotype", "Book").is_empty(), "only stereotypes for a stereotype field");
+    // a press in the diagram leaves the tree without a highlighted row until the tree is used again
+    let book = a.repo.all().find(|e| a.repo.name(*e) == "Book").unwrap();
+    a.tree_cleared = true;
+    a.focus_element(book);
+    assert!(!a.tree_cleared);
+    a.tree_cleared = true;
+    a.reveal(book);
+    assert!(!a.tree_cleared, "Select In Explorer highlights it again");
 }

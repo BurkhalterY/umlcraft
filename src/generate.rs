@@ -42,7 +42,7 @@ impl App {
     pub fn generate_diagram(&mut self, g: Generator, ms: &dyn Measure) -> Option<Eid> {
         let pkg = self.focus.filter(|f| self.repo.alive(*f) && self.repo.kind_of(*f, "UMLPackage"));
         let Some(pkg) = pkg else {
-            self.message = Some((format!("To generate {} diagram, select a Package.", g.diagram_name()), String::new()));
+            self.info_box(&format!("To generate {} diagram, select a Package.", g.diagram_name().to_lowercase()));
             return None;
         };
         let undo = self.undo.len();
