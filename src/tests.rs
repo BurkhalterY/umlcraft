@@ -8319,3 +8319,25 @@ fn tags_are_shown_on_views() {
     let pl2 = a.repo.refd(nc2, "propertyLabel").unwrap();
     assert_eq!(a.repo.raw(pl2, "visible"), Some(&json!(false)));
 }
+
+#[test]
+fn staruml1_import_links_the_standard_profile() {
+    let mut a = App::new(None);
+    let p = std::env::temp_dir().join(format!("umlcraft-v1-std-{}.uml", std::process::id()));
+    std::fs::write(&p, v1_file(V1_CLASS_MODEL)).unwrap();
+    a.import_staruml_v1(p.clone());
+    std::fs::remove_file(&p).ok();
+    assert!(a.message.is_none());
+    let order = a.repo.all().find(|e| a.repo.ty(*e) == "UMLClass" && a.repo.name(*e) == "Order").unwrap();
+    let st = a.repo.refd(order, "stereotype").expect("bound to a stereotype");
+    assert_eq!((a.repo.ty(st), a.repo.name(st).as_str()), ("UMLStereotype", "entity"));
+    assert_eq!(a.repo.name(a.repo.parent(st).unwrap()), crate::templates::STANDARD_PROFILE);
+    // without the profile in the header, stereotypes stay text
+    let mut b = App::new(None);
+    std::fs::write(&p, v1_file(V1_CLASS_MODEL).replace("<XPD:PROFILE>UMLStandard</XPD:PROFILE>", "")).unwrap();
+    b.import_staruml_v1(p.clone());
+    std::fs::remove_file(&p).ok();
+    let order = b.repo.all().find(|e| b.repo.ty(*e) == "UMLClass" && b.repo.name(*e) == "Order").unwrap();
+    assert_eq!(b.repo.str(order, "stereotype"), "entity");
+    assert!(!b.repo.all().any(|e| b.repo.ty(e) == "UMLProfile"));
+}

@@ -470,8 +470,11 @@ impl App {
     /// (extensions/default/staruml-v1/main.js:34 loadFile, project-manager.js:204 loadFromJson).
     pub fn import_staruml_v1(&mut self, p: PathBuf) {
         let text = std::fs::read(&p).map(|b| String::from_utf8_lossy(&b).into_owned()).map_err(|e| e.to_string());
-        match text.and_then(|t| crate::staruml_v1::import(&t)) {
-            Ok(repo) => self.set_project(repo, None),
+        match text.and_then(|t| crate::staruml_v1::import(&t).map(|r| (r, crate::staruml_v1::profiles(&t)))) {
+            Ok((mut repo, profiles)) => {
+                crate::staruml_v1::link_standard_profile(&mut repo, &profiles);
+                self.set_project(repo, None)
+            }
             Err(e) => self.message = Some(("Failed to import the file.".into(), e)),
         }
     }
