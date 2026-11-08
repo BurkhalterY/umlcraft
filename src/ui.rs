@@ -2562,6 +2562,14 @@ impl App {
                 }
             });
             ui.menu_button("Tools", |ui| {
+                // a dialog per language with Generate and Reverse tabs (docs.staruml.io language-support)
+                for l in crate::codegen::Lang::ALL {
+                    if ui.button(format!("{}...", l.label())).clicked() {
+                        self.open_codegen(l);
+                        ui.close();
+                    }
+                }
+                ui.separator();
                 if ui.button("Generate Diagram by Mermaid...").clicked() {
                     self.mermaid_code = Some(crate::mermaid::SAMPLE.to_string());
                     ui.close();
@@ -3280,6 +3288,7 @@ impl App {
             || self.icon_picker.is_some()
             || self.input_dialog.is_some()
             || self.mermaid_code.is_some()
+            || self.codegen.is_some()
             || self.print_open
     }
 
@@ -3326,6 +3335,7 @@ impl App {
         self.icon_picker_ui(ctx);
         self.input_dialog_ui(ctx);
         self.mermaid_dialog_ui(ctx);
+        self.codegen_ui(ctx);
         self.preferences_ui(ctx);
         self.tag_editor_ui(ctx);
         self.palette_ui(ctx);

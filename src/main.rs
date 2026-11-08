@@ -15,6 +15,7 @@ mod c4;
 mod communication;
 mod cli;
 mod clipboard;
+mod codegen;
 mod cloud;
 mod erd;
 mod export;
