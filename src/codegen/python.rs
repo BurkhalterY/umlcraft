@@ -48,10 +48,20 @@ fn many(t: &str) -> (&str, &'static str) {
     }
 }
 
+/// A class's module name: snake_case (python.gen.lowerCase, PEP 8), else the class name.
+fn module_name(n: &str, o: &GenOpts) -> String {
+    if o.lower_case { snake(&ident(n)) } else { ident(n) }
+}
+
 pub fn generate(tree: &Pkg, o: &GenOpts) -> Vec<OutFile> {
     let paths = tree.type_paths();
-    let mut out = per_type(tree, |t| format!("{}.py", snake(&ident(&t.name))), |p, t| {
+    let mut out = per_type(tree, |t| format!("{}.py", module_name(&t.name, o)), |p, t| {
         let mut w = W::new(o);
+        // the interpreter line (python.gen.installPath)
+        if !o.install_path.trim().is_empty() {
+            w.line(o.install_path.trim());
+            w.blank();
+        }
         let interface = t.kind == Kind::Interface;
         let abs = interface || t.is_abstract || t.methods.iter().any(|m| m.is_abstract);
         if abs {
@@ -62,7 +72,7 @@ pub fn generate(tree: &Pkg, o: &GenOpts) -> Vec<OutFile> {
         }
         for n in t.supers.iter().chain(t.reals.iter()) {
             if let Some((tn, tp)) = paths.iter().find(|x| &x.0 == n) {
-                let module: Vec<String> = tp.iter().map(|s| ident(s)).chain([snake(&ident(tn))]).collect();
+                let module: Vec<String> = tp.iter().map(|s| ident(s)).chain([module_name(tn, o)]).collect();
                 w.line(&format!("from {} import {}", module.join("."), ident(tn)));
             }
         }

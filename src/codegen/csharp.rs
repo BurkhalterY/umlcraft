@@ -88,9 +88,19 @@ fn write_type(w: &mut W, t: &Ty, o: &GenOpts) {
                 s.push_str("readonly ");
             }
         }
+        // an auto-property instead of a field, when asked (csharp.gen.propertiesByDefault)
+        let property = o.properties && t.kind == Kind::Class && !s.contains("const ");
+        if property {
+            s = s.replace("readonly ", "");
+        }
         s.push_str(&format!("{} {}", map_type(&f.ty, &f.mult), ident(&f.name)));
         if t.kind == Kind::Interface {
             s.push_str(" { get; set; }");
+        } else if property {
+            s.push_str(if f.read_only { " { get; }" } else { " { get; set; }" });
+            if !f.default.is_empty() {
+                s.push_str(&format!(" = {};", f.default));
+            }
         } else if !f.default.is_empty() {
             s.push_str(&format!(" = {};", f.default));
         } else {

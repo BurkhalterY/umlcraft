@@ -7,9 +7,17 @@
 use super::lex::{self, Cfg, K, T};
 use super::*;
 
-pub fn map_type(t: &str, mult: &str) -> String {
+/// A type for a multiplicity: many is `std::vector<T>`, or `T*` without the vector option
+/// (cpp.gen.useVector).
+fn map_type_v(t: &str, mult: &str, vector: bool) -> String {
     let t = if t.is_empty() { "void*".to_string() } else { primitive(t, "std::string", "int", "bool", "double") };
-    if is_many(mult) { format!("std::vector<{t}>") } else { t }
+    if !is_many(mult) {
+        t
+    } else if vector {
+        format!("std::vector<{t}>")
+    } else {
+        format!("{t}*")
+    }
 }
 
 fn default_return(t: &str) -> &'static str {
@@ -29,16 +37,24 @@ fn many(t: &str) -> (&str, &'static str) {
     }
 }
 
-fn params(m: &Method) -> String {
+fn params(m: &Method, o: &GenOpts) -> String {
     m.params.iter().map(|p| {
         let (pt, pm) = many(&p.ty);
-        format!("{} {}", map_type(pt, pm), ident(&p.name))
+        format!("{} {}", map_type_v(pt, pm, o.use_vector), ident(&p.name))
     }).collect::<Vec<_>>().join(", ")
 }
 
-fn ret(m: &Method) -> String {
+fn ret(m: &Method, o: &GenOpts) -> String {
     let (rt, rm) = many(&m.ret);
-    if m.ret.is_empty() { "void".into() } else { map_type(rt, rm) }
+    if m.ret.is_empty() { "void".into() } else { map_type_v(rt, rm, o.use_vector) }
+}
+
+/// The project's header comment, first in each file (cpp.gen.includeHeader).
+fn header(w: &mut W, o: &GenOpts) {
+    if o.include_header && !o.header.is_empty() {
+        w.line(o.header.trim_end());
+        w.blank();
+    }
 }
 
 pub fn generate(tree: &Pkg, o: &GenOpts) -> Vec<OutFile> {
@@ -49,6 +65,7 @@ pub fn generate(tree: &Pkg, o: &GenOpts) -> Vec<OutFile> {
             let name = ident(&t.name);
             let guard = format!("_{}_H", name.to_uppercase());
             let mut h = W::new(o);
+            header(&mut h, o);
             h.line(&format!("#ifndef {guard}"));
             h.line(&format!("#define {guard}"));
             h.blank();
@@ -77,14 +94,16 @@ pub fn generate(tree: &Pkg, o: &GenOpts) -> Vec<OutFile> {
             h.blank();
             h.line(&format!("#endif //{guard}"));
             out.push((dir.join(format!("{name}.h")), h.out));
-            if t.kind != Kind::Class || t.methods.iter().all(|m| m.is_abstract) {
+            // a source file per class, unless only headers are asked (cpp.gen.genCpp)
+            if t.kind != Kind::Class || t.methods.iter().all(|m| m.is_abstract) || !o.gen_cpp {
                 continue;
             }
             let mut c = W::new(o);
+            header(&mut c, o);
             c.line(&format!("#include \"{name}.h\""));
             c.blank();
             open_ns(&mut c, &p.path);
-            write_bodies(&mut c, t, &name);
+            write_bodies(&mut c, t, &name, o);
             close_ns(&mut c, &p.path);
             out.push((dir.join(format!("{name}.cpp")), c.out));
         }
@@ -151,7 +170,7 @@ fn write_decl(w: &mut W, t: &Ty, o: &GenOpts) {
             if f.read_only {
                 s.push_str("const ");
             }
-            s.push_str(&format!("{} {}", map_type(&f.ty, &f.mult), ident(&f.name)));
+            s.push_str(&format!("{} {}", map_type_v(&f.ty, &f.mult, o.use_vector), ident(&f.name)));
             if !f.default.is_empty() && !(f.is_static && !f.read_only) {
                 s.push_str(&format!(" = {}", f.default));
             }
@@ -161,7 +180,7 @@ fn write_decl(w: &mut W, t: &Ty, o: &GenOpts) {
             w.doc(o, &m.doc, DocStyle::Block);
             let abs = m.is_abstract || interface;
             let pre = if m.is_static { "static " } else if abs { "virtual " } else { "" };
-            w.line(&format!("{pre}{} {}({}){};", ret(m), ident(&m.name), params(m), if abs { " = 0" } else { "" }));
+            w.line(&format!("{pre}{} {}({}){};", ret(m, o), ident(&m.name), params(m, o), if abs { " = 0" } else { "" }));
         }
         w.dec();
     }
@@ -182,18 +201,18 @@ fn sec(v: &str) -> &'static str {
     }
 }
 
-fn write_bodies(w: &mut W, t: &Ty, name: &str) {
+fn write_bodies(w: &mut W, t: &Ty, name: &str, o: &GenOpts) {
     w.line(&format!("{name}::{name}() {{"));
     w.line("}");
     for f in t.fields.iter().filter(|f| f.is_static && !f.read_only) {
         w.blank();
         let def = if f.default.is_empty() { String::new() } else { format!(" = {}", f.default) };
-        w.line(&format!("{} {name}::{}{def};", map_type(&f.ty, &f.mult), ident(&f.name)));
+        w.line(&format!("{} {name}::{}{def};", map_type_v(&f.ty, &f.mult, o.use_vector), ident(&f.name)));
     }
     for m in t.methods.iter().filter(|m| !m.is_abstract) {
         w.blank();
-        let r = ret(m);
-        w.line(&format!("{r} {name}::{}({}) {{", ident(&m.name), params(m)));
+        let r = ret(m, o);
+        w.line(&format!("{r} {name}::{}({}) {{", ident(&m.name), params(m, o)));
         w.inc();
         w.line("// TODO implement here");
         if !m.ret.is_empty() {

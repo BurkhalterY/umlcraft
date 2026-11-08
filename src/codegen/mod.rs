@@ -317,7 +317,7 @@ pub struct Parsed {
 
 // ------------------------------------------------------------------ options
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct GenOpts {
     pub use_tab: bool,
     pub indent_spaces: i64,
@@ -326,6 +326,20 @@ pub struct GenOpts {
     pub dbms: String,
     pub quote: bool,
     pub drop_table: bool,
+    /// C++: the project's header comment at the top of each file (cpp.gen.includeHeader), a
+    /// `std::vector<T>` rather than `T*` for many (cpp.gen.useVector), and a `.cpp` per class
+    /// (cpp.gen.genCpp)
+    pub include_header: bool,
+    pub use_vector: bool,
+    pub gen_cpp: bool,
+    /// C#: auto-properties instead of fields (csharp.gen.propertiesByDefault)
+    pub properties: bool,
+    /// Python: snake_case module names (python.gen.lowerCase) and a first line such as
+    /// `#!/usr/bin/python` (python.gen.installPath)
+    pub lower_case: bool,
+    pub install_path: String,
+    /// the project's header comment text (name, author, company, version, copyright)
+    pub header: String,
 }
 
 impl GenOpts {
@@ -346,25 +360,135 @@ pub struct RevOpts {
     pub package_structure: bool,
 }
 
+/// How an option is edited.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum OptKind {
+    Check,
+    Number,
+    Text,
+    /// DDL's DBMS: MySQL, SQLite or PostgreSQL
+    Dbms,
+}
+
+/// One option of a language: its preference key, label, description (the 7.x extensions' texts
+/// where they have one), kind and default; `rev` for the Reverse tab.
+#[derive(Clone, Debug)]
+pub struct Opt {
+    pub key: String,
+    pub label: &'static str,
+    pub desc: &'static str,
+    pub kind: OptKind,
+    pub default: serde_json::Value,
+    pub rev: bool,
+}
+
+/// The documentation comment option's key and label: `java.gen.javaDoc` "JavaDoc",
+/// `csharp.gen.csharpDoc` "C# Doc", `python.gen.docString` "Docstring" (the 7.x keys), else
+/// `<lang>.gen.doc`.
+fn doc_opt(l: Lang) -> (&'static str, &'static str) {
+    match l {
+        Lang::Java => ("javaDoc", "JavaDoc"),
+        Lang::CSharp => ("csharpDoc", "C# Doc"),
+        Lang::Python => ("docString", "Docstring"),
+        Lang::Ddl => ("doc", "Comments"),
+        _ => ("doc", "Documentation Comments"),
+    }
+}
+
+/// Every option of a language, in the dialog's and the Preferences dialog's order: the 7.x
+/// extensions' (staruml-java, staruml-cpp and staruml-csharp `preferences/preference.json`,
+/// staruml-python's), and the same set for the languages that had no 7.x extension.
+pub fn options(l: Lang) -> Vec<Opt> {
+    let k = l.key();
+    let o = |n: &str, label: &'static str, desc: &'static str, kind: OptKind, default: serde_json::Value, rev: bool| Opt { key: format!("{k}.{}.{n}", if rev { "rev" } else { "gen" }), label, desc, kind, default, rev };
+    let mut v = vec![];
+    let (dk, dl) = doc_opt(l);
+    if l == Lang::Ddl {
+        v.push(o("dbms", "DBMS", "Database management system the DDL is written for.", OptKind::Dbms, json!("mysql"), false));
+        v.push(o("quoteIdentifiers", "Quote Identifiers", "Quote table and column names.", OptKind::Check, json!(true), false));
+        v.push(o("dropTable", "Drop Table", "Write DROP TABLE IF EXISTS before each table.", OptKind::Check, json!(false), false));
+        v.push(o(dk, dl, "Write documentation as comments.", OptKind::Check, json!(true), false));
+        v.push(o("erDiagram", "ER Diagram", "Create an ER diagram for the reversed tables.", OptKind::Check, json!(true), true));
+        return v;
+    }
+    let doc_desc = match l {
+        Lang::Java => "Generate JavaDoc comments.",
+        Lang::CSharp => "Generate C# Doc comments.",
+        Lang::Python => "Generate docstrings.",
+        _ => "Generate documentation comments.",
+    };
+    if l == Lang::Python {
+        v.push(o("installPath", "Installation Path", "Installation path of python (the first line of each file; empty for none).", OptKind::Text, json!(""), false));
+    }
+    if l != Lang::Cpp {
+        v.push(o(dk, dl, doc_desc, OptKind::Check, json!(true), false));
+    }
+    // Go is indented with tabs (gofmt)
+    v.push(o("useTab", "Use Tab", "Use Tab for indentation instead of spaces.", OptKind::Check, json!(l == Lang::Go), false));
+    v.push(o("indentSpaces", "Indent Spaces", "Number of spaces for indentation.", OptKind::Number, json!(l.default_indent()), false));
+    match l {
+        Lang::Cpp => {
+            v.push(o("includeHeader", "Include default header", "Include default header.", OptKind::Check, json!(true), false));
+            v.push(o("useVector", "Use vector instead of *", "Use vector<> instead of pointer.", OptKind::Check, json!(true), false));
+            v.push(o("genCpp", "Generate *.cpp file", "Generate cpp file", OptKind::Check, json!(true), false));
+            v.push(o(dk, dl, doc_desc, OptKind::Check, json!(true), false));
+        }
+        Lang::CSharp => v.push(o("propertiesByDefault", "Properties instead of fields", "Generate properties instead of fields if not explicitly specified.", OptKind::Check, json!(false), false)),
+        Lang::Python => v.push(o("lowerCase", "Lower Case Filenames", "Make filenames lower case, according to PEP8 recommendation.", OptKind::Check, json!(true), false)),
+        _ => {}
+    }
+    if l == Lang::Python {
+        v.push(o("skipSelfParam", "Skip self parameter", "Don't show self parameter in methods.", OptKind::Check, json!(true), true));
+        v.push(o("skipMagicMethods", "Skip Magic Methods", "Don't show Python's magic methods. Like __repr__, __hash__, etc.", OptKind::Check, json!(true), true));
+    }
+    v.push(o("association", "Use Association", "Reverse fields as UML Associations.", OptKind::Check, json!(true), true));
+    v.push(o("publicOnly", "Public Only", "Reverse public members only.", OptKind::Check, json!(false), true));
+    v.push(o("typeHierarchy", "Type Hierarchy Diagram", "Create a type hierarchy diagram for all classes and interfaces", OptKind::Check, json!(true), true));
+    v.push(o("packageOverview", "Package Overview Diagram", "Create overview diagram for each package", OptKind::Check, json!(true), true));
+    v.push(o("packageStructure", "Package Structure Diagram", "Create a package structure diagram for all packages", OptKind::Check, json!(true), true));
+    v
+}
+
+/// An option's value: the preference, else its default (`java.gen.javaDoc` falls back to the
+/// `java.gen.doc` that earlier UMLCraft versions saved).
+fn opt_value(prefs: &crate::prefs::Prefs, l: Lang, name: &str, rev: bool) -> serde_json::Value {
+    let k = l.key();
+    let key = format!("{k}.{}.{name}", if rev { "rev" } else { "gen" });
+    if let Some(v) = prefs.get(&key) {
+        return v.clone();
+    }
+    if !rev && name == doc_opt(l).0 {
+        if let Some(v) = prefs.get(&format!("{k}.gen.doc")) {
+            return v.clone();
+        }
+    }
+    options(l).into_iter().find(|o| o.key == key).map(|o| o.default).unwrap_or(serde_json::Value::Null)
+}
+
 /// The options as preferences: `<lang>.gen.*` and `<lang>.rev.*` (the 7.x extensions' keys).
 pub fn gen_opts(prefs: &crate::prefs::Prefs, l: Lang) -> GenOpts {
-    let k = l.key();
-    let int = |n: &str, d: i64| prefs.get(&format!("{k}.gen.{n}")).and_then(|v| v.as_i64()).unwrap_or(d);
-    let st = |n: &str, d: &str| prefs.get(&format!("{k}.gen.{n}")).and_then(|v| v.as_str()).unwrap_or(d).to_string();
+    let v = |n: &str| opt_value(prefs, l, n, false);
+    let b = |n: &str, d: bool| v(n).as_bool().unwrap_or(d);
+    let s = |n: &str, d: &str| v(n).as_str().unwrap_or(d).to_string();
     GenOpts {
-        // Go is indented with tabs (gofmt)
-        use_tab: prefs.bool(&format!("{k}.gen.useTab"), l == Lang::Go),
-        indent_spaces: int("indentSpaces", l.default_indent()),
-        doc: prefs.bool(&format!("{k}.gen.doc"), true),
-        dbms: st("dbms", "mysql"),
-        quote: prefs.bool(&format!("{k}.gen.quoteIdentifiers"), true),
-        drop_table: prefs.bool(&format!("{k}.gen.dropTable"), false),
+        use_tab: b("useTab", false),
+        indent_spaces: v("indentSpaces").as_i64().unwrap_or(l.default_indent()),
+        doc: b(doc_opt(l).0, true),
+        dbms: s("dbms", "mysql"),
+        quote: b("quoteIdentifiers", true),
+        drop_table: b("dropTable", false),
+        include_header: b("includeHeader", true),
+        use_vector: b("useVector", true),
+        gen_cpp: b("genCpp", true),
+        properties: b("propertiesByDefault", false),
+        lower_case: b("lowerCase", true),
+        install_path: s("installPath", ""),
+        header: String::new(),
     }
 }
 
 pub fn rev_opts(prefs: &crate::prefs::Prefs, l: Lang) -> RevOpts {
-    let k = l.key();
-    let b = |n: &str, d: bool| prefs.bool(&format!("{k}.rev.{n}"), d);
+    let b = |n: &str, d: bool| opt_value(prefs, l, n, true).as_bool().unwrap_or(d);
     RevOpts {
         skip_self: b("skipSelfParam", true),
         skip_magic: b("skipMagicMethods", true),
@@ -377,23 +501,118 @@ pub fn rev_opts(prefs: &crate::prefs::Prefs, l: Lang) -> RevOpts {
     }
 }
 
-fn store_opts(prefs: &mut crate::prefs::Prefs, l: Lang, g: &GenOpts, r: &RevOpts) {
-    let k = l.key();
-    prefs.set(&format!("{k}.gen.useTab"), json!(g.use_tab));
-    prefs.set(&format!("{k}.gen.indentSpaces"), json!(g.indent_spaces));
-    prefs.set(&format!("{k}.gen.doc"), json!(g.doc));
-    if l == Lang::Ddl {
-        prefs.set(&format!("{k}.gen.dbms"), json!(g.dbms));
-        prefs.set(&format!("{k}.gen.quoteIdentifiers"), json!(g.quote));
-        prefs.set(&format!("{k}.gen.dropTable"), json!(g.drop_table));
-    } else {
-        prefs.set(&format!("{k}.rev.association"), json!(r.association));
-        prefs.set(&format!("{k}.rev.publicOnly"), json!(r.public_only));
-        prefs.set(&format!("{k}.rev.packageOverview"), json!(r.package_overview));
-        prefs.set(&format!("{k}.rev.packageStructure"), json!(r.package_structure));
+/// The project's header comment (`/** … */` with its name, author, company, version and
+/// copyright), empty when none is set.
+pub fn project_header(r: &Repo) -> String {
+    let p = r.root;
+    let mut lines = vec![];
+    let name = r.name(p);
+    if !name.is_empty() {
+        lines.push(format!("Project {name}"));
     }
-    prefs.set(&format!("{k}.rev.{}", if l == Lang::Ddl { "erDiagram" } else { "typeHierarchy" }), json!(r.type_hierarchy));
-    prefs.flush();
+    for (k, tag) in [("author", "@author"), ("company", "@company"), ("version", "@version"), ("copyright", "@copyright")] {
+        let v = r.str(p, k);
+        if !v.is_empty() {
+            lines.push(format!("{tag} {v}"));
+        }
+    }
+    if lines.is_empty() {
+        return String::new();
+    }
+    let mut s = String::from("/**\n");
+    for l in lines {
+        s.push_str(&format!(" * {l}\n"));
+    }
+    s.push_str(" */\n");
+    s
+}
+
+/// The options' widgets (in the dialog's Options and in the Preferences dialog's language
+/// sections): each change is saved at once. `rev` picks the Reverse tab's (None: all, with the
+/// section headers of the 7.x Preferences).
+pub fn options_ui(ui: &mut egui::Ui, prefs: &mut crate::prefs::Prefs, l: Lang, rev: Option<bool>, descriptions: bool) {
+    let mut changed = false;
+    let use_tab = gen_opts(prefs, l).use_tab;
+    let mut last_rev = None;
+    for o in options(l) {
+        if rev.is_some_and(|r| r != o.rev) {
+            continue;
+        }
+        if rev.is_none() && last_rev != Some(o.rev) {
+            let title = format!("{} {}", l.label(), if o.rev { "Reverse Engineering" } else { if l == Lang::Ddl { "Generation" } else { "Code Generation" } });
+            ui.label(egui::RichText::new(title).strong());
+            last_rev = Some(o.rev);
+        }
+        let name = o.key.rsplit('.').next().unwrap_or("").to_string();
+        let cur = opt_value(prefs, l, &name, o.rev);
+        let mut new = None;
+        ui.horizontal(|ui| match o.kind {
+            OptKind::Check => {
+                let mut b = cur.as_bool().unwrap_or(false);
+                if ui.checkbox(&mut b, o.label).changed() {
+                    new = Some(json!(b));
+                }
+            }
+            OptKind::Number => {
+                let mut n = cur.as_i64().unwrap_or(4);
+                ui.add_enabled_ui(!use_tab, |ui| {
+                    ui.label(o.label);
+                    if ui.add(egui::DragValue::new(&mut n).range(0..=16)).changed() {
+                        new = Some(json!(n));
+                    }
+                });
+            }
+            OptKind::Text => {
+                let mut s = cur.as_str().unwrap_or("").to_string();
+                ui.label(o.label);
+                if ui.add(egui::TextEdit::singleline(&mut s).desired_width(220.0)).changed() {
+                    new = Some(json!(s));
+                }
+            }
+            OptKind::Dbms => {
+                let mut s = cur.as_str().unwrap_or("mysql").to_string();
+                ui.label(o.label);
+                for (v, t) in [("mysql", "MySQL"), ("sqlite", "SQLite"), ("postgresql", "PostgreSQL")] {
+                    if ui.radio_value(&mut s, v.to_string(), t).changed() {
+                        new = Some(json!(s.clone()));
+                    }
+                }
+            }
+        });
+        if descriptions {
+            ui.label(egui::RichText::new(o.desc).small().weak());
+        }
+        if let Some(v) = new {
+            prefs.set(&o.key, v);
+            changed = true;
+        }
+    }
+    if changed {
+        prefs.flush();
+    }
+}
+
+/// The Preferences dialog's sections for the languages, after the notations'.
+pub fn pref_sections() -> Vec<&'static str> {
+    Lang::ALL.iter().map(|l| l.label()).collect()
+}
+
+/// The Preferences dialog's section of a language, when `section` is one (its options and
+/// descriptions).
+pub fn prefs_section_ui(ui: &mut egui::Ui, prefs: &mut crate::prefs::Prefs, section: &str) {
+    if let Some(l) = Lang::ALL.into_iter().find(|l| l.label() == section) {
+        options_ui(ui, prefs, l, None, true);
+    }
+}
+
+/// Restore Default Settings in a language's section: its options go back to their defaults.
+pub fn restore_defaults(prefs: &mut crate::prefs::Prefs, section: &str) {
+    if let Some(l) = Lang::ALL.into_iter().find(|l| l.label() == section) {
+        for o in options(l) {
+            prefs.values.remove(&o.key);
+        }
+        prefs.values.remove(&format!("{}.gen.doc", l.key()));
+    }
 }
 
 // ------------------------------------------------------------------ writing source text
@@ -674,6 +893,7 @@ pub fn generate_files(r: &Repo, base: Eid, l: Lang, o: &GenOpts) -> Vec<OutFile>
     if l == Lang::Ddl {
         return ddl::generate(r, base, o);
     }
+    let o = &GenOpts { header: project_header(r), ..o.clone() };
     let tree = gen_tree(r, base);
     match l {
         Lang::Java => java::generate(&tree, o),
@@ -1568,9 +1788,6 @@ impl App {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
         let mut cancel = false;
-        let mut g = gen_opts(&self.prefs, l);
-        let mut ro = rev_opts(&self.prefs, l);
-        let (g0, r0) = (format!("{g:?}"), format!("{ro:?}"));
         let mut open = true;
         let (mut run, mut close) = (false, false);
         let bases = self.codegen_bases(l);
@@ -1631,41 +1848,9 @@ impl App {
                     }
                 });
                 ui.add_space(4.0);
-                egui::CollapsingHeader::new("Options").default_open(true).show(ui, |ui| match d.tab {
-                    Tab::Generate => {
-                        if l == Lang::Ddl {
-                            ui.horizontal(|ui| {
-                                ui.label("DBMS");
-                                for (v, t) in [("mysql", "MySQL"), ("sqlite", "SQLite"), ("postgresql", "PostgreSQL")] {
-                                    ui.radio_value(&mut g.dbms, v.to_string(), t);
-                                }
-                            });
-                            ui.checkbox(&mut g.quote, "Quote identifiers");
-                            ui.checkbox(&mut g.drop_table, "Drop tables first (DROP TABLE IF EXISTS)");
-                            ui.checkbox(&mut g.doc, "Comments from documentation");
-                        } else {
-                            ui.checkbox(&mut g.doc, "Documentation comments");
-                            ui.checkbox(&mut g.use_tab, "Use tab for indentation");
-                            ui.add_enabled_ui(!g.use_tab, |ui| {
-                                ui.horizontal(|ui| {
-                                    ui.label("Indent spaces");
-                                    ui.add(egui::DragValue::new(&mut g.indent_spaces).range(0..=16));
-                                });
-                            });
-                        }
-                    }
-                    Tab::Reverse => {
-                        if l == Lang::Ddl {
-                            ui.checkbox(&mut ro.type_hierarchy, "Create an ER diagram");
-                        } else {
-                            ui.checkbox(&mut ro.association, "Fields typed by a class as associations");
-                            ui.checkbox(&mut ro.public_only, "Public members only");
-                            ui.checkbox(&mut ro.type_hierarchy, "Create a type hierarchy diagram");
-                            ui.checkbox(&mut ro.package_structure, "Create a package structure diagram");
-                            ui.checkbox(&mut ro.package_overview, "Create package overview diagrams");
-                        }
-                    }
-                });
+                // the language's options for this tab, saved as preferences at once
+                let rev = d.tab == Tab::Reverse;
+                egui::CollapsingHeader::new("Options").default_open(true).show(ui, |ui| options_ui(ui, &mut self.prefs, l, Some(rev), false));
             });
             ui.add_space(4.0);
             egui::ScrollArea::vertical().max_height(160.0).auto_shrink([false, true]).show(ui, |ui| {
@@ -1705,9 +1890,6 @@ impl App {
             });
             close |= ui.input(|i| i.key_pressed(egui::Key::Escape));
         });
-        if format!("{g:?}") != g0 || format!("{ro:?}") != r0 {
-            store_opts(&mut self.prefs, l, &g, &ro);
-        }
         if cancel {
             if let Some(j) = &d.job {
                 j.cancel.store(true, Ordering::Relaxed);

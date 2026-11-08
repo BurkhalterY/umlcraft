@@ -51,7 +51,7 @@ pub(super) fn measure() -> crate::canvas::EguiMeasure {
 }
 
 pub(super) fn opts() -> GenOpts {
-    GenOpts { use_tab: false, indent_spaces: 4, doc: true, dbms: "mysql".into(), quote: true, drop_table: false }
+    GenOpts { use_tab: false, indent_spaces: 4, doc: true, dbms: "mysql".into(), quote: true, drop_table: false, include_header: true, use_vector: true, gen_cpp: true, lower_case: true, ..Default::default() }
 }
 
 pub(super) fn files(l: Lang) -> Vec<(String, String)> {
@@ -515,4 +515,67 @@ pub(super) fn jobs_run_on_a_worker_thread_and_can_be_cancelled() {
     d.job = Some(job);
     wait(&mut a, &mut d);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Each language's options, with the 7.x extensions' keys, change what is generated.
+#[test]
+pub(super) fn language_options() {
+    let keys = |l: Lang| options(l).into_iter().map(|o| o.key).collect::<Vec<_>>();
+    for k in ["java.gen.javaDoc", "java.gen.useTab", "java.gen.indentSpaces", "java.rev.association", "java.rev.publicOnly", "java.rev.typeHierarchy", "java.rev.packageOverview", "java.rev.packageStructure"] {
+        assert!(keys(Lang::Java).contains(&k.to_string()), "{k}");
+    }
+    for k in ["cpp.gen.includeHeader", "cpp.gen.useVector", "cpp.gen.genCpp", "csharp.gen.csharpDoc", "csharp.gen.propertiesByDefault", "python.gen.installPath", "python.gen.docString", "python.gen.lowerCase", "python.rev.skipSelfParam", "python.rev.skipMagicMethods", "ddl.gen.dbms", "ddl.rev.erDiagram"] {
+        let l = Lang::ALL.into_iter().find(|l| k.starts_with(&format!("{}.", l.key()))).unwrap();
+        assert!(keys(l).contains(&k.to_string()), "{k}");
+    }
+    // the documentation option reads the key earlier versions saved
+    let mut prefs = crate::prefs::Prefs::load(None);
+    prefs.set("java.gen.doc", json!(false));
+    assert!(!gen_opts(&prefs, Lang::Java).doc);
+    prefs.set("java.gen.javaDoc", json!(true));
+    assert!(gen_opts(&prefs, Lang::Java).doc);
+    prefs.set("cpp.gen.genCpp", json!(false));
+    crate::codegen::restore_defaults(&mut prefs, "C++");
+    assert!(gen_opts(&prefs, Lang::Cpp).gen_cpp, "Restore Default Settings");
+    let (mut r, core) = library();
+    let root = r.root;
+    r.set(root, "name", json!("Library"));
+    r.set(root, "author", json!("Ada"));
+    let gen = |o: &GenOpts, l: Lang| -> Vec<(String, String)> { generate_files(&r, core, l, o).into_iter().map(|(p, t)| (p.to_string_lossy().replace('\\', "/"), t)).collect() };
+    // C++: the project header, vectors and source files
+    let f = gen(&opts(), Lang::Cpp);
+    assert!(file(&f, "Book.h").starts_with("/**\n * Project Library\n * @author Ada\n */\n"), "{}", file(&f, "Book.h"));
+    assert!(f.iter().any(|x| x.0 == "Book.cpp"));
+    has(file(&f, "people/Member.h"), &["std::vector<Book> books;"]);
+    let f = gen(&GenOpts { include_header: false, use_vector: false, gen_cpp: false, ..opts() }, Lang::Cpp);
+    assert!(file(&f, "Book.h").starts_with("#ifndef _BOOK_H"));
+    assert!(!f.iter().any(|x| x.0.ends_with(".cpp")), "only headers");
+    has(file(&f, "people/Member.h"), &["Book* books;"]);
+    // C#: properties instead of fields
+    let f = gen(&GenOpts { properties: true, ..opts() }, Lang::CSharp);
+    has(file(&f, "Book.cs"), &["private string isbn { get; set; }"]);
+    // Python: file names as the classes, and the interpreter line
+    let f = gen(&GenOpts { lower_case: false, install_path: "#!/usr/bin/python".into(), ..opts() }, Lang::Python);
+    let book = file(&f, "LibraryItem.py");
+    assert!(book.starts_with("#!/usr/bin/python\n"), "{book}");
+    has(file(&f, "Book.py"), &["from LibraryItem import LibraryItem"]);
+}
+
+/// The dialog's Options and the Preferences dialog's language sections draw every option.
+#[test]
+pub(super) fn options_are_drawn_in_the_dialog_and_the_preferences() {
+    let mut a = App::new(None);
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    for l in Lang::ALL {
+        a.open_codegen(l);
+        for tab in [Tab::Generate, Tab::Reverse] {
+            a.codegen.as_mut().unwrap().tab = tab;
+            let _ = ctx.run_ui(egui::RawInput::default(), |ui| a.codegen_ui(ui.ctx()));
+            assert!(a.codegen.is_some());
+        }
+        a.prefs_open = Some(l.label().to_string());
+        let _ = ctx.run_ui(egui::RawInput::default(), |ui| a.preferences_ui(ui.ctx()));
+        assert_eq!(a.prefs_open.as_deref(), Some(l.label()));
+    }
 }
