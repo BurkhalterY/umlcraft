@@ -1428,6 +1428,10 @@ impl App {
             // UMLSequenceDiagram.canAcceptModel (elements.js:10958-10985), and
             // UMLCommunicationDiagram's and UMLTimingDiagram's (elements.js:12914-12946, 13374-13389)
             "UMLSequenceDiagram" | "UMLCommunicationDiagram" | "UMLTimingDiagram" => {
+                // an interaction, which a sequence diagram shows as an interaction use
+                if self.repo.ty(d) == "UMLSequenceDiagram" && self.repo.ty(m) == "UMLInteraction" {
+                    return true;
+                }
                 // a role of the collaboration that owns the interaction
                 if self.repo.ty(m) == "UMLAttribute" {
                     return self.repo.parent(m) == self.repo.parent(d).and_then(|i| self.repo.parent(i));
@@ -1453,7 +1457,7 @@ impl App {
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
         // ports, parts, pins and connection point references go onto their parent's box (drop_feature)
         let feature = matches!(ty, "UMLPort" | "UMLAttribute" | "UMLInputPin" | "UMLOutputPin" | "UMLConnectionPointReference");
-        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || feature || views::node_kind(ty).is_some() || crate::bpmn::is_node_type(ty) || crate::sysml::droppable(ty) || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || feature || views::node_kind(ty).is_some() || crate::bpmn::is_node_type(ty) || crate::sysml::droppable(ty) || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLInteraction" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
@@ -1543,6 +1547,17 @@ impl App {
         // becomes an action calling it
         if self.repo.ty(d) == "UMLInteractionOverviewDiagram" && (matches!(self.repo.ty(m), "UMLInteractionUse" | "UMLInteraction" | "UMLSequenceDiagram")) {
             let v = self.change(|a| a.drop_on_overview(d, m, p));
+            return Ok(v.into_iter().collect());
+        }
+        // an interaction dropped on a sequence diagram becomes an interaction use referring to it, at
+        // its smallest (viewForSequenceDiagramFn, uml-factory.js:2860-2870)
+        if self.repo.ty(d) == "UMLSequenceDiagram" && self.repo.ty(m) == "UMLInteraction" {
+            let v = self.change(|a| {
+                let v = a.create_node("UMLInteractionUse", views::R { x: p.x, y: p.y, w: 0.0, h: 0.0 })?;
+                let u = a.repo.refd(v, "model")?;
+                a.repo.set_ref(u, "refersTo", Some(m));
+                Some(v)
+            });
             return Ok(v.into_iter().collect());
         }
         let comm = self.repo.ty(d) == "UMLCommunicationDiagram";

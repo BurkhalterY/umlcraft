@@ -9154,3 +9154,31 @@ fn dropping_an_association_class_links_it_to_its_association() {
     assert_eq!(a.repo.refd(again[0], "tail"), Some(class_view));
     assert_eq!(a.repo.list(d2, "ownedViews").len(), n + 1);
 }
+
+#[test]
+fn an_interaction_dropped_on_a_sequence_diagram_is_used() {
+    use crate::views::P;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    let collab = a.repo.parent(inter).unwrap();
+    let other = a.change(|a| Some(a.repo.create("UMLInteraction", &[("name", json!("Login"))], Some((collab, "ownedElements"))))).unwrap();
+    assert!(a.can_drop_model(other));
+    // viewForSequenceDiagramFn (uml-factory.js:2860-2870): an interaction use referring to it
+    let vs = a.drop_model(other, P { x: 60.0, y: 200.0 }).unwrap();
+    assert_eq!(vs.len(), 1);
+    assert_eq!(a.repo.ty(vs[0]), "UMLInteractionUseView");
+    let u = a.repo.refd(vs[0], "model").unwrap();
+    assert_eq!(a.repo.ty(u), "UMLInteractionUse");
+    assert_eq!(a.repo.refd(u, "refersTo"), Some(other));
+    assert_eq!(a.repo.parent(u), Some(inter), "a fragment of the diagram's interaction");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let saved = a.repo.serialize();
+    assert!(saved.contains("\"refersTo\""));
+    // a class diagram does not take an interaction
+    let cd = a.change(|a| a.add_diagram(Some(root), "UMLClassDiagram"));
+    a.open_diagram(cd);
+    assert!(!a.can_drop_model(other));
+}
