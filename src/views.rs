@@ -24,9 +24,46 @@ pub const DECORATION_ICON: f64 = 24.0;
 const ICONIC_MIN: f64 = 24.0;
 pub const ROBUST_ICON_W: f64 = 50.0;
 pub const ROBUST_ICON_H: f64 = 36.0;
-/// An artifact shown as an icon (estimated).
-pub const ARTIFACT_ICON_W: f64 = 30.0;
-pub const ARTIFACT_ICON_H: f64 = 40.0;
+/// An artifact shown as an icon: its smallest icon (ARTIFACT_ICON_MINWIDTH/HEIGHT, elements.js:103-104).
+pub const ARTIFACT_ICON_W: f64 = 40.0;
+pub const ARTIFACT_ICON_H: f64 = 50.0;
+/// A component shown as an icon: its smallest icon (COMPONENT_ICON_MINWIDTH/HEIGHT, elements.js:110-111).
+pub const COMPONENT_ICON_W: f64 = 50.0;
+pub const COMPONENT_ICON_H: f64 = 45.0;
+/// A component in box form (stereotype display None or Label): the smallest box, the room left of
+/// the compartments for the two tabs, and the indent of the box behind the tabs
+/// (COMPONENT_MINWIDTH/HEIGHT, COMPONENT_STATIC_MARGIN, COMPONENT_RECT_INDENT, elements.js:108-115).
+pub const COMPONENT_MIN_W: f64 = 50.0;
+pub const COMPONENT_MIN_H: f64 = 45.0;
+pub const COMPONENT_MARGIN: f64 = 20.0;
+pub const COMPONENT_INDENT: f64 = 10.0;
+
+/// Whether a view is a component drawn in its box form, with the two tabs on its left side: stereotype
+/// display None or Label (UMLComponentViewMixin.drawAsCanonicalForm, elements.js:7758-7779).
+pub fn component_box_form(r: &Repo, v: Eid) -> bool {
+    r.ty(v) == "UMLComponentView" && matches!(r.str(v, "stereotypeDisplay").as_str(), "none" | "label")
+}
+
+/// The icon a component or artifact view draws, as an icon script, when its stereotype has none: the
+/// component (a box with two tabs) or the page with a folded corner. In decoration display the
+/// component's smaller icon (UMLComponentViewMixin.drawIcon and drawDecorationIcon, elements.js:7738-7756;
+/// UMLArtifactViewMixin.drawIcon, elements.js:7585-7610).
+pub fn kind_icon(view_ty: &str, display: &str) -> Option<(StereotypeIcon, f64, f64)> {
+    let deco = display == "decoration" || display == "decoration-label";
+    let script = match view_ty {
+        "UMLComponentView" if deco => "!icon 24 21.6\nfr 9 5 22 21\nr 9 5 22 21\nfr 6 8 13 12\nr 6 8 13 12\nfr 6 14 13 18\nr 6 14 13 18",
+        "UMLComponentView" => "!icon 50 45\nfr 10 0 50 45\nr 10 0 50 45\nfr 0 6 20 16\nr 0 6 20 16\nfr 0 23 20 33\nr 0 23 20 33",
+        "UMLArtifactView" => "!icon 40 50\nfp 0 0 28 0 40 12 40 50 0 50\npg 0 0 28 0 40 12 40 50 0 50\npg 28 0 28 12 40 12",
+        _ => return None,
+    };
+    let (w, h) = if view_ty == "UMLComponentView" { (COMPONENT_ICON_W, COMPONENT_ICON_H) } else { (ARTIFACT_ICON_W, ARTIFACT_ICON_H) };
+    Some((StereotypeIcon::Script(script.to_string()), w, h))
+}
+
+/// The icon a view's iconic or decoration form draws: its stereotype's, or its kind's.
+pub fn view_icon(r: &Repo, v: Eid, m: Eid) -> Option<(StereotypeIcon, f64, f64)> {
+    stereotype_icon(r, m).or_else(|| kind_icon(r.ty(v), &r.str(v, "stereotypeDisplay")))
+}
 
 /// The robustness kind of a class shown as an icon: "boundary", "entity" or "control".
 /// A stereotype icon's script, if the stereotype of the view's element has one (`!icon w h` in its
@@ -166,6 +203,22 @@ fn label_lines(r: &Repo, ms: &dyn Measure, lv: Eid, width: f64) -> usize {
         wrap_text(ms, &r.str(lv, "text"), width, font_style_of(r, lv) as u8).len().max(1)
     } else {
         1
+    }
+}
+
+/// Whether a compartment item inherits its box's style: parentStyle, true unless it is set false
+/// (UMLAttributeView and the like, elements.js:4395, 4457).
+pub fn inherits(r: &Repo, iv: Eid) -> bool {
+    r.raw(iv, "parentStyle") != Some(&json!(false))
+}
+
+/// The line height of a compartment item: the box's font size while it inherits the box's style,
+/// otherwise its own (View.setup, core.js:1658-1666).
+fn item_size(r: &Repo, ms: &dyn Measure, iv: Eid) -> f64 {
+    if inherits(r, iv) {
+        ms.size()
+    } else {
+        view_font(r, iv).1
     }
 }
 
@@ -497,6 +550,39 @@ pub fn parse_points(s: &str) -> Vec<P> {
         })
         .collect()
 }
+/// A slanted line made rectilinear: an elbow is put after each point, below the lower end of the
+/// segment, or level with its start when the segment goes up (Points.convObliqueToRectilinear and
+/// Coord.makeOrthoPt, graphics.js:792-801, 1195-1201). Repeated and collinear points are then
+/// dropped, as the original's reduce does (graphics.js:760-773).
+pub fn oblique_to_rectilinear(pts: &[P]) -> Vec<P> {
+    let mut out: Vec<P> = vec![];
+    for (i, p1) in pts.iter().enumerate() {
+        out.push(*p1);
+        if let Some(p2) = pts.get(i + 1) {
+            let mut q = P { x: p1.x, y: p1.y.max(p2.y) };
+            if q.y == p1.y {
+                q.x = p2.x;
+            }
+            out.push(q);
+        }
+    }
+    let mut i = 0;
+    while i + 2 < out.len() {
+        let (a, b, c) = (out[i], out[i + 1], out[i + 2]);
+        if a == b {
+            out.remove(i);
+        } else if (a.x == b.x && b.x == c.x) || (a.y == b.y && b.y == c.y) {
+            out.remove(i + 1);
+        } else {
+            i += 1;
+        }
+    }
+    if out.len() == 2 && out[0] == out[1] {
+        out.pop();
+    }
+    out
+}
+
 pub fn points_of(r: &Repo, e: Eid) -> Vec<P> {
     parse_points(&r.str(e, "points"))
 }
@@ -1896,18 +1982,13 @@ pub(crate) fn sync_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, items: &[Eid]
         let st = r.bool(items[i], "isStatic");
         r.set(*iv, "underline", json!(st));
         let italic = if r.bool(items[i], "isAbstract") { 2 } else { 0 };
+        // an item with Inherit Style turned off keeps its own font (View.setup, core.js:1658-1666)
+        if inherits(r, *iv) {
+            set_label_font(r, ms, *iv, None);
+        }
         r.set(*iv, "wordWrap", json!(wrap));
-        let tw = match own_font(r, *iv) {
-            // a row that does not inherit its box's style keeps its own font
-            Some((face, size)) => {
-                let sm = Scaled { ms, face, size };
-                if wrap { widest_word(&sm, t, italic) } else { sm.width(t, italic) }
-            }
-            None => {
-                set_label_font(r, ms, *iv, None);
-                if wrap { widest_word(ms, t, italic) } else { ms.width(t, italic) }
-            }
-        };
+        let k = item_size(r, ms, *iv) / ms.size().max(1.0);
+        let tw = k * if wrap { widest_word(ms, t, italic) } else { ms.width(t, italic) };
         min_w = min_w.max(tw.ceil() + 2.0 * PAD);
     }
     let rows: Vec<Row> = shown.into_iter().map(|iv| Row { iv }).collect();
@@ -1921,20 +2002,12 @@ pub(crate) fn own_font(r: &Repo, iv: Eid) -> Option<(String, f64)> {
     (is_item_view(r.ty(iv)) && r.raw(iv, "parentStyle") == Some(&json!(false))).then(|| view_font(r, iv))
 }
 
-/// The height of a row `w` wide: its lines in its font's size.
-fn row_height(r: &Repo, ms: &dyn Measure, iv: Eid, w: f64) -> f64 {
-    match own_font(r, iv) {
-        Some((face, size)) => label_lines(r, &Scaled { ms, face, size }, iv, w) as f64 * size,
-        None => label_lines(r, ms, iv, w) as f64 * ms.size(),
-    }
-}
-
 /// The height of a list compartment `w` wide: its rows, with word-wrapped rows on several lines.
 pub(crate) fn list_height(r: &Repo, ms: &dyn Measure, rows: &[Row], w: f64) -> f64 {
     if rows.is_empty() {
         return EMPTY_H;
     }
-    let lines: f64 = rows.iter().map(|row| row_height(r, ms, row.iv, w - 2.0 * PAD + 1.0)).sum();
+    let lines: f64 = rows.iter().map(|row| label_lines(r, ms, row.iv, w - 2.0 * PAD + 1.0) as f64 * item_size(r, ms, row.iv)).sum();
     2.0 * PAD + lines + ITEM_GAP * (rows.len() as f64 - 1.0)
 }
 
@@ -1942,7 +2015,7 @@ pub(crate) fn place_list(r: &mut Repo, ms: &dyn Measure, comp: Eid, x: f64, y: f
     set_box(r, comp, x, y, w + 1.0, h);
     let mut cy = y + PAD;
     for row in rows {
-        let lh = row_height(r, ms, row.iv, w - 2.0 * PAD + 1.0);
+        let lh = label_lines(r, ms, row.iv, w - 2.0 * PAD + 1.0) as f64 * item_size(r, ms, row.iv);
         set_box(r, row.iv, x + PAD, cy, w - 2.0 * PAD + 1.0, lh);
         cy += lh + ITEM_GAP;
     }
@@ -1970,6 +2043,8 @@ fn keyword_of(ty: &str) -> Option<&'static str> {
         "UMLInformationItem" => Some("information"),
         "UMLStereotype" => Some("stereotype"),
         "UMLMetaClass" => Some("metaclass"),
+        // an artifact's stereotype label is always «artifact» (UMLArtifactView.getStereotypeLabelText, elements.js:7640-7642)
+        "UMLArtifact" => Some("artifact"),
         // central buffers and data stores (elements.js:10254-10272)
         "UMLCentralBufferNode" => Some("centralBuffer"),
         "UMLDataStoreNode" => Some("datastore"),
@@ -2010,11 +2085,25 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     if ty == "UMLArtifact" && (display == "icon" || display == "icon-label") {
         hide_all(r);
         let hide_st = display == "icon";
-        let min_w = name_min_width(r, ms, v, m, None, hide_st).max(ARTIFACT_ICON_W);
-        grow(r, v, min_w, NAME_MIN_H + ARTIFACT_ICON_H);
-        let (x, y, w, h) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"), r.f(v, "height"));
-        layout_name(r, ms, v, m, x, y + h - NAME_MIN_H, w, None, hide_st);
+        let min_w = name_min_width(r, ms, v, m, keyword, hide_st).max(ARTIFACT_ICON_W);
+        let (x, y) = (r.f(v, "left"), r.f(v, "top"));
+        let nh = layout_name(r, ms, v, m, x, y, min_w, keyword, hide_st);
+        grow(r, v, min_w, nh + ARTIFACT_ICON_H);
+        let (w, h) = (r.f(v, "width"), r.f(v, "height"));
+        layout_name(r, ms, v, m, x, y + h - nh, w, keyword, hide_st);
         return Info { shape: "artifact", ..Default::default() };
+    }
+    // a component in icon display: the component icon, the name under it (iconRect, elements.js:5107-5120)
+    if ty == "UMLComponent" && (display == "icon" || display == "icon-label") && stereotype_icon(r, m).is_none() {
+        hide_all(r);
+        let hide_st = display == "icon";
+        let min_w = name_min_width(r, ms, v, m, None, hide_st).max(COMPONENT_ICON_W);
+        let (x, y) = (r.f(v, "left"), r.f(v, "top"));
+        let nh = layout_name(r, ms, v, m, x, y, min_w, None, hide_st);
+        grow(r, v, min_w, nh + COMPONENT_ICON_H);
+        let (w, h) = (r.f(v, "width"), r.f(v, "height"));
+        layout_name(r, ms, v, m, x, y + h - nh, w, None, hide_st);
+        return Info { shape: "component", ..Default::default() };
     }
     // a boundary, entity or control class as its robustness icon, the name under it
     if let Some(kind) = robustness_kind(r, v, m) {
@@ -2163,8 +2252,12 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     // decoration at the top right (elements.js:4894-4917, 4955-4980)
     let icon = stereotype_icon(r, m).filter(|_| ty != "UMLInterface");
     let iconic = icon.is_some() && (display == "icon" || display == "icon-label");
-    let decorated = icon.is_some() && (display == "decoration" || display == "decoration-label");
+    // a component or an artifact has its own decoration icon when its stereotype has none
+    let decorated = (icon.is_some() || kind_icon(r.ty(v), &display).is_some()) && (display == "decoration" || display == "decoration-label");
     let hide_st = iconic && display == "icon";
+    // a component's box form leaves room for its tabs on the left (arrangeCommon and
+    // sizeAsCanonicalForm, elements.js:7682-7704)
+    let tabs = if component_box_form(r, v) { COMPONENT_MARGIN } else { 0.0 };
     let mut min_w = name_min_width(r, ms, v, m, keyword, hide_st) + icon_room(r.ty(v));
     if decorated {
         min_w += DECORATION_ICON + 2.0 * PAD;
@@ -2175,8 +2268,12 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
     for c in &comps {
         min_w = min_w.max(c.1);
     }
-    let (x, y) = (r.f(v, "left"), r.f(v, "top"));
-    let w0 = if r.bool(v, "autoResize") { min_w } else { r.f(v, "width").max(min_w) };
+    if tabs > 0.0 {
+        min_w = (min_w + tabs).max(COMPONENT_MIN_W);
+    }
+    let (x0, y) = (r.f(v, "left"), r.f(v, "top"));
+    let x = x0 + tabs;
+    let w0 = if r.bool(v, "autoResize") { min_w } else { r.f(v, "width").max(min_w) } - tabs;
     // a decoration narrows the name by its box (arrangeAsDecorationForm, elements.js:4955-4963)
     let name_w = if decorated { w0 - DECORATION_ICON } else { w0 };
     let name_h = layout_name(r, ms, v, m, x, y, name_w, keyword, hide_st);
@@ -2190,13 +2287,14 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         (Some((_, _, ih)), true) => ih.max(ICONIC_MIN),
         _ => 0.0,
     };
-    grow(r, v, min_w, comps_h + icon_min_h);
-    let w = r.f(v, "width");
+    let min_h = if tabs > 0.0 { (comps_h + icon_min_h).max(COMPONENT_MIN_H) } else { comps_h + icon_min_h };
+    grow(r, v, min_w, min_h);
+    let w = r.f(v, "width") - tabs;
     // the icon takes the square that fits above the compartments; they follow under it
     let icon_h = if iconic {
-        let area = R { x, y, w, h: r.f(v, "height") - comps_h };
+        let area = R { x: x0, y, w, h: r.f(v, "height") - comps_h };
         let ih = crate::render::fit_ratio(area, 100.0, 100.0).h;
-        layout_name(r, ms, v, m, x, y + ih, w0, keyword, hide_st);
+        layout_name(r, ms, v, m, x0, y + ih, w0, keyword, hide_st);
         ih
     } else {
         0.0
@@ -2209,7 +2307,7 @@ fn layout_classifier(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) -> Info {
         cy += h;
     }
     let templ = templ.map(|(tc, (tw, th, rows))| {
-        let (tx, ty) = (x + w - tw + TEMPLATE_OUT, y - th + TEMPLATE_OUT);
+        let (tx, ty) = (x0 + tabs + w - tw + TEMPLATE_OUT, y - th + TEMPLATE_OUT);
         place_list(r, ms, tc, tx, ty, tw, th, &rows);
         Comp { y: ty, rows }
     });
@@ -2236,7 +2334,7 @@ pub const ICON_ROOM: f64 = 26.0;
 
 fn icon_room(view_ty: &str) -> f64 {
     match view_ty {
-        "UMLComponentView" | "UMLArtifactView" | "UMLComponentInstanceView" | "UMLArtifactInstanceView" => 2.0 * ICON_ROOM,
+        "UMLComponentInstanceView" | "UMLArtifactInstanceView" => 2.0 * ICON_ROOM,
         _ => 0.0,
     }
 }
@@ -2577,9 +2675,13 @@ fn end_rect(r: &Repo, v: Eid, info: &HashMap<Eid, Info>) -> R {
         return R { x: nr.x + (nr.w - d) / 2.0, y: nr.y + (ih - d) / 2.0, w: d, h: d };
     }
     // lines meet the icon of an artifact or a robustness class, not its whole box
-    if shape == "artifact" || shape == "boundary" || shape == "entity" || shape == "control" {
+    if shape == "artifact" || shape == "component" || shape == "boundary" || shape == "entity" || shape == "control" {
         let ih = nr.h - NAME_MIN_H;
-        let iw = if shape == "artifact" { (ih * ARTIFACT_ICON_W / ARTIFACT_ICON_H).min(nr.w) } else { nr.w.min(ROBUST_ICON_W) };
+        let iw = match shape {
+            "artifact" => (ih * ARTIFACT_ICON_W / ARTIFACT_ICON_H).min(nr.w),
+            "component" => (ih * COMPONENT_ICON_W / COMPONENT_ICON_H).min(nr.w),
+            _ => nr.w.min(ROBUST_ICON_W),
+        };
         return R { x: nr.x + (nr.w - iw) / 2.0, y: nr.y, w: iw, h: ih };
     }
     nr

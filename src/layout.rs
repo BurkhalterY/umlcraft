@@ -5,7 +5,8 @@
 //! lines (the head of a line above its tail, so super-classes sit above sub-classes), long lines pass
 //! through invisible points on the ranks they cross, the order within each rank is improved by
 //! barycentre sweeps, and each box is then pulled towards its neighbours without overlapping.
-//! The separations are estimated.
+//! The default separations (30) and margins (20) and the curved lines are the original's
+//! (core.js:62-66, 4321-4375).
 
 use crate::app::App;
 use crate::model::{num, Eid};
@@ -40,10 +41,14 @@ pub struct Seps {
     pub rank: f64,
 }
 
-/// The separations of Format › Layout (estimated).
-pub const SEPS: Seps = Seps { node: 50.0, edge: 10.0, rank: 50.0 };
-/// The curve line style (EdgeView.LS_CURVE, core.js), which a layout gives every line.
-pub const LS_CURVE: i64 = 3;
+/// The default separations of a layout (NODE_SEPARATION, EDGE_SEPARATION, RANK_SEPARATION, core.js:64-66).
+pub const SEPS: Seps = Seps { node: 30.0, edge: 30.0, rank: 30.0 };
+
+/// The layout's distance from the diagram's left and top (LAYOUT_MARGIN_LEFT, LAYOUT_MARGIN_TOP, core.js:62-63).
+pub const MARGIN: f64 = 20.0;
+
+/// The line style a layout gives every line it lays out when none is asked for: curve (core.js:4327, 4366).
+pub const LINE_STYLE: i64 = 3;
 
 /// The result: each box's top-left corner, and for each line the bend points it passes through
 /// (from its first end to its second), all relative to (0, 0).
@@ -352,15 +357,22 @@ pub fn layered(sizes: &[(f64, f64)], edges: &[(usize, usize)], dir: Dir, seps: S
 }
 
 impl App {
-    /// Format > Layout: lay out the current diagram's top-level boxes in one undo step. Boxes inside a
-    /// package or subject, contained or only lying within its bounds, move with it; lines get the bend
-    /// points of the layout (none when rectilinear, which routes itself).
+    /// Format > Layout: lay out the current diagram's top-level boxes in one undo step, 20 px from the
+    /// diagram's top-left corner. Boxes inside a package or subject, contained or only lying within its
+    /// bounds, move with it; every line laid out becomes a curve through the bend points of the layout
+    /// (Diagram.layout, core.js:4290-4375; Engine.layoutDiagram, engine.js:1513-1549).
     pub fn layout_diagram(&mut self, dir: Dir) {
         self.layout_diagram_with(dir, SEPS);
     }
 
-    /// Lay out the current diagram with these separations.
+    /// Lay out the current diagram with these separations; lines become curves.
     pub fn layout_diagram_with(&mut self, dir: Dir, seps: Seps) {
+        self.layout_diagram_styled(dir, seps, LINE_STYLE);
+    }
+
+    /// Lay out the current diagram with these separations, giving the lines this line style. A
+    /// rectilinear line gets no bend points: it routes itself.
+    pub fn layout_diagram_styled(&mut self, dir: Dir, seps: Seps, line_style: i64) {
         let Some(d) = self.diagram else { return };
         let all = self.repo.list(d, "ownedViews");
         let free: Vec<Eid> = all.iter().copied().filter(|v| views::is_node(&self.repo, *v) && !self.repo.has(*v, "containerView") && self.repo.refd(*v, "hostEdge").is_none()).collect();
@@ -413,10 +425,8 @@ impl App {
         // the head of a line goes above its tail
         let edges: Vec<(usize, usize)> = lines.iter().map(|(_, t, h)| (*h, *t)).collect();
         let placed = layered(&sizes, &edges, dir, seps);
-        // keep the diagram where it was: the layout starts at the old top-left corner
         let rects: Vec<R> = top.iter().map(|v| views::node_rect(&self.repo, *v)).collect();
-        let ox = rects.iter().map(|b| b.x).fold(f64::INFINITY, f64::min);
-        let oy = rects.iter().map(|b| b.y).fold(f64::INFINITY, f64::min);
+        let (ox, oy) = (MARGIN, MARGIN);
         self.change(|a| {
             for (i, v) in top.iter().enumerate() {
                 let (dx, dy) = (placed.boxes[i].x + ox - rects[i].x, placed.boxes[i].y + oy - rects[i].y);
@@ -429,16 +439,15 @@ impl App {
                 }
             }
             for (k, (e, t, h)) in lines.iter().enumerate() {
-                // every laid-out line becomes a curve through the layout's bend points
-                // (Diagram.layout: lineStyle = EdgeView.LS_CURVE, core.js:4327, 4366-4374)
-                a.repo.set(*e, "lineStyle", json!(LS_CURVE));
+                let style = line_style;
+                a.repo.set(*e, "lineStyle", json!(style));
                 let tail = views::node_rect(&a.repo, a.repo.refd(*e, "tail").unwrap());
                 let head = views::node_rect(&a.repo, a.repo.refd(*e, "head").unwrap());
                 let c = |b: R| P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
                 // bend points run from the head (above) to the tail; the line runs tail to head
                 let mut bends: Vec<P> = placed.bends[k].iter().map(|p| P { x: p.x + ox, y: p.y + oy }).collect();
                 bends.reverse();
-                if t == h || bends.is_empty() {
+                if t == h || views::rectilinear(style) || bends.is_empty() {
                     bends.clear();
                 }
                 let mut pts = vec![c(tail)];

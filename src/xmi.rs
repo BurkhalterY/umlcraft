@@ -1,11 +1,13 @@
 //! File > Export > XMI Export (v2.1): the model as OMG XMI 2.1 with the UML 2 vocabulary, model
 //! elements only, no diagrams (https://docs.staruml.io/user-guide/managing-project/).
 //!
-//! The layout of the file is UMLCraft's own (the StarUML exporter was not read): packages hold
-//! their elements as `packagedElement`; a classifier holds its attributes, operations, literals and
-//! generalizations; associations, dependencies and the other relationships are written in the
-//! package that holds them, or in the nearest package above their owner. String types (an attribute
-//! typed "int" by text) have no element to point at and are left out.
+//! StarUML's exporter is a separate extension, not part of StarUML 7.1.1, so the file follows the
+//! OMG XMI 2.1 layout for UML 2.1: packages hold their elements as `packagedElement`; a classifier
+//! holds its attributes, operations, literals and generalizations; associations, dependencies and the
+//! other relationships are written in the package that holds them, or in the nearest package above
+//! their owner. A type given as text refers to the UML primitive type of that name (String, Integer,
+//! Boolean, Real, UnlimitedNatural) in the UML 2.1 library, or else to a `uml:DataType` of that name
+//! written at the end of the model, with an id starting "TextType_" that the import reads back as text.
 
 use crate::app::App;
 use crate::model::{Eid, Repo};
@@ -19,9 +21,18 @@ fn esc(s: &str) -> String {
 /// its classifier, as UML 2 has it).
 const PACKAGE_LEVEL: [&str; 9] = ["UMLAssociation", "UMLDependency", "UMLAbstraction", "UMLRealization", "UMLComponentRealization", "UMLDeployment", "UMLCommunicationPath", "UMLLink", "UMLTemplateBinding"];
 
+/// The UML 2.1 primitive types, referred to in the UML library by name.
+const PRIMITIVES: [&str; 5] = ["String", "Integer", "Boolean", "Real", "UnlimitedNatural"];
+/// The UML 2.1 library the primitive types are in.
+const PRIMITIVE_LIBRARY: &str = "http://schema.omg.org/spec/UML/2.1/uml.xml";
+/// The id prefix of the data types written for types given as text.
+const TEXT_TYPE: &str = "TextType_";
+
 struct Writer<'a> {
     r: &'a Repo,
     out: String,
+    /// the types given as text that are not UML primitives, with their ids
+    text_types: &'a std::collections::BTreeMap<String, String>,
 }
 
 impl Writer<'_> {
@@ -48,11 +59,20 @@ impl Writer<'_> {
         a
     }
 
-    /// `type="id"` when the type is a reference to an element.
-    fn type_attr(&self, e: Eid, field: &str) -> String {
-        match self.r.refd(e, field) {
-            Some(t) => format!(" type=\"{}\"", self.id(t)),
-            None => String::new(),
+    /// `type="id"` when the type is a reference to an element or a type given as text, or for a UML
+    /// primitive type given as text, a `<type href="…#String"/>` child.
+    fn type_attr(&self, e: Eid, field: &str) -> (String, Option<String>) {
+        if let Some(t) = self.r.refd(e, field) {
+            return (format!(" type=\"{}\"", self.id(t)), None);
+        }
+        let name = self.r.str(e, field);
+        let name = name.trim();
+        if PRIMITIVES.contains(&name) {
+            return (String::new(), Some(format!("<type xmi:type=\"uml:PrimitiveType\" href=\"{PRIMITIVE_LIBRARY}#{name}\"/>")));
+        }
+        match self.text_types.get(name) {
+            Some(id) => (format!(" type=\"{}\"", esc(id)), None),
+            None => (String::new(), None),
         }
     }
 
@@ -85,15 +105,20 @@ impl Writer<'_> {
         let t = r.ty(e).to_string();
         let uml = t.trim_start_matches("UML");
         let mut attrs = self.common(e);
+        let mut type_child = None;
         match t.as_str() {
             "UMLAttribute" | "UMLSlot" => {
-                attrs += &self.type_attr(e, "type");
+                let (a, c) = self.type_attr(e, "type");
+                attrs += &a;
+                type_child = c;
                 if r.str(e, "aggregation") != "none" && !r.str(e, "aggregation").is_empty() {
                     let _ = write!(attrs, " aggregation=\"{}\"", esc(&r.str(e, "aggregation")));
                 }
             }
             "UMLParameter" => {
-                attrs += &self.type_attr(e, "type");
+                let (a, c) = self.type_attr(e, "type");
+                attrs += &a;
+                type_child = c;
                 let _ = write!(attrs, " direction=\"{}\"", esc(&r.str(e, "direction")));
             }
             "UMLGeneralization" => {
@@ -135,9 +160,12 @@ impl Writer<'_> {
         };
         let open = format!("{ind}<{tag} xmi:type=\"uml:{kind}\"{attrs}");
         // the children, by kind
-        let mut inner = Writer { r, out: String::new() };
+        let mut inner = Writer { r, out: String::new(), text_types: self.text_types };
         let ci = format!("{ind}\t");
         inner.doc(e, &ci);
+        if let Some(c) = type_child {
+            let _ = writeln!(inner.out, "{ci}{c}");
+        }
         if t == "UMLAttribute" || t == "UMLParameter" {
             inner.multiplicity(e, &ci);
             let dv = r.str(e, "defaultValue");
@@ -149,7 +177,7 @@ impl Writer<'_> {
             let ends: Vec<Eid> = ["end1", "end2"].iter().filter_map(|k| r.child(e, k)).collect();
             for end in ends {
                 let mut a = self.common(end);
-                a += &self.type_attr(end, "reference");
+                a += &self.type_attr(end, "reference").0;
                 let agg = r.str(end, "aggregation");
                 if agg == "shared" || agg == "composite" {
                     let _ = write!(a, " aggregation=\"{agg}\"");
@@ -228,9 +256,29 @@ fn collect_rels(r: &Repo, e: Eid, out: &mut Vec<Eid>) {
     }
 }
 
+/// The types given as text in the model that are not UML primitive types, each with an id.
+fn text_types(r: &Repo) -> std::collections::BTreeMap<String, String> {
+    let names: std::collections::BTreeSet<String> = r
+        .all()
+        .filter(|e| matches!(r.ty(*e), "UMLAttribute" | "UMLParameter" | "UMLSlot") && r.refd(*e, "type").is_none())
+        .map(|e| r.str(e, "type").trim().to_string())
+        .filter(|n| !n.is_empty() && !PRIMITIVES.contains(&n.as_str()))
+        .collect();
+    names
+        .into_iter()
+        .enumerate()
+        .map(|(i, n)| {
+            let safe: String = n.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect();
+            let id = format!("{TEXT_TYPE}{i}_{safe}");
+            (n, id)
+        })
+        .collect()
+}
+
 /// The project as an XMI 2.1 document.
 pub fn export(r: &Repo) -> String {
-    let mut w = Writer { r, out: String::new() };
+    let tt = text_types(r);
+    let mut w = Writer { r, out: String::new(), text_types: &tt };
     w.out += "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     w.out += "<xmi:XMI xmi:version=\"2.1\" xmlns:uml=\"http://schema.omg.org/spec/UML/2.1\" xmlns:xmi=\"http://schema.omg.org/spec/XMI/2.1\">\n";
     let _ = writeln!(w.out, "\t<xmi:Documentation exporter=\"UMLCraft\" exporterVersion=\"{}\"/>", env!("CARGO_PKG_VERSION"));
@@ -241,6 +289,10 @@ pub fn export(r: &Repo) -> String {
         if ct.starts_with("UML") && !ct.ends_with("Diagram") {
             w.element(c, "packagedElement", 2);
         }
+    }
+    // the data types the types given as text refer to
+    for (name, id) in &tt {
+        let _ = writeln!(w.out, "\t\t<packagedElement xmi:type=\"uml:DataType\" xmi:id=\"{}\" name=\"{}\"/>", esc(id), esc(name));
     }
     w.out += "\t</uml:Model>\n</xmi:XMI>\n";
     w.out
@@ -427,6 +479,8 @@ struct Importer<'a> {
     refs: Vec<(Eid, &'static str, Ref)>,
     /// association ends given as `memberEnd` ids of properties owned elsewhere
     member_ends: Vec<(Eid, Vec<String>)>,
+    /// the data types UMLCraft writes for types given as text, by id, read back as text
+    text_types: std::collections::HashMap<String, String>,
 }
 
 impl Importer<'_> {
@@ -502,6 +556,11 @@ impl Importer<'_> {
             _ => None,
         };
         let Some(t) = uml_type(n).or(by_tag) else { return };
+        // a data type written for a type given as text is the text again
+        if let (Some(id), "DataType") = (n.attr("xmi:id").filter(|id| id.starts_with(TEXT_TYPE)), t) {
+            self.text_types.insert(id.to_string(), n.attr("name").unwrap_or("").to_string());
+            return;
+        }
         let r_ty = |s: &str| format!("UML{s}");
         match (n.tag.as_str(), t) {
             ("ownedAttribute", _) | (_, "Property") => {
@@ -605,7 +664,7 @@ pub fn import(r: &mut Repo, text: &str) -> Result<Eid, String> {
     let model = if doc.tag.ends_with("Model") || uml_type(&doc) == Some("Model") { &doc } else { doc.children.iter().find(|c| c.tag.ends_with("Model") || uml_type(c) == Some("Model") || c.tag.ends_with("Package")).ok_or("No UML model in this file.")? };
     let root = r.root;
     let target = r.create("UMLModel", &[("name", serde_json::json!("XMIImported"))], Some((root, "ownedElements")));
-    let mut im = Importer { r, ids: Default::default(), refs: vec![], member_ends: vec![] };
+    let mut im = Importer { r, ids: Default::default(), refs: vec![], member_ends: vec![], text_types: Default::default() };
     for c in &model.children {
         im.node(c, target);
     }
@@ -616,6 +675,8 @@ pub fn import(r: &mut Repo, text: &str) -> Result<Eid, String> {
             Ref::Id(id) => {
                 if let Some(t) = im.ids.get(&id) {
                     im.r.set_ref(e, field, Some(*t));
+                } else if let (Some(name), "type") = (im.text_types.get(&id), field) {
+                    im.r.set(e, "type", serde_json::json!(name));
                 }
             }
             Ref::Name(name) if field == "type" => im.r.set(e, "type", serde_json::json!(name)),

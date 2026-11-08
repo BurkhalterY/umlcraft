@@ -99,6 +99,16 @@ fn shown(r: &Repo, v: Eid) -> bool {
     !matches!(r.raw(v, "visible"), Some(serde_json::Value::Bool(false)) | Some(serde_json::Value::Null))
 }
 
+/// A compartment item's text colour: the box's while it inherits the box's style, otherwise its
+/// own fontColor (View.setup, core.js:1658-1666).
+pub(crate) fn item_color(r: &Repo, iv: Eid, fc: Rgba) -> Rgba {
+    if views::inherits(r, iv) {
+        fc
+    } else {
+        color(r, iv, "fontColor", BLACK)
+    }
+}
+
 pub(crate) fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
     if !shown(r, lv) {
         return;
@@ -351,13 +361,24 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             draw_stick_figure(c, R { x: b.x + (b.w - iw) / 2.0, y: b.y, w: iw, h: ih }, fill, line);
             draw_name(c, r, v);
             for row in info.iter().flat_map(|i| i.compartments.iter()).flat_map(|comp| comp.rows.iter()) {
-                draw_label(c, r, row.iv, fc);
+                draw_label(c, r, row.iv, item_color(r, row.iv, fc));
             }
+            return;
+        }
+        "component" => {
+            // the component icon above the name (drawAsIconicForm, elements.js:5107-5120)
+            let ih = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "top") - b.y).filter(|h| *h > 0.0).unwrap_or(b.h - views::NAME_MIN_H);
+            let iw = (ih * views::COMPONENT_ICON_W / views::COMPONENT_ICON_H).min(b.w);
+            let ir = R { x: b.x + (b.w - iw) / 2.0, y: b.y, w: iw, h: ih };
+            if let Some((icon, _, _)) = views::kind_icon("UMLComponentView", "icon") {
+                draw_stereotype_icon(c, ir, &icon, line, fill);
+            }
+            draw_name(c, r, v);
             return;
         }
         "artifact" => {
             // a page with a folded corner above the name
-            let ih = b.h - views::NAME_MIN_H;
+            let ih = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "top") - b.y).filter(|h| *h > 0.0).unwrap_or(b.h - views::NAME_MIN_H);
             let pw = (ih * views::ARTIFACT_ICON_W / views::ARTIFACT_ICON_H).min(b.w);
             let (px, py, f) = (b.x + (b.w - pw) / 2.0, b.y, pw * 0.3);
             let page = [P { x: px, y: py }, P { x: px + pw - f, y: py }, P { x: px + pw, y: py + f }, P { x: px + pw, y: py + ih }, P { x: px, y: py + ih }];
@@ -407,7 +428,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
                     let dx = rx * (1.0 - k * k).sqrt();
                     c.polyline(&[P { x: ctr.x - dx, y: comp.y }, P { x: ctr.x + dx, y: comp.y }], line, false);
                     for row in &comp.rows {
-                        draw_label(c, r, row.iv, fc);
+                        draw_label(c, r, row.iv, item_color(r, row.iv, fc));
                     }
                 }
             }
@@ -440,7 +461,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             if let Some(i) = info {
                 for comp in &i.compartments {
                     for row in &comp.rows {
-                        draw_label(c, r, row.iv, fc);
+                        draw_label(c, r, row.iv, item_color(r, row.iv, fc));
                     }
                 }
             }
@@ -932,7 +953,20 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         return;
     }
     // a box: classifier, subject, or any kind UMLCraft does not draw itself
-    shadow_rect(c, r, v, b);
+    // a component's box form: the box indented by 10 behind two tabs on its left side, and the
+    // compartments right of the tabs (drawAsCanonicalForm, drawShadowAsCanonicalForm, elements.js:7706-7779)
+    let tabs = views::component_box_form(r, v);
+    let b_line = if tabs { R { x: b.x + views::COMPONENT_MARGIN, w: b.w - views::COMPONENT_MARGIN, ..b } } else { b };
+    if tabs {
+        let body = R { x: b.x + views::COMPONENT_INDENT, w: b.w - views::COMPONENT_INDENT, ..b };
+        shadow_rect(c, r, v, body);
+        c.rect(body, Some(fill), Some(line));
+        for ty0 in [7.0, 27.0] {
+            c.rect(R { x: b.x, y: b.y + ty0, w: 20.0, h: 10.0 }, Some(fill), Some(line));
+        }
+    } else {
+        shadow_rect(c, r, v, b);
+    }
     if ty == "UMLNodeView" || ty == "UMLNodeInstanceView" {
         // a node is a box with depth: top and right faces behind the front one (estimated depth)
         let d = NODE_DEPTH;
@@ -941,8 +975,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         c.polygon(&top, Some(fill), Some(line));
         c.polygon(&right, Some(fill), Some(line));
     }
-    c.rect(b, Some(fill), Some(line));
-    if ty == "UMLComponentView" || ty == "UMLComponentInstanceView" {
+    if !tabs {
+        c.rect(b, Some(fill), Some(line));
+    }
+    if ty == "UMLComponentInstanceView" {
         // the component icon at the top right: a box with two tabs on its left side
         let (ix, iy) = (b.x + b.w - 22.0, b.y + 6.0);
         c.rect(R { x: ix, y: iy, w: 14.0, h: 16.0 }, Some(fill), Some(line));
@@ -952,7 +988,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
     // stereotype display Decoration (with or without the label): a small icon at the top right, for
     // the stereotypes UMLCraft has icons for (interfaces and the robustness stereotypes)
     let display = r.str(v, "stereotypeDisplay");
-    let profile_icon = r.refd(v, "model").and_then(|m| views::stereotype_icon(r, m)).filter(|_| r.refd(v, "model").map(|m| r.ty(m) != "UMLInterface").unwrap_or(false));
+    let profile_icon = r.refd(v, "model").and_then(|m| views::view_icon(r, v, m)).filter(|_| r.refd(v, "model").map(|m| r.ty(m) != "UMLInterface").unwrap_or(false));
     if let (Some((icon, iw, ih)), true) = (&profile_icon, display == "decoration" || display == "decoration-label") {
         // a profile stereotype's icon in the 24 × 24 box at the top right (drawAsDecorationForm, elements.js:5086-5105)
         let bx = R { x: b.x + b.w - views::PAD - views::DECORATION_ICON, y: b.y + views::PAD, w: views::DECORATION_ICON, h: views::DECORATION_ICON };
@@ -982,7 +1018,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             }
         }
     }
-    if ty == "UMLArtifactView" || ty == "UMLArtifactInstanceView" {
+    if ty == "UMLArtifactInstanceView" {
         // the artifact icon at the top right: a page with a folded corner
         let (ix, iy, f) = (b.x + b.w - 20.0, b.y + 6.0, 4.0);
         let page = [P { x: ix, y: iy }, P { x: ix + 12.0 - f, y: iy }, P { x: ix + 12.0, y: iy + f }, P { x: ix + 12.0, y: iy + 15.0 }, P { x: ix, y: iy + 15.0 }];
@@ -991,11 +1027,11 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
     }
     if let Some(i) = info {
         for comp in &i.compartments {
-            c.polyline(&[P { x: b.x, y: comp.y }, P { x: b.x + b.w, y: comp.y }], line, false);
+            c.polyline(&[P { x: b_line.x, y: comp.y }, P { x: b_line.x + b_line.w, y: comp.y }], line, false);
         }
         for comp in &i.compartments {
             for row in &comp.rows {
-                draw_label(c, r, row.iv, fc);
+                draw_label(c, r, row.iv, item_color(r, row.iv, fc));
             }
         }
         if i.is_active {
@@ -1010,7 +1046,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         c.polygon(&pts[..4], Some(fill), None);
         c.polyline(&pts, line, true);
         for row in &i.templ.as_ref().unwrap().rows {
-            draw_label(c, r, row.iv, fc);
+            draw_label(c, r, row.iv, item_color(r, row.iv, fc));
         }
     }
     if r.has(v, "nameCompartment") {

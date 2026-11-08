@@ -804,6 +804,41 @@ pub(crate) fn tool_for(diagram_type: &str, id: &str) -> Option<Tool> {
     find(tool_groups(Some(diagram_type))).or_else(|| DIAGRAM_KINDS.iter().find_map(|(_, k)| find(tool_groups(Some(k)))))
 }
 
+/// Whether Add Diagram offers a UML diagram kind under an element: structural diagrams under the
+/// project or a package; interaction diagrams also under a classifier, an operation or an
+/// interaction that has none yet; information flow also under a classifier; statecharts also under
+/// a classifier, an operation or a state machine; activity diagrams under a classifier, an operation
+/// or an activity (updateMenus, uml-commands.js:4155-4250). None for the other notations' kinds.
+pub(crate) fn uml_diagram_offered(r: &crate::model::Repo, e: Eid, kind: &str) -> Option<bool> {
+    let t = r.ty(e);
+    let base = t == "Project" || r.kind_of(e, "UMLPackage") || r.kind_of(e, "UMLSubsystem");
+    let classifier = r.kind_of(e, "UMLClassifier");
+    let operation = t == "UMLOperation";
+    let interaction_diagram = |d: Eid| matches!(r.ty(d), "UMLSequenceDiagram" | "UMLCommunicationDiagram" | "UMLTimingDiagram" | "UMLInteractionOverviewDiagram");
+    Some(match kind {
+        "UMLClassDiagram" | "UMLPackageDiagram" | "UMLObjectDiagram" | "UMLCompositeStructureDiagram" | "UMLComponentDiagram" | "UMLDeploymentDiagram" | "UMLUseCaseDiagram" | "UMLProfileDiagram" => base,
+        "UMLSequenceDiagram" | "UMLCommunicationDiagram" | "UMLTimingDiagram" | "UMLInteractionOverviewDiagram" => {
+            base || classifier || operation || (t == "UMLInteraction" && !r.list(e, "ownedElements").into_iter().any(interaction_diagram))
+        }
+        "UMLInformationFlowDiagram" => base || classifier,
+        "UMLStatechartDiagram" => base || classifier || operation || r.kind_of(e, "UMLStateMachine"),
+        "UMLActivityDiagram" => base || classifier || operation || r.kind_of(e, "UMLActivity"),
+        _ => return None,
+    })
+}
+
+/// A field path made at run time ("end1.name"), kept once for the program's life.
+fn intern(s: String) -> &'static str {
+    static SEEN: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, &'static str>>> = std::sync::OnceLock::new();
+    let mut m = SEEN.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(x) = m.get(&s) {
+        return x;
+    }
+    let x: &'static str = Box::leak(s.clone().into_boxed_str());
+    m.insert(s, x);
+    x
+}
+
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
 const DIAGRAM_KINDS: [(&str, &str); 29] = [
     ("Class Diagram", "UMLClassDiagram"),
@@ -1052,28 +1087,55 @@ impl App {
     pub(crate) fn add_kinds(&self, e: Eid) -> Vec<(&'static str, &'static str, bool)> {
         let t = self.repo.ty(e);
         let mut adds = vec![];
-        if self.repo.kind_of(e, "UMLPackage") || t == "Project" {
-            if t == "Project" {
-                adds.push(("Model", "UMLModel", false));
-            }
-            for (l, k) in [
-                ("Package", "UMLPackage"), ("Profile", "UMLProfile"), ("Class", "UMLClass"), ("Interface", "UMLInterface"), ("Signal", "UMLSignal"),
-                ("DataType", "UMLDataType"), ("PrimitiveType", "UMLPrimitiveType"), ("Enumeration", "UMLEnumeration"), ("Stereotype", "UMLStereotype"),
-                ("Actor", "UMLActor"), ("Use Case", "UMLUseCase"), ("Subsystem", "UMLSubsystem"), ("Component", "UMLComponent"), ("Artifact", "UMLArtifact"), ("Node", "UMLNode"),
-                ("Object", "UMLObject"), ("Information Item", "UMLInformationItem"), ("Collaboration", "UMLCollaboration"),
-            ] {
-                adds.push((l, k, false));
-            }
-        }
-        // a metaclass goes in a profile
-        if t == "UMLProfile" {
-            adds.push(("MetaClass", "UMLMetaClass", false));
-        }
-        // behaviours: an interaction and an opaque behaviour in a classifier, a state machine and an
-        // activity in a classifier or a package (uml-commands.js:4272-4275)
+        // the UML items in the order of the original's Add menu, each shown for the selections its
+        // updateMenus allows (uml/menus/uml.json "model.add"; uml-commands.js:4155-4290)
         let classifier = self.repo.kind_of(e, "UMLClassifier");
-        let package = self.repo.kind_of(e, "UMLPackage");
-        for (l, k, ok) in [("Interaction", "UMLInteraction", classifier), ("State Machine", "UMLStateMachine", classifier || package), ("Activity", "UMLActivity", classifier || package), ("Opaque Behavior", "UMLOpaqueBehavior", classifier)] {
+        let package = self.repo.kind_of(e, "UMLPackage") || self.repo.kind_of(e, "UMLSubsystem");
+        let project = t == "Project";
+        for (l, k, ok) in [
+            ("Template Parameter", "UMLTemplateParameter", classifier || t == "UMLOperation"),
+            ("Template Parameter Substitution", "UMLTemplateParameterSubstitution", t == "UMLTemplateBinding"),
+            ("Parameter", "UMLParameter", t == "UMLOperation" || self.repo.kind_of(e, "UMLActivity")),
+            ("Enumeration Literal", "UMLEnumerationLiteral", t == "UMLEnumeration"),
+            ("Attribute", "UMLAttribute", classifier),
+            ("Port", "UMLPort", classifier),
+            ("Operation", "UMLOperation", classifier),
+            ("Reception", "UMLReception", classifier),
+            ("Extension Point", "UMLExtensionPoint", t == "UMLUseCase"),
+            ("Slot", "UMLSlot", self.repo.kind_of(e, "UMLInstance")),
+            ("Interaction Operand", "UMLInteractionOperand", t == "UMLCombinedFragment"),
+        ] {
+            if ok {
+                adds.push((l, k, true));
+            }
+        }
+        for (l, k, ok) in [
+            ("Model", "UMLModel", project || package),
+            ("Subsystem", "UMLSubsystem", project || package),
+            ("Package", "UMLPackage", project || package),
+            ("Profile", "UMLProfile", project || package),
+            ("Class", "UMLClass", project || package || classifier),
+            ("Interface", "UMLInterface", project || package || classifier),
+            ("Signal", "UMLSignal", project || package || classifier),
+            ("DataType", "UMLDataType", project || package || classifier),
+            ("PrimitiveType", "UMLPrimitiveType", project || package || classifier),
+            ("Enumeration", "UMLEnumeration", project || package || classifier),
+            ("Artifact", "UMLArtifact", project || package || classifier),
+            ("Component", "UMLComponent", project || package || classifier),
+            ("Node", "UMLNode", project || package || classifier),
+            ("UseCase", "UMLUseCase", project || package || classifier),
+            ("Actor", "UMLActor", project || package || classifier),
+            ("Stereotype", "UMLStereotype", t == "UMLProfile"),
+            ("Information Item", "UMLInformationItem", project || package || classifier),
+            // UMLCraft's own additions: an object in a package, a metaclass in a profile
+            ("Object", "UMLObject", project || package),
+            ("MetaClass", "UMLMetaClass", t == "UMLProfile"),
+            ("Collaboration", "UMLCollaboration", classifier || package),
+            ("Interaction", "UMLInteraction", classifier),
+            ("State Machine", "UMLStateMachine", classifier || package),
+            ("Activity", "UMLActivity", classifier || package),
+            ("Opaque Behavior", "UMLOpaqueBehavior", classifier),
+        ] {
             if ok {
                 adds.push((l, k, false));
             }
@@ -1118,25 +1180,25 @@ impl App {
         }
         // SysML elements (sysml/menus/sysml.json)
         adds.extend(crate::sysml::add_kinds(&self.repo, e));
-        // Model › Add › Constraint on any model element (uml.json)
-        if self.repo.kind_of(e, "UMLModelElement") {
-            adds.push(("Constraint", "UMLConstraint", false));
+        // the state machine and activity items, then Constraint on any model element; a state's
+        // activities and a transition's effect ask which kind of behaviour (uml.json)
+        if t == "UMLRegion" {
+            adds.push(("State", "UMLState", true));
         }
-        for (l, k) in [
-            ("Attribute", "UMLAttribute"), ("Port", "UMLPort"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Slot", "UMLSlot"), ("Literal", "UMLEnumerationLiteral"),
-            ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter"), ("Template Parameter Substitution", "UMLTemplateParameterSubstitution"),
-            ("State", "UMLState"), ("Region", "UMLRegion"), ("Trigger", "UMLEvent"), ("Action", "UMLAction"), ("Interaction Operand", "UMLInteractionOperand"),
-        ] {
-            if self.can_add_feature(e, k) {
-                adds.push((l, k, true));
-            }
-        }
-        // a state's activities and a transition's effect ask which kind of behaviour (uml.json)
         if t == "UMLState" {
-            adds.extend([("Entry Activity", "entryActivities", false), ("Do Activity", "doActivities", false), ("Exit Activity", "exitActivities", false)]);
+            adds.extend([("Region", "UMLRegion", true), ("Entry Activity", "entryActivities", false), ("Do Activity", "doActivities", false), ("Exit Activity", "exitActivities", false)]);
+        }
+        if self.repo.kind_of(e, "UMLAction") || t == "UMLTransition" {
+            adds.push(("Trigger", "UMLEvent", true));
         }
         if t == "UMLTransition" {
             adds.push(("Effect", "effects", false));
+        }
+        if self.repo.kind_of(e, "UMLActivity") {
+            adds.push(("Action", "UMLAction", true));
+        }
+        if self.repo.kind_of(e, "UMLModelElement") {
+            adds.push(("Constraint", "UMLConstraint", false));
         }
         // a block takes no plain attributes (updateMenus, sysml-commands.js:308-309)
         if self.repo.kind_of(e, "SysMLBlock") {
@@ -1181,12 +1243,13 @@ impl App {
                 }
                 continue;
             }
-            // a constraint on an operation: which kind, in a Select One dialog (uml-commands.js:185)
-            if k == "UMLConstraint" && self.repo.ty(e) == "UMLOperation" {
+            // a constraint on an operation, a behaviour or an action: which kind, in a Select One
+            // dialog (uml-commands.js:184-241)
+            if let (true, Some((message, kinds))) = (k == "UMLConstraint", crate::app::constraint_kinds(&self.repo, e)) {
                 if ui.button(l).clicked() {
                     self.select_one = Some(crate::app::SelectOne {
-                        message: "Select the kind of constraint".into(),
-                        options: crate::app::OPERATION_CONSTRAINTS.iter().map(|x| x.0).collect(),
+                        message: message.into(),
+                        options: kinds.iter().map(|x| x.0).collect(),
                         selected: 0,
                         purpose: crate::app::SelectPurpose::ConstraintKind(e),
                     });
@@ -1206,21 +1269,26 @@ impl App {
         }
     }
 
-    fn model_menu(&mut self, ui: &mut egui::Ui, e: Eid) {
+    /// The Add submenu for an element, when it offers anything.
+    pub(crate) fn add_menu(&mut self, ui: &mut egui::Ui, e: Eid) {
+        let adds = self.add_kinds(e);
+        ui.add_enabled_ui(!adds.is_empty() || self.repo.kind_of(e, "ExtensibleModel"), |ui| {
+            ui.menu_button("Add", |ui| self.add_items(ui, e));
+        });
+    }
+
+    /// The Add Diagram submenu for an element: the diagram kinds that can go under it.
+    pub(crate) fn add_diagram_menu(&mut self, ui: &mut egui::Ui, e: Eid) {
         let t = self.repo.ty(e).to_string();
         let is_pkg = self.repo.kind_of(e, "UMLPackage") || t == "Project";
         let is_classifier = self.repo.kind_of(e, "UMLClassifier");
-        let adds = self.add_kinds(e);
-        if !adds.is_empty() || self.repo.kind_of(e, "ExtensibleModel") {
-            ui.menu_button("Add", |ui| self.add_items(ui, e));
-        }
         // a flowchart or a mind map can be added under any element, a data flow diagram under a DFD
         // element too (flowchart-commands.js:136, mindmap-commands.js:62-74, dfd-commands.js:119-134)
         let other = self.repo.kind_of(e, "ExtensibleModel") && !self.repo.kind_of(e, "Diagram");
-        if is_pkg || is_classifier || other {
-            let dfd = self.repo.kind_of(e, "DFDElement");
+        let dfd = self.repo.kind_of(e, "DFDElement");
+        let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, Some(e), k).unwrap_or(true)).filter(|(_, k)| uml_diagram_offered(&self.repo, e, k).unwrap_or(true)).filter(|(_, k)| crate::sysml::is_diagram(k) || uml_diagram_offered(&self.repo, e, k).is_some() || is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram" | "BPMNDiagram") || crate::cloud::is_diagram(k) || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && t == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || t == "Project"))).collect();
+        ui.add_enabled_ui((is_pkg || is_classifier || other) && !kinds.is_empty(), |ui| {
             ui.menu_button("Add Diagram", |ui| {
-                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, Some(e), k).unwrap_or(true)).filter(|(_, k)| crate::sysml::is_diagram(k) || is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram" | "BPMNDiagram") || crate::cloud::is_diagram(k) || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
                 for (l, k) in kinds {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
@@ -1229,27 +1297,55 @@ impl App {
                     }
                 }
             });
-        }
-        if self.is_diagram(e) && ui.button("Open Diagram").clicked() {
-            self.open_diagram(e);
+        });
+    }
+
+    /// The Model Explorer's context menu, in the original's order: Add Diagram, Add, Cut, Copy, Paste,
+    /// Delete From Model, Move Up, Move Down, Select In Diagram (menus/linux.json "model-explorer"),
+    /// then UMLCraft's own Open Diagram and Tag Editor.
+    pub(crate) fn model_menu(&mut self, ui: &mut egui::Ui, e: Eid) {
+        let t = self.repo.ty(e).to_string();
+        self.last_area = Area::Explorer;
+        self.add_diagram_menu(ui, e);
+        self.add_menu(ui, e);
+        ui.separator();
+        let can = self.can_copy();
+        if ui.add_enabled(can, self.key_button("Cut", "edit:cut")).clicked() {
+            self.cmd_cut(Some(&ui.ctx().clone()));
             ui.close();
         }
-        if self.repo.kind_of(e, "ExtensibleModel") && ui.add(self.key_button("Tag Editor...", "model:tag-editor")).clicked() {
-            self.focus = Some(e);
-            self.open_tag_editor();
+        if ui.add_enabled(can, self.key_button("Copy", "edit:copy")).clicked() {
+            self.cmd_copy(Some(&ui.ctx().clone()));
             ui.close();
         }
-        if !self.is_diagram(e) && t != "Project" && ui.add(self.key_button("Select In Diagram", "edit:select-in-diagram")).clicked() {
+        if ui.add(self.key_button("Paste", "edit:paste")).clicked() {
+            self.cmd_paste();
+            ui.close();
+        }
+        if ui.add_enabled(t != "Project", self.key_button("Delete From Model", "edit:delete-from-model")).clicked() {
+            self.change(|a| a.delete_models(&[e]));
+            ui.close();
+        }
+        ui.separator();
+        self.move_items(ui);
+        ui.separator();
+        if ui.add_enabled(!self.is_diagram(e) && t != "Project", self.key_button("Select In Diagram", "edit:select-in-diagram")).clicked() {
             self.focus = Some(e);
             self.select_in_diagram();
             ui.close();
         }
-        ui.separator();
-        self.last_area = Area::Explorer;
-        self.clipboard_items(ui);
-        self.move_items(ui);
-        if ui.add_enabled(t != "Project", self.key_button("Delete from Model", "edit:delete-from-model")).clicked() {
-            self.change(|a| a.delete_models(&[e]));
+        let diagram = self.is_diagram(e);
+        let taggable = self.repo.kind_of(e, "ExtensibleModel");
+        if diagram || taggable {
+            ui.separator();
+        }
+        if diagram && ui.button("Open Diagram").clicked() {
+            self.open_diagram(e);
+            ui.close();
+        }
+        if taggable && ui.add(self.key_button("Tag Editor...", "model:tag-editor")).clicked() {
+            self.focus = Some(e);
+            self.open_tag_editor();
             ui.close();
         }
     }
@@ -1451,37 +1547,42 @@ impl App {
     }
 
     // ------------------------------------------------------------ editors
+    /// The Properties rows of an element: (field path, editor kind), "-" for a separator. UML and core
+    /// kinds take the visible attributes of the metamodel, their parents' first, then each expanded
+    /// part (an association's ends, a stereotype's icon) under its prefix (PropertyEditorView.show,
+    /// property-editor-view.js:699-810); the other notations keep their own lists.
     pub(crate) fn fields_for(&self, e: Eid) -> Vec<(&'static str, &'static str)> {
         let r = &self.repo;
         let t = r.ty(e);
-        let end = |p: &str| -> Vec<(&'static str, &'static str)> {
-            let names: [(&'static str, &'static str); 14] = [
-                ("name", "text"), ("reference", "ref"), ("stereotype", "text"), ("visibility", "enum"), ("navigable", "enum"), ("aggregation", "enum"), ("multiplicity", "text"),
-                ("defaultValue", "text"), ("isReadOnly", "bool"), ("isOrdered", "bool"), ("isUnique", "bool"), ("isDerived", "bool"), ("isID", "bool"), ("ownerAttribute", "owner"),
-            ];
-            names
-                .iter()
-                .map(|(n, k)| {
-                    let full: &'static str = match p {
-                        "end1" => Box::leak(format!("end1.{n}").into_boxed_str()),
-                        "end2" => Box::leak(format!("end2.{n}").into_boxed_str()),
-                        _ => n,
-                    };
-                    (full, *k)
-                })
-                .collect()
-        };
-        if t == "Project" {
-            return vec![("name", "text"), ("author", "text"), ("company", "text"), ("copyright", "text"), ("version", "text")];
-        }
-        if self.is_diagram(e) {
-            return vec![("name", "text"), ("defaultDiagram", "bool")];
-        }
         if t == "Hyperlink" {
             return vec![("name", "text"), ("reference", "link"), ("url", "text"), ("showName", "bool")];
         }
         if let Some(f) = crate::sysml::fields(r, e) {
             return f;
+        }
+        if crate::meta::has_visible(t) {
+            let mut f = vec![];
+            let mut parts = vec![];
+            for (name, kind) in crate::meta::visible_attrs(t) {
+                if kind == "expand" {
+                    parts.push(name);
+                } else {
+                    f.push((name, kind));
+                }
+            }
+            for p in parts {
+                let Some(c) = r.child(e, p) else { continue };
+                f.push(("-", ""));
+                for (name, kind) in crate::meta::visible_attrs(r.ty(c)) {
+                    if kind != "expand" {
+                        f.push((intern(format!("{p}.{name}")), kind));
+                    }
+                }
+            }
+            return f;
+        }
+        if self.is_diagram(e) {
+            return vec![("name", "text"), ("defaultDiagram", "bool")];
         }
         // the other notations' visible attributes (their metamodel.json files)
         match t {
@@ -1509,99 +1610,10 @@ impl App {
             _ if crate::cloud::element_kind(t).is_some() || crate::cloud::edge_view_of(t).is_some() => return crate::cloud::fields(t),
             _ => {}
         }
-        if t == "UMLAssociation" {
-            let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isDerived", "bool"), ("-", "")];
-            f.extend(end("end1"));
-            f.push(("-", ""));
-            f.extend(end("end2"));
-            return f;
-        }
-        // a link: its two ends, without the association-only owner attribute
-        if t == "UMLLink" {
-            let link_end = |p: &str| end(p).into_iter().filter(|x| !x.0.ends_with("ownerAttribute")).collect::<Vec<_>>();
-            let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("-", "")];
-            f.extend(link_end("end1"));
-            f.push(("-", ""));
-            f.extend(link_end("end2"));
-            return f;
-        }
-        // a connector: its kind, assembly or delegation, then its two ends (uml/metamodel.json UMLConnector)
-        if t == "UMLConnector" {
-            let conn_end = |p: &str| end(p).into_iter().filter(|x| !x.0.ends_with("ownerAttribute")).collect::<Vec<_>>();
-            let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("-", "")];
-            f.extend(conn_end("end1"));
-            f.push(("-", ""));
-            f.extend(conn_end("end2"));
-            return f;
-        }
-        if r.has(e, "source") && r.has(e, "target") {
-            let mut f = vec![("name", "text"), ("source", "ref"), ("target", "ref"), ("stereotype", "text"), ("visibility", "enum")];
-            if t == "UMLGeneralization" {
-                f.push(("discriminator", "text"));
-            }
-            if t == "UMLExtend" {
-                f.push(("condition", "text"));
-            }
-            // a message's visible attributes, its signature and connector references aside
-            // (uml/metamodel.json UMLMessage)
-            if t == "UMLMessage" {
-                f.extend([("messageSort", "enum"), ("sequenceNumber", "text"), ("arguments", "text"), ("assignmentTarget", "text"), ("guard", "text"), ("iteration", "text"), ("isConcurrentIteration", "bool")]);
-            }
-            if t == "UMLRoleBinding" {
-                f.push(("roleName", "text"));
-            }
-            if t == "UMLTransition" {
-                f.push(("kind", "enum"));
-                f.push(("guard", "text"));
-            }
-            // the items an information flow conveys, edited in the Element List Editor
-            if t == "UMLInformationFlow" {
-                f.push(("conveyed", "reflist"));
-            }
-            return f;
-        }
-        match t {
-            "UMLAttribute" => vec![
-                ("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("type", "type"), ("multiplicity", "text"),
-                ("isReadOnly", "bool"), ("isOrdered", "bool"), ("isUnique", "bool"), ("defaultValue", "text"), ("isDerived", "bool"), ("aggregation", "enum"), ("isID", "bool"),
-            ],
-            "UMLOperation" => vec![
-                ("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("concurrency", "enum"), ("isQuery", "bool"),
-                ("isAbstract", "bool"), ("specification", "multiline"),
-            ],
-            // behaviours (uml/metamodel.json: the visible attributes of UMLBehavior and UMLActivity)
-            "UMLOpaqueBehavior" | "UMLInteraction" | "UMLStateMachine" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isReentrant", "bool")],
-            "UMLActivity" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isReentrant", "bool"), ("isReadOnly", "bool"), ("isSingleExecution", "bool")],
-            "UMLTemplateParameterSubstitution" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("formal", "ref"), ("actual", "type")],
-            "UMLParameter" => vec![("name", "text"), ("stereotype", "text"), ("type", "type"), ("multiplicity", "text"), ("defaultValue", "text"), ("direction", "enum")],
-            "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
-            "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
-            "UMLObject" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("classifier", "type")],
-            // a stereotype's icon: its minimum size and its icon script (uml/metamodel.json UMLImage)
-            "UMLImage" => vec![("width", "int"), ("height", "int"), ("image", "image"), ("content", "multiline")],
-            "UMLCollaborationUse" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type")],
-            // the visible attributes of states, events and actions (uml/metamodel.json)
-            "UMLState" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("submachine", "ref")],
-            "UMLInteractionOperand" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("guard", "text")],
-            "UMLEvent" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("value", "text"), ("expression", "text"), ("targetOperation", "ref"), ("targetSignal", "ref")],
-            "UMLAction" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("isLocallyReentrant", "bool"), ("isSynchronous", "bool"), ("language", "text")],
-            "UMLTimeConstraint" | "UMLDurationConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist"), ("min", "text"), ("max", "text")],
-            "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
-            "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
-            // a reception names the signal it receives (uml-commands.js:1484)
-            "UMLReception" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("signal", "type")],
-            "UMLAssociationEnd" => end(""),
-            "UMLLinkEnd" => end("").into_iter().filter(|x| x.0 != "ownerAttribute").collect(),
-            _ if r.kind_of(e, "UMLClassifier") => {
-                let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isAbstract", "bool"), ("isFinalSpecialization", "bool"), ("isLeaf", "bool")];
-                if t == "UMLClass" {
-                    f.push(("isActive", "bool"));
-                }
-                f
-            }
-            _ if r.kind_of(e, "UMLModelElement") => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
-            _ if r.has(e, "name") || r.kind_of(e, "Model") => vec![("name", "text")],
-            _ => vec![],
+        if r.has(e, "name") || r.kind_of(e, "Model") {
+            vec![("name", "text")]
+        } else {
+            vec![]
         }
     }
 
@@ -1680,6 +1692,9 @@ impl App {
                 return &["opaque", "create", "destroy", "read", "write", "insert", "delete", "sendSignal", "acceptSignal", "triggerEvent", "acceptEvent", "structured", "timeEvent", "callBehavior", "callOperation"]
             }
             _ => {}
+        }
+        if let Some(l) = crate::meta::enum_literals(ty, field) {
+            return l;
         }
         match field {
             "visibility" => &["public", "protected", "private", "package"],
@@ -2344,26 +2359,6 @@ impl App {
         });
     }
 
-    /// Add and Add Diagram, acting on the focused element (or the project): in the Model menu and at
-    /// the top of the canvas menu (menus/linux.json "diagram-canvas").
-    pub(crate) fn add_menus(&mut self, ui: &mut egui::Ui) {
-        let target = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f)).unwrap_or(self.repo.root);
-        ui.add_enabled_ui(!self.add_kinds(target).is_empty() || self.repo.kind_of(target, "ExtensibleModel"), |ui| {
-            ui.menu_button("Add", |ui| self.add_items(ui, target));
-        });
-        ui.menu_button("Add Diagram", |ui| {
-            let sel = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f));
-            let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, sel, k).unwrap_or(true)).collect();
-            for (l, k) in kinds {
-                if ui.button(l).clicked() {
-                    let f = self.focus;
-                    self.change(|a| a.add_diagram(f, k));
-                    ui.close();
-                }
-            }
-        });
-    }
-
     fn status_ui(&mut self, ui: &mut egui::Ui) {
         let rect = ui.max_rect();
         let p = ui.painter();
@@ -2609,8 +2604,8 @@ impl App {
                     ui.close();
                 }
                 self.color_menus(ui);
+                ui.separator();
                 self.line_style_menu(ui);
-                self.stereotype_display_menu(ui);
                 self.format_toggles(ui);
                 ui.separator();
                 self.alignment_menu(ui);
@@ -2626,7 +2621,22 @@ impl App {
                 });
             });
             ui.menu_button("Model", |ui| {
-                self.add_menus(ui);
+                // Model › Add and Add Diagram act on the focused element (or the project)
+                let target = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f)).unwrap_or(self.repo.root);
+                ui.add_enabled_ui(!self.add_kinds(target).is_empty() || self.repo.kind_of(target, "ExtensibleModel"), |ui| {
+                    ui.menu_button("Add", |ui| self.add_items(ui, target));
+                });
+                ui.menu_button("Add Diagram", |ui| {
+                    let sel = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f));
+                    let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, sel, k).unwrap_or(true)).filter(|(_, k)| sel.and_then(|e| uml_diagram_offered(&self.repo, e, k)).unwrap_or(true)).collect();
+                    for (l, k) in kinds {
+                        if ui.button(l).clicked() {
+                            let f = self.focus;
+                            self.change(|a| a.add_diagram(f, k));
+                            ui.close();
+                        }
+                    }
+                });
                 if ui.add(self.key_button("Find...", "find:find")).clicked() {
                     self.open_find();
                     ui.close();
@@ -3038,6 +3048,10 @@ impl App {
             if i == 3 || field == "suppressAttributes" || field == "suppressPropertyValues" {
                 ui.separator();
             }
+            // Stereotype Display opens the UML items (uml/menus/uml.json "format")
+            if i == 3 {
+                self.stereotype_display_menu(ui);
+            }
             let has = !self.flag_views(field).is_empty();
             let mut on = self.flag_state(field) == Some(true);
             if ui.add_enabled(has, egui::Checkbox::new(&mut on, self.key_text(label, id))).clicked() {
@@ -3107,7 +3121,7 @@ impl App {
                     self.open_color_dialog(field);
                 }
             }
-            for (key, field) in [(Key::R, "autoResize"), (Key::K, "parentStyle"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals")] {
+            for (key, field) in [(Key::R, "autoResize"), (Key::K, "parentStyle"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals"), (Key::U, "suppressColumns")] {
                 if hit(sc(cs, key)) {
                     self.toggle_flag(field);
                 }
@@ -3138,6 +3152,10 @@ impl App {
         }
         if hit(sc(Modifiers::COMMAND, Key::Q)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+        // macOS only: Cmd+, opens Preferences (keymaps/darwin.json:6)
+        if cfg!(target_os = "macos") && hit(sc(Modifiers::COMMAND, Key::Comma)) {
+            self.prefs_open = Some("General".into());
         }
         // Esc anywhere but in a field goes back to the Select tool and clears the lock (toolbox-view.js:473-479)
         if !typing && ctx.input(|i| i.key_pressed(Key::Escape)) && self.drag.is_none() {

@@ -133,7 +133,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 
 | File | What it does |
 |---|---|
-| `src/model.rs`, `src/meta.rs` | The project and the `.mdj` element kinds, fields and defaults |
+| `src/model.rs`, `src/meta.rs` | The project and the `.mdj` element kinds, fields and defaults, and the attributes the Properties editor shows for each kind |
 | `src/views.rs`, `src/render.rs`, `src/export.rs` | Laying out and drawing boxes, labels and lines, on screen and into PNG, JPEG and SVG |
 | `src/layout.rs`, `src/generate.rs` | Format › Layout (the layered automatic layout) and Tools › Diagram Generator |
 | `src/mermaid.rs`, `src/mermaid_kinds.rs`, `src/mermaid_sequence.rs` | Tools › Generate Diagram by Mermaid: class, sequence, state, ER, requirement and mind map diagrams and flowcharts from Mermaid code |

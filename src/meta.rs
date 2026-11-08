@@ -591,3 +591,247 @@ pub fn static_name(ty: &str) -> &'static str {
 pub fn plain_named(ty: &str) -> bool {
     ["FC", "DFD", "MM", "ERD", "C4", "WF", "BPMN", "AWS", "Azure", "GCP"].iter().any(|p| ty.starts_with(p))
 }
+
+/// The attributes the Properties editor shows, in the order of StarUML's metamodel: for each model
+/// kind, its parent kind there and its own visible attributes with the editor they take ("text",
+/// "multiline", "bool", "int", "real", "image", "enum", "ref", "reflist", "type" for a type given by
+/// reference or text, "owner" for an association end's owner attribute, "expand" for a part edited
+/// under a prefix). From the visible, expand, kind, type and multiline flags of
+/// resources/default/metamodel.json and extensions/essential/uml/metamodel.json.
+const VISIBLE: &[(&str, Option<&str>, &[(&str, &str)])] = &[
+    ("Element", None, &[]),
+    ("Model", Some("Element"), &[("name", "text")]),
+    ("Tag", Some("Model"), &[("kind", "enum"), ("value", "multiline"), ("reference", "ref"), ("checked", "bool"), ("number", "int"), ("options", "multiline"), ("hidden", "bool")]),
+    ("Hyperlink", Some("Model"), &[("reference", "ref"), ("url", "text"), ("showName", "bool")]),
+    ("ExtensibleModel", Some("Model"), &[]),
+    ("Relationship", Some("ExtensibleModel"), &[]),
+    ("DirectedRelationship", Some("Relationship"), &[("source", "ref"), ("target", "ref")]),
+    ("RelationshipEnd", Some("ExtensibleModel"), &[("reference", "ref")]),
+    ("UndirectedRelationship", Some("Relationship"), &[("end1", "expand"), ("end2", "expand")]),
+    ("Diagram", Some("ExtensibleModel"), &[("defaultDiagram", "bool")]),
+    ("Project", Some("ExtensibleModel"), &[("author", "text"), ("company", "text"), ("copyright", "text"), ("version", "text"), ("documentVersion", "int")]),
+    ("UMLModelElement", Some("ExtensibleModel"), &[("stereotype", "text"), ("visibility", "enum")]),
+    ("UMLTemplateParameter", Some("UMLClassifier"), &[("parameterType", "type"), ("defaultValue", "type")]),
+    ("UMLTemplateParameterSubstitution", Some("UMLModelElement"), &[("formal", "ref"), ("actual", "type")]),
+    ("UMLFeature", Some("UMLModelElement"), &[("isStatic", "bool"), ("isLeaf", "bool"), ("featureDirection", "enum")]),
+    ("UMLStructuralFeature", Some("UMLFeature"), &[("type", "type"), ("multiplicity", "text"), ("isReadOnly", "bool"), ("isOrdered", "bool"), ("isUnique", "bool"), ("defaultValue", "text")]),
+    ("UMLParameter", Some("UMLStructuralFeature"), &[("direction", "enum")]),
+    ("UMLBehavioralFeature", Some("UMLFeature"), &[("raisedExceptions", "reflist"), ("concurrency", "enum")]),
+    ("UMLAttribute", Some("UMLStructuralFeature"), &[("isDerived", "bool"), ("aggregation", "enum"), ("isID", "bool")]),
+    ("UMLOperation", Some("UMLBehavioralFeature"), &[("isQuery", "bool"), ("isAbstract", "bool"), ("specification", "multiline")]),
+    ("UMLReception", Some("UMLBehavioralFeature"), &[("signal", "ref")]),
+    ("UMLClassifier", Some("UMLModelElement"), &[("isAbstract", "bool"), ("isFinalSpecialization", "bool"), ("isLeaf", "bool")]),
+    ("UMLDirectedRelationship", Some("DirectedRelationship"), &[("stereotype", "text"), ("visibility", "enum")]),
+    ("UMLRelationshipEnd", Some("RelationshipEnd"), &[("stereotype", "text"), ("visibility", "enum"), ("navigable", "enum"), ("aggregation", "enum"), ("multiplicity", "text"), ("defaultValue", "text"), ("isReadOnly", "bool"), ("isOrdered", "bool"), ("isUnique", "bool"), ("isDerived", "bool"), ("isID", "bool")]),
+    ("UMLUndirectedRelationship", Some("UndirectedRelationship"), &[("stereotype", "text"), ("visibility", "enum")]),
+    ("UMLConstraint", Some("UMLModelElement"), &[("specification", "multiline"), ("constrainedElements", "reflist")]),
+    ("UMLIntervalConstraint", Some("UMLConstraint"), &[("min", "text"), ("max", "text")]),
+    ("UMLTimeConstraint", Some("UMLIntervalConstraint"), &[]),
+    ("UMLDurationConstraint", Some("UMLIntervalConstraint"), &[]),
+    ("UMLBehavior", Some("UMLModelElement"), &[("isReentrant", "bool")]),
+    ("UMLOpaqueBehavior", Some("UMLBehavior"), &[]),
+    ("UMLEvent", Some("UMLModelElement"), &[("kind", "enum"), ("value", "text"), ("expression", "text"), ("targetOperation", "ref"), ("targetSignal", "ref")]),
+    ("UMLPackage", Some("UMLModelElement"), &[("importedElements", "reflist")]),
+    ("UMLModel", Some("UMLPackage"), &[("viewpoint", "text")]),
+    ("UMLClass", Some("UMLClassifier"), &[("isActive", "bool")]),
+    ("UMLInterface", Some("UMLClassifier"), &[]),
+    ("UMLSignal", Some("UMLClassifier"), &[]),
+    ("UMLDataType", Some("UMLClassifier"), &[]),
+    ("UMLPrimitiveType", Some("UMLDataType"), &[]),
+    ("UMLEnumerationLiteral", Some("UMLModelElement"), &[]),
+    ("UMLEnumeration", Some("UMLDataType"), &[]),
+    ("UMLDependency", Some("UMLDirectedRelationship"), &[("mapping", "text")]),
+    ("UMLAbstraction", Some("UMLDependency"), &[]),
+    ("UMLRealization", Some("UMLAbstraction"), &[]),
+    ("UMLGeneralization", Some("UMLDirectedRelationship"), &[("discriminator", "text")]),
+    ("UMLInterfaceRealization", Some("UMLRealization"), &[]),
+    ("UMLComponentRealization", Some("UMLRealization"), &[]),
+    ("UMLAssociationEnd", Some("UMLRelationshipEnd"), &[("ownerAttribute", "owner")]),
+    ("UMLAssociation", Some("UMLUndirectedRelationship"), &[("isDerived", "bool")]),
+    ("UMLAssociationClassLink", Some("UMLModelElement"), &[("classSide", "ref"), ("associationSide", "ref")]),
+    ("UMLNaryAssociationNode", Some("UMLClassifier"), &[]),
+    ("UMLTemplateBinding", Some("UMLDirectedRelationship"), &[]),
+    ("UMLSlot", Some("UMLModelElement"), &[("definingFeature", "ref"), ("type", "type"), ("value", "text")]),
+    ("UMLInstance", Some("UMLModelElement"), &[("classifier", "type"), ("value", "text")]),
+    ("UMLObject", Some("UMLInstance"), &[]),
+    ("UMLArtifactInstance", Some("UMLInstance"), &[]),
+    ("UMLComponentInstance", Some("UMLInstance"), &[]),
+    ("UMLNodeInstance", Some("UMLInstance"), &[]),
+    ("UMLLinkEnd", Some("UMLRelationshipEnd"), &[]),
+    ("UMLLink", Some("UMLUndirectedRelationship"), &[("association", "ref")]),
+    ("UMLLinkObjectLink", Some("UMLModelElement"), &[("objectSide", "ref"), ("linkSide", "ref")]),
+    ("UMLPort", Some("UMLAttribute"), &[("isBehavior", "bool"), ("isService", "bool"), ("isConjugated", "bool")]),
+    ("UMLConnectorEnd", Some("UMLRelationshipEnd"), &[]),
+    ("UMLConnector", Some("UMLUndirectedRelationship"), &[("type", "ref"), ("kind", "enum")]),
+    ("UMLCollaboration", Some("UMLClassifier"), &[]),
+    ("UMLCollaborationUse", Some("UMLModelElement"), &[("type", "ref")]),
+    ("UMLRoleBinding", Some("UMLDependency"), &[("roleName", "text")]),
+    ("UMLArtifact", Some("UMLClassifier"), &[("fileName", "text")]),
+    ("UMLComponent", Some("UMLClassifier"), &[("isIndirectlyInstantiated", "bool")]),
+    ("UMLSubsystem", Some("UMLComponent"), &[]),
+    ("UMLNode", Some("UMLClassifier"), &[]),
+    ("UMLDeployment", Some("UMLDependency"), &[]),
+    ("UMLCommunicationPath", Some("UMLAssociation"), &[]),
+    ("UMLExtensionPoint", Some("UMLModelElement"), &[("location", "text")]),
+    ("UMLUseCase", Some("UMLClassifier"), &[]),
+    ("UMLActor", Some("UMLClassifier"), &[]),
+    ("UMLInclude", Some("UMLDirectedRelationship"), &[]),
+    ("UMLExtend", Some("UMLDirectedRelationship"), &[("condition", "text"), ("extensionLocations", "reflist")]),
+    ("UMLUseCaseSubject", Some("UMLSubsystem"), &[("represent", "ref")]),
+    ("UMLStateMachine", Some("UMLBehavior"), &[]),
+    ("UMLRegion", Some("UMLModelElement"), &[]),
+    ("UMLVertex", Some("UMLModelElement"), &[]),
+    ("UMLPseudostate", Some("UMLVertex"), &[("kind", "enum")]),
+    ("UMLConnectionPointReference", Some("UMLVertex"), &[("entry", "reflist"), ("exit", "reflist")]),
+    ("UMLState", Some("UMLVertex"), &[("submachine", "ref")]),
+    ("UMLFinalState", Some("UMLState"), &[]),
+    ("UMLTransition", Some("UMLDirectedRelationship"), &[("kind", "enum"), ("guard", "text")]),
+    ("UMLActivity", Some("UMLBehavior"), &[("isReadOnly", "bool"), ("isSingleExecution", "bool")]),
+    ("UMLPin", Some("UMLStructuralFeature"), &[]),
+    ("UMLInputPin", Some("UMLPin"), &[]),
+    ("UMLOutputPin", Some("UMLPin"), &[]),
+    ("UMLExpansionNode", Some("UMLPin"), &[]),
+    ("UMLActivityNode", Some("UMLModelElement"), &[]),
+    ("UMLAction", Some("UMLActivityNode"), &[("kind", "enum"), ("target", "ref"), ("subactivity", "ref"), ("isLocallyReentrant", "bool"), ("isSynchronous", "bool"), ("language", "text"), ("body", "multiline")]),
+    ("UMLStructuredActivityNode", Some("UMLAction"), &[("mustIsolate", "bool")]),
+    ("UMLExpansionRegion", Some("UMLStructuredActivityNode"), &[("mode", "enum")]),
+    ("UMLObjectNode", Some("UMLActivityNode"), &[("type", "type"), ("isControlType", "bool"), ("ordering", "enum"), ("inStates", "reflist")]),
+    ("UMLCentralBufferNode", Some("UMLObjectNode"), &[]),
+    ("UMLDataStoreNode", Some("UMLCentralBufferNode"), &[]),
+    ("UMLActivityParameterNode", Some("UMLObjectNode"), &[("parameter", "ref")]),
+    ("UMLControlNode", Some("UMLActivityNode"), &[]),
+    ("UMLInitialNode", Some("UMLControlNode"), &[]),
+    ("UMLFinalNode", Some("UMLControlNode"), &[]),
+    ("UMLActivityFinalNode", Some("UMLFinalNode"), &[]),
+    ("UMLFlowFinalNode", Some("UMLFinalNode"), &[]),
+    ("UMLForkNode", Some("UMLControlNode"), &[]),
+    ("UMLJoinNode", Some("UMLControlNode"), &[]),
+    ("UMLMergeNode", Some("UMLControlNode"), &[]),
+    ("UMLDecisionNode", Some("UMLControlNode"), &[]),
+    ("UMLActivityGroup", Some("UMLModelElement"), &[]),
+    ("UMLActivityPartition", Some("UMLActivityGroup"), &[]),
+    ("UMLInterruptibleActivityRegion", Some("UMLActivityGroup"), &[]),
+    ("UMLActivityEdgeConnector", Some("UMLActivityNode"), &[]),
+    ("UMLExceptionHandler", Some("UMLDirectedRelationship"), &[("exceptionTypes", "reflist"), ("handlerBody", "ref")]),
+    ("UMLActivityEdge", Some("UMLDirectedRelationship"), &[("guard", "text"), ("weight", "text")]),
+    ("UMLControlFlow", Some("UMLActivityEdge"), &[]),
+    ("UMLObjectFlow", Some("UMLActivityEdge"), &[]),
+    ("UMLActivityInterrupt", Some("UMLActivityEdge"), &[]),
+    ("UMLInteractionFragment", Some("UMLBehavior"), &[]),
+    ("UMLInteraction", Some("UMLInteractionFragment"), &[]),
+    ("UMLStateInvariant", Some("UMLInteractionFragment"), &[("covered", "ref"), ("invariant", "type")]),
+    ("UMLContinuation", Some("UMLInteractionFragment"), &[("setting", "bool")]),
+    ("UMLInteractionOperand", Some("UMLInteractionFragment"), &[("guard", "text")]),
+    ("UMLCombinedFragment", Some("UMLInteractionFragment"), &[("interactionOperator", "enum")]),
+    ("UMLInteractionUse", Some("UMLInteractionFragment"), &[("refersTo", "ref"), ("arguments", "text"), ("returnValue", "text"), ("returnValueRecipient", "ref")]),
+    ("UMLMessageEndpoint", Some("UMLModelElement"), &[]),
+    ("UMLLifeline", Some("UMLMessageEndpoint"), &[("selector", "text"), ("represent", "ref"), ("isMultiInstance", "bool")]),
+    ("UMLGate", Some("UMLMessageEndpoint"), &[]),
+    ("UMLEndpoint", Some("UMLMessageEndpoint"), &[]),
+    ("UMLMessage", Some("UMLDirectedRelationship"), &[("messageSort", "enum"), ("signature", "ref"), ("connector", "ref"), ("sequenceNumber", "text"), ("arguments", "text"), ("assignmentTarget", "text"), ("guard", "text"), ("iteration", "text"), ("isConcurrentIteration", "bool")]),
+    ("UMLInformationItem", Some("UMLClassifier"), &[("represented", "reflist")]),
+    ("UMLInformationFlow", Some("UMLDirectedRelationship"), &[("conveyed", "reflist"), ("realizingConnectors", "reflist"), ("realizingActivityEdges", "reflist"), ("realizingMessages", "reflist")]),
+    ("UMLProfile", Some("UMLPackage"), &[]),
+    ("UMLImage", Some("UMLModelElement"), &[("width", "int"), ("height", "int"), ("image", "image"), ("content", "multiline")]),
+    ("UMLStereotype", Some("UMLClass"), &[("icon", "expand")]),
+    ("UMLMetaClass", Some("UMLModelElement"), &[]),
+    ("UMLExtension", Some("UMLDirectedRelationship"), &[]),
+    ("UMLDiagram", Some("Diagram"), &[]),
+    ("UMLClassDiagram", Some("UMLDiagram"), &[]),
+    ("UMLPackageDiagram", Some("UMLDiagram"), &[]),
+    ("UMLCompositeStructureDiagram", Some("UMLDiagram"), &[]),
+    ("UMLObjectDiagram", Some("UMLDiagram"), &[]),
+    ("UMLComponentDiagram", Some("UMLDiagram"), &[]),
+    ("UMLDeploymentDiagram", Some("UMLDiagram"), &[]),
+    ("UMLUseCaseDiagram", Some("UMLDiagram"), &[]),
+    ("UMLStatechartDiagram", Some("UMLDiagram"), &[]),
+    ("UMLActivityDiagram", Some("UMLDiagram"), &[]),
+    ("UMLSequenceDiagram", Some("UMLDiagram"), &[("showSequenceNumber", "bool"), ("sequenceNumbering", "enum"), ("showSignature", "bool"), ("showActivation", "bool")]),
+    ("UMLCommunicationDiagram", Some("UMLDiagram"), &[("showSequenceNumber", "bool"), ("sequenceNumbering", "enum"), ("showSignature", "bool")]),
+    ("UMLTimingDiagram", Some("UMLDiagram"), &[]),
+    ("UMLInteractionOverviewDiagram", Some("UMLDiagram"), &[]),
+    ("UMLInformationFlowDiagram", Some("UMLDiagram"), &[]),
+    ("UMLProfileDiagram", Some("UMLDiagram"), &[]),
+];
+
+/// The enumeration each enum attribute takes its values from (the metamodels' `type` of each enum
+/// attribute).
+const ENUM_TYPES: &[(&str, &str, &str)] = &[
+    ("Tag", "kind", "TagKind"),
+    ("UMLAction", "kind", "UMLActionKind"),
+    ("UMLAttribute", "aggregation", "UMLAggregationKind"),
+    ("UMLBehavioralFeature", "concurrency", "UMLCallConcurrencyKind"),
+    ("UMLCombinedFragment", "interactionOperator", "UMLInteractionOperatorKind"),
+    ("UMLCommunicationDiagram", "sequenceNumbering", "UMLSequenceNumberingKind"),
+    ("UMLConnector", "kind", "UMLConnectorKind"),
+    ("UMLDirectedRelationship", "visibility", "UMLVisibilityKind"),
+    ("UMLEvent", "kind", "UMLEventKind"),
+    ("UMLExpansionRegion", "mode", "UMLExpansionKind"),
+    ("UMLFeature", "featureDirection", "UMLFeatureDirectionKind"),
+    ("UMLMessage", "messageSort", "UMLMessageSort"),
+    ("UMLModelElement", "visibility", "UMLVisibilityKind"),
+    ("UMLObjectNode", "ordering", "UMLObjectNodeOrderingKind"),
+    ("UMLParameter", "direction", "UMLDirectionKind"),
+    ("UMLPseudostate", "kind", "UMLPseudostateKind"),
+    ("UMLRelationshipEnd", "aggregation", "UMLAggregationKind"),
+    ("UMLRelationshipEnd", "navigable", "UMLNavigableKind"),
+    ("UMLRelationshipEnd", "visibility", "UMLVisibilityKind"),
+    ("UMLSequenceDiagram", "sequenceNumbering", "UMLSequenceNumberingKind"),
+    ("UMLTransition", "kind", "UMLTransitionKind"),
+    ("UMLUndirectedRelationship", "visibility", "UMLVisibilityKind"),
+];
+
+/// The literals of each enumeration (the metamodels' `literals`).
+const ENUM_LITERALS: &[(&str, &[&str])] = &[
+    ("TagKind", &["string", "reference", "boolean", "number", "enum"]),
+    ("UMLActionKind", &["opaque", "create", "destroy", "read", "write", "insert", "delete", "sendSignal", "acceptSignal", "triggerEvent", "acceptEvent", "structured", "timeEvent", "callBehavior", "callOperation"]),
+    ("UMLAggregationKind", &["none", "shared", "composite"]),
+    ("UMLCallConcurrencyKind", &["sequential", "guarded", "concurrent"]),
+    ("UMLConnectorKind", &["assembly", "delegation"]),
+    ("UMLDirectionKind", &["in", "inout", "out", "return"]),
+    ("UMLEventKind", &["signal", "call", "change", "time", "anyReceive"]),
+    ("UMLExpansionKind", &["parallel", "iterative", "stream"]),
+    ("UMLFeatureDirectionKind", &["provided", "required", "providedRequired"]),
+    ("UMLInteractionOperatorKind", &["alt", "opt", "par", "loop", "critical", "neg", "assert", "strict", "seq", "ignore", "consider", "break"]),
+    ("UMLMessageSort", &["synchCall", "asynchCall", "asynchSignal", "createMessage", "deleteMessage", "reply"]),
+    ("UMLNavigableKind", &["unspecified", "navigable", "notNavigable"]),
+    ("UMLObjectNodeOrderingKind", &["unordered", "ordered", "LIFO", "FIFO"]),
+    ("UMLPseudostateKind", &["initial", "deepHistory", "shallowHistory", "join", "fork", "junction", "choice", "entryPoint", "exitPoint", "terminate"]),
+    ("UMLSequenceNumberingKind", &["auto", "custom"]),
+    ("UMLTransitionKind", &["external", "internal", "local"]),
+    ("UMLVisibilityKind", &["public", "protected", "private", "package"]),
+];
+
+fn visible_entry(ty: &str) -> Option<&'static (&'static str, Option<&'static str>, &'static [(&'static str, &'static str)])> {
+    VISIBLE.iter().find(|(t, _, _)| *t == ty)
+}
+
+/// Whether the Properties editor's rows for this kind come from the metamodel table.
+pub fn has_visible(ty: &str) -> bool {
+    visible_entry(ty).is_some()
+}
+
+/// The visible attributes of a kind, its parents' first, as StarUML's Properties editor lists them
+/// (MetamodelManager.getMetaAttributes, metamodel-manager.js:210-223; PropertyEditorView.show,
+/// property-editor-view.js:699-810).
+pub fn visible_attrs(ty: &str) -> Vec<(&'static str, &'static str)> {
+    let mut chain = vec![];
+    let mut t = visible_entry(ty);
+    while let Some(e) = t {
+        chain.push(e);
+        t = e.1.and_then(visible_entry);
+    }
+    chain.into_iter().rev().flat_map(|e| e.2.iter().copied()).collect()
+}
+
+/// The values an enum attribute of this kind takes, from its enumeration.
+pub fn enum_literals(ty: &str, field: &str) -> Option<&'static [&'static str]> {
+    let mut t = visible_entry(ty);
+    while let Some(e) = t {
+        if let Some((_, _, en)) = ENUM_TYPES.iter().find(|(o, f, _)| *o == e.0 && *f == field) {
+            return ENUM_LITERALS.iter().find(|(n, _)| n == en).map(|(_, l)| *l);
+        }
+        t = e.1.and_then(visible_entry);
+    }
+    None
+}
