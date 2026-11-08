@@ -110,7 +110,7 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
 | **Views** | Working Diagrams remembered per file, Next/Previous Diagram, zoom from 10% to 300% around the screen centre, fit to window, a live mini-map, diagram thumbnails, every panel on Ctrl+1 to Ctrl+6 and resizable by dragging its edge, dark and light themes, your own shortcuts in `keymap.json`, Preferences for the grid and the style of new views |
 | **History** | Undo and redo for every change, the last 100 kept (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) |
 | **Export** | PNG, JPEG and SVG of one diagram or of every diagram into a folder, drawn off-screen with the original's 10-pixel margin; Print to PDF, one diagram per page in vector shapes with embedded fonts, in any of 50 page sizes; HTML docs of the whole model; XMI 2.1 and model fragments (`.mfj`) in and out; new projects from the UML templates, with the UML Standard Profile |
-| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj`, `umlcraft image model.mdj -f png\|jpeg\|svg -s <selector> -o <file>` , `umlcraft pdf model.mdj -z A4 -l landscape -o out.pdf` and `umlcraft html model.mdj -o docs` to export without a window; `umlcraft ejs model.mdj -t template.ejs -s <selector> -o <file>` to generate code or text from EJS templates; `umlcraft exec model.mdj -c <command> -a <arg>` to run commands (including the factory commands that create diagrams, elements and views) and save |
+| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj`, `umlcraft image model.mdj -f png\|jpeg\|svg -s <selector> -o <file>` , `umlcraft pdf model.mdj -z A4 -l landscape -o out.pdf` and `umlcraft html model.mdj -o docs` to export without a window; `umlcraft ejs model.mdj -t template.ejs -s <selector> -o <file>` to generate code or text from EJS templates; `umlcraft exec model.mdj -c <command> -a <arg>` to run commands (including the factory commands that create diagrams, elements and views) and save; `umlcraft mcp [model.mdj]` to let AI tools such as Claude Desktop draw and read diagrams over the Model Context Protocol |
 
 ## .mdj without compromise
 
@@ -150,6 +150,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/input.rs` | The input dialog (Working Diagrams › Rename) |
 | `src/dialogs.rs` | Modal dialogs, the native Information, Alert, Confirmation and error boxes, and the Element List Picker |
 | `src/api.rs` | The local HTTP API on port 58321 (diagram list, images, Mermaid generation) |
+| `src/mcp.rs` | `umlcraft mcp`: a Model Context Protocol server on stdio for AI tools, through the HTTP API or on a file |
 | `src/ejs.rs`, `src/js.rs`, `src/jsregex.rs` | `umlcraft ejs`: EJS templates, the JavaScript subset their code runs in, and its regular expressions |
 | `src/exec.rs` | `umlcraft exec`: the commands it runs, with the scriptable factory and engine commands |
 | `src/keymap.rs` | The user's `keymap.json`: keystrokes bound to command ids |

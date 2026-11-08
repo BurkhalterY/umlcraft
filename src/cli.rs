@@ -1,7 +1,7 @@
 //! Command-line commands, as StarUML's (src/main-process/cli.js): `umlcraft ejs <file.mdj> -t
 //! <template.ejs> …`, `umlcraft image <file.mdj> [-f png|jpeg|svg] [-s selector] [-o output]`,
 //! `umlcraft html …`, `umlcraft pdf <file.mdj> …`, `umlcraft exec <file.mdj> -c <command> [-a arg]`,
-//! `--help` and `--version`. They run without a window.
+//! `umlcraft mcp [file.mdj]` (src/mcp.rs), `--help` and `--version`. They run without a window.
 
 use crate::app::App;
 use crate::export::{filenamify, Format};
@@ -13,6 +13,7 @@ pub const USAGE: &str = "Usage: umlcraft [file.mdj | --template <name or file.md
        umlcraft pdf <file.mdj> [-s selector] [-o output.pdf] [-z A4] [-l landscape|portrait] [-n true|false]
        umlcraft html <file.mdj> [-o ./html-docs]
        umlcraft exec <file.mdj> -c <command-id> [-a arg] [-c <command-id> [-a arg]]... | --list
+       umlcraft mcp [file.mdj] [--api-port=<port>]
        umlcraft --resave <in.mdj> <out.mdj>
        umlcraft --help | --version
 
@@ -27,13 +28,16 @@ pub const USAGE: &str = "Usage: umlcraft [file.mdj | --template <name or file.md
   html    write the model as HTML pages into the folder -o (default ./html-docs).
   exec    run commands on the model, in order (umlcraft exec --list shows them);
           -a is the command's argument: a string, or JSON for the factory commands.
-          Nothing is saved unless a command saves (-c project:save [-a file.mdj]).";
+          Nothing is saved unless a command saves (-c project:save [-a file.mdj]).
+  mcp     serve the Model Context Protocol on stdin and stdout for AI tools. Without a file,
+          the tools act on the running window through its API server (port 58321 unless
+          --api-port is given); with a file, on that file, which is saved after each change.";
 
 /// Run a command-line command when the arguments ask for one; returns the exit code, or None to start
 /// the window.
 pub fn run(args: &[String], ctx: impl Fn() -> egui::Context) -> Option<i32> {
     // `--help` after a command shows the help too, as yargs does (cli.js:291-303)
-    let command = matches!(args.first().map(String::as_str), Some("ejs" | "image" | "html" | "pdf" | "exec"));
+    let command = matches!(args.first().map(String::as_str), Some("ejs" | "image" | "html" | "pdf" | "exec" | "mcp"));
     if command && args.iter().any(|a| a == "--help" || a == "-h") {
         println!("{USAGE}");
         return Some(0);
@@ -52,6 +56,7 @@ pub fn run(args: &[String], ctx: impl Fn() -> egui::Context) -> Option<i32> {
         Some("html") => Some(html(&args[1..], ctx())),
         Some("ejs") => Some(big_stack(args[1..].to_vec(), |a| ejs(&a))),
         Some("exec") => Some(crate::exec::cli(&args[1..], ctx())),
+        Some("mcp") => Some(crate::mcp::cli(&args[1..], ctx)),
         _ => None,
     }
 }

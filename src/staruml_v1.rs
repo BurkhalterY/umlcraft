@@ -8,7 +8,7 @@
 //! tree is expanded into .mdj JSON. See MECHANICS.md "StarUML 1 import".
 
 use crate::meta;
-use crate::model::{new_id, num, Repo};
+use crate::model::{new_id, num, Eid, Repo};
 use indexmap::IndexMap;
 use roxmltree::{Document, Node};
 use serde_json::{json, Map, Value};
@@ -17,6 +17,36 @@ use serde_json::{json, Map, Value};
 pub fn import(text: &str) -> Result<Repo, String> {
     let v = convert(text)?;
     Repo::parse(&serde_json::to_string(&v).map_err(|e| e.to_string())?)
+}
+
+/// The profiles a StarUML 1 file lists in its header, `<XPD:PROFILE>UMLStandard</XPD:PROFILE>`
+/// (main.js:58-61).
+pub fn profiles(text: &str) -> Vec<String> {
+    let Ok(doc) = Document::parse(text) else { return vec![] };
+    doc.descendants().filter(|n| n.is_element() && n.tag_name().name() == "PROFILE").map(|n| n.text().unwrap_or("").trim().to_string()).collect()
+}
+
+/// When the file lists the UMLStandard profile: add UMLCraft's UML Standard Profile to the project,
+/// then bind each stereotype read as text to the UMLStereotype of that name, looked up among the
+/// project's own elements first, then anywhere (main.js:58-88, repository.js lookupAndFind).
+pub fn link_standard_profile(r: &mut Repo, profiles: &[String]) {
+    if !profiles.iter().any(|p| p == "UMLStandard") {
+        return;
+    }
+    crate::templates::add_standard_profile(r);
+    let root = r.root;
+    let stereotypes: Vec<Eid> = r.all().filter(|e| r.ty(*e) == "UMLStereotype").collect();
+    let own: Vec<Eid> = r.children(root).into_iter().map(|(_, c)| c).filter(|c| r.ty(*c) == "UMLStereotype").collect();
+    let texts: Vec<(Eid, String)> = r.all().filter_map(|e| match r.raw(e, "stereotype") {
+        Some(Value::String(s)) if !s.is_empty() => Some((e, s.clone())),
+        _ => None,
+    }).collect();
+    for (e, name) in texts {
+        let found = own.iter().chain(stereotypes.iter()).copied().find(|s| r.name(*s) == name);
+        if let Some(st) = found {
+            r.set_ref(e, "stereotype", Some(st));
+        }
+    }
 }
 
 /// The project JSON of a StarUML 1 file.

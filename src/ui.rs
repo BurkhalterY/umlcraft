@@ -2284,10 +2284,20 @@ impl App {
         ui.add_space(4.0);
         ui.vertical_centered(|ui| {
             ui.spacing_mut().item_spacing.y = 3.0;
-            for (key, tip) in [("zoomIn", "Zoom In"), ("zoomOut", "Zoom Out"), ("fit", "Fit To Window"), ("grid", "Show Grid"), ("image", "Export Diagram as PNG"), ("markdown", "Markdown Documentation")] {
+            // the panel buttons in the order their extensions load (diagram-thumbnails, markdown,
+            // minimap, relationship-view: diagram-thumbnails/main.js:44-46, markdown/main.js:42-44,
+            // minimap/main.js:35, relationship-view/main.js:34)
+            for (key, tip) in [("zoomIn", "Zoom In"), ("zoomOut", "Zoom Out"), ("fit", "Fit To Window"), ("grid", "Show Grid"), ("image", "Export Diagram as PNG"), ("thumbnails", "Diagram Thumbnails"), ("markdown", "Markdown Documentation"), ("minimap", "Minimap"), ("relationships", "Relationship View")] {
                 let (r, resp) = ui.allocate_exact_size(Vec2::splat(24.0), Sense::click());
-                // a panel's button stays selected while its panel shows (markdown/main.js:66-80)
-                let selected = key == "markdown" && self.show_markdown;
+                // a panel's button stays selected while its panel shows (markdown/main.js:66-80,
+                // minimap/main.js:47, 60)
+                let selected = match key {
+                    "markdown" => self.show_markdown,
+                    "thumbnails" => self.show_thumbnails,
+                    "minimap" => self.show_minimap,
+                    "relationships" => self.show_relationships,
+                    _ => false,
+                };
                 if resp.hovered() || selected {
                     ui.painter().rect_filled(r, CornerRadius::same(2), TOOL_HOVER());
                 }
@@ -2299,6 +2309,9 @@ impl App {
                         "fit" => self.fit(),
                         "grid" => self.show_grid = !self.show_grid,
                         "markdown" => self.show_markdown = !self.show_markdown,
+                        "thumbnails" => self.show_thumbnails = !self.show_thumbnails,
+                        "minimap" => self.show_minimap = !self.show_minimap,
+                        "relationships" => self.show_relationships = !self.show_relationships,
                         _ => self.export_current(&ui.ctx().clone(), crate::export::Format::Png),
                     }
                 }
@@ -3831,6 +3844,7 @@ impl App {
             return;
         }
         self.api_poll(&ctx);
+        self.poll_validation();
         // remember the window's bounds and maximized state (window.js:26-94); they are written with
         // the other preferences when they change
         if self.screenshot.is_none() {

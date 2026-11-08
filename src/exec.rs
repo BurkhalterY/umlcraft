@@ -343,6 +343,11 @@ impl App {
             return Err(format!("Factory.createModel(): No such function of options.id: {ty}"));
         }
         let parent = resolve(self, o.get("parent"), results)?.or(self.focus.filter(|f| self.repo.alive(*f))).ok_or("factory:create-model needs a parent")?;
+        // the default precondition: the parent must be a model element, not a view
+        // (factory.js:24, 421-426)
+        if !self.repo.kind_of(parent, "Model") {
+            return Err(format!("{ty} cannot be placed here."));
+        }
         let field = o.get("field").and_then(|v| v.as_str()).map(str::to_string);
         let init = o.get("model-init").map(|v| refs_in(self, v, results));
         let generate = o.get("generate-name").and_then(|v| v.as_str()).map(str::to_string);

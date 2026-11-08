@@ -239,6 +239,11 @@ pub struct App {
     /// Validation: the problems found, whether the model was validated, and the results panel.
     pub problems: Vec<crate::validate::Problem>,
     pub validated: bool,
+    /// With a window: validation after open and save runs on a thread of its own, which wakes this
+    /// context when done (the main process's `validate`, application.js:316-320).
+    pub validate_in_background: Option<egui::Context>,
+    /// The results of the validation running in the background.
+    pub validation_rx: Option<std::sync::mpsc::Receiver<Vec<crate::validate::Problem>>>,
     pub show_validation: bool,
     /// Panel sizes changed by dragging a splitter (see splitter.rs).
     pub panel_sizes: std::collections::HashMap<String, f32>,
@@ -383,6 +388,8 @@ impl App {
             find_results: None,
             problems: vec![],
             validated: false,
+            validate_in_background: None,
+            validation_rx: None,
             show_validation: false,
             panel_sizes: Default::default(),
             split_drag: None,
@@ -448,6 +455,8 @@ impl App {
         // closing a project clears the validation errors (validation-panel.js:136-142)
         self.problems.clear();
         self.validated = false;
+        // the results of the previous project's validation are dropped
+        self.validation_rx = None;
         self.centre_pending = None;
         self.list_picker = None;
         self.expanded.clear();
@@ -503,8 +512,11 @@ impl App {
     /// (extensions/default/staruml-v1/main.js:34 loadFile, project-manager.js:204 loadFromJson).
     pub fn import_staruml_v1(&mut self, p: PathBuf) {
         let text = std::fs::read(&p).map(|b| String::from_utf8_lossy(&b).into_owned()).map_err(|e| e.to_string());
-        match text.and_then(|t| crate::staruml_v1::import(&t)) {
-            Ok(repo) => self.set_project(repo, None),
+        match text.and_then(|t| crate::staruml_v1::import(&t).map(|r| (r, crate::staruml_v1::profiles(&t)))) {
+            Ok((mut repo, profiles)) => {
+                crate::staruml_v1::link_standard_profile(&mut repo, &profiles);
+                self.set_project(repo, None)
+            }
             Err(e) => self.message = Some(("Failed to import the file.".into(), e)),
         }
     }
@@ -2848,8 +2860,12 @@ impl App {
         self.change(|a| {
             for e in edges {
                 a.repo.set(e, "lineStyle", json!(style));
+                // oblique and curved lines keep their bend points, as do lines that are already
+                // rectilinear (EdgeView.recalcPoints, core.js:2978-3007); a slanted line made
+                // rectilinear starts again from its ends, where the original squares each segment
                 let pts = views::points_of(&a.repo, e);
-                if pts.len() > 2 {
+                let square = pts.windows(2).all(|w| (w[0].x - w[1].x).abs() < 0.5 || (w[0].y - w[1].y).abs() < 0.5);
+                if pts.len() > 2 && views::rectilinear(style) && !square {
                     a.repo.set(e, "points", json!(views::format_points(&[pts[0], pts[pts.len() - 1]])));
                 }
             }

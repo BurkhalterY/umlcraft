@@ -1421,10 +1421,69 @@ impl Show {
     }
 }
 
-/// The property string of an attribute or association end: `{id, readOnly, ordered, unique}`, or "".
+/// The property string of an attribute or association end: `{id, readOnly, ordered, unique}` and
+/// its tags, or "" (UMLAttribute.getPropertyString, elements.js:936-955).
 pub fn property_text(r: &Repo, a: Eid) -> String {
-    let props: Vec<&str> = [("isID", "id"), ("isReadOnly", "readOnly"), ("isOrdered", "ordered"), ("isUnique", "unique")].into_iter().filter(|(k, _)| r.bool(a, k)).map(|(_, l)| l).collect();
+    let props: Vec<String> = [("isID", "id"), ("isReadOnly", "readOnly"), ("isOrdered", "ordered"), ("isUnique", "unique")].into_iter().filter(|(k, _)| r.bool(a, k)).map(|(_, l)| l.to_string()).collect();
+    braces(r, a, props)
+}
+
+/// A tag as a view shows it, or None for a hidden tag (Tag.toString, core.js:1220-1249):
+/// `name="value"` for a string, `name=Element` (or `name=null`) for a reference, and `name=value`
+/// for a boolean, a number or an enum.
+pub fn tag_string(r: &Repo, t: Eid) -> Option<String> {
+    if r.bool(t, "hidden") {
+        return None;
+    }
+    let name = r.name(t);
+    Some(match r.str(t, "kind").as_str() {
+        "reference" => format!("{name}={}", r.refd(t, "reference").filter(|x| r.alive(*x)).map(|x| r.name(x)).unwrap_or_else(|| "null".into())),
+        "boolean" => format!("{name}={}", r.bool(t, "checked")),
+        "number" => {
+            let n = r.f(t, "number");
+            format!("{name}={}", if n.fract() == 0.0 && n.abs() < 1e15 { format!("{}", n as i64) } else { n.to_string() })
+        }
+        "enum" => format!("{name}={}", r.str(t, "value")),
+        _ => format!("{name}=\"{}\"", r.str(t, "value")),
+    })
+}
+
+/// `{a, b}` from the given properties and then the element's shown tags, each once
+/// (`_.union(props, getTagStringArray())`, elements.js:434-459), or "".
+fn braces(r: &Repo, e: Eid, mut props: Vec<String>) -> String {
+    for t in r.list(e, "tags") {
+        if let Some(s) = tag_string(r, t) {
+            if !props.contains(&s) {
+                props.push(s);
+            }
+        }
+    }
     if props.is_empty() { String::new() } else { format!("{{{}}}", props.join(", ")) }
+}
+
+/// The property string of an element a box or a line shows under its name: `{leaf}` for a leaf
+/// classifier, and the tags (UMLClassifier.getPropertyString, elements.js:1197-1206;
+/// UMLElementMixin.getPropertyString, elements.js:453-459).
+pub fn element_property_text(r: &Repo, m: Eid) -> String {
+    let leaf = r.kind_of(m, "UMLClassifier") && r.bool(m, "isLeaf");
+    braces(r, m, if leaf { vec!["leaf".into()] } else { vec![] })
+}
+
+/// The property string of an operation: `{query}`, `ordered` and `unique` from its return
+/// parameter, and its tags (UMLOperation.getPropertyString, elements.js:1046-1066).
+pub fn operation_property_text(r: &Repo, o: Eid) -> String {
+    let mut props = vec![];
+    if r.bool(o, "isQuery") {
+        props.push("query".to_string());
+    }
+    if let Some(rp) = r.list(o, "parameters").into_iter().find(|p| r.str(*p, "direction") == "return") {
+        for (k, l) in [("isOrdered", "ordered"), ("isUnique", "unique")] {
+            if r.bool(rp, k) {
+                props.push(l.to_string());
+            }
+        }
+    }
+    braces(r, o, props)
 }
 
 pub fn attribute_text(r: &Repo, a: Eid, show: Show) -> String {
@@ -1547,6 +1606,10 @@ pub fn operation_text(r: &Repo, o: Eid, show: Show) -> String {
             s += &format!("[{m}]");
         }
     }
+    let p = operation_property_text(r, o);
+    if show.prop && !p.is_empty() {
+        s += &format!(" {p}");
+    }
     s
 }
 
@@ -1582,6 +1645,7 @@ struct NameParts {
     st: Option<Eid>,
     nm: Option<Eid>,
     ns: Option<Eid>,
+    pr: Option<Eid>,
     st_text: String,
     show_st: bool,
     ns_text: String,
@@ -1626,6 +1690,7 @@ fn name_parts(r: &Repo, v: Eid, m: Eid, keyword: Option<&str>, hide_st: bool) ->
         st: r.refd(nc, "stereotypeLabel"),
         nm: r.refd(nc, "nameLabel"),
         ns: r.refd(nc, "namespaceLabel"),
+        pr: r.refd(nc, "propertyLabel"),
         st_text,
         show_st,
         force_ns: forced.is_some(),
@@ -1744,6 +1809,20 @@ pub(crate) fn layout_name(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid, x: f64
             r.set_raw(ns, "visible", json!(false));
         }
     }
+    // the property string under the name, right-aligned, while the view shows properties and the
+    // string is not empty (UMLGeneralNodeView.update, elements.js:4828-4855)
+    if let Some(pr) = p.pr {
+        set_label_font(r, ms, pr, None);
+        let text = element_property_text(r, m);
+        let show = !text.is_empty() && r.val(v, "showProperty").and_then(|x| x.as_bool()).unwrap_or(true);
+        r.set(pr, "text", json!(text));
+        if show {
+            r.remove(pr, "visible");
+            items.push(pr);
+        } else {
+            r.set_raw(pr, "visible", json!(false));
+        }
+    }
     for lv in &items {
         r.set(*lv, "wordWrap", json!(wrap));
     }
@@ -1770,6 +1849,10 @@ pub(crate) fn name_min_width(r: &Repo, ms: &dyn Measure, v: Eid, m: Eid, keyword
         }
         if p.force_ns {
             w = w.max(width(&p.ns_text, 0));
+        }
+        let prop = element_property_text(r, m);
+        if p.pr.is_some() && !prop.is_empty() && r.val(v, "showProperty").and_then(|x| x.as_bool()).unwrap_or(true) {
+            w = w.max(width(&prop, 0));
         }
     }
     w.ceil() + 2.0 * PAD
@@ -2780,7 +2863,9 @@ pub(crate) fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> 
         _ => stereotype_text(r, m),
     };
     out.push(("stereotypeLabel", st));
-    out.push(("propertyLabel", String::new()));
+    // a line's tags, while it shows properties (UMLGeneralEdgeView.update, elements.js:5358-5362)
+    let show_prop = r.val(e, "showProperty").and_then(|x| x.as_bool()).unwrap_or(true);
+    out.push(("propertyLabel", if show_prop { element_property_text(r, m) } else { String::new() }));
     if r.ty(m) == "UMLRoleBinding" {
         out.push(("roleNameLabel", r.str(m, "roleName")));
     }

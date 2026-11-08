@@ -35,6 +35,7 @@ mod markdown;
 mod mermaid;
 mod mermaid_kinds;
 mod mermaid_sequence;
+mod mcp;
 mod canvas;
 mod icons;
 mod input;
@@ -263,6 +264,7 @@ fn main() -> eframe::Result {
                         a.api_rx = api::start(port, cc.egui_ctx.clone());
                     }
                 }
+                a.validate_in_background = Some(cc.egui_ctx.clone());
             }
             // a screenshot opens its file at once; a window shows its splash screen first
             if shot {

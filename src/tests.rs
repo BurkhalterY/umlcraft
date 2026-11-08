@@ -820,6 +820,13 @@ fn rounded_and_curved_line_styles() {
     a.set_line_style(2);
     a.select(vec![e, e2]);
     assert_eq!(a.line_style_state(), None, "mixed");
+    // an oblique line keeps its bend points; a slanted one made rectilinear starts from its ends
+    a.change(|a| a.repo.set(e2, "points", json!("90:100;150:200;240:270")));
+    a.select(vec![e2]);
+    a.set_line_style(1);
+    assert_eq!(crate::views::points_of(&a.repo, e2).len(), 3);
+    a.set_line_style(0);
+    assert_eq!(crate::views::points_of(&a.repo, e2).len(), 2);
     // rounded rectilinear is routed like rectilinear
     let ms = measure();
     crate::views::layout_diagram(&mut a.repo, &ms, a.diagram.unwrap());
@@ -8106,6 +8113,10 @@ fn exec_factory_and_engine_commands() {
     let attr = run(&mut a, "factory:create-model", &format!(r#"{{"id": "UMLAttribute", "parent": {{"$ref": "{m1_id}"}}, "model-init": {{"name": "size"}}}}"#), &mut res).unwrap().unwrap();
     assert_eq!(a.repo.list(m1, "attributes"), vec![attr]);
     assert_eq!(a.repo.name(attr), "size");
+    // a view is no place for a model element (factory.js:421-426)
+    let v_id = a.repo.id(e);
+    let err = run(&mut a, "factory:create-model", &format!(r#"{{"id": "UMLClass", "parent": "{v_id}"}}"#), &mut res).unwrap_err();
+    assert_eq!(err, "UMLClass cannot be placed here.");
     run(&mut a, "engine:set-property", r#"{"model": "$2", "set-model": "model", "property": "isAbstract", "value": true}"#, &mut res).unwrap();
     assert!(a.repo.bool(m1, "isAbstract"));
     assert!(run(&mut a, "factory:create-model-and-view", r#"{"id": "Nope", "diagram": "$1"}"#, &mut res).unwrap_err().contains("No such function"));
@@ -8842,4 +8853,160 @@ fn a_click_in_an_operand_selects_it() {
     a.edit_view(ov, None);
     let om = a.repo.refd(ov, "model").unwrap();
     assert!(matches!(a.editing.as_ref().map(|e| e.kind.clone()), Some(crate::app::EditKind::Name(x)) if x == om));
+}
+
+#[test]
+fn mcp_server_on_a_file() {
+    use crate::mcp::{serve, Backend};
+    let dir = std::env::temp_dir().join(format!("umlcraft-mcp-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("m.mdj");
+    std::fs::copy(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"), &path).unwrap();
+    let mut app = App::new(None);
+    app.open_path(path.clone());
+    let before = app.repo.all_of("Diagram").len();
+    let backend = Backend::File { app: Box::new(app), path: path.clone(), ms: measure() };
+    let input = [
+        json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}}}),
+        json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
+        json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}),
+        json!({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "generate_diagram", "arguments": {"code": "classDiagram\nAnimal <|-- Dog"}}}),
+        json!({"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "get_all_diagrams_info", "arguments": {}}}),
+        json!({"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "get_diagram_image_by_id", "arguments": {"diagramId": "nope"}}}),
+        json!({"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {"name": "nope", "arguments": {}}}),
+        json!({"jsonrpc": "2.0", "id": 7, "method": "nope"}),
+        json!({"jsonrpc": "2.0", "id": 8, "method": "tools/call", "params": {"name": "execute_command", "arguments": {"command": "factory:create-diagram", "arg": "{\"diagramType\": \"UMLUseCaseDiagram\"}"}}}),
+    ]
+    .iter()
+    .map(|m| m.to_string())
+    .collect::<Vec<_>>()
+    .join("\n")
+        + "\nnot json\n";
+    let mut out = vec![];
+    serve(backend, std::io::Cursor::new(input), &mut out).unwrap();
+    let answers: Vec<serde_json::Value> = String::from_utf8(out).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert_eq!(answers.len(), 9, "no answer to the notification");
+    assert_eq!(answers[0]["result"]["protocolVersion"], "2025-03-26");
+    assert_eq!(answers[0]["result"]["serverInfo"]["name"], "umlcraft");
+    let names: Vec<&str> = answers[1]["result"]["tools"].as_array().unwrap().iter().map(|t| t["name"].as_str().unwrap()).collect();
+    assert_eq!(names, ["generate_diagram", "get_all_diagrams_info", "get_current_diagram_info", "get_diagram_image_by_id", "execute_command"]);
+    assert_eq!(answers[2]["result"]["content"][0]["text"], "Diagram is successfully generated.");
+    let all = answers[3]["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(all.starts_with("All diagrams: [") && all.contains("UMLClassDiagram"), "{all}");
+    assert_eq!(answers[4]["result"]["isError"], true);
+    assert_eq!(answers[5]["error"]["code"], -32602);
+    assert_eq!(answers[6]["error"]["code"], -32601);
+    assert!(answers[7]["result"]["content"][0]["text"].as_str().unwrap().starts_with("Done: UMLUseCaseDiagram"), "{}", answers[7]);
+    assert_eq!(answers[8]["error"]["code"], -32700);
+    // the generated diagram and the new one were saved into the file
+    let mut b = App::new(None);
+    b.open_path(path.clone());
+    assert_eq!(b.repo.all_of("Diagram").len(), before + 2);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn mcp_server_forwards_to_the_window() {
+    use crate::mcp::{serve, Backend};
+    let ctx = egui::Context::default();
+    let port = 57000 + (std::process::id() % 1000) as u16;
+    let mut a = App::new(None);
+    a.api_rx = crate::api::start(port, ctx.clone());
+    let client = std::thread::spawn(move || {
+        let input = json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "get_current_diagram_info", "arguments": {}}}).to_string();
+        let mut out = vec![];
+        serve(Backend::Api(port), std::io::Cursor::new(input), &mut out).unwrap();
+        String::from_utf8(out).unwrap()
+    });
+    let start = std::time::Instant::now();
+    while !client.is_finished() && start.elapsed().as_secs() < 10 {
+        a.api_poll(&ctx);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let out: serde_json::Value = serde_json::from_str(client.join().unwrap().trim()).unwrap();
+    let t = out["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(t.starts_with("Current diagram: {") && t.contains("UMLClassDiagram"), "{t}");
+    // nothing listening: an error result, not a crash
+    let mut out = vec![];
+    serve(Backend::Api(1), std::io::Cursor::new(json!({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "get_all_diagrams_info"}}).to_string()), &mut out).unwrap();
+    let out: serde_json::Value = serde_json::from_slice(&out).unwrap();
+    assert_eq!(out["result"]["isError"], true);
+}
+
+#[test]
+fn tags_are_shown_on_views() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 80.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(340.0, 40.0, 160.0, 80.0))).unwrap();
+    let m1 = a.repo.refd(c1, "model").unwrap();
+    let dep = a.change(|a| a.create_edge(&tool("UMLDependency", AssocInit::Plain), c1, c2)).unwrap();
+    let dm = a.repo.refd(dep, "model").unwrap();
+    let at = a.change(|a| a.add_feature(m1, "UMLAttribute")).unwrap();
+    let op = a.change(|a| a.add_feature(m1, "UMLOperation")).unwrap();
+    a.change(|a| {
+        a.repo.set(m1, "isLeaf", json!(true));
+        a.repo.create("Tag", &[("name", json!("author")), ("value", json!("Ann"))], Some((m1, "tags")));
+        a.repo.create("Tag", &[("name", json!("version")), ("kind", json!("number")), ("number", json!(2))], Some((m1, "tags")));
+        a.repo.create("Tag", &[("name", json!("secret")), ("value", json!("x")), ("hidden", json!(true))], Some((m1, "tags")));
+        a.repo.create("Tag", &[("name", json!("pk")), ("kind", json!("boolean")), ("checked", json!(true))], Some((at, "tags")));
+        a.repo.set(op, "isQuery", json!(true));
+        let r = a.repo.ref_to(m1);
+        a.repo.create("Tag", &[("name", json!("by")), ("kind", json!("reference")), ("reference", r)], Some((dm, "tags")));
+    });
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nc = a.repo.refd(c1, "nameCompartment").unwrap();
+    let pl = a.repo.refd(nc, "propertyLabel").unwrap();
+    assert_eq!(a.repo.str(pl, "text"), "{leaf, author=\"Ann\", version=2}", "hidden tags are left out");
+    assert!(a.repo.raw(pl, "visible").is_none(), "shown");
+    assert!(crate::views::attribute_text(&a.repo, at, crate::views::Show::ALL).ends_with(" {pk=true}"));
+    assert!(crate::views::operation_text(&a.repo, op, crate::views::Show::ALL).ends_with(" {query}"));
+    let epl = a.repo.refd(dep, "propertyLabel").unwrap();
+    assert_eq!(a.repo.str(epl, "text"), "{by=Class1}");
+    // Show Property off hides the label
+    a.change(|a| a.repo.set(c1, "showProperty", json!(false)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.raw(pl, "visible"), Some(&json!(false)));
+    // a class without tags shows no property line
+    let nc2 = a.repo.refd(c2, "nameCompartment").unwrap();
+    let pl2 = a.repo.refd(nc2, "propertyLabel").unwrap();
+    assert_eq!(a.repo.raw(pl2, "visible"), Some(&json!(false)));
+}
+
+#[test]
+fn staruml1_import_links_the_standard_profile() {
+    let mut a = App::new(None);
+    let p = std::env::temp_dir().join(format!("umlcraft-v1-std-{}.uml", std::process::id()));
+    std::fs::write(&p, v1_file(V1_CLASS_MODEL)).unwrap();
+    a.import_staruml_v1(p.clone());
+    std::fs::remove_file(&p).ok();
+    assert!(a.message.is_none());
+    let order = a.repo.all().find(|e| a.repo.ty(*e) == "UMLClass" && a.repo.name(*e) == "Order").unwrap();
+    let st = a.repo.refd(order, "stereotype").expect("bound to a stereotype");
+    assert_eq!((a.repo.ty(st), a.repo.name(st).as_str()), ("UMLStereotype", "entity"));
+    assert_eq!(a.repo.name(a.repo.parent(st).unwrap()), crate::templates::STANDARD_PROFILE);
+    // without the profile in the header, stereotypes stay text
+    let mut b = App::new(None);
+    std::fs::write(&p, v1_file(V1_CLASS_MODEL).replace("<XPD:PROFILE>UMLStandard</XPD:PROFILE>", "")).unwrap();
+    b.import_staruml_v1(p.clone());
+    std::fs::remove_file(&p).ok();
+    let order = b.repo.all().find(|e| b.repo.ty(*e) == "UMLClass" && b.repo.name(*e) == "Order").unwrap();
+    assert_eq!(b.repo.str(order, "stereotype"), "entity");
+    assert!(!b.repo.all().any(|e| b.repo.ty(e) == "UMLProfile"));
+}
+
+#[test]
+fn validation_runs_in_the_background_with_a_window() {
+    let mut a = App::new(None);
+    a.validate_in_background = Some(egui::Context::default());
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    assert!(a.validation_rx.is_some(), "running on a thread");
+    let start = std::time::Instant::now();
+    while a.validation_rx.is_some() && start.elapsed().as_secs() < 10 {
+        a.poll_validation();
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    assert!(a.validated);
+    assert_eq!(a.problems.len(), 2, "the example's two elements named Member");
 }
