@@ -1525,6 +1525,15 @@ impl App {
             f.extend(link_end("end2"));
             return f;
         }
+        // a connector: its kind, assembly or delegation, then its two ends (uml/metamodel.json UMLConnector)
+        if t == "UMLConnector" {
+            let conn_end = |p: &str| end(p).into_iter().filter(|x| !x.0.ends_with("ownerAttribute")).collect::<Vec<_>>();
+            let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("-", "")];
+            f.extend(conn_end("end1"));
+            f.push(("-", ""));
+            f.extend(conn_end("end2"));
+            return f;
+        }
         if r.has(e, "source") && r.has(e, "target") {
             let mut f = vec![("name", "text"), ("source", "ref"), ("target", "ref"), ("stereotype", "text"), ("visibility", "enum")];
             if t == "UMLGeneralization" {
@@ -1637,12 +1646,14 @@ impl App {
         });
     }
 
-    fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
+    pub(crate) fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
         if let Some(o) = crate::sysml::enum_options(ty, field) {
             return o;
         }
         match (ty, field) {
             ("UMLTransition", "kind") => return &["external", "internal", "local"],
+            // UMLConnectorKind (uml/metamodel.json)
+            ("UMLConnector", "kind") => return &["assembly", "delegation"],
             (t, f) if t.starts_with("BPMN") && crate::bpmn::enum_options(f).is_some() => return crate::bpmn::enum_options(f).unwrap_or(&[]),
             ("ERDRelationshipEnd", "cardinality") => return &["0..1", "1", "0..*", "1..*"],
             // WFOrientationKind, WFPositionKind (wireframe/metamodel.json)

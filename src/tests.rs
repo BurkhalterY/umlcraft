@@ -4628,6 +4628,12 @@ fn ports_parts_and_connectors() {
     assert_eq!(a.repo.ty(e), "UMLConnectorView");
     let em = a.repo.refd(e, "model").unwrap();
     assert_eq!(a.repo.ty(a.repo.child(em, "end1").unwrap()), "UMLConnectorEnd");
+    // its kind is edited in the Properties: assembly or delegation (uml/metamodel.json UMLConnectorKind)
+    let fields = a.fields_for(em);
+    assert!(fields.contains(&("kind", "enum")) && fields.contains(&("end1.multiplicity", "text")) && fields.contains(&("end2.reference", "ref")));
+    assert!(!fields.iter().any(|f| f.0.ends_with("ownerAttribute")));
+    assert_eq!(App::enum_options("UMLConnector", "kind"), &["assembly", "delegation"]);
+    assert_eq!(a.repo.str(em, "kind"), "assembly");
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     // moving the class carries its port and part
     let before = a.repo.f(part, "left");
