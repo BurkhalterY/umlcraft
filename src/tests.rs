@@ -7798,3 +7798,16 @@ fn mermaid_requirement_diagrams_become_sysml_requirements() {
     assert!(views.contains(&"UMLContainmentView".to_string()) && views.contains(&"SysMLVerifyView".to_string()) && !views.contains(&"UMLFrameView".to_string()));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn model_add_offers_ports_and_collaborations() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let m = a.change(|a| a.add_model(root, "UMLModel"));
+    assert!(a.add_kinds(m).iter().any(|k| k.1 == "UMLCollaboration"));
+    let c = a.change(|a| a.add_model(m, "UMLClass"));
+    assert!(a.add_kinds(c).iter().any(|k| k.1 == "UMLPort" && k.2));
+    let p = a.change(|a| a.add_feature(c, "UMLPort")).unwrap();
+    assert_eq!((a.repo.ty(p), a.repo.field_of(p).as_deref()), ("UMLPort", Some("attributes")));
+    assert_eq!(a.repo.name(p), "Port1");
+}

@@ -1997,7 +1997,7 @@ impl App {
             return x;
         }
         let field = match ty {
-            "UMLAttribute" => "attributes",
+            "UMLAttribute" | "UMLPort" => "attributes",
             "UMLOperation" => "operations",
             "UMLReception" => "receptions",
             "UMLExtensionPoint" => "extensionPoints",

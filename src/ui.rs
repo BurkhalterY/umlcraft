@@ -1003,7 +1003,7 @@ impl App {
                 ("Package", "UMLPackage"), ("Profile", "UMLProfile"), ("Class", "UMLClass"), ("Interface", "UMLInterface"), ("Signal", "UMLSignal"),
                 ("DataType", "UMLDataType"), ("PrimitiveType", "UMLPrimitiveType"), ("Enumeration", "UMLEnumeration"), ("Stereotype", "UMLStereotype"),
                 ("Actor", "UMLActor"), ("Use Case", "UMLUseCase"), ("Subsystem", "UMLSubsystem"), ("Component", "UMLComponent"), ("Artifact", "UMLArtifact"), ("Node", "UMLNode"),
-                ("Object", "UMLObject"), ("Information Item", "UMLInformationItem"),
+                ("Object", "UMLObject"), ("Information Item", "UMLInformationItem"), ("Collaboration", "UMLCollaboration"),
             ] {
                 adds.push((l, k, false));
             }
@@ -1066,7 +1066,7 @@ impl App {
             adds.push(("Constraint", "UMLConstraint", false));
         }
         for (l, k) in [
-            ("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Slot", "UMLSlot"), ("Literal", "UMLEnumerationLiteral"),
+            ("Attribute", "UMLAttribute"), ("Port", "UMLPort"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Slot", "UMLSlot"), ("Literal", "UMLEnumerationLiteral"),
             ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter"), ("Template Parameter Substitution", "UMLTemplateParameterSubstitution"),
             ("State", "UMLState"), ("Region", "UMLRegion"), ("Trigger", "UMLEvent"), ("Action", "UMLAction"), ("Interaction Operand", "UMLInteractionOperand"),
         ] {
