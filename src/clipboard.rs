@@ -90,7 +90,7 @@ impl App {
     /// The selected views that can be copied: boxes, and lines whose two ends are copied too.
     fn copyable_views(&self) -> Vec<Eid> {
         let Some(d) = self.diagram else { return vec![] };
-        let top: Vec<Eid> = self.repo.list(d, "ownedViews").into_iter().filter(|v| self.selection.contains(v)).collect();
+        let top: Vec<Eid> = self.repo.list(d, "ownedViews").into_iter().filter(|v| self.selection.contains(v) && views::can_copy(&self.repo, *v)).collect();
         let nodes: HashSet<Eid> = top.iter().copied().filter(|v| !is_edge(&self.repo, *v)).collect();
         top.into_iter()
             .filter(|v| {
@@ -110,10 +110,24 @@ impl App {
             let field = self.repo.field_of(m)?;
             return Some(json!({ "format": MARK, "kind": "model", "field": field, "model": self.repo.export(m) }).to_string());
         }
+        // the views that cannot be copied are deselected first (default-commands.js:647-655)
+        let had = !self.selection.is_empty();
+        let before = self.selection.len();
+        self.selection.retain(|v| views::can_copy(&self.repo, *v));
+        if self.selection.len() != before {
+            let s = self.selection.clone();
+            self.select(s);
+        }
         let vs = self.copyable_views();
         if vs.is_empty() {
-            if !self.selection.is_empty() {
-                self.message = Some(("Copy".into(), "No views to copy or some of selected views cannot be copied.".into()));
+            if had {
+                let seq = self.diagram.map(|d| matches!(self.repo.ty(d), "UMLSequenceDiagram" | "UMLCommunicationDiagram")).unwrap_or(false);
+                let text = if seq {
+                    "Copying view elements in Sequence or Communication Diagram is not supported.\n To copy the entire Sequence or Communication Diagram, copy 'Interaction' or 'Collaboration (or Classifier)' containing the Diagram in Explorer."
+                } else {
+                    "No views to copy or some of selected views cannot be copied."
+                };
+                self.message = Some(("Copy".into(), text.into()));
             }
             return None;
         }

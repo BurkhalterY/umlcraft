@@ -6100,3 +6100,27 @@ fn a_line_label_resizes_across_with_its_handles() {
     let w = a.repo.f(l, "width");
     assert!(w >= b.w + 30.0, "{} -> {w}", b.w);
 }
+
+#[test]
+fn copy_deselects_what_cannot_be_copied() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let sd = a.change(|a| a.add_diagram(Some(a.repo.root), "UMLSequenceDiagram"));
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 100.0, 100.0, 60.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, sd);
+    a.last_area = crate::app::Area::Canvas;
+    a.select(vec![l1]);
+    assert!(a.copy_text().is_none());
+    assert!(a.selection.is_empty(), "the lifeline is deselected");
+    assert!(a.message.as_ref().map(|m| m.1.contains("Sequence or Communication Diagram")).unwrap_or(false));
+    // on a class diagram, a label and a box: the box is copied, the label deselected
+    a.message = None;
+    let d = a.change(|a| a.add_diagram(Some(a.repo.root), "UMLClassDiagram"));
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nl = a.repo.refd(a.repo.refd(c1, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    a.select(vec![c1, nl]);
+    assert!(a.copy_text().is_some());
+    assert_eq!(a.selection, vec![c1]);
+    assert!(a.message.is_none());
+}

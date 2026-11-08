@@ -2888,6 +2888,21 @@ pub fn can_delete(r: &Repo, v: Eid) -> bool {
         ))
 }
 
+/// Whether the view can be copied: not labels, parasitic views, compartment items, nor the
+/// interaction parts that only make sense with their models (canCopy, core.js:3527, 3574;
+/// elements.js:10593-13884).
+pub fn can_copy(r: &Repo, v: Eid) -> bool {
+    let t = r.ty(v);
+    !(is_item_view(t)
+        || r.kind_of(v, "LabelView")
+        || matches!(
+            t,
+            "NodeLabelView" | "EdgeLabelView" | "UMLZigZagAdornmentView" | "UMLSeqLifelineView" | "UMLMessageEndpointView" | "UMLActivationView" | "UMLSeqMessageView" | "UMLStateInvariantView" | "UMLContinuationView"
+                | "UMLInteractionOperandView" | "UMLCombinedFragmentView" | "UMLInteractionUseView" | "UMLTimeConstraintLinkView" | "UMLDurationConstraintView" | "UMLCommLifelineView" | "UMLCommMessageView"
+                | "UMLTimingStateView" | "UMLTimingLifelineView" | "UMLTimeSegmentView" | "UMLTimeTickView" | "UMLTimingMessageView" | "UMLInteractionInlineView"
+        ))
+}
+
 /// Whether Delete hides the view instead (the compartment items' canHide, elements.js:4426, 4499,
 /// 4565, 4621, 6179, 7393, 8319).
 pub fn can_hide(r: &Repo, v: Eid) -> bool {
