@@ -178,6 +178,27 @@ File › Import › XMI Import (v2.1) puts what it reads into a new UMLModel `XM
 | Page sizes | PDFKit's: 4A0, 2A0, A0–A10, B0–B10, C0–C10, RA0–RA4, SRA0–SRA4, Executive, Folio, Legal, Letter, Tabloid | `static/html-contents/print-dialog.html` |
 | UMLCraft | writes the PDF itself, in vector shapes drawn by the same code as the screen and SVG; text in subsets of the diagram faces, then egui's fallback fonts, then a fontconfig font that has the character, as Type0 fonts (Identity-H, ToUnicode); only TrueType-outline faces are embedded; the caption is set in the diagram face at 10 pt rather than Helvetica, so any character prints; an SVG picture becomes an image drawn at 4 times its printed size | `src/pdf.rs`, `src/pdf_font.rs` |
 
+## Colour variables (StarUML 8)
+
+StarUML 8 stores view colours as variables drawn in the colours of the current theme. Only its docs and
+release notes describe them (StarUML 7.1.1, the reference code, has none), so the rules come from there;
+the colour values are not published and were chosen by UMLCraft. Implemented in `src/colorvars.rs`.
+
+| Rule | Value | Source |
+|---|---|---|
+| Names | `$background`, `$foreground` (the default colours of views), `$transparent`, and `$<hue><1-12>` for slate, gray, red, pink, purple, blue, cyan, green, brown, orange, yellow, lime, mint | https://docs.staruml.io/user-guide/formatting-diagram/ |
+| Light `$background` / `$foreground` | white / black | same page |
+| Dark `$background` / `$foreground` | #191919 / #eeeeee (gray 2 and gray 12 of the dark gray scale) | UMLCraft's choice |
+| Hue steps | the Radix Colors 12-step scales of the same 13 names (@radix-ui/colors 3.0.0, MIT licence): light scales in the light theme, dark scales in the dark theme; step 9 is the solid colour, 12 the darkest (light) or lightest (dark) text colour | UMLCraft's choice (StarUML's values are not published) |
+| `$transparent` | fully transparent; written for StarUML 7 as `#ffffff00` | UMLCraft's choice |
+| Unknown variable | drawn in the field's default colour | UMLCraft rule |
+| Older files | a file whose views hold no variable asks "Convert" (each colour becomes its most similar variable) or "Keep Colors" (nothing changes) | https://docs.staruml.io/user-guide/managing-project/, StarUML 8.0 release notes |
+| Most similar variable | the smallest "redmean" weighted RGB distance to the light-theme value of `$background`, `$foreground` and the 156 hue steps; fully transparent gives `$transparent`; a partly transparent colour stays as it is | UMLCraft's choice |
+| New views | variables (fixed defaults turned into their nearest variable) only in a project that holds variables (converted, or saved by StarUML 8); otherwise `#rrggbb`, so that StarUML 7 still opens the file | UMLCraft rule (StarUML 8 always uses variables) |
+| File › Export › StarUML V7... | a copy with every variable replaced by its light-theme colour; the working project and its file are not changed; reopening the copy asks to convert again | https://docs.staruml.io/user-guide/managing-project/ |
+| Canvas | a project with variables is drawn on `$background` with a `$gray4` grid while the background and grid colour preferences keep their defaults | UMLCraft's choice |
+| Pictures and print | exports use the current theme; Print to PDF always uses the light theme (white paper) | managing-project page; PDF: UMLCraft's choice |
+
 ## Window (dark theme, the default)
 
 | Name | Value | Source |

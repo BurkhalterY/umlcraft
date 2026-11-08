@@ -2438,6 +2438,10 @@ impl App {
                         self.export_xmi_dialog();
                         ui.close();
                     }
+                    if ui.button("StarUML V7...").clicked() {
+                        self.export_v7_dialog(&measure);
+                        ui.close();
+                    }
                 });
                 if ui.button("Print to PDF...").clicked() {
                     self.print_open = true;
@@ -3200,6 +3204,20 @@ impl App {
         }
     }
 
+    /// File › Export › StarUML V7...: a copy of the project for StarUML 7, colour variables replaced by
+    /// their light-theme colours (https://docs.staruml.io/user-guide/managing-project/).
+    fn export_v7_dialog(&mut self, ms: &EguiMeasure) {
+        let stem = self.filename.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| self.repo.name(self.repo.root));
+        let Some(mut p) = rfd::FileDialog::new().set_title("Export StarUML V7").set_file_name(format!("{stem}-v7.mdj")).add_filter("Models", &["mdj"]).save_file() else { return };
+        if p.extension().map(|e| e != "mdj").unwrap_or(true) {
+            p.set_extension("mdj");
+        }
+        let text = self.v7_json(ms);
+        if let Err(e) = std::fs::write(&p, text) {
+            self.message = Some(("Failed to export the file.".into(), e.to_string()));
+        }
+    }
+
     fn cmd_open(&mut self, ms: &EguiMeasure) {
         if !self.confirm_discard(ms) {
             return;
@@ -3281,6 +3299,7 @@ impl App {
             || self.input_dialog.is_some()
             || self.mermaid_code.is_some()
             || self.print_open
+            || self.color_prompt
     }
 
     pub(crate) fn dialogs(&mut self, ctx: &egui::Context) {
@@ -3322,6 +3341,7 @@ impl App {
         self.select_one_ui(ctx);
         self.delete_prompt_ui(ctx);
         self.print_dialog_ui(ctx);
+        self.color_prompt_ui(ctx);
         self.element_picker_ui(ctx);
         self.icon_picker_ui(ctx);
         self.input_dialog_ui(ctx);
@@ -3997,7 +4017,7 @@ fn scroll_shadow(p: &egui::Painter, r: Rect) {
 
 /// Give a dialog's primary button the keyboard when nothing else has it, as the original does when a
 /// dialog opens (dialog-manager.js:242-313).
-fn focus_primary(ui: &egui::Ui, button: &egui::Response) {
+pub(crate) fn focus_primary(ui: &egui::Ui, button: &egui::Response) {
     if ui.memory(|m| m.focused().is_none()) {
         button.request_focus();
     }

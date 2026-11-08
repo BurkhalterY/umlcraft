@@ -272,6 +272,11 @@ pub struct App {
     pub last_backup: std::time::Instant,
     /// The Print to PDF dialog is open.
     pub print_open: bool,
+    /// The project draws with colour variables (it held some when opened, or was converted): new views
+    /// get variables too (colorvars.rs).
+    pub color_vars: bool,
+    /// The Convert / Keep Colors question, asked when a file of StarUML 7 or earlier is opened.
+    pub color_prompt: bool,
     /// The open Element Picker ("Select Element").
     pub element_picker: Option<crate::picker::ElementPicker>,
     /// The Icon Picker of a cloud element (icon-picker-dialog.js).
@@ -383,6 +388,8 @@ impl App {
             last_selection: vec![],
             last_backup: std::time::Instant::now(),
             print_open: false,
+            color_vars: false,
+            color_prompt: false,
             element_picker: None,
             icon_picker: None,
             input_dialog: None,
@@ -395,6 +402,8 @@ impl App {
     pub fn set_project(&mut self, repo: Repo, filename: Option<PathBuf>) {
         self.repo = repo;
         self.migrate();
+        self.color_vars = crate::colorvars::uses_vars(&self.repo);
+        self.color_prompt = false;
         self.filename = filename;
         self.modified = false;
         self.undo.clear();
@@ -461,6 +470,9 @@ impl App {
                 self.set_project(repo, Some(p));
                 self.restore_working_diagrams();
                 self.auto_validate();
+                // a file without colour variables comes from StarUML 7 or earlier: ask whether to
+                // convert its colours (https://docs.staruml.io/user-guide/managing-project/)
+                self.color_prompt = !self.color_vars && crate::colorvars::has_fixed_colors(&self.repo);
             }
             Err(e) => self.message = Some(("Failed to open the file.".into(), e)),
         }

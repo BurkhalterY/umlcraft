@@ -1636,6 +1636,9 @@ fn command_palette_and_quick_find() {
     assert!(matching("view:fit").iter().any(|c| c.name == "Fit To Window"), "the id matches too");
     let mut a = App::new(None);
     a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    // the file has fixed colours: answer the Convert / Keep Colors question first
+    assert!(a.color_prompt && a.modal_open());
+    a.keep_colors();
     let hits = a.find_hits("loan");
     let Hit::Model(m) = hits[0] else { panic!() };
     assert!(a.repo.name(m).to_lowercase().contains("loan"));
@@ -7797,4 +7800,100 @@ fn mermaid_requirement_diagrams_become_sysml_requirements() {
     let views: Vec<String> = a.repo.list(d, "ownedViews").iter().map(|x| a.repo.ty(*x).to_string()).collect();
     assert!(views.contains(&"UMLContainmentView".to_string()) && views.contains(&"SysMLVerifyView".to_string()) && !views.contains(&"UMLFrameView".to_string()));
     Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn colour_variables_follow_the_theme() {
+    use crate::colorvars::{nearest, resolve, with_theme};
+    use crate::render::{parse_color, Rgba, BLACK};
+    assert_eq!(resolve("$background", false), Some(Rgba(255, 255, 255, 255)));
+    assert_eq!(resolve("$foreground", false), Some(BLACK));
+    assert_eq!(resolve("$transparent", true).map(|c| c.3), Some(0));
+    assert_eq!(resolve("$blue9", false), Some(Rgba(0x00, 0x90, 0xff, 255)));
+    assert_eq!(resolve("$Gray12", true), Some(Rgba(0xee, 0xee, 0xee, 255)));
+    assert_eq!(resolve("$blue13", false), None);
+    assert_eq!(resolve("$teal3", false), None);
+    assert_eq!(crate::colorvars::names().len(), 3 + 13 * 12);
+    // drawing follows the theme; an unknown variable falls back to the default
+    assert_eq!(with_theme(false, || parse_color("$background", BLACK)), Rgba(255, 255, 255, 255));
+    assert_eq!(with_theme(true, || parse_color("$background", BLACK)), crate::colorvars::DARK_BACKGROUND);
+    assert_eq!(with_theme(true, || parse_color("$nope", BLACK)), BLACK);
+    // the most similar variable, by light-theme colour
+    assert_eq!(nearest(Rgba(255, 255, 255, 255)).as_deref(), Some("$background"));
+    assert_eq!(nearest(BLACK).as_deref(), Some("$foreground"));
+    assert_eq!(nearest(Rgba(0x00, 0x91, 0xfe, 255)).as_deref(), Some("$blue9"));
+    assert_eq!(nearest(Rgba(255, 255, 255, 0)).as_deref(), Some("$transparent"));
+    assert_eq!(nearest(Rgba(255, 0, 0, 128)), None, "partly transparent colours stay fixed");
+}
+
+#[test]
+fn convert_or_keep_colours_and_export_for_staruml_7() {
+    let ms = measure();
+    let ex = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj");
+    // Keep Colors leaves the file as it was, and new views keep plain colours
+    let mut a = App::new(None);
+    a.open_path(ex.clone());
+    assert!(a.color_prompt && !a.color_vars);
+    a.keep_colors();
+    assert!(!a.color_prompt && !a.modified);
+    let c = a.change(|a| a.create_node("UMLClass", rect(600.0, 40.0, 100.0, 60.0))).unwrap();
+    assert!(!crate::colorvars::is_var(&a.repo.str(c, "fillColor")));
+    assert!(!crate::colorvars::uses_vars(&a.repo));
+
+    // Convert turns every colour into a variable, as one undo step
+    let mut a = App::new(None);
+    a.open_path(ex.clone());
+    let views = a.repo.all_of("View");
+    a.convert_colors();
+    assert!(a.color_vars && a.modified && !a.color_prompt);
+    for v in &views {
+        for f in crate::colorvars::COLOR_FIELDS {
+            if crate::meta::order_of(a.repo.ty(*v), f).is_some() {
+                assert!(crate::colorvars::is_var(&a.repo.str(*v, f)), "{} {f} = {}", a.repo.ty(*v), a.repo.str(*v, f));
+            }
+        }
+    }
+    let class = views.iter().copied().find(|v| a.repo.ty(*v) == "UMLClassView").unwrap();
+    assert_eq!(a.repo.str(class, "lineColor"), "$foreground");
+    // new views get variables, as StarUML 8 stores them
+    let c = a.change(|a| a.create_node("UMLClass", rect(600.0, 40.0, 100.0, 60.0))).unwrap();
+    assert_eq!(a.repo.str(c, "fillColor"), "$background");
+    assert_eq!(a.repo.str(c, "fontColor"), "$foreground");
+    a.do_undo();
+    a.do_undo();
+    assert!(!crate::colorvars::uses_vars(&a.repo), "undo brings the fixed colours back");
+    a.do_redo();
+
+    // the picture follows the theme
+    let d = a.diagram.unwrap();
+    let info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let light = crate::colorvars::with_theme(false, || crate::render::to_svg(&a.repo, d, &info, &ms).unwrap());
+    let dark = crate::colorvars::with_theme(true, || crate::render::to_svg(&a.repo, d, &info, &ms).unwrap());
+    assert!(light.contains("stroke=\"#000000\"") && !light.contains("stroke=\"#eeeeee\""));
+    assert!(dark.contains("stroke=\"#eeeeee\"") && dark.contains("fill=\"#191919\""));
+
+    // the saved project keeps its variables; the StarUML 7 copy has none and leaves the project as it was
+    let saved = a.repo.serialize();
+    assert!(saved.contains("\"$foreground\""));
+    let v7 = a.v7_json(&ms);
+    let back = Repo::parse(&v7).unwrap();
+    assert!(!crate::colorvars::uses_vars(&back), "no colour variable is left for StarUML 7");
+    assert!(crate::colorvars::uses_vars(&a.repo));
+    let cv = back.all_of("UMLClassView")[0];
+    assert!(!back.str(cv, "fillColor").starts_with('$'));
+    // reopening the copy asks again
+    let dir = std::env::temp_dir().join(format!("umlcraft-v7-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let f = dir.join("v7.mdj");
+    std::fs::write(&f, &v7).unwrap();
+    let mut b = App::new(None);
+    b.open_path(f);
+    assert!(b.color_prompt);
+    // a converted file opens without the question and keeps drawing with variables
+    let f2 = dir.join("v8.mdj");
+    std::fs::write(&f2, &saved).unwrap();
+    let mut b = App::new(None);
+    b.open_path(f2);
+    assert!(!b.color_prompt && b.color_vars);
+    let _ = std::fs::remove_dir_all(dir);
 }

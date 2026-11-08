@@ -24,9 +24,13 @@ pub const BLACK: Rgba = Rgba(0, 0, 0, 255);
 pub const WHITE: Rgba = Rgba(255, 255, 255, 255);
 
 /// A colour as StarUML writes it: `#rrggbb`, `#rrggbbaa` (the Color dialog's opacity), `#rgb`, or
-/// CSS `rgb(r, g, b)` / `rgba(r, g, b, a)` with `a` from 0 to 1.
+/// CSS `rgb(r, g, b)` / `rgba(r, g, b, a)` with `a` from 0 to 1; or a StarUML 8 colour variable
+/// (`$background`, `$blue9`…) in the colours of the current theme (colorvars.rs).
 pub fn parse_color(s: &str, def: Rgba) -> Rgba {
     let t = s.trim();
+    if t.starts_with('$') {
+        return crate::colorvars::resolve(t, crate::colorvars::dark()).unwrap_or(def);
+    }
     if let Some(h) = t.strip_prefix('#') {
         let n = |i: usize, w: usize| h.get(i..i + w).and_then(|x| u8::from_str_radix(x, 16).ok());
         return match h.len() {

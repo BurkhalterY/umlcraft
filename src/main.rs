@@ -16,6 +16,7 @@ mod communication;
 mod cli;
 mod clipboard;
 mod cloud;
+mod colorvars;
 mod erd;
 mod export;
 mod find;

@@ -155,6 +155,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/picture.rs` | Pictures of Image views: files read into data URLs with their natural size, and decoded for drawing |
 | `src/pdf.rs`, `src/pdf_font.rs` | Print to PDF: the dialog, its remembered options, and a small PDF writer that draws diagrams as vector shapes with embedded font subsets |
 | `src/canvas.rs`, `src/parse.rs`, `src/align.rs`, `src/clipboard.rs`, `src/style.rs`, `src/related.rs` | The diagram canvas, the typed attribute and operation lines, Format › Alignment, cut, copy and paste, view colours, and the inline edit's "add related element" buttons |
+| `src/colorvars.rs` | StarUML 8's colour variables (`$background`, `$blue9`…) drawn in theme colours, the Convert / Keep Colors question and File › Export › StarUML V7 |
 | `src/splitter.rs` | Panel splitters: drag a panel's edge to resize it, or below 10 px to hide it |
 | `src/main.rs`, `src/cli.rs`, `src/selector.rs` | Start-up, the window, and the command line (`umlcraft image`, `pdf`, `html`, `--help`) with the element selector language |
 | `src/app.rs`, `src/ui.rs`, `src/icons.rs`, `src/prefs.rs`, `src/tags.rs`, `src/palette.rs`, `src/find.rs`, `src/validate.rs` | Project state, undo, open and save, and the panels, menus and icons |

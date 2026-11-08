@@ -631,7 +631,18 @@ impl App {
             }
         }
         // diagramEditor.backgroundColor and gridColor (default.json:135-141)
-        let pref_color = |a: &App, key: &str, def: render::Rgba| a.pref(key).as_str().map(|s| render::parse_color(s, def)).unwrap_or(def);
+        // a project drawn with colour variables lays them on the theme's $background, with a grid of
+        // $gray4, while the two preferences keep their defaults (UMLCraft's choice; colorvars.rs)
+        let pref_color = |a: &App, key: &str, def: render::Rgba| {
+            let p = a.pref(key);
+            let s = p.as_str().unwrap_or("");
+            let themed = a.color_vars && (s.is_empty() || render::parse_color(s, def) == def);
+            match (themed, key) {
+                (true, "diagramEditor.backgroundColor") => render::parse_color("$background", def),
+                (true, _) => render::parse_color("$gray4", def),
+                _ => render::parse_color(s, def),
+            }
+        };
         painter.rect_filled(rect, 0.0, c32(pref_color(self, "diagramEditor.backgroundColor", render::Rgba(255, 255, 255, 255))));
         let mut c = ScreenCanvas { painter: &painter, origin: rect.min, scroll: self.scroll, zoom: self.zoom, measure: EguiMeasure { ctx: ctx.clone() } };
         if self.show_grid {
@@ -785,9 +796,11 @@ impl App {
             return;
         }
         painter.rect_filled(m.translate(Vec2::new(0.0, 2.0)).expand(2.0), 2.0, Color32::from_black_alpha(40));
-        painter.rect_filled(m, 0.0, Color32::from_rgb(0xf4, 0xf4, 0xf4));
+        // a project drawn with colour variables shows them on the theme's $background here too
+        let (frame, back) = if self.color_vars { (c32(render::parse_color("$gray3", render::WHITE)), c32(render::parse_color("$background", render::WHITE))) } else { (Color32::from_rgb(0xf4, 0xf4, 0xf4), Color32::WHITE) };
+        painter.rect_filled(m, 0.0, frame);
         let inner = m.shrink(5.0);
-        painter.rect_filled(inner, 0.0, Color32::WHITE);
+        painter.rect_filled(inner, 0.0, back);
         let wb = self.world_box(d, rect);
         let s = (inner.width() as f64 / wb.w.max(1.0)).min(inner.height() as f64 / wb.h.max(1.0));
         let mp = painter.with_clip_rect(inner);

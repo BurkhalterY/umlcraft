@@ -490,6 +490,7 @@ impl App {
                 self.repo.set(v, field, value);
             }
         }
+        self.apply_color_vars(v);
     }
 
     /// File > Preferences: sections on the left, their settings on the right; every change applies at
