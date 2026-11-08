@@ -138,7 +138,21 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             ];
         }
         // a flow: only Add Note ("fc.edge")
-        "FCFlow" => return vec![NOTE],
+        "FCFlow" | "DFDDataFlow" => return vec![NOTE],
+        // data flow nodes (dfd/quickedits/dfd.json; dfd-commands.js:19-118)
+        "DFDExternalEntity" => return vec![r("Add Outgoing Process", "DFDProcess", "DFDDataFlow", Plain, false, Below), NOTE],
+        "DFDProcess" => {
+            return vec![
+                r("Add Incoming External Entity", "DFDExternalEntity", "DFDDataFlow", Plain, true, Above),
+                r("Add Outgoing Process", "DFDProcess", "DFDDataFlow", Plain, false, Below),
+                r("Add Outgoing Data Store", "DFDDataStore", "DFDDataFlow", Plain, false, Below),
+                NOTE,
+            ]
+        }
+        "DFDDataStore" => return vec![r("Add Incoming Process", "DFDProcess", "DFDDataFlow", Plain, true, Above), NOTE],
+        // a mind map node: a node to the left or right, its edge from the new node (an oblique line,
+        // mindmap-commands.js:16-60); no note
+        "MMNode" => return vec![r("Add Node Left", "MMNode", "MMEdge", Plain, true, Left), r("Add Node Right", "MMNode", "MMEdge", Plain, true, Right)],
         _ => vec![],
     };
     v.push(NOTE);
@@ -164,6 +178,9 @@ impl App {
         let (w, h) = size;
         let mut x = match a.place {
             Place::Right => b.x + b.w + 70.0,
+            // a box made at its smallest size starts 100 px left, as the original places every new
+            // box (getLeftPosition, quickedit-manager.js:970-977)
+            Place::Left if w <= 1.0 => b.x - 100.0,
             Place::Left => b.x - 70.0 - w,
             _ => b.x + (b.w - w) / 2.0,
         };
@@ -236,7 +253,11 @@ impl App {
             }
             let tool = Tool { label: "", kind: a.rel, icon: "", line: true, init: a.init };
             let (tail, head) = if a.from_new { (n, v) } else { (v, n) };
-            app.create_edge(&tool, tail, head);
+            let e = app.create_edge(&tool, tail, head);
+            // a mind map's quick edge is oblique (mindmap-commands.js:30-32)
+            if let Some(e) = e.filter(|_| a.rel == "MMEdge") {
+                app.repo.set(e, "lineStyle", json!(1));
+            }
             Some(n)
         })?;
         self.select(vec![new]);

@@ -5189,3 +5189,52 @@ fn flowcharts_have_every_shape_and_flows() {
     let text = a.repo.serialize();
     Repo::parse(&text).unwrap();
 }
+
+#[test]
+fn data_flow_diagrams_and_mind_maps() {
+    use crate::views::Measure;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "DFDDiagram"));
+    let model = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(model), a.repo.name(model).as_str(), a.repo.name(d).as_str()), ("DFDDataFlowModel", "DataFlowModel1", "DFDDiagram1"));
+    let e = a.change(|a| a.create_node("DFDExternalEntity", rect(0.0, 0.0, 1.0, 1.0))).unwrap();
+    let p = a.change(|a| a.create_node("DFDProcess", rect(200.0, 0.0, 1.0, 1.0))).unwrap();
+    let s = a.change(|a| a.create_node("DFDDataStore", rect(400.0, 0.0, 1.0, 1.0))).unwrap();
+    let pm = a.repo.refd(p, "model").unwrap();
+    assert_eq!(a.repo.name(pm), "Process1");
+    a.repo.set(pm, "id", json!("1.0"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // a process: the id compartment (5 + id + 5), then the name with 10 px around it
+    let lh = ms.size();
+    assert_eq!(a.repo.f(p, "height"), 5.0 + lh + 5.0 + 10.0 + lh + 10.0);
+    assert_eq!(a.repo.str(a.repo.refd(p, "idLabel").unwrap(), "text"), "1.0");
+    assert_eq!(a.repo.f(e, "width"), ms.width("ExternalEntity1", 0).ceil() + 20.0);
+    assert!(a.repo.refd(e, "idLabel").is_none(), "an external entity does not save its id label");
+    let t = tool("DFDDataFlow", AssocInit::Plain);
+    assert!(a.can_connect(&t, e, p) && a.can_connect(&t, p, s));
+    let f = a.change(|a| a.create_edge(&t, e, p)).unwrap();
+    assert_eq!(a.repo.ty(f), "DFDDataFlowView");
+    assert_eq!(a.repo.val(f, "lineStyle").and_then(|x| x.as_i64()), Some(2));
+    let b = crate::related::actions("DFDProcess").into_iter().find(|b| b.label == "Add Outgoing Data Store").unwrap();
+    let nv = a.add_related(p, b).unwrap();
+    assert_eq!(a.repo.ty(nv), "DFDDataStoreView");
+    let svg = crate::render::to_svg_sized(&a.repo, d, &a.info, &ms, 0.0).unwrap();
+    assert!(svg.contains("1.0"));
+    // a mind map: nodes named MMNode1…, edges without arrows, Add Node Right
+    let md = a.change(|a| a.add_diagram(Some(root), "MMMindmapDiagram"));
+    let mm = a.repo.parent(md).unwrap();
+    assert_eq!((a.repo.ty(mm), a.repo.name(mm).as_str(), a.repo.name(md).as_str()), ("MMMindmap", "Mindmap1", "MMMindmapDiagram1"));
+    let n = a.change(|a| a.create_node("MMNode", rect(100.0, 100.0, 1.0, 1.0))).unwrap();
+    assert_eq!(a.repo.name(a.repo.refd(n, "model").unwrap()), "MMNode1");
+    let b = crate::related::actions("MMNode").into_iter().find(|b| b.label == "Add Node Right").unwrap();
+    let n2 = a.add_related(n, b).unwrap();
+    assert!(a.repo.f(n2, "left") > a.repo.f(n, "left"));
+    let edge = a.repo.list(md, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "MMEdgeView").unwrap();
+    assert_eq!(a.repo.refd(edge, "tail"), Some(n2), "the edge runs from the new node");
+    assert_eq!(a.repo.val(edge, "lineStyle").and_then(|x| x.as_i64()), Some(1));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, md);
+    assert_eq!(a.repo.f(n, "width"), ms.width("MMNode1", 0).ceil() + 16.0);
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

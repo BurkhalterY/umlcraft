@@ -163,7 +163,7 @@ pub fn layout(r: &mut Repo, ms: &dyn Measure, v: Eid) {
     set(r, l, "height", lhh);
 }
 
-fn cubic(out: &mut Vec<P>, p0: P, c1: P, c2: P, p3: P) {
+pub(crate) fn cubic(out: &mut Vec<P>, p0: P, c1: P, c2: P, p3: P) {
     for i in 1..=16 {
         let t = i as f64 / 16.0;
         let u = 1.0 - t;
@@ -196,7 +196,7 @@ fn document(b: R) -> Vec<P> {
 }
 
 /// A rectangle with rounded corners as a polygon.
-fn round_box(b: R, rad: f64) -> Vec<P> {
+pub(crate) fn round_box(b: R, rad: f64) -> Vec<P> {
     let rad = rad.min(b.w / 2.0).min(b.h / 2.0).max(0.0);
     let mut pts = vec![];
     let corners = [(b.x + b.w - rad, b.y + rad, -90.0f64), (b.x + b.w - rad, b.y + b.h - rad, 0.0), (b.x + rad, b.y + b.h - rad, 90.0), (b.x + rad, b.y + rad, 180.0)];
@@ -359,8 +359,13 @@ pub fn draw(c: &mut dyn Canvas, r: &Repo, v: Eid, fill: Rgba, line: Rgba, fc: Rg
 
 /// The name label: its lines centred across the label's box and down it (LabelView with the
 /// middle vertical alignment).
-fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid, fc: Rgba) {
+pub(crate) fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid, fc: Rgba) {
     let Some(l) = r.refd(v, "nameLabel") else { return };
+    draw_label_in(c, r, v, l, fc);
+}
+
+/// A label of a node: its lines centred across the label's box and down it.
+pub(crate) fn draw_label_in(c: &mut dyn Canvas, r: &Repo, v: Eid, l: Eid, fc: Rgba) {
     if r.raw(l, "visible").and_then(|x| x.as_bool()) == Some(false) {
         return;
     }

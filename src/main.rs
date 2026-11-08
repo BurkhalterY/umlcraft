@@ -24,6 +24,7 @@ mod input;
 mod keymap;
 mod meta;
 mod model;
+mod notations;
 mod palette;
 mod parse;
 mod pdf;

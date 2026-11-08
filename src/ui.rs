@@ -172,6 +172,24 @@ const USECASE_GROUPS: &[Group] = &[
     ANNOTATIONS,
 ];
 const OTHER_GROUPS: &[Group] = &[ANNOTATIONS];
+// a data flow diagram (dfd/toolbox/dfd.json) and a mind map (mindmap/toolbox/mindmap.json)
+const DFD_GROUPS: &[Group] = &[
+    Group {
+        id: "dfd",
+        label: "Data Flow",
+        items: &[
+            node("External Entity", "DFDExternalEntity", "DFDExternalEntity"),
+            node("Process", "DFDProcess", "DFDProcess"),
+            node("Data Store", "DFDDataStore", "DFDDataStore"),
+            line("Data Flow", "DFDDataFlow", "DFDDataFlow", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
+const MINDMAP_GROUPS: &[Group] = &[
+    Group { id: "mindmap", label: "Mindmap", items: &[node("Node", "MMNode", "MMNode"), line("Edge", "MMEdge", "MMEdge", AssocInit::Plain)] },
+    ANNOTATIONS,
+];
 // a flowchart diagram (flowchart/toolbox/flowchart.json)
 const FLOWCHART_GROUPS: &[Group] = &[
     Group {
@@ -368,7 +386,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 12] = [
+const DIAGRAM_KINDS: [(&str, &str); 14] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -381,6 +399,9 @@ const DIAGRAM_KINDS: [(&str, &str); 12] = [
     ("Statechart Diagram", "UMLStatechartDiagram"),
     ("Activity Diagram", "UMLActivityDiagram"),
     ("Flowchart Diagram", "FCFlowchartDiagram"),
+    // the original's labels (dfd/menus/dfd.json, mindmap/menus/mindmap.json)
+    ("DataFlowDiagram", "DFDDiagram"),
+    ("MindmapDiagram", "MMMindmapDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -613,6 +634,17 @@ impl App {
                 adds.push((l, k, false));
             }
         }
+        // data flow models in a project or package, and their elements in any DFD element; a mind map
+        // in any element (dfd-commands.js:119-134, mindmap-commands.js:62-74)
+        if t == "Project" || self.repo.kind_of(e, "UMLPackage") {
+            adds.push(("DataFlowModel", "DFDDataFlowModel", false));
+        }
+        if self.repo.kind_of(e, "DFDElement") {
+            adds.extend([("ExternalEntity", "DFDExternalEntity", false), ("Process", "DFDProcess", false), ("DataStore", "DFDDataStore", false)]);
+        }
+        if self.repo.kind_of(e, "ExtensibleModel") && !self.repo.kind_of(e, "Diagram") {
+            adds.push(("Mindmap", "MMMindmap", false));
+        }
         // Model › Add › Constraint on any model element (uml.json)
         if self.repo.kind_of(e, "UMLModelElement") {
             adds.push(("Constraint", "UMLConstraint", false));
@@ -705,9 +737,14 @@ impl App {
         if !adds.is_empty() || self.repo.kind_of(e, "ExtensibleModel") {
             ui.menu_button("Add", |ui| self.add_items(ui, e));
         }
-        if is_pkg || is_classifier {
+        // a flowchart or a mind map can be added under any element, a data flow diagram under a DFD
+        // element too (flowchart-commands.js:136, mindmap-commands.js:62-74, dfd-commands.js:119-134)
+        let other = self.repo.kind_of(e, "ExtensibleModel") && !self.repo.kind_of(e, "Diagram");
+        if is_pkg || is_classifier || other {
+            let dfd = self.repo.kind_of(e, "DFDElement");
             ui.menu_button("Add Diagram", |ui| {
-                for (l, k) in DIAGRAM_KINDS {
+                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram") || (dfd && *k == "DFDDiagram")).collect();
+                for (l, k) in kinds {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
                         self.expanded.insert(e);
@@ -1598,6 +1635,8 @@ impl App {
                 Some("UMLStatechartDiagram") => self.open_groups.insert("statechart"),
                 Some("UMLActivityDiagram") => self.open_groups.insert("activity"),
                 Some("FCFlowchartDiagram") => self.open_groups.insert("flowchart"),
+                Some("DFDDiagram") => self.open_groups.insert("dfd"),
+                Some("MMMindmapDiagram") => self.open_groups.insert("mindmap"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1625,6 +1664,8 @@ impl App {
             Some("UMLStatechartDiagram") => STATECHART_GROUPS,
             Some("UMLActivityDiagram") => ACTIVITY_GROUPS,
             Some("FCFlowchartDiagram") => FLOWCHART_GROUPS,
+            Some("DFDDiagram") => DFD_GROUPS,
+            Some("MMMindmapDiagram") => MINDMAP_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

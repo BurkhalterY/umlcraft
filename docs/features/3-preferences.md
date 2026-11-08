@@ -24,10 +24,10 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | C4 Model | `c4.container.fillColor` | Fill Color | "#a3e0ff" | ❌ | extensions/essential/c4/preferences/c4.json |
 | C4 Model | `c4.component.fillColor` | Fill Color | "#d8f2ff" | ❌ | extensions/essential/c4/preferences/c4.json |
 | C4 Model | `c4.relationship.lineStyle` | Line Style | 1 | ❌ | extensions/essential/c4/preferences/c4.json |
-| Data Flow Diagram | `dfd.dataflow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/dfd/preferences/dfd.json |
-| Data Flow Diagram | `dfd.external-entity.fillColor` | Fill Color | null | ❌ | extensions/essential/dfd/preferences/dfd.json |
-| Data Flow Diagram | `dfd.process.fillColor` | Fill Color | null | ❌ | extensions/essential/dfd/preferences/dfd.json |
-| Data Flow Diagram | `dfd.datastore.fillColor` | Fill Color | null | ❌ | extensions/essential/dfd/preferences/dfd.json |
+| Data Flow Diagram | `dfd.dataflow.lineStyle` | Line Style | 2 | ✅ | in Preferences › Data Flow Diagram; a new line takes it, or the general line style when it is Rectilinear (0) (src/prefs.rs:274, 403-410) | extensions/essential/dfd/preferences/dfd.json |
+| Data Flow Diagram | `dfd.external-entity.fillColor` | Fill Color | null | ✅ | in Preferences › Data Flow Diagram; a new node of that kind takes it as its fill colour (src/prefs.rs:274-284, 376-386) | extensions/essential/dfd/preferences/dfd.json |
+| Data Flow Diagram | `dfd.process.fillColor` | Fill Color | null | ✅ | in Preferences › Data Flow Diagram; a new node of that kind takes it as its fill colour (src/prefs.rs:274-284, 376-386) | extensions/essential/dfd/preferences/dfd.json |
+| Data Flow Diagram | `dfd.datastore.fillColor` | Fill Color | null | ✅ | in Preferences › Data Flow Diagram; a new node of that kind takes it as its fill colour (src/prefs.rs:274-284, 376-386) | extensions/essential/dfd/preferences/dfd.json |
 | ERD | `erd.entity.fillColor` | Fill Color | null | ❌ | extensions/essential/erd/preferences/erd.json |
 | ERD | `erd.relationship.lineStyle` | Line Style | 2 | ❌ | extensions/essential/erd/preferences/erd.json |
 | Flowchart | `flowchart.flow.lineStyle` | Line Style | 2 | ✅ | in Preferences › Flowchart; a new flow takes it, or the general line style when it is Rectilinear (0), as the original's `||` does (src/prefs.rs:263, 368-372) | extensions/essential/flowchart/preferences/flowchart.json |
@@ -59,9 +59,9 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | Flowchart | `flowchart.direct-access-storage.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
 | Flowchart | `flowchart.internal-storage.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
 | GCP | `gcp.path.lineStyle` | Line Style | 0 | ❌ | extensions/essential/gcp/preferences/gcp.json |
-| Mindmap | `mindmap.edge.lineStyle` | Line Style | 1 | ❌ | extensions/essential/mindmap/preferences/mindmap.json |
-| Mindmap | `mindmap.node.fillColor` | Fill Color | null | ❌ | extensions/essential/mindmap/preferences/mindmap.json |
-| Mindmap | `mindmap.node.lineColor` | Line Color | null | ❌ | extensions/essential/mindmap/preferences/mindmap.json |
+| Mindmap | `mindmap.edge.lineStyle` | Line Style | 1 | ✅ | in Preferences › Mindmap; a new line takes it, or the general line style when it is Rectilinear (0) (src/prefs.rs:274, 403-410) | extensions/essential/mindmap/preferences/mindmap.json |
+| Mindmap | `mindmap.node.fillColor` | Fill Color | null | ✅ | in Preferences › Mindmap; a new node of that kind takes it as its fill colour (src/prefs.rs:274-284, 376-386) | extensions/essential/mindmap/preferences/mindmap.json |
+| Mindmap | `mindmap.node.lineColor` | Line Color | null | ✅ | in Preferences › Mindmap; a new node takes it as its line colour (src/prefs.rs:284, 388-393) | extensions/essential/mindmap/preferences/mindmap.json |
 | SysML | `sysml.requirement.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
 | SysML | `sysml.block.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
 | SysML | `sysml.block.suppressConstraints` | Suppress Constraints | true | ❌ | extensions/essential/sysml/preferences/sysml.json |

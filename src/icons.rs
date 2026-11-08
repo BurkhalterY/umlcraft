@@ -48,7 +48,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLPseudostate" => "initial",
         "UMLConnectionPointReference" => "connection-point",
         // a flowchart element's icon is its type (the shapes are drawn by key)
-        t if t.starts_with("FC") => crate::meta::static_name(t),
+        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") => crate::meta::static_name(t),
         "UMLTransition" => "dependency",
         // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
         "UMLAction" => match r.str(e, "kind").as_str() {
@@ -302,6 +302,43 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
                 line(&[(x, 5.5), (x, 10.5)], Y);
             }
         }
+        // data flow and mind map elements
+        "DFDDataFlowModel" | "MMMindmap" => {
+            rect_at(5.0, 1.5, 6.0, 4.0, Y);
+            line(&[(8.0, 5.5), (8.0, 8.0), (3.0, 8.0), (3.0, 10.5)], Y);
+            line(&[(8.0, 8.0), (13.0, 8.0), (13.0, 10.5)], Y);
+            rect_at(1.0, 10.5, 4.5, 4.0, Y);
+            rect_at(10.5, 10.5, 4.5, 4.0, Y);
+        }
+        "DFDDiagram" | "MMMindmapDiagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            if key == "DFDDiagram" {
+                rect_at(3.5, 5.5, 4.0, 4.0, G);
+                line(&[(7.5, 7.5), (12.5, 7.5)], G);
+                line(&[(10.5, 5.5), (12.5, 7.5), (10.5, 9.5)], G);
+            } else {
+                p.rect_stroke(Rect::from_min_size(at(5.5, 6.5), Vec2::new(5.0 * s, 3.0 * s)), (1.5 * s) as f32, st(G), egui::StrokeKind::Middle);
+                line(&[(5.5, 8.0), (3.5, 4.5)], G);
+                line(&[(10.5, 8.0), (12.5, 11.5)], G);
+            }
+        }
+        "DFDExternalEntity" => rect_at(1.5, 3.5, 13.0, 9.0, Y),
+        "DFDProcess" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 2.5), Vec2::new(13.0 * s, 11.0 * s)), (3.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            line(&[(1.5, 6.0), (14.5, 6.0)], Y);
+        }
+        "DFDDataStore" => {
+            line(&[(14.5, 4.0), (1.5, 4.0), (1.5, 12.0), (14.5, 12.0)], Y);
+            line(&[(5.0, 4.0), (5.0, 12.0)], Y);
+        }
+        "DFDDataFlow" => {
+            line(&[(8.0, 14.0), (8.0, 4.0)], B);
+            p.add(Shape::convex_polygon(vec![at(8.0, 2.0), at(10.5, 6.0), at(5.5, 6.0)], B, st(B)));
+        }
+        "MMNode" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 4.0), Vec2::new(13.0 * s, 8.0 * s)), (4.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "MMEdge" => line(&[(2.0, 13.0), (14.0, 3.0)], B),
         // flowchart shapes in small (flowchart/elements.js)
         k if k.starts_with("FC") => {
             let c = Y;

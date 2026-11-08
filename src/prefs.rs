@@ -269,6 +269,19 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         v.push(("Flowchart", "", label, Kind::Header, Value::Null));
         v.push(("Flowchart", key, "Fill Color", Kind::Color, Value::Null));
     }
+    // data flow diagrams and mind maps (dfd/preferences/dfd.json, mindmap/preferences/mindmap.json)
+    v.push(("Data Flow Diagram", "", "Data Flow", Kind::Header, Value::Null));
+    v.push(("Data Flow Diagram", "dfd.dataflow.lineStyle", "Line Style", Kind::LineStyle, json!(2)));
+    for (label, id) in [("External Entity", "external-entity"), ("Process", "process"), ("Data Store", "datastore")] {
+        let key: &'static str = Box::leak(format!("dfd.{id}.fillColor").into_boxed_str());
+        v.push(("Data Flow Diagram", "", label, Kind::Header, Value::Null));
+        v.push(("Data Flow Diagram", key, "Fill Color", Kind::Color, Value::Null));
+    }
+    v.push(("Mindmap", "", "Edge", Kind::Header, Value::Null));
+    v.push(("Mindmap", "mindmap.edge.lineStyle", "Line Style", Kind::LineStyle, json!(1)));
+    v.push(("Mindmap", "", "Node", Kind::Header, Value::Null));
+    v.push(("Mindmap", "mindmap.node.fillColor", "Fill Color", Kind::Color, Value::Null));
+    v.push(("Mindmap", "mindmap.node.lineColor", "Line Color", Kind::Color, Value::Null));
     for (label, id, more) in kinds {
         let key = |f: &str| -> &'static str { Box::leak(format!("uml.{id}.{f}").into_boxed_str()) };
         v.push(("UML", "", label, Kind::Header, Value::Null));
@@ -359,7 +372,26 @@ impl App {
                 fill = p;
             }
         }
-        for (field, v) in [("fillColor", fill), ("lineColor", self.pref("view.lineColor")), ("fontColor", self.pref("view.fontColor"))] {
+        // a data flow node's and a mind map node's own colours (dfd/elements.js:155-260,
+        // mindmap/elements.js:44-46)
+        let own = match model_ty.as_deref() {
+            Some("DFDExternalEntity") => Some("dfd.external-entity.fillColor"),
+            Some("DFDProcess") => Some("dfd.process.fillColor"),
+            Some("DFDDataStore") => Some("dfd.datastore.fillColor"),
+            Some("MMNode") => Some("mindmap.node.fillColor"),
+            _ => None,
+        };
+        if let Some(p) = own.map(|k| self.pref(k)).filter(|p| p.is_string()) {
+            fill = p;
+        }
+        let mut line_color = self.pref("view.lineColor");
+        if model_ty.as_deref() == Some("MMNode") {
+            let p = self.pref("mindmap.node.lineColor");
+            if p.is_string() {
+                line_color = p;
+            }
+        }
+        for (field, v) in [("fillColor", fill), ("lineColor", line_color), ("fontColor", self.pref("view.fontColor"))] {
             if v.is_string() {
                 sets.push((field, v));
             }
@@ -368,7 +400,13 @@ impl App {
         if crate::views::is_edge(&self.repo, v) {
             // a flow takes the flowchart's line style, unless that is rectilinear (0), which the
             // original's `||` passes over for the general one (FCFlowView, flowchart/elements.js:1340-1344)
-            let own = (ty == "FCFlowView").then(|| self.pref("flowchart.flow.lineStyle").as_i64()).flatten().filter(|s| *s != 0);
+            let key = match ty.as_str() {
+                "FCFlowView" => Some("flowchart.flow.lineStyle"),
+                "DFDDataFlowView" => Some("dfd.dataflow.lineStyle"),
+                "MMEdgeView" => Some("mindmap.edge.lineStyle"),
+                _ => None,
+            };
+            let own = key.and_then(|k| self.pref(k).as_i64()).filter(|s| *s != 0);
             sets.push(("lineStyle", json!(own.unwrap_or_else(|| self.pref("view.lineStyle").as_i64().unwrap_or(1)))));
         }
         if let Some(k) = kind {
@@ -400,7 +438,7 @@ impl App {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(120.0);
-                    for s in ["General", "Flowchart", "UML"] {
+                    for s in ["General", "Data Flow Diagram", "Flowchart", "Mindmap", "UML"] {
                         if ui.selectable_label(section == s, s).clicked() {
                             pick = Some(s.to_string());
                         }

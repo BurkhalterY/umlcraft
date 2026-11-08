@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity and flowchart diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
+UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, flowchart, data flow and mind map diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -92,10 +92,10 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Annotations `annotation` | all | Rounded Rectangle | ✅ | a view-only shape: a filled rectangle with corners rounded to an eighth of its smaller side, at least 50×50, with no shadow (src/app.rs:759-811; src/render.rs:564-576; src/views.rs:315-324) | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Ellipse | ✅ | a view-only shape: a filled ellipse, at least 50×50, with no shadow (src/app.rs:759-811; src/render.rs:564-576; src/views.rs:315-324) | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Image | ✅ | an ImageView, at least 100×100; with no picture yet the file picker opens at once, and the view takes the picture's natural size; the picture is kept as a data URL (src/app.rs:1517-1549; src/picture.rs; src/render.rs:553-563) | extensions/essential/common/toolbox/common.json |
-| Data Flow `dfd` | DFDDiagram | External Entity | ❌ | extensions/essential/dfd/toolbox/dfd.json |
-| Data Flow `dfd` | DFDDiagram | Process | ❌ | extensions/essential/dfd/toolbox/dfd.json |
-| Data Flow `dfd` | DFDDiagram | Data Store | ❌ | extensions/essential/dfd/toolbox/dfd.json |
-| Data Flow `dfd` | DFDDiagram | Data Flow | ❌ | extensions/essential/dfd/toolbox/dfd.json |
+| Data Flow `dfd` | DFDDiagram | External Entity | ✅ | a DFDExternalEntity in the element that owns the diagram, a box with a shadow, its id over its word-wrapped name (src/app.rs:798-808; src/notations.rs:68-145, 147-190) | extensions/essential/dfd/toolbox/dfd.json |
+| Data Flow `dfd` | DFDDiagram | Process | ✅ | a DFDProcess: a box rounded by 10, its id in a compartment over its name (src/notations.rs:68-145, 147-190) | extensions/essential/dfd/toolbox/dfd.json |
+| Data Flow `dfd` | DFDDiagram | Data Store | ✅ | a DFDDataStore: a box open on the right, its id in a compartment on the left (src/notations.rs:68-145, 147-190) | extensions/essential/dfd/toolbox/dfd.json |
+| Data Flow `dfd` | DFDDiagram | Data Flow | ✅ | a DFDDataFlow between two DFD elements, owned by its source, a line with a filled arrow and its name by its middle (src/app.rs:1388; src/views.rs; src/render.rs) | extensions/essential/dfd/toolbox/dfd.json |
 | Entity-Relationship `erd` | ERDDiagram | Entity | ❌ | extensions/essential/erd/toolbox/erd.json |
 | Entity-Relationship `erd` | ERDDiagram | One to One Relationship | ❌ | extensions/essential/erd/toolbox/erd.json |
 | Entity-Relationship `erd` | ERDDiagram | One to Many Relationship | ❌ | extensions/essential/erd/toolbox/erd.json |
@@ -133,8 +133,8 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | GCP `gcp.elements` | GCPDiagram | Product | ❌ | extensions/essential/gcp/toolbox/gcp.json |
 | GCP `gcp.elements` | GCPDiagram | Service | ❌ | extensions/essential/gcp/toolbox/gcp.json |
 | GCP `gcp.elements` | GCPDiagram | Path | ❌ | extensions/essential/gcp/toolbox/gcp.json |
-| Mindmap `mindmap` | MMMindmapDiagram | Node | ❌ | extensions/essential/mindmap/toolbox/mindmap.json |
-| Mindmap `mindmap` | MMMindmapDiagram | Edge | ❌ | extensions/essential/mindmap/toolbox/mindmap.json |
+| Mindmap `mindmap` | MMMindmapDiagram | Node | ✅ | an MMNode ("MMNode1"…) in the mind map that owns the diagram, a box rounded by 14 with its word-wrapped name (src/app.rs:798-808; src/notations.rs:68-145) | extensions/essential/mindmap/toolbox/mindmap.json |
+| Mindmap `mindmap` | MMMindmapDiagram | Edge | ✅ | an MMEdge between two nodes, a plain line without arrows or label (src/app.rs:1389; src/views.rs) | extensions/essential/mindmap/toolbox/mindmap.json |
 | Requirements `sysml.requirement` | SysMLRequirementDiagram | Package | ❌ | extensions/essential/sysml/toolbox/sysml.json |
 | Requirements `sysml.requirement` | SysMLRequirementDiagram | Requirement | ❌ | extensions/essential/sysml/toolbox/sysml.json |
 | Requirements `sysml.requirement` | SysMLRequirementDiagram | Frame | ❌ | extensions/essential/sysml/toolbox/sysml.json |

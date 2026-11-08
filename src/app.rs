@@ -603,6 +603,8 @@ impl App {
             // "FlowchartDiagram" (flowchart/elements.js:42-75)
             "FCFlowchartDiagram" => "FlowchartDiagram",
             other if other.starts_with("FC") => &other[2..],
+            // a data flow element drops "DFD" (DFDElement.getDisplayClassName, dfd/elements.js:42-45)
+            other if other.starts_with("DFD") && other != "DFDDiagram" => &other[3..],
             other => other.trim_start_matches("UML"),
         };
         let names: HashSet<String> = self.repo.children(parent).into_iter().map(|(_, c)| self.repo.name(c)).collect();
@@ -788,6 +790,18 @@ impl App {
             let name = self.new_name(act, "UMLActivityPartition");
             let m = self.repo.create("UMLActivityPartition", &[("name", json!(name))], Some((act, "groups")));
             let v = views::create_swimlane_view(&mut self.repo, d, m, rect, kind == "SwimlaneVert");
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
+        // a data flow or mind map node goes in the element that owns the diagram (dfd-factory.js:70-80,
+        // mindmap-factory.js:68-80)
+        if crate::notations::is_node_type(kind) {
+            let owner = self.repo.parent(d)?;
+            let base = crate::notations::name_base(kind);
+            let names: HashSet<String> = self.repo.children(owner).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+            let name = (1..).map(|i| format!("{base}{i}")).find(|n| !names.contains(n)).unwrap();
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((owner, "ownedElements")));
+            let v = crate::notations::create_view(&mut self.repo, d, m, rect);
             self.apply_view_defaults(v);
             return Some(v);
         }
@@ -1103,6 +1117,8 @@ impl App {
             "UMLActivityDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLActivityNode", "UMLActivityEdge", "UMLActivity"],
             // FCFlowchartDiagram.canAcceptModel (flowchart/elements.js:68-75)
             "FCFlowchartDiagram" => vec!["Hyperlink", "Diagram", "FCModelElement", "FCFlow"],
+            "DFDDiagram" => vec!["Hyperlink", "Diagram", "DFDExternalEntity", "DFDProcess", "DFDDataStore", "DFDDataFlow"],
+            "MMMindmapDiagram" => vec!["Hyperlink", "Diagram", "MMNode", "MMEdge"],
             "UMLUseCaseDiagram" => vec![
                 "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
@@ -1182,7 +1198,7 @@ impl App {
             }
             return Ok(v.into_iter().collect());
         }
-        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) {
+        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) {
             return Ok(vec![]);
         }
         // a hidden view of it is shown again instead of a second one
@@ -1367,6 +1383,10 @@ impl App {
             // a control or object flow joins two activity nodes (uml-factory.js:119-127)
             // a flow joins two flowchart nodes (flowchart-factory.js:20-27)
             "FCFlow" => r.kind_of(tm, "FCModelElement") && r.kind_of(hm, "FCModelElement"),
+            // a data flow joins two DFD elements, a mind map edge two nodes (dfd-factory.js:20-26,
+            // mindmap-factory.js:20-27)
+            "DFDDataFlow" => r.kind_of(tm, "DFDElement") && r.kind_of(hm, "DFDElement"),
+            "MMEdge" => r.ty(tm) == "MMNode" && r.ty(hm) == "MMNode",
             "UMLControlFlow" | "UMLActivityInterrupt" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
             // an exception handler joins two actions (actionLinkPrecondition, uml-factory.js:129-135)
             "UMLExceptionHandler" => r.kind_of(tm, "UMLAction") && r.kind_of(hm, "UMLAction"),
@@ -1757,18 +1777,26 @@ impl App {
         };
         // a flowchart diagram goes in a flowchart: the target if it is one, else a new "Flowchart1"…
         // (flowchart-factory.js:31-62)
-        if ty == "FCFlowchartDiagram" {
+        // and so do a data flow diagram (in any DFD element, else a new "DataFlowModel1") and a mind
+        // map diagram (in a mind map, else a new "Mindmap1") (dfd-factory.js:30-55, mindmap-factory.js:30-60)
+        let holder = match ty {
+            "FCFlowchartDiagram" => Some(("FCFlowchart", "Flowchart", "FCFlowchart")),
+            "DFDDiagram" => Some(("DFDElement", "DataFlowModel", "DFDDataFlowModel")),
+            "MMMindmapDiagram" => Some(("MMMindmap", "Mindmap", "MMMindmap")),
+            _ => None,
+        };
+        if let Some((kind, base, new_ty)) = holder {
             let target = match parent {
-                Some(p) if self.repo.ty(p) == "FCFlowchart" => p,
+                Some(p) if self.repo.kind_of(p, kind) => p,
                 Some(p) if self.repo.kind_of(p, "ExtensibleModel") && !self.repo.kind_of(p, "Diagram") => p,
                 _ => self.package_for(self.diagram),
             };
-            let target = if self.repo.ty(target) == "FCFlowchart" {
+            let target = if self.repo.kind_of(target, kind) {
                 target
             } else {
                 let names: HashSet<String> = self.repo.children(target).into_iter().map(|(_, c)| self.repo.name(c)).collect();
-                let name = (1..).map(|i| format!("Flowchart{i}")).find(|n| !names.contains(n)).unwrap();
-                self.repo.create("FCFlowchart", &[("name", json!(name))], Some((target, "ownedElements")))
+                let name = (1..).map(|i| format!("{base}{i}")).find(|n| !names.contains(n)).unwrap();
+                self.repo.create(new_ty, &[("name", json!(name))], Some((target, "ownedElements")))
             };
             let name = self.new_name(target, ty);
             let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));

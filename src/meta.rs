@@ -331,6 +331,28 @@ fn build() -> HashMap<&'static str, Kind> {
     def("FCGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
     def("FCGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
     def("FCFlowView", Some("FCGeneralEdgeView"), vec![]);
+    // data flow diagrams (dfd/metamodel.json): elements with an id, owned by a data flow model
+    def("DFDElement", Some("ExtensibleModel"), vec![("id", d(json!("")))]);
+    def("DFDDataFlowModel", Some("DFDElement"), vec![]);
+    for ty in ["DFDExternalEntity", "DFDProcess", "DFDDataStore"] {
+        def(ty, Some("DFDElement"), vec![]);
+    }
+    def("DFDDataFlow", Some("DirectedRelationship"), vec![]);
+    def("DFDDiagram", Some("Diagram"), vec![]);
+    def("DFDGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
+    def("DFDGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
+    def("DFDExternalEntityView", Some("DFDGeneralNodeView"), vec![]);
+    def("DFDProcessView", Some("DFDGeneralNodeView"), vec![("idLabel", n())]);
+    def("DFDDataStoreView", Some("DFDGeneralNodeView"), vec![("idLabel", n())]);
+    def("DFDDataFlowView", Some("DFDGeneralEdgeView"), vec![]);
+    // mind maps (mindmap/metamodel.json)
+    def("MMElement", Some("ExtensibleModel"), vec![]);
+    def("MMMindmap", Some("MMElement"), vec![]);
+    def("MMMindmapDiagram", Some("Diagram"), vec![]);
+    def("MMNode", Some("MMElement"), vec![]);
+    def("MMEdge", Some("DirectedRelationship"), vec![]);
+    def("MMNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
+    def("MMEdgeView", Some("EdgeView"), vec![]);
     for (_, ty, _) in crate::flowchart::NODES {
         if ty != "FCFlow" {
             def(ty, Some("FCModelElement"), vec![]);
