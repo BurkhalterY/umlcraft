@@ -900,6 +900,13 @@ impl App {
         if t == "Tag" {
             return format!("{name} = {}", r.str(e, "value"));
         }
+        // a lifeline: `name: Type`, the type of the role it represents (UMLLifeline.getNodeText and
+        // getTypeString, elements.js:3787-3800, 3840-3855)
+        if t == "UMLLifeline" {
+            let ty = r.refd(e, "represent").map(|a| views::type_name(r, a, "type")).unwrap_or_default();
+            let text = if ty.is_empty() { name } else { format!("{name}: {ty}") };
+            return if text.is_empty() { "(Lifeline)".into() } else { text };
+        }
         // a hyperlink: its name with showName, else what it links to (core.js:1322-1333)
         if t == "Hyperlink" {
             let url = r.str(e, "url");
@@ -1518,6 +1525,15 @@ impl App {
             f.extend(link_end("end2"));
             return f;
         }
+        // a connector: its kind, assembly or delegation, then its two ends (uml/metamodel.json UMLConnector)
+        if t == "UMLConnector" {
+            let conn_end = |p: &str| end(p).into_iter().filter(|x| !x.0.ends_with("ownerAttribute")).collect::<Vec<_>>();
+            let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("-", "")];
+            f.extend(conn_end("end1"));
+            f.push(("-", ""));
+            f.extend(conn_end("end2"));
+            return f;
+        }
         if r.has(e, "source") && r.has(e, "target") {
             let mut f = vec![("name", "text"), ("source", "ref"), ("target", "ref"), ("stereotype", "text"), ("visibility", "enum")];
             if t == "UMLGeneralization" {
@@ -1525,6 +1541,11 @@ impl App {
             }
             if t == "UMLExtend" {
                 f.push(("condition", "text"));
+            }
+            // a message's visible attributes, its signature and connector references aside
+            // (uml/metamodel.json UMLMessage)
+            if t == "UMLMessage" {
+                f.extend([("messageSort", "enum"), ("sequenceNumber", "text"), ("arguments", "text"), ("assignmentTarget", "text"), ("guard", "text"), ("iteration", "text"), ("isConcurrentIteration", "bool")]);
             }
             if t == "UMLRoleBinding" {
                 f.push(("roleName", "text"));
@@ -1630,12 +1651,16 @@ impl App {
         });
     }
 
-    fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
+    pub(crate) fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
         if let Some(o) = crate::sysml::enum_options(ty, field) {
             return o;
         }
         match (ty, field) {
             ("UMLTransition", "kind") => return &["external", "internal", "local"],
+            // UMLConnectorKind (uml/metamodel.json)
+            ("UMLConnector", "kind") => return &["assembly", "delegation"],
+            // UMLMessageSort (uml/metamodel.json)
+            ("UMLMessage", "messageSort") => return &["synchCall", "asynchCall", "asynchSignal", "createMessage", "deleteMessage", "reply"],
             (t, f) if t.starts_with("BPMN") && crate::bpmn::enum_options(f).is_some() => return crate::bpmn::enum_options(f).unwrap_or(&[]),
             ("ERDRelationshipEnd", "cardinality") => return &["0..1", "1", "0..*", "1..*"],
             // WFOrientationKind, WFPositionKind (wireframe/metamodel.json)
@@ -2319,6 +2344,26 @@ impl App {
         });
     }
 
+    /// Add and Add Diagram, acting on the focused element (or the project): in the Model menu and at
+    /// the top of the canvas menu (menus/linux.json "diagram-canvas").
+    pub(crate) fn add_menus(&mut self, ui: &mut egui::Ui) {
+        let target = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f)).unwrap_or(self.repo.root);
+        ui.add_enabled_ui(!self.add_kinds(target).is_empty() || self.repo.kind_of(target, "ExtensibleModel"), |ui| {
+            ui.menu_button("Add", |ui| self.add_items(ui, target));
+        });
+        ui.menu_button("Add Diagram", |ui| {
+            let sel = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f));
+            let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, sel, k).unwrap_or(true)).collect();
+            for (l, k) in kinds {
+                if ui.button(l).clicked() {
+                    let f = self.focus;
+                    self.change(|a| a.add_diagram(f, k));
+                    ui.close();
+                }
+            }
+        });
+    }
+
     fn status_ui(&mut self, ui: &mut egui::Ui) {
         let rect = ui.max_rect();
         let p = ui.painter();
@@ -2327,6 +2372,8 @@ impl App {
         let zr = Rect::from_min_max(Pos2::new(rect.right() - 57.0, rect.top()), rect.right_bottom());
         p.vline(zr.left(), rect.y_range(), Stroke::new(1.0, BORDER()));
         p.text(zr.center(), Align2::CENTER_CENTER, format!("{}%", (self.zoom * 100.0).round()), FontId::proportional(13.0), TEXT());
+        // display only, with the tooltip "Zoom Level" (statusbar.html:7)
+        ui.interact(zr, egui::Id::new("zoom-level"), Sense::hover()).on_hover_text("Zoom Level");
         let vr = Rect::from_min_max(Pos2::new(zr.left() - 33.0, rect.top()), Pos2::new(zr.left(), rect.bottom()));
         p.vline(vr.left(), rect.y_range(), Stroke::new(1.0, BORDER()));
         // validation indicator: green OK, or red when the last validation found errors; a click toggles
@@ -2342,8 +2389,8 @@ impl App {
             p.circle_filled(c, 7.5, OK_GREEN);
             p.add(egui::Shape::line(vec![c + Vec2::new(-3.5, 0.0), c + Vec2::new(-1.0, 2.5), c + Vec2::new(3.5, -2.5)], Stroke::new(2.0, LAYER0())));
         }
-        let tip = if errors { "Validation errors" } else { "Validation OK" };
-        if ui.interact(vr, egui::Id::new("validation-indicator"), Sense::click()).on_hover_text(tip).clicked() {
+        // the tooltip is the item's title, whatever the result (statusbar.html:6)
+        if ui.interact(vr, egui::Id::new("validation-indicator"), Sense::click()).on_hover_text("Validation Results").clicked() {
             self.show_validation = !self.show_validation;
         }
         // theme button: a moon in the dark theme, a sun in the light one; a click switches theme.default
@@ -2579,22 +2626,7 @@ impl App {
                 });
             });
             ui.menu_button("Model", |ui| {
-                // Model › Add and Add Diagram act on the focused element (or the project)
-                let target = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f)).unwrap_or(self.repo.root);
-                ui.add_enabled_ui(!self.add_kinds(target).is_empty() || self.repo.kind_of(target, "ExtensibleModel"), |ui| {
-                    ui.menu_button("Add", |ui| self.add_items(ui, target));
-                });
-                ui.menu_button("Add Diagram", |ui| {
-                    let sel = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f));
-                    let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, sel, k).unwrap_or(true)).collect();
-                    for (l, k) in kinds {
-                        if ui.button(l).clicked() {
-                            let f = self.focus;
-                            self.change(|a| a.add_diagram(f, k));
-                            ui.close();
-                        }
-                    }
-                });
+                self.add_menus(ui);
                 if ui.add(self.key_button("Find...", "find:find")).clicked() {
                     self.open_find();
                     ui.close();

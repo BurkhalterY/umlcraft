@@ -2183,6 +2183,10 @@ fn layout_diagram_command() {
     let undo = a.undo.len();
     a.layout_diagram(crate::layout::Dir::TopBottom);
     assert_eq!(a.undo.len(), undo + 1, "one undo step");
+    // every line becomes a curve (Diagram.layout, core.js:4327, 4366-4374)
+    let lines: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| crate::views::is_edge(&a.repo, *v)).collect();
+    assert!(!lines.is_empty());
+    assert!(lines.iter().all(|e| a.repo.val(*e, "lineStyle").and_then(|v| v.as_i64()) == Some(3)));
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     // no two top-level boxes overlap
     let boxes: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| crate::views::is_node(&a.repo, *v) && !a.repo.has(*v, "containerView")).map(|v| crate::views::node_rect(&a.repo, v)).collect();
@@ -4628,6 +4632,12 @@ fn ports_parts_and_connectors() {
     assert_eq!(a.repo.ty(e), "UMLConnectorView");
     let em = a.repo.refd(e, "model").unwrap();
     assert_eq!(a.repo.ty(a.repo.child(em, "end1").unwrap()), "UMLConnectorEnd");
+    // its kind is edited in the Properties: assembly or delegation (uml/metamodel.json UMLConnectorKind)
+    let fields = a.fields_for(em);
+    assert!(fields.contains(&("kind", "enum")) && fields.contains(&("end1.multiplicity", "text")) && fields.contains(&("end2.reference", "ref")));
+    assert!(!fields.iter().any(|f| f.0.ends_with("ownerAttribute")));
+    assert_eq!(App::enum_options("UMLConnector", "kind"), &["assembly", "delegation"]);
+    assert_eq!(a.repo.str(em, "kind"), "assembly");
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     // moving the class carries its port and part
     let before = a.repo.f(part, "left");
@@ -5796,6 +5806,12 @@ fn sequence_diagrams_have_lifelines_messages_and_activations() {
     assert_eq!(crate::views::node_rect(&a.repo, act).y, 150.0);
     let mm1 = a.repo.refd(e1, "model").unwrap();
     assert_eq!(a.repo.str(a.repo.refd(e1, "nameLabel").unwrap(), "text"), "1 : Message1");
+    // the Properties edit its sort, number, arguments, guard and iteration (uml/metamodel.json UMLMessage)
+    let fields = a.fields_for(mm1);
+    for f in [("messageSort", "enum"), ("sequenceNumber", "text"), ("arguments", "text"), ("assignmentTarget", "text"), ("guard", "text"), ("iteration", "text"), ("isConcurrentIteration", "bool")] {
+        assert!(fields.contains(&f), "{f:?}");
+    }
+    assert_eq!(App::enum_options("UMLMessage", "messageSort").len(), 6);
     assert_eq!(a.repo.str(a.repo.refd(e2, "model").unwrap(), "messageSort"), "reply");
     // moving the reply above the call renumbers them
     a.repo.set(e2, "points", json!("300:120;100:120"));
@@ -9034,4 +9050,278 @@ fn pdf_draws_svg_pictures_as_vectors() {
     let all: String = pdf_objects(&pdf).values().map(|b| String::from_utf8_lossy(b).to_string()).collect();
     assert!(all.matches("/Subtype /Image").count() >= 1);
     let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_node_holds_components_and_artifacts() {
+    let mut a = App::new(None);
+    a.add_diagram(None, "UMLDeploymentDiagram");
+    let n = a.change(|a| a.create_node("UMLNode", rect(40.0, 40.0, 400.0, 300.0))).unwrap();
+    let comp = a.change(|a| a.create_node("UMLComponent", rect(80.0, 120.0, 120.0, 60.0))).unwrap();
+    let art = a.change(|a| a.create_node("UMLArtifact", rect(250.0, 120.0, 80.0, 70.0))).unwrap();
+    let note = a.change(|a| a.create_node("Note", rect(600.0, 40.0, 100.0, 50.0))).unwrap();
+    // UMLNodeView.canContainViewKind (elements.js:8170-8179)
+    assert!(a.can_contain_view(n, comp) && a.can_contain_view(n, art));
+    assert!(!a.can_contain_view(n, note), "a note is not a classifier, package, object or instance");
+    assert!(!a.can_contain_view(comp, art), "a component box holds nothing");
+    a.change(|a| a.set_container(&[comp, art], Some(n)));
+    let nm = a.repo.refd(n, "model").unwrap();
+    assert_eq!(a.repo.parent(a.repo.refd(comp, "model").unwrap()), Some(nm), "the component goes into the node");
+    assert_eq!(a.repo.parent(a.repo.refd(art, "model").unwrap()), Some(nm));
+    assert_eq!(a.repo.refd(comp, "containerView"), Some(n));
+    assert!(!a.can_contain_view(comp, n), "nor can the node go into what it holds");
+    assert!(a.repo.serialize().contains("\"containedViews\""));
+}
+
+#[test]
+fn an_instance_deploys_on_a_node_instance() {
+    let mut a = App::new(None);
+    a.add_diagram(None, "UMLDeploymentDiagram");
+    let ai = a.change(|a| a.create_node("UMLArtifactInstance", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let ni = a.change(|a| a.create_node("UMLNodeInstance", rect(300.0, 40.0, 140.0, 80.0))).unwrap();
+    let n = a.change(|a| a.create_node("UMLNode", rect(300.0, 300.0, 140.0, 80.0))).unwrap();
+    let dep = tool("UMLDeployment", AssocInit::Plain);
+    // deploymentPrecondition (uml-factory.js:63-71)
+    assert!(a.can_connect(&dep, ai, ni));
+    assert!(!a.can_connect(&dep, ni, ai));
+    assert!(!a.can_connect(&dep, ai, n), "an instance goes on a node instance, not a node");
+    let e = a.change(|a| a.create_edge(&dep, ai, ni)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    assert_eq!(a.repo.ty(m), "UMLDeployment");
+    assert_eq!(a.repo.refd(m, "source"), a.repo.refd(ai, "model"));
+    assert_eq!(a.repo.refd(m, "target"), a.repo.refd(ni, "model"));
+}
+
+/// The texts a piece of UI paints in one frame.
+fn painted_texts(ctx: &egui::Context, mut f: impl FnMut(&mut egui::Ui)) -> Vec<String> {
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| f(ui));
+    });
+    out.textures_delta.clear();
+    let mut texts = vec![];
+    for s in out.shapes {
+        if let egui::Shape::Text(t) = s.shape {
+            texts.push(t.galley.job.text.clone());
+        }
+    }
+    texts
+}
+
+#[test]
+fn the_canvas_menu_starts_with_add_and_add_diagram() {
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(100.0, 100.0, 160.0, 80.0))).unwrap();
+    // on a box: Add and Add Diagram, then the clipboard items (menus/linux.json "diagram-canvas")
+    a.ctx_target = Some(c);
+    a.select(vec![c]);
+    let texts = painted_texts(&ctx, |ui| a.canvas_menu(ui));
+    let at = |t: &str| texts.iter().position(|x| x == t);
+    assert_eq!(at("Add"), Some(0), "{texts:?}");
+    assert_eq!(at("Add Diagram"), Some(1));
+    assert!(at("Cut").unwrap() > 1);
+    // and on empty canvas, before Paste
+    a.ctx_target = None;
+    a.select(vec![]);
+    let texts = painted_texts(&ctx, |ui| a.canvas_menu(ui));
+    assert_eq!(&texts[..3], &["Add".to_string(), "Add Diagram".to_string(), "Paste".to_string()]);
+}
+
+#[test]
+fn the_explorer_shows_a_lifelines_type() {
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let l = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 100.0, 100.0, 60.0))).unwrap();
+    let lm = a.repo.refd(l, "model").unwrap();
+    // UMLLifeline.getNodeText (elements.js:3840-3855): no type, the name alone
+    assert_eq!(a.label_of(lm), "Lifeline1");
+    let c = a.change(|a| Some(a.repo.create("UMLClass", &[("name", json!("Customer"))], Some((root, "ownedElements"))))).unwrap();
+    let role = a.repo.refd(lm, "represent").unwrap();
+    a.change(|a| a.repo.set_ref(role, "type", Some(c)));
+    assert_eq!(a.label_of(lm), "Lifeline1: Customer");
+    a.change(|a| a.repo.set(lm, "name", json!("")));
+    assert_eq!(a.label_of(lm), ": Customer");
+    a.change(|a| a.repo.set_ref(role, "type", None));
+    assert_eq!(a.label_of(lm), "(Lifeline)");
+}
+
+#[test]
+fn cmd_comma_opens_preferences_on_macos() {
+    use crate::keymap::defaults_for;
+    let comma = (egui::Modifiers::COMMAND, egui::Key::Comma);
+    let bound = |mac: bool| defaults_for(mac).into_iter().filter(|(s, _)| s.0.matches_exact(comma.0) && s.1 == comma.1).map(|(_, id)| id).collect::<Vec<_>>();
+    // keymaps/darwin.json:6 binds cmd-, to application:preferences; linux.json and win32.json do not
+    assert_eq!(bound(true), vec!["application:preferences"]);
+    assert!(bound(false).is_empty());
+}
+
+#[test]
+fn dropping_an_association_class_links_it_to_its_association() {
+    use crate::views::P;
+    let ms = measure();
+    let mut a = App::new(None);
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(340.0, 40.0, 100.0, 60.0))).unwrap();
+    let cv = a.change(|a| a.create_edge(&tool("AssociationClass", AssocInit::Plain), c1, c2)).unwrap();
+    let cm = a.repo.refd(cv, "model").unwrap();
+    let link = a.repo.all_of("UMLAssociationClassLink")[0];
+    let (m1, m2) = (a.repo.refd(c1, "model").unwrap(), a.repo.refd(c2, "model").unwrap());
+    let pkg = a.repo.parent(m1).unwrap();
+    // another diagram showing the two classes, and so their association
+    let d2 = a.change(|a| a.add_diagram(Some(pkg), "UMLClassDiagram"));
+    a.open_diagram(d2);
+    a.drop_model(m1, P { x: 40.0, y: 40.0 }).unwrap();
+    a.drop_model(m2, P { x: 340.0, y: 40.0 }).unwrap();
+    let kinds = |a: &App| a.repo.list(d2, "ownedViews").iter().map(|v| a.repo.ty(*v).to_string()).collect::<Vec<_>>();
+    assert!(kinds(&a).contains(&"UMLAssociationView".to_string()));
+    // the association class: its box, then its link to the line (uml-factory.js:2594-2640)
+    let vs = a.drop_model(cm, P { x: 200.0, y: 200.0 }).unwrap();
+    assert_eq!(vs.len(), 1);
+    assert_eq!(a.repo.ty(vs[0]), "UMLAssociationClassLinkView");
+    assert_eq!(a.repo.refd(vs[0], "model"), Some(link));
+    let class_view = a.repo.refd(vs[0], "tail").unwrap();
+    assert_eq!(a.repo.refd(class_view, "model"), Some(cm));
+    assert_eq!(a.repo.ty(a.repo.refd(vs[0], "head").unwrap()), "UMLAssociationView");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d2);
+    // once more: refused, with the original's message
+    assert_eq!(a.drop_model(cm, P { x: 200.0, y: 300.0 }).unwrap_err(), "AssociationClass View is already existed in this Diagram.");
+    // with the class box but not the link (deleted): only the link is added, to the existing box
+    a.select(vec![vs[0]]);
+    a.delete_selection(false);
+    let n = a.repo.list(d2, "ownedViews").len();
+    let again = a.drop_model(cm, P { x: 200.0, y: 300.0 }).unwrap();
+    assert_eq!(a.repo.refd(again[0], "tail"), Some(class_view));
+    assert_eq!(a.repo.list(d2, "ownedViews").len(), n + 1);
+}
+
+#[test]
+fn an_interaction_dropped_on_a_sequence_diagram_is_used() {
+    use crate::views::P;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    let collab = a.repo.parent(inter).unwrap();
+    let other = a.change(|a| Some(a.repo.create("UMLInteraction", &[("name", json!("Login"))], Some((collab, "ownedElements"))))).unwrap();
+    assert!(a.can_drop_model(other));
+    // viewForSequenceDiagramFn (uml-factory.js:2860-2870): an interaction use referring to it
+    let vs = a.drop_model(other, P { x: 60.0, y: 200.0 }).unwrap();
+    assert_eq!(vs.len(), 1);
+    assert_eq!(a.repo.ty(vs[0]), "UMLInteractionUseView");
+    let u = a.repo.refd(vs[0], "model").unwrap();
+    assert_eq!(a.repo.ty(u), "UMLInteractionUse");
+    assert_eq!(a.repo.refd(u, "refersTo"), Some(other));
+    assert_eq!(a.repo.parent(u), Some(inter), "a fragment of the diagram's interaction");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let saved = a.repo.serialize();
+    assert!(saved.contains("\"refersTo\""));
+    // a class diagram does not take an interaction
+    let cd = a.change(|a| a.add_diagram(Some(root), "UMLClassDiagram"));
+    a.open_diagram(cd);
+    assert!(!a.can_drop_model(other));
+}
+
+/// A surface that records the filled polygons and the texts drawn on it, in order.
+#[derive(Default)]
+struct Recorder {
+    ops: Vec<(String, crate::views::R)>,
+    text_colors: Vec<crate::render::Rgba>,
+}
+impl crate::views::Measure for Recorder {
+    fn width(&self, text: &str, _style: u8) -> f64 {
+        text.len() as f64 * 7.0
+    }
+}
+impl crate::render::Canvas for Recorder {
+    fn polyline(&mut self, _pts: &[crate::views::P], _color: crate::render::Rgba, _dashed: bool) {}
+    fn polygon(&mut self, pts: &[crate::views::P], fill: Option<crate::render::Rgba>, _stroke: Option<crate::render::Rgba>) {
+        if let Some(f) = fill {
+            let (x0, y0) = (pts.iter().map(|p| p.x).fold(f64::INFINITY, f64::min), pts.iter().map(|p| p.y).fold(f64::INFINITY, f64::min));
+            let (x1, y1) = (pts.iter().map(|p| p.x).fold(f64::NEG_INFINITY, f64::max), pts.iter().map(|p| p.y).fold(f64::NEG_INFINITY, f64::max));
+            self.ops.push((format!("fill {:02x}{:02x}{:02x}", f.0, f.1, f.2), rect(x0, y0, x1 - x0, y1 - y0)));
+        }
+    }
+    fn ellipse(&mut self, _c: crate::views::P, _rx: f64, _ry: f64, _fill: Option<crate::render::Rgba>, _stroke: Option<crate::render::Rgba>) {}
+    fn text(&mut self, t: &str, b: crate::views::R, _align: i64, _style: u8, _size: f64, _color: crate::render::Rgba, _underline: bool) {
+        self.ops.push((format!("text {t}"), b));
+        self.text_colors.push(_color);
+    }
+}
+
+#[test]
+fn a_line_label_fills_its_box_before_its_text() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(340.0, 40.0, 100.0, 60.0))).unwrap();
+    let e = a.change(|a| a.create_edge(&tool("UMLAssociation", AssocInit::Plain), c1, c2)).unwrap();
+    let m = a.repo.refd(e, "model").unwrap();
+    a.repo.set(m, "name", json!("owns"));
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nl = a.repo.refd(e, "nameLabel").unwrap();
+    assert_eq!(a.repo.ty(nl), "EdgeLabelView");
+    let mut rec = Recorder::default();
+    crate::render::draw_label(&mut rec, &a.repo, nl, crate::render::Rgba(0, 0, 0, 255));
+    // EdgeLabelView.draw (core.js:3802-3806): fillRect over the label's box, then the text
+    let b = crate::views::node_rect(&a.repo, nl);
+    assert_eq!(rec.ops.len(), 2, "{:?}", rec.ops.iter().map(|o| o.0.clone()).collect::<Vec<_>>());
+    assert_eq!(rec.ops[0].0, "fill ffffff");
+    assert_eq!((rec.ops[0].1.x, rec.ops[0].1.y, rec.ops[0].1.w, rec.ops[0].1.h), (b.x, b.y, b.w, b.h));
+    assert_eq!(rec.ops[1].0, "text +owns");
+    // its own fill colour
+    a.repo.set(nl, "fillColor", json!("#ffff00"));
+    let mut rec = Recorder::default();
+    crate::render::draw_label(&mut rec, &a.repo, nl, crate::render::Rgba(0, 0, 0, 255));
+    assert_eq!(rec.ops[0].0, "fill ffff00");
+    // a compartment row (a LabelView) is not filled
+    let at = a.change(|a| a.add_feature(a.repo.refd(c1, "model").unwrap(), "UMLAttribute")).unwrap();
+    crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let row = a.repo.all().into_iter().find(|v| a.repo.ty(*v) == "UMLAttributeView" && a.repo.refd(*v, "model") == Some(at)).unwrap();
+    let mut rec = Recorder::default();
+    crate::render::draw_label(&mut rec, &a.repo, row, crate::render::Rgba(0, 0, 0, 255));
+    assert!(rec.ops.iter().all(|o| o.0.starts_with("text")));
+}
+
+#[test]
+fn a_compartment_item_may_stop_inheriting_its_box_style() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 10.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    let at = a.change(|a| a.add_feature(cm, "UMLAttribute")).unwrap();
+    a.change(|a| a.add_feature(cm, "UMLAttribute"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let rows: Vec<_> = a.repo.all().into_iter().filter(|v| a.repo.ty(*v) == "UMLAttributeView").collect();
+    let row = *rows.iter().find(|v| a.repo.refd(**v, "model") == Some(at)).unwrap();
+    let other = *rows.iter().find(|v| **v != row).unwrap();
+    let h0 = a.repo.f(c, "height");
+    // the row is selected on its own; Inherit Style is on, as on every new row
+    a.select(vec![row]);
+    assert_eq!(a.flag_state("parentStyle"), Some(true));
+    a.toggle_flag("parentStyle");
+    assert!(!a.repo.bool(row, "parentStyle"));
+    // off, its own font and colour are kept by the layout and drawn (View.setup, core.js:1659-1666)
+    a.set_font(None, Some(20.0));
+    a.set_color("fontColor", crate::render::Rgba(255, 0, 0, 255));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(crate::views::view_font(&a.repo, row).1, 20.0);
+    assert_eq!(a.repo.f(row, "height"), 20.0);
+    assert_eq!(a.repo.f(c, "height"), h0 + 7.0, "the box grows by the taller row");
+    assert_eq!(crate::views::view_font(&a.repo, other).1, 13.0, "the other row still inherits");
+    let mut rec = Recorder::default();
+    crate::render::draw_label(&mut rec, &a.repo, row, crate::render::Rgba(0, 0, 0, 255));
+    assert_eq!(rec.text_colors, vec![crate::render::Rgba(255, 0, 0, 255)]);
+    let mut rec = Recorder::default();
+    crate::render::draw_label(&mut rec, &a.repo, other, crate::render::Rgba(0, 0, 0, 255));
+    assert_eq!(rec.text_colors, vec![crate::render::Rgba(0, 0, 0, 255)]);
+    // on again: it takes its box's font back
+    a.toggle_flag("parentStyle");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(crate::views::view_font(&a.repo, row).1, 13.0);
+    assert_eq!(a.repo.f(row, "height"), 13.0);
 }

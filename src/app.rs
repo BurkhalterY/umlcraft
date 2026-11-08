@@ -14,6 +14,8 @@ pub const UNDO_LIMIT: usize = 100; // repository.js:37
 pub const DOCUMENT_VERSION: i64 = 1; // core.js:57
 /// The space between a box and a constraint added to its left (estimated).
 pub const CONSTRAINT_GAP: f64 = 30.0;
+/// The view kinds a node box can hold (UMLNodeView.canContainViewKind, elements.js:8170-8179).
+const NODE_HOLDS: [&str; 6] = ["UMLClassifierView", "UMLPackageView", "UMLObjectView", "UMLArtifactInstanceView", "UMLComponentInstanceView", "UMLNodeInstanceView"];
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum AssocInit {
@@ -1250,7 +1252,12 @@ impl App {
             }
             return structured || matches!(vt, "UMLActionView" | "UMLControlNodeView" | "UMLObjectNodeView" | "UMLCentralBufferNodeView" | "UMLDataStoreNodeView" | "UMLActivityParameterNodeView" | "UMLActivityEdgeConnectorView" | "UMLFinalStateView");
         }
-        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView" || ct == "UMLStateView") || !views::is_node(&self.repo, v) {
+        // a node holds classifiers, packages, objects and instances (UMLNodeView.canContainViewKind,
+        // elements.js:8170-8179)
+        if ct == "UMLNodeView" && !NODE_HOLDS.iter().any(|k| self.repo.kind_of(v, k)) {
+            return false;
+        }
+        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView" || ct == "UMLStateView" || ct == "UMLNodeView") || !views::is_node(&self.repo, v) {
             return false;
         }
         // not the view itself or anything inside it
@@ -1421,6 +1428,10 @@ impl App {
             // UMLSequenceDiagram.canAcceptModel (elements.js:10958-10985), and
             // UMLCommunicationDiagram's and UMLTimingDiagram's (elements.js:12914-12946, 13374-13389)
             "UMLSequenceDiagram" | "UMLCommunicationDiagram" | "UMLTimingDiagram" => {
+                // an interaction, which a sequence diagram shows as an interaction use
+                if self.repo.ty(d) == "UMLSequenceDiagram" && self.repo.ty(m) == "UMLInteraction" {
+                    return true;
+                }
                 // a role of the collaboration that owns the interaction
                 if self.repo.ty(m) == "UMLAttribute" {
                     return self.repo.parent(m) == self.repo.parent(d).and_then(|i| self.repo.parent(i));
@@ -1446,10 +1457,45 @@ impl App {
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
         // ports, parts, pins and connection point references go onto their parent's box (drop_feature)
         let feature = matches!(ty, "UMLPort" | "UMLAttribute" | "UMLInputPin" | "UMLOutputPin" | "UMLConnectionPointReference");
-        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || feature || views::node_kind(ty).is_some() || crate::bpmn::is_node_type(ty) || crate::sysml::droppable(ty) || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || feature || views::node_kind(ty).is_some() || crate::bpmn::is_node_type(ty) || crate::sysml::droppable(ty) || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLInteraction" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
+        // an association class: its box (unless the diagram shows it already), then the dashed link to
+        // the association's line when that is shown (viewForClassDiagramFn, uml-factory.js:2594-2640)
+        let link = self.repo.list(m, "ownedElements").into_iter().find(|l| self.repo.ty(*l) == "UMLAssociationClassLink" && self.repo.refd(*l, "classSide") == Some(m));
+        if let (Some(link), Some(d), "UMLClass") = (link, self.diagram, self.repo.ty(m)) {
+            if !self.diagram_accepts(d, m) {
+                return Ok(vec![]);
+            }
+            if self.shown_view(d, link).is_some() {
+                return Err("AssociationClass View is already existed in this Diagram.".into());
+            }
+            let class_view = match self.shown_view(d, m) {
+                Some(v) => v,
+                None => match self.drop_model_plain(m, p)?.first() {
+                    Some(v) => *v,
+                    None => return Ok(vec![]),
+                },
+            };
+            let Some(assoc_view) = self.repo.refd(link, "associationSide").and_then(|a| self.shown_view(d, a)) else { return Ok(vec![class_view]) };
+            let lv = self.change(|a| {
+                let props = [
+                    ("model", a.repo.ref_to(link)),
+                    ("font", json!(views::FONT)),
+                    ("head", a.repo.ref_to(assoc_view)),
+                    ("tail", a.repo.ref_to(class_view)),
+                    ("lineStyle", json!(views::DEFAULT_LINE_STYLE)),
+                    ("points", json!("0:0;0:0")),
+                ];
+                Some(a.repo.create("UMLAssociationClassLinkView", &props, Some((d, "ownedViews"))))
+            });
+            return Ok(lv.into_iter().collect());
+        }
+        self.drop_model_plain(m, p)
+    }
+
+    fn drop_model_plain(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
         let Some(d) = self.diagram else { return Ok(vec![]) };
         // the drop is checked again (app-context.js:1155-1157)
         if !self.diagram_accepts(d, m) {
@@ -1501,6 +1547,17 @@ impl App {
         // becomes an action calling it
         if self.repo.ty(d) == "UMLInteractionOverviewDiagram" && (matches!(self.repo.ty(m), "UMLInteractionUse" | "UMLInteraction" | "UMLSequenceDiagram")) {
             let v = self.change(|a| a.drop_on_overview(d, m, p));
+            return Ok(v.into_iter().collect());
+        }
+        // an interaction dropped on a sequence diagram becomes an interaction use referring to it, at
+        // its smallest (viewForSequenceDiagramFn, uml-factory.js:2860-2870)
+        if self.repo.ty(d) == "UMLSequenceDiagram" && self.repo.ty(m) == "UMLInteraction" {
+            let v = self.change(|a| {
+                let v = a.create_node("UMLInteractionUse", views::R { x: p.x, y: p.y, w: 0.0, h: 0.0 })?;
+                let u = a.repo.refd(v, "model")?;
+                a.repo.set_ref(u, "refersTo", Some(m));
+                Some(v)
+            });
             return Ok(v.into_iter().collect());
         }
         let comm = self.repo.ty(d) == "UMLCommunicationDiagram";
@@ -1774,7 +1831,8 @@ impl App {
             // deployment diagrams: a path joins two nodes, a deployment puts a classifier on a node and a
             // component realization realizes a component (uml-factory.js:19-146)
             "UMLCommunicationPath" => r.ty(tm) == "UMLNode" && r.ty(hm) == "UMLNode",
-            "UMLDeployment" => classifier(tm) && r.ty(hm) == "UMLNode" && tm != hm,
+            // or an instance on a node instance (deploymentPrecondition, uml-factory.js:63-71)
+            "UMLDeployment" => (classifier(tm) && r.ty(hm) == "UMLNode" && tm != hm) || (r.kind_of(tm, "UMLInstance") && r.ty(hm) == "UMLNodeInstance" && tm != hm),
             "UMLComponentRealization" => classifier(tm) && r.ty(hm) == "UMLComponent" && tm != hm,
             "UMLInformationFlow" => tm != hm,
             // a stereotype extends a metaclass
