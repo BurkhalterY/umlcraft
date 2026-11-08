@@ -325,6 +325,20 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(4.0, 4.0), (12.0, 4.0), (12.0, 11.0), (4.0, 11.0)], B);
             line(&[(7.0, 8.5), (4.0, 11.0), (7.0, 13.5)], B);
         }
+        // communication diagram tools: a connector with a short arrow beside it
+        "self-connector" => {
+            rect_at(1.5, 6.0, 7.0, 6.0, Y);
+            line(&[(8.5, 7.5), (13.5, 7.5), (13.5, 2.5), (5.0, 2.5), (5.0, 6.0)], B);
+        }
+        "forward-message" | "reverse-message" => {
+            line(&[(1.0, 12.0), (15.0, 12.0)], B);
+            line(&[(4.0, 7.0), (12.0, 7.0)], B);
+            if key == "forward-message" {
+                p.add(Shape::convex_polygon(vec![at(13.0, 7.0), at(10.0, 5.0), at(10.0, 9.0)], B, st(B)));
+            } else {
+                p.add(Shape::convex_polygon(vec![at(3.0, 7.0), at(6.0, 5.0), at(6.0, 9.0)], B, st(B)));
+            }
+        }
         "found-message" | "lost-message" => {
             line(&[(4.0, 8.0), (12.0, 8.0)], B);
             line(&[(9.5, 5.5), (12.5, 8.0), (9.5, 10.5)], B);

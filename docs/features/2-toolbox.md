@@ -254,12 +254,12 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Time Constraint | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Duration Constraint | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Interactions (Advanced) `uml.sequence-adv` | UMLSequenceDiagram | Frame | ✅ | in the Interactions (Advanced) group, the same Frame tool as on other diagrams; a new sequence diagram starts with a frame of itself (src/ui.rs:194-225; src/app.rs:1925-1950) | extensions/essential/uml/toolbox/uml.json |
-| Communication `uml.communication` | UMLCommunicationDiagram | Lifeline | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Communication `uml.communication` | UMLCommunicationDiagram | Connector | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Communication `uml.communication` | UMLCommunicationDiagram | Self Connector | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Communication `uml.communication` | UMLCommunicationDiagram | Forward Message | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Communication `uml.communication` | UMLCommunicationDiagram | Reverse Message | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Communication `uml.communication` | UMLCommunicationDiagram | Frame | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Communication `uml.communication` | UMLCommunicationDiagram | Lifeline | ✅ | a lifeline in the diagram's interaction representing a new role "Role1"… of its collaboration, a box at least 100 × 30 with `name[selector]: Type` (src/app.rs:825-830; src/communication.rs:52-98) | extensions/essential/uml/toolbox/uml.json |
+| Communication `uml.communication` | UMLCommunicationDiagram | Connector | ✅ | a UMLConnector owned by the tail's role, its ends referring to the two lifelines' roles (src/communication.rs:40-50, 282-293) | extensions/essential/uml/toolbox/uml.json |
+| Communication `uml.communication` | UMLCommunicationDiagram | Self Connector | ✅ | a connector from a lifeline's role to itself, drawn as a loop (src/canvas.rs:1403; src/communication.rs:312-330) | extensions/essential/uml/toolbox/uml.json |
+| Communication `uml.communication` | UMLCommunicationDiagram | Forward Message | ✅ | on a connector, a message from its tail's lifeline to its head's, a 40 px arrow 10 px beside the connector's middle, numbered; drawn between two lifelines it makes the connector first (src/communication.rs:154-200, 245-280, 295-330) | extensions/essential/uml/toolbox/uml.json |
+| Communication `uml.communication` | UMLCommunicationDiagram | Reverse Message | ✅ | the same, from the connector's head to its tail (src/communication.rs:295-330) | extensions/essential/uml/toolbox/uml.json |
+| Communication `uml.communication` | UMLCommunicationDiagram | Frame | ✅ | a frame, as on the other diagrams (src/ui.rs:262-276) | extensions/essential/uml/toolbox/uml.json |
 | Timing `uml.timing` | UMLTimingDiagram | Lifeline | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Timing `uml.timing` | UMLTimingDiagram | State/Condition | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Timing `uml.timing` | UMLTimingDiagram | Time Segment | ❌ | extensions/essential/uml/toolbox/uml.json |

@@ -822,7 +822,12 @@ impl App {
             let role = self.repo.create("UMLAttribute", &[("name", json!(role_name))], Some((classifier, "attributes")));
             let rr = self.repo.ref_to(role);
             let m = self.repo.create(kind, &[("name", json!(name)), ("represent", rr)], Some((inter, "participants")));
-            let v = crate::sequence::create_lifeline_view(&mut self.repo, d, m, rect);
+            // on a communication diagram, a box at least 100 × 30 (uml-factory.js:1136-1143)
+            let v = if self.repo.ty(d) == "UMLCommunicationDiagram" {
+                crate::communication::create_lifeline_view(&mut self.repo, d, m, rect)
+            } else {
+                crate::sequence::create_lifeline_view(&mut self.repo, d, m, rect)
+            };
             self.apply_view_defaults(v);
             return Some(v);
         }
@@ -1239,8 +1244,9 @@ impl App {
             "ERDDiagram" => vec!["Hyperlink", "Diagram", "ERDEntity", "ERDColumn", "ERDRelationship"],
             // C4Diagram.canAcceptModel (c4/elements.js:75-80)
             "C4Diagram" => vec!["Hyperlink", "Diagram", "C4Element", "C4Relationship"],
-            // UMLSequenceDiagram.canAcceptModel (elements.js:10958-10985)
-            "UMLSequenceDiagram" => {
+            // UMLSequenceDiagram.canAcceptModel (elements.js:10958-10985), and
+            // UMLCommunicationDiagram's (elements.js:12914-12946)
+            "UMLSequenceDiagram" | "UMLCommunicationDiagram" => {
                 // a role of the collaboration that owns the interaction
                 if self.repo.ty(m) == "UMLAttribute" {
                     return self.repo.parent(m) == self.repo.parent(d).and_then(|i| self.repo.parent(i));
@@ -1296,9 +1302,12 @@ impl App {
         // a classifier dropped on a sequence diagram becomes a lifeline representing a new role of that
         // type; a role of the collaboration a lifeline representing it (viewForSequenceDiagramFn,
         // uml-factory.js:2763-2850)
-        if self.repo.ty(d) == "UMLSequenceDiagram" && (self.repo.kind_of(m, "UMLClassifier") || self.repo.ty(m) == "UMLAttribute") {
+        let comm = self.repo.ty(d) == "UMLCommunicationDiagram";
+        if (self.repo.ty(d) == "UMLSequenceDiagram" || comm) && (self.repo.kind_of(m, "UMLClassifier") || self.repo.ty(m) == "UMLAttribute") {
             let v = self.change(|a| {
-                let v = a.create_node("UMLLifeline", views::R { x: p.x, y: p.y, w: 100.0, h: 200.0 })?;
+                // a communication lifeline at its smallest (viewForCommunicationDiagramFn, uml-factory.js:2981-3070)
+                let h = if comm { crate::communication::LIFELINE_MIN.1 } else { 200.0 };
+                let v = a.create_node("UMLLifeline", views::R { x: p.x, y: p.y, w: 100.0, h })?;
                 let lm = a.repo.refd(v, "model")?;
                 let role = a.repo.refd(lm, "represent")?;
                 if a.repo.ty(m) == "UMLAttribute" {
@@ -1494,6 +1503,10 @@ impl App {
             }
             return r.kind_of(tm, "UMLClassifier") && r.kind_of(hm, "UMLClassifier");
         }
+        // a communication diagram's connectors and messages (uml-factory.js:1231-1330, 1956-1965)
+        if let Some(ok) = crate::communication::can_link(r, kind, tail, head) {
+            return ok;
+        }
         if views::is_edge(r, tail) || views::is_edge(r, head) {
             return false;
         }
@@ -1586,6 +1599,9 @@ impl App {
         }
         if tool.kind == "NoteLink" {
             return views::create_edge_view(&mut self.repo, d, None, tail, head);
+        }
+        if let Some(v) = self.comm_edge(d, tool, tail, head) {
+            return v;
         }
         // a message, from line part to line part (or endpoint), at the height it was drawn; found and
         // lost messages start or end at a new endpoint (messageFn, foundMessageFn, lostMessageFn,
@@ -1766,6 +1782,12 @@ impl App {
                         a.repo.relocate(cm, pm, "ownedElements");
                     }
                 }
+            }
+            // a communication connector refers to the new lifeline's role, and the messages on it
+            // now come from or go to the new lifeline (uml/main.js:49-68)
+            if a.repo.ty(to) == "UMLCommLifelineView" && a.repo.ty(e) == "UMLConnectorView" {
+                crate::communication::reconnected(&mut a.repo, e, tail);
+                return;
             }
             // the ends are laid out again from the new box
             if let (Some(m), Some(tm)) = (a.repo.refd(e, "model"), a.repo.refd(to, "model")) {
@@ -1985,7 +2007,9 @@ impl App {
         // a sequence diagram goes in an interaction: the target if it is one, else a new interaction in
         // a classifier, else a new collaboration with an interaction; it starts with a frame showing
         // it (sequenceDiagramFn and _addFrame, uml-factory.js:251-310)
-        if ty == "UMLSequenceDiagram" {
+        // and a communication diagram the same way, but in a collaboration's new interaction
+        // (communicationDiagramFn, uml-factory.js:312-370)
+        if ty == "UMLSequenceDiagram" || ty == "UMLCommunicationDiagram" {
             let target = match parent {
                 Some(p) if self.repo.ty(p) == "UMLInteraction" || self.repo.kind_of(p, "UMLClassifier") || self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" => p,
                 _ => self.package_for(self.diagram),
@@ -1993,7 +2017,7 @@ impl App {
             let target = if self.repo.ty(target) == "UMLInteraction" {
                 target
             } else {
-                let holder = if self.repo.kind_of(target, "UMLClassifier") {
+                let holder = if self.repo.kind_of(target, if ty == "UMLCommunicationDiagram" { "UMLCollaboration" } else { "UMLClassifier" }) {
                     target
                 } else {
                     let name = self.new_name(target, "UMLCollaboration");

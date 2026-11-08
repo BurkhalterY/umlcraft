@@ -222,6 +222,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLInformationFlowDiagram", Some("UMLDiagram"), vec![]);
     def("UMLProfileDiagram", Some("UMLDiagram"), vec![]);
     def("UMLSequenceDiagram", Some("UMLDiagram"), vec![("showSequenceNumber", d(json!(true))), ("sequenceNumbering", d(json!("auto"))), ("showSignature", d(json!(true))), ("showActivation", d(json!(true)))]);
+    def("UMLCommunicationDiagram", Some("UMLDiagram"), vec![("showSequenceNumber", d(json!(true))), ("sequenceNumbering", d(json!("auto"))), ("showSignature", d(json!(true)))]);
 
     // UML views
     def("UMLCompartmentView", Some("NodeView"), vec![]);
@@ -278,6 +279,8 @@ fn build() -> HashMap<&'static str, Kind> {
     // sequence diagram views (uml/metamodel.json, elements.js:11017-12800)
     def("UMLLinePartView", Some("NodeView"), vec![]);
     def("UMLSeqLifelineView", Some("UMLGeneralNodeView"), vec![("linePart", n())]);
+    def("UMLCommLifelineView", Some("UMLGeneralNodeView"), vec![]);
+    def("UMLCommMessageView", Some("EdgeNodeView"), vec![("nameLabel", n()), ("stereotypeLabel", n()), ("propertyLabel", n()), ("showProperty", d(json!(true))), ("showType", d(json!(true)))]);
     def("UMLMessageEndpointView", Some("NodeView"), vec![]);
     def("UMLEndpointView", Some("UMLMessageEndpointView"), vec![]);
     def("UMLGateView", Some("UMLMessageEndpointView"), vec![]);

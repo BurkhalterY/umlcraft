@@ -8,6 +8,7 @@ mod align;
 mod api;
 mod app;
 mod c4;
+mod communication;
 mod cli;
 mod clipboard;
 mod erd;

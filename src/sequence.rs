@@ -790,6 +790,17 @@ impl App {
     /// Add Reply Message: a reply from the message's head back to its tail, 20 px under it
     /// (handleAddReplyMessage, uml-commands.js:2612-2645).
     pub fn add_reply(&mut self, e: Eid) -> Option<Eid> {
+        // on a communication diagram, a reply on the same connector, the other way
+        if self.repo.ty(e) == "UMLCommMessageView" {
+            let (d, host, m) = (self.diagram?, self.repo.refd(e, "hostEdge")?, self.repo.refd(e, "model")?);
+            let forward = self.repo.refd(m, "source") != self.repo.refd(host, "tail").and_then(|t| self.repo.refd(t, "model"));
+            return self.change(|a| {
+                let v = a.comm_message(d, host, forward)?;
+                let rm = a.repo.refd(v, "model")?;
+                a.repo.set(rm, "messageSort", json!("reply"));
+                Some(v)
+            });
+        }
         let (tail, head) = (self.repo.refd(e, "tail")?, self.repo.refd(e, "head")?);
         if self.repo.ty(tail) != "UMLLinePartView" || self.repo.ty(head) != "UMLLinePartView" {
             return None;

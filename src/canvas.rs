@@ -164,11 +164,23 @@ fn short_label(l: &str) -> String {
 /// Attribute (Literal, Slot, Extension Point) and Add Operation; on a compartment item, Add, Delete,
 /// Move Up and Move Down. Each is shown with its hint and key, "Add Attribute (Ctrl+Enter)"
 /// (quickedits/uml.json components with a `key`; quickedit-manager.js:385-394).
-pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static str, &'static str, &'static str, ItemKey)> {
+pub fn item_buttons(r: &crate::model::Repo, host: Option<Eid>, kind: &EditKind) -> Vec<(&'static str, &'static str, &'static str, ItemKey)> {
     const ADD_OP: (&str, &str, &str, ItemKey) = ("+ Op", "Add Operation", "Ctrl+Shift+Enter", ItemKey::AddOperation);
     match kind {
         EditKind::Name(m) => {
             let t = r.ty(*m);
+            // a communication lifeline's buttons (quickedits/uml.json "uml.lifeline-comm")
+            if t == "UMLLifeline" && host.map(|h| r.ty(h) == "UMLCommLifelineView").unwrap_or(false) {
+                use crate::communication::CommAdd::*;
+                return vec![
+                    ("Type…", "Select Type", "", ItemKey::LifelineType(false)),
+                    ("+ Type", "Create Type", "", ItemKey::LifelineType(true)),
+                    ("+ Lifeline", "Add Connected Lifeline", "", ItemKey::Comm(ConnectedLifeline)),
+                    ("+ Self", "Add Self Connector", "", ItemKey::Comm(SelfConnector)),
+                    ("+ Fwd", "Add Forward Message", "", ItemKey::Comm(ForwardMessage)),
+                    ("+ Rev", "Add Reverse Message", "", ItemKey::Comm(ReverseMessage)),
+                ];
+            }
             // a port or a part (quickedits/uml.json "uml.port", "uml.part")
             if t == "UMLPort" || t == "UMLAttribute" {
                 let mut v = vec![("Type…", "Select Type", "", ItemKey::SelectType), ("+ Type", "Create Type", "", ItemKey::CreateType)];
@@ -300,6 +312,8 @@ pub enum ItemKey {
     LifelineType(bool),
     /// A lifeline's message buttons
     Seq(crate::sequence::SeqAdd),
+    /// A communication lifeline's buttons
+    Comm(crate::communication::CommAdd),
     /// A message's Select / Create (second flag) Operation (first flag false) or Signal (true)
     MessageSignature(bool, bool),
     /// A message's Add Reply Message
@@ -900,8 +914,9 @@ impl App {
         if let Some(tool) = self.tool {
             if !tool.line || tool.kind == "FreeLine" {
                 self.drag = Some(Drag::CreateNode { start: p, now: p });
-            } else if let Some(tail) = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject")).or_else(|| if tool.kind == "UMLFoundMessage" { self.diagram } else { None }) {
-                // a found message may start anywhere: its endpoint is made at the press point
+            } else if let Some(tail) = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject" | "UMLForwardMessage" | "UMLReverseMessage")).or_else(|| if matches!(tool.kind, "UMLFoundMessage" | "UMLForwardMessage" | "UMLReverseMessage") { self.diagram } else { None }) {
+                // a found message may start anywhere: its endpoint is made at the press point; so may
+                // a communication message, which only needs the connector it is dropped on
                 self.drag = Some(Drag::CreateEdge { start: p, now: p, tail });
             }
             return;
@@ -1152,6 +1167,12 @@ impl App {
                     self.repo.set(*n, "top", crate::model::num(o.y + dy));
                 }
                 let moved: Vec<Eid> = orig.iter().map(|(n, _)| *n).collect();
+                // a communication message keeps the place it was dragged to beside its connector
+                for v in &moved {
+                    if self.repo.ty(*v) == "UMLCommMessageView" {
+                        crate::communication::moved(&mut self.repo, *v);
+                    }
+                }
                 self.hover = self.container_at(p, &moved);
                 for (e, pts) in edges.iter() {
                     if pts.len() > 2 || views::is_freeline(&self.repo, *e) {
@@ -1378,8 +1399,8 @@ impl App {
             Drag::CreateEdge { tail, start, .. } => {
                 let Some(tool) = self.tool else { return };
                 // a self-connection tool joins the view under the release point to itself (factory.js:273-277)
-                let hit = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject"));
-                let selfish = matches!(tool.label, "Self Transition" | "Self Message");
+                let hit = self.hit_view(p, !matches!(tool.kind, "NoteLink" | "AssociationClass" | "LinkObject" | "UMLForwardMessage" | "UMLReverseMessage"));
+                let selfish = matches!(tool.label, "Self Transition" | "Self Message" | "Self Connector");
                 let (tail, hit) = if selfish { (hit.unwrap_or(tail), hit) } else { (tail, hit) };
                 // a message keeps the height it is drawn at; a found message comes from an endpoint at
                 // the press point, a lost one goes to an endpoint at the release point
@@ -1572,7 +1593,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || matches!(self.repo.ty(v), "ERDEntityView" | "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView") || crate::c4::is_node_view(self.repo.ty(v)) || crate::wireframe::has_name(self.repo.ty(v))));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || matches!(self.repo.ty(v), "ERDEntityView" | "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView" | "UMLCommMessageView") || crate::c4::is_node_view(self.repo.ty(v)) || crate::wireframe::has_name(self.repo.ty(v))));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
@@ -1814,6 +1835,11 @@ impl App {
             (ItemKey::AddTab, _) => {
                 if let Some(t) = self.change(|a| a.add_tab(host)) {
                     self.select(vec![t]);
+                }
+            }
+            (ItemKey::Comm(what), _) => {
+                if let Some(e) = self.add_comm(host, what) {
+                    self.select(vec![e]);
                 }
             }
             (ItemKey::Seq(what), _) => {
@@ -2110,6 +2136,7 @@ impl App {
         let mut related: Option<crate::related::Related> = None;
         let mut edge_note: Option<Eid> = None;
         let mut edge_constraint: Option<Eid> = None;
+        let mut comm_message: Option<(Eid, bool)> = None;
         let mut add_subst: Option<Eid> = None;
         let mut picked_order: Option<(Eid, &'static str)> = None;
         egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
@@ -2193,7 +2220,7 @@ impl App {
                         // the item buttons with a key, on a box's name or item (taken on press, as the
                         // field loses focus before a release)
                         if ed.host.is_some() && !ed.multiline {
-                            for (label, hint, keys, k) in item_buttons(&self.repo, &ed.kind) {
+                            for (label, hint, keys, k) in item_buttons(&self.repo, ed.host, &ed.kind) {
                                 let tip = if keys.is_empty() { hint.to_string() } else { format!("{hint} ({keys})") };
                                 let b = ui.add(egui::Button::new(egui::RichText::new(label).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(tip);
                                 if b.is_pointer_button_down_on() {
@@ -2391,6 +2418,15 @@ impl App {
                         if b.is_pointer_button_down_on() {
                             edge_constraint = Some(e);
                         }
+                        // a communication connector's Add Forward / Reverse Message (quickedits/uml.json "uml.connector-comm")
+                        if self.repo.ty(e) == "UMLConnectorView" && self.diagram.map(|d| self.repo.ty(d) == "UMLCommunicationDiagram").unwrap_or(false) {
+                            for (label, hint, forward) in [("+ Fwd", "Add Forward Message", true), ("+ Rev", "Add Reverse Message", false)] {
+                                let b = ui.add(egui::Button::new(egui::RichText::new(label).size(11.0).color(Color32::BLACK)).fill(Color32::from_rgb(0xee, 0xee, 0xee)).small()).on_hover_text(hint);
+                                if b.is_pointer_button_down_on() {
+                                    comm_message = Some((e, forward));
+                                }
+                            }
+                        }
                     }
                     // an association's Order of Ends, a property of its line (quickedits/uml.json "uml.end-order")
                     if let (Some(e), true) = (edge, self.repo.ty(*m) == "UMLAssociation") {
@@ -2422,7 +2458,7 @@ impl App {
                     ed.fresh = true;
                 }
                 let (esc, enter, ctrl_enter) = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Enter) && i.modifiers.command));
-                if key.is_some() || related.is_some() || edge_note.is_some() || edge_constraint.is_some() || add_subst.is_some() {
+                if key.is_some() || related.is_some() || edge_note.is_some() || edge_constraint.is_some() || comm_message.is_some() || add_subst.is_some() {
                     commit = Some(true);
                 } else if esc {
                     commit = Some(false);
@@ -2452,6 +2488,11 @@ impl App {
         }
         if let Some(e) = edge_constraint.filter(|e| self.repo.alive(*e)) {
             self.add_constraint_to(e);
+        }
+        if let Some((e, forward)) = comm_message.filter(|(e, _)| self.repo.alive(*e)) {
+            if let Some(v) = self.add_comm_message(e, forward) {
+                self.select(vec![v]);
+            }
         }
         // the new substitution is selected in the explorer (uml-commands.js:1026-1034)
         if let Some(b) = add_subst.filter(|b| self.repo.alive(*b)) {

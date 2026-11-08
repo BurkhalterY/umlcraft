@@ -227,7 +227,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Model › Add Diagram › Deployment Diagram | `factory:create-diagram` |  | ✅ | Model › Add Diagram › Deployment Diagram; components, artifacts, interfaces and nodes can be drawn on it (src/ui.rs:285-296) | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Use Case Diagram | `factory:create-diagram` |  | ✅ | (src/ui.rs:622) | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Sequence Diagram | `factory:create-diagram` |  | ✅ | in the selected interaction, or a new interaction in the classifier, or a new collaboration with an interaction; with a frame of the diagram (src/ui.rs:464; src/app.rs:1925-1950) | extensions/essential/uml/menus/uml.json |
-| Model › Add Diagram › Communication Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
+| Model › Add Diagram › Communication Diagram | `factory:create-diagram` |  | ✅ | in the selected interaction, or a new "Interaction1" in a collaboration, else a new collaboration with an interaction; with a 692 × 592 frame (src/ui.rs:520; src/app.rs:2010-2035) | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Timing Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Interaction Overview Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/uml/menus/uml.json |
 | Model › Add Diagram › Information Flow Diagram | `factory:create-diagram` |  | ✅ | (src/ui.rs:293) | extensions/essential/uml/menus/uml.json |

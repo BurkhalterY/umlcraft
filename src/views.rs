@@ -2110,6 +2110,14 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         crate::sequence::layout_fragment(r, ms, v);
         return Info { shape: "fragment", ..Default::default() };
     }
+    if t == "UMLCommLifelineView" {
+        crate::communication::layout_lifeline(r, ms, v);
+        return Info { shape: "comm-lifeline", ..Default::default() };
+    }
+    // a communication message is placed by its connector, once the lines are laid out
+    if t == "UMLCommMessageView" {
+        return Info { shape: "comm-message", ..Default::default() };
+    }
     if t == "UMLSeqLifelineView" {
         let invariants: Vec<Eid> = r.list(v, "subViews").into_iter().filter(|x| r.ty(*x) == "UMLStateInvariantView").collect();
         for iv in invariants {
@@ -2592,7 +2600,7 @@ pub fn activity_edge_text(r: &Repo, m: Eid) -> String {
     s
 }
 
-fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
+pub(crate) fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> {
     let Some(m) = r.refd(e, "model") else { return vec![] };
     let show_vis = r.bool(e, "showVisibility");
     let vis = |x: Eid| if show_vis { vis_symbol(&r.str(x, "visibility")).to_string() } else { String::new() };
@@ -2766,6 +2774,11 @@ pub fn layout_diagram(r: &mut Repo, ms: &dyn Measure, d: Eid) -> HashMap<Eid, In
     }
     if r.ty(d) == "UMLSequenceDiagram" {
         crate::sequence::layout(r, ms, d);
+    }
+    for v in &views {
+        if r.alive(*v) && r.ty(*v) == "UMLCommMessageView" {
+            crate::communication::layout_message(r, ms, *v);
+        }
     }
     info
 }

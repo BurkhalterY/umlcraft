@@ -3121,7 +3121,7 @@ fn reception_signal_is_a_reference() {
     // the reception's inline edit has Select Signal, which opens the Element Picker on UMLSignal
     use crate::app::EditKind;
     use crate::canvas::{item_buttons, ItemKey};
-    assert!(item_buttons(&a.repo, &EditKind::Feature(rc)).iter().any(|b| b.3 == ItemKey::SelectSignal));
+    assert!(item_buttons(&a.repo, None, &EditKind::Feature(rc)).iter().any(|b| b.3 == ItemKey::SelectSignal));
     a.item_key(v, EditKind::Feature(rc), ItemKey::SelectSignal);
     let p = a.element_picker.as_ref().unwrap();
     assert_eq!((p.obj, p.field.as_str(), p.ty, p.chosen), (rc, "signal", "UMLSignal", Some(sm)));
@@ -3997,10 +3997,10 @@ fn inline_edit_buttons_carry_their_keys() {
     let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 100.0))).unwrap();
     let e = a.change(|a| a.create_node("UMLEnumeration", rect(300.0, 40.0, 160.0, 100.0))).unwrap();
     let (cm, em) = (a.repo.refd(c, "model").unwrap(), a.repo.refd(e, "model").unwrap());
-    let hints = |k: &EditKind, a: &App| item_buttons(&a.repo, k).into_iter().map(|b| if b.2.is_empty() { b.1.to_string() } else { format!("{} ({})", b.1, b.2) }).collect::<Vec<_>>();
+    let hints = |k: &EditKind, a: &App| item_buttons(&a.repo, None, k).into_iter().map(|b| if b.2.is_empty() { b.1.to_string() } else { format!("{} ({})", b.1, b.2) }).collect::<Vec<_>>();
     assert_eq!(hints(&EditKind::Name(cm), &a), ["Add Attribute (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)", "Add Reception", "Add Port", "Add Part"]);
     assert_eq!(hints(&EditKind::Name(em), &a), ["Add Literal (Ctrl+Enter)", "Add Operation (Ctrl+Shift+Enter)"]);
-    let keys: Vec<ItemKey> = item_buttons(&a.repo, &EditKind::Feature(cm)).into_iter().map(|b| b.3).collect();
+    let keys: Vec<ItemKey> = item_buttons(&a.repo, None, &EditKind::Feature(cm)).into_iter().map(|b| b.3).collect();
     assert_eq!(keys, [ItemKey::Add, ItemKey::Delete, ItemKey::Move(true), ItemKey::Move(false)]);
     // a button does what its key does
     a.item_key(c, EditKind::Name(cm), ItemKey::Add);
@@ -4366,7 +4366,7 @@ fn port_and_part_quick_edit_actions() {
     assert!(a.repo.f(parts[1], "left") > a.repo.f(parts[0], "left"), "the next one to its right");
     // a port's edit: Select Type, Create Type, Add Connected Part
     let pm = a.repo.refd(ports[0], "model").unwrap();
-    let labels: Vec<&str> = item_buttons(&a.repo, &EditKind::Name(pm)).into_iter().map(|b| b.1).collect();
+    let labels: Vec<&str> = item_buttons(&a.repo, None, &EditKind::Name(pm)).into_iter().map(|b| b.1).collect();
     assert_eq!(labels, ["Select Type", "Create Type", "Add Provided Interface", "Add Required Interface", "Add Connected Part"]);
     a.item_key(ports[0], EditKind::Name(pm), ItemKey::AddConnectedPart);
     assert_eq!(views_of(&a, "UMLPartView").len(), 3);
@@ -5641,7 +5641,7 @@ fn wireframes_hold_frames_widgets_and_tab_lists() {
     assert_eq!(a.repo.f(t2, "top"), 300.0 + a.repo.f(t1, "height"));
     // the quick edits: Add Note on a widget, Add Tab on a tab list
     assert_eq!(crate::related::actions("WFButton").len(), 1);
-    assert!(crate::canvas::item_buttons(&a.repo, &crate::app::EditKind::Name(tlm)).iter().any(|b| b.1 == "Add Tab"));
+    assert!(crate::canvas::item_buttons(&a.repo, None, &crate::app::EditKind::Name(tlm)).iter().any(|b| b.1 == "Add Tab"));
     // the template: a wireframe with a phone frame, without the UML profile
     let t = crate::templates::TEMPLATES.iter().find(|t| t.label == "Wireframe Model").unwrap();
     let pr = crate::templates::project(t);
@@ -5651,6 +5651,80 @@ fn wireframes_hold_frames_widgets_and_tab_lists() {
     let names: Vec<String> = pr.children(w).into_iter().map(|(_, c)| pr.name(c)).collect();
     assert_eq!(names, ["Wireframe Diagram", "MobileFrame1"]);
     // every view draws
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn communication_diagrams_have_lifelines_connectors_and_messages() {
+    use crate::communication::CommAdd;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLCommunicationDiagram"));
+    let inter = a.repo.parent(d).unwrap();
+    let collab = a.repo.parent(inter).unwrap();
+    assert_eq!((a.repo.ty(inter), a.repo.ty(collab), a.repo.name(d).as_str()), ("UMLInteraction", "UMLCollaboration", "CommunicationDiagram1"));
+    assert_eq!(a.repo.ty(a.repo.list(d, "ownedViews")[0]), "UMLFrameView");
+    // lifelines are boxes at least 100 × 30
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 100.0, 1.0, 1.0))).unwrap();
+    let l2 = a.change(|a| a.create_node("UMLLifeline", rect(350.0, 100.0, 1.0, 1.0))).unwrap();
+    assert_eq!(a.repo.ty(l1), "UMLCommLifelineView");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(l1, "width"), a.repo.f(l1, "height")), (100.0, 30.0));
+    let (m1, m2) = (a.repo.refd(l1, "model").unwrap(), a.repo.refd(l2, "model").unwrap());
+    let (r1, r2) = (a.repo.refd(m1, "represent").unwrap(), a.repo.refd(m2, "represent").unwrap());
+    // a forward message drawn between two lifelines makes a connector between their roles first
+    let fwd = tool("UMLForwardMessage", AssocInit::Plain);
+    assert!(a.can_connect(&fwd, l1, l2));
+    let mv = a.change(|a| a.create_edge(&fwd, l1, l2)).unwrap();
+    assert_eq!(a.repo.ty(mv), "UMLCommMessageView");
+    let cv = a.repo.refd(mv, "hostEdge").unwrap();
+    let cm = a.repo.refd(cv, "model").unwrap();
+    assert_eq!((a.repo.ty(cm), a.repo.parent(cm)), ("UMLConnector", Some(r1)));
+    let e2 = a.repo.child(cm, "end2").unwrap();
+    assert_eq!(a.repo.refd(e2, "reference"), Some(r2));
+    let msg = a.repo.refd(mv, "model").unwrap();
+    assert_eq!((a.repo.refd(msg, "source"), a.repo.refd(msg, "target"), a.repo.refd(msg, "connector")), (Some(m1), Some(m2), Some(cm)));
+    // a reverse message dropped on the connector goes the other way
+    let rev = tool("UMLReverseMessage", AssocInit::Plain);
+    assert!(a.can_connect(&rev, a.diagram.unwrap(), cv));
+    let rv = a.change(|a| a.create_edge(&rev, d, cv)).unwrap();
+    let rmsg = a.repo.refd(rv, "model").unwrap();
+    assert_eq!((a.repo.refd(rmsg, "source"), a.repo.refd(rmsg, "target")), (Some(m2), Some(m1)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // the arrow is 40 long along the horizontal connector, 10 px above its middle, numbered
+    assert_eq!((a.repo.f(mv, "width"), a.repo.f(mv, "height")), (40.0, 0.0));
+    let pts = crate::views::points_of(&a.repo, cv);
+    let midx = ((pts[0].x + pts[1].x) / 2.0).floor();
+    assert!((a.repo.f(mv, "left") + 20.0 - midx).abs() <= 1.0, "{} vs {midx}", a.repo.f(mv, "left"));
+    assert_eq!(a.repo.f(mv, "top"), pts[0].y - 10.0);
+    let nl = a.repo.refd(mv, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "1 : Message1");
+    assert_eq!(a.repo.str(a.repo.refd(rv, "nameLabel").unwrap(), "text"), "2 : Message2");
+    // the lifeline's quick edit: a connected lifeline to the right, a self connector, a forward message to a lifeline below
+    let labels: Vec<&str> = crate::canvas::item_buttons(&a.repo, Some(l1), &crate::app::EditKind::Name(m1)).into_iter().map(|b| b.1).collect();
+    assert!(labels.contains(&"Add Connected Lifeline") && labels.contains(&"Add Reverse Message"));
+    a.diagram = Some(d);
+    let n = a.add_comm(l1, CommAdd::ConnectedLifeline).unwrap();
+    assert_eq!(a.repo.f(n, "left"), 350.0 + 100.0 + 70.0, "past the lifeline already joined on the right");
+    let s = a.add_comm(l1, CommAdd::SelfConnector).unwrap();
+    assert_eq!((a.repo.refd(s, "tail"), a.repo.refd(s, "head")), (Some(l1), Some(l1)));
+    let fm = a.add_comm(l1, CommAdd::ForwardMessage).unwrap();
+    let below = a.repo.refd(a.repo.refd(fm, "hostEdge").unwrap(), "head").unwrap();
+    assert_eq!(a.repo.f(below, "top"), 100.0 + 30.0 + 70.0);
+    // a reply goes on the same connector, back
+    let rp = a.add_reply(mv).unwrap();
+    let rpm = a.repo.refd(rp, "model").unwrap();
+    assert_eq!((a.repo.str(rpm, "messageSort").as_str(), a.repo.refd(rpm, "source")), ("reply", Some(m2)));
+    // reconnecting the connector's head to another lifeline moves the messages' ends along
+    let l3 = a.change(|a| a.create_node("UMLLifeline", rect(350.0, 400.0, 1.0, 1.0))).unwrap();
+    let m3 = a.repo.refd(l3, "model").unwrap();
+    a.reconnect(cv, false, l3).unwrap();
+    assert_eq!(a.repo.refd(msg, "target"), Some(m3));
+    assert_eq!(a.repo.refd(rmsg, "source"), Some(m3));
+    assert_eq!(a.repo.refd(e2, "reference"), a.repo.refd(m3, "represent"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
     Repo::parse(&a.repo.serialize()).unwrap();
 }
