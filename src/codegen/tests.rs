@@ -124,9 +124,10 @@ pub(super) fn reverse(l: Lang, src: &str, rel: &[&str]) -> (Repo, Eid) {
     let root = r.root;
     let m = r.create("UMLModel", &[("name", json!(l.reverse_model()))], Some((root, "ownedElements")));
     let rel: Vec<String> = rel.iter().map(|s| s.to_string()).collect();
-    let p = parse_source(l, src, &rel);
+    let o = RevOpts { skip_self: true, skip_magic: true, association: true, public_only: false, type_hierarchy: false, package_overview: false, package_structure: false };
+    let p = parse_source(l, src, &rel, &o);
     assert!(!p.errors, "{l:?} reported errors");
-    import_units(&mut r, m, p.units, &RevOpts { association: true, public_only: false, type_hierarchy: false, package_overview: false, package_structure: false });
+    import_units(&mut r, m, p.units, &o);
     (r, m)
 }
 
@@ -500,16 +501,16 @@ pub(super) fn jobs_run_on_a_worker_thread_and_can_be_cancelled() {
     assert!(d.log.last().unwrap().starts_with("5 files generated"), "{:?}", d.log);
     assert_eq!(d.last_out.as_deref(), Some(dir.as_path()));
     d.log.clear();
-    d.job = Some(Job::reverse(Lang::Java, dir.clone(), None, None));
+    d.job = Some(Job::reverse(Lang::Java, dir.clone(), rev_opts(&a.prefs, Lang::Java), None, None));
     wait(&mut a, &mut d);
     assert!(d.log.iter().any(|l| l.contains("5 files analyzed")), "{:?}", d.log);
     assert!(a.repo.all_of("UMLModel").iter().any(|x| a.repo.name(*x) == "JavaReverse"));
     // a cancelled job stops before the next file
     let stop = std::sync::atomic::AtomicBool::new(true);
-    assert!(read_sources(Lang::Java, &dir, &stop, &mut |_| {}).unwrap().is_none());
+    assert!(read_sources(Lang::Java, &dir, &rev_opts(&a.prefs, Lang::Java), &stop, &mut |_| {}).unwrap().is_none());
     assert!(write_files(vec![(PathBuf::from("X.java"), String::new())], &dir, &stop, &mut |_| {}).unwrap().is_none());
     assert!(!dir.join("X.java").exists());
-    let job = Job::reverse(Lang::Java, dir.clone(), None, None);
+    let job = Job::reverse(Lang::Java, dir.clone(), rev_opts(&a.prefs, Lang::Java), None, None);
     job.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
     d.job = Some(job);
     wait(&mut a, &mut d);

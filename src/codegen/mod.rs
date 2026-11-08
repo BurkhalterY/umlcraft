@@ -9,6 +9,8 @@ pub mod lex;
 mod tests;
 #[cfg(test)]
 mod tests_pro;
+#[cfg(test)]
+mod tests_rev;
 
 pub mod c;
 pub mod cpp;
@@ -176,6 +178,10 @@ pub struct Field {
     pub default: String,
     pub mult: String,
     pub doc: String,
+    /// reverse only: `final` (isLeaf), and tags such as Java's `volatile` and `transient` (a
+    /// boolean tag when the value is empty) or `collection` = `List`
+    pub is_leaf: bool,
+    pub tags: Vec<(String, String)>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -194,6 +200,17 @@ pub struct Method {
     pub is_static: bool,
     pub is_abstract: bool,
     pub doc: String,
+    /// reverse only: the operation's own type parameters (template parameters of the operation)
+    pub generics: Vec<String>,
+    /// reverse only: "constructor" for a constructor (Java, C#, C++, as the 7.x reverses do)
+    pub stereotype: String,
+    /// reverse only: the exceptions it declares (`throws`), as raised exceptions
+    pub raises: Vec<String>,
+    /// reverse only: `final` (isLeaf), `synchronized` (concurrency "concurrent") and boolean tags
+    /// such as `native`
+    pub is_leaf: bool,
+    pub concurrent: bool,
+    pub tags: Vec<(String, String)>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -209,10 +226,17 @@ pub struct Ty {
     /// interface realization targets
     pub reals: Vec<String>,
     pub generics: Vec<String>,
+    /// reverse only: each generic's bound and default (`T extends Item = Book`), for the template
+    /// parameter's parameterType and defaultValue
+    pub gen_bounds: Vec<(String, String)>,
     pub fields: Vec<Field>,
     pub methods: Vec<Method>,
     pub literals: Vec<String>,
+    /// reverse only: each literal's documentation comment
+    pub literal_docs: Vec<String>,
     pub nested: Vec<Ty>,
+    /// reverse only: a `final`/`sealed` class (isFinalSpecialization and isLeaf)
+    pub is_leaf: bool,
     /// generation only: the package path from the base package, for imports
     pub ns: Vec<String>,
 }
@@ -252,6 +276,37 @@ impl Pkg {
 pub struct Unit {
     pub ns: Vec<String>,
     pub types: Vec<Ty>,
+    /// the file's imports, which resolve the type names its types use
+    pub imports: Vec<Import>,
+}
+
+/// An import of a reversed file: `import a.b.Book;` (path a, b, Book; known as Book), `import a.b.*;`
+/// (wildcard: the names of package a.b), `using N = a.b.Book;` (alias N), `from .book import Book`
+/// (module: the path is a module's, not a package's, so the name is looked for anywhere).
+#[derive(Clone, Debug, Default)]
+pub struct Import {
+    pub path: Vec<String>,
+    pub alias: String,
+    pub wildcard: bool,
+    pub module: bool,
+}
+
+impl Import {
+    /// `a.b.Book` → the import of Book; `a.b.*` → the wildcard import of a.b; `seps` also split
+    /// the path (`::`, `\\`, `/`).
+    pub fn of(text: &str, seps: &[&str]) -> Import {
+        let mut s = text.trim().to_string();
+        for sep in seps {
+            s = s.replace(sep, ".");
+        }
+        let mut path: Vec<String> = s.split('.').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect();
+        let wildcard = path.last().map(|x| x == "*").unwrap_or(false);
+        if wildcard {
+            path.pop();
+        }
+        let alias = if wildcard { String::new() } else { path.last().cloned().unwrap_or_default() };
+        Import { path, alias, wildcard, module: false }
+    }
 }
 
 /// A reversed file: its units and whether it had syntax errors (the rest is still read).
@@ -281,6 +336,9 @@ impl GenOpts {
 
 #[derive(Clone, Debug)]
 pub struct RevOpts {
+    /// Python: the `self`/`cls` parameter and the magic methods are left out (python.rev.*)
+    pub skip_self: bool,
+    pub skip_magic: bool,
     pub association: bool,
     pub public_only: bool,
     pub type_hierarchy: bool,
@@ -308,6 +366,8 @@ pub fn rev_opts(prefs: &crate::prefs::Prefs, l: Lang) -> RevOpts {
     let k = l.key();
     let b = |n: &str, d: bool| prefs.bool(&format!("{k}.rev.{n}"), d);
     RevOpts {
+        skip_self: b("skipSelfParam", true),
+        skip_magic: b("skipMagicMethods", true),
         association: b("association", true),
         public_only: b("publicOnly", false),
         // DDL: an ER diagram instead of a type hierarchy
@@ -573,6 +633,7 @@ fn ty_of(r: &Repo, c: Eid, rels: &[Eid]) -> Ty {
             default: r.str(a, "defaultValue"),
             mult: r.str(a, "multiplicity"),
             doc: r.str(a, "documentation"),
+            ..Default::default()
         });
     }
     t.fields.extend(assoc_fields);
@@ -649,13 +710,13 @@ pub fn per_type(tree: &Pkg, file: impl Fn(&Ty) -> String, mut text: impl FnMut(&
 /// Reverse one file's text (`rel`: its folder path from the source folder, for the languages whose
 /// namespaces are folders: C, C++ without namespaces, Python, JavaScript, TypeScript, Rust, Ruby,
 /// Dart and Swift).
-pub fn parse_source(l: Lang, src: &str, rel: &[String]) -> Parsed {
+pub fn parse_source(l: Lang, src: &str, rel: &[String], o: &RevOpts) -> Parsed {
     match l {
         Lang::Java => java::parse(src),
         Lang::Cpp => cpp::parse(src, rel),
         Lang::CSharp => csharp::parse(src),
         Lang::C => c::parse(src, rel),
-        Lang::Python => python::parse(src, rel),
+        Lang::Python => python::parse(src, rel, o),
         Lang::Php => php::parse(src),
         Lang::TypeScript => typescript::parse(src, rel, true),
         Lang::JavaScript => typescript::parse(src, rel, false),
@@ -714,15 +775,30 @@ pub fn element_type(t: &str) -> (String, String) {
     if let Some(e) = t.strip_suffix('?') {
         return (e.trim().to_string(), "0..1".into());
     }
-    const MANY: [&str; 22] = [
-        "List", "ArrayList", "LinkedList", "Set", "HashSet", "TreeSet", "Collection", "Iterable", "IList", "ICollection", "IEnumerable", "Array", "MutableList", "MutableSet", "Vec", "vector", "std::vector", "std::list", "list", "set", "Sequence", "Seq",
+    // Python's `Book | None` and TypeScript's `Book | null | undefined`
+    if t.contains('|') && !t.contains('<') && !t.contains('[') {
+        let parts: Vec<&str> = t.split('|').map(|p| p.trim()).collect();
+        let kept: Vec<&str> = parts.iter().copied().filter(|p| !["None", "null", "undefined"].contains(p)).collect();
+        if kept.len() == 1 && parts.len() > 1 {
+            return (kept[0].to_string(), "0..1".into());
+        }
+    }
+    const MANY: &[&str] = &[
+        "List", "ArrayList", "LinkedList", "Set", "HashSet", "TreeSet", "Collection", "Iterable", "IList", "ICollection", "IEnumerable", "Array", "MutableList", "MutableSet", "Vec", "vector", "std::vector", "std::list", "list", "set", "Sequence", "Seq", "SortedSet", "NavigableSet", "LinkedHashSet", "Deque", "ArrayDeque", "Queue", "frozenset", "tuple", "deque",
     ];
-    const ONE: [&str; 4] = ["Option", "Optional", "std::optional", "Nullable"];
+    const ONE: [&str; 4] = ["Option", "Optional", "optional", "Nullable"];
+    // wrappers that hold one of the type: smart pointers, boxes, Python's ClassVar and Final
+    const WRAP: [&str; 10] = ["shared_ptr", "unique_ptr", "weak_ptr", "Box", "Rc", "Arc", "ClassVar", "Final", "Readonly", "Lazy"];
     for (open, shut) in [('<', '>'), ('[', ']')] {
         if let Some(i) = t.find(open) {
             if t.ends_with(shut) {
+                // `java.util.List`, `typing.List` and `std::vector` are List and vector
                 let head = t[..i].trim();
+                let head = head.rsplit(['.', ':']).next().unwrap_or(head);
                 let inner = t[i + 1..t.len() - 1].trim();
+                if WRAP.contains(&head) && !inner.contains(',') {
+                    return element_type(inner);
+                }
                 if inner.contains(',') {
                     continue;
                 }
@@ -752,11 +828,159 @@ pub fn base_name(t: &str) -> String {
 struct Pending {
     eid: Eid,
     ty: Ty,
+    /// the index of the unit (file) it comes from, for its imports
+    unit: usize,
+}
+
+/// A type name as a path: `a.b.Book`, `a::b::Book`, `\A\B\Book` → its segments; None when it is
+/// not a plain (qualified) name (`Map<K, V>`, `int*`, `(A, B)`).
+pub fn name_path(t: &str) -> Option<Vec<String>> {
+    // a pointer or reference to a type refers to it: `const Book*`, `Book&`, `&mut Book`
+    let mut t = t.trim();
+    for p in ["const ", "struct ", "class ", "typename ", "&mut ", "&", "mut "] {
+        t = t.strip_prefix(p).unwrap_or(t).trim();
+    }
+    let t = t.strip_suffix(" const").unwrap_or(t).trim_end_matches(['*', '&', ' ']);
+    let t = t.trim_start_matches("::").trim_start_matches('\\');
+    let segs: Vec<String> = t.split("::").flat_map(|s| s.split(['.', '\\'])).map(|s| s.to_string()).collect();
+    let ok = |s: &String| !s.is_empty() && s.chars().next().map(|c| c.is_alphabetic() || c == '_' || c == '$').unwrap_or(false) && s.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$');
+    if segs.iter().all(ok) { Some(segs) } else { None }
+}
+
+/// A super type's name without its type arguments: `Base<T>` → `Base`, `a.Base[T]` → `a.Base`.
+fn raw_name(t: &str) -> String {
+    let t = t.trim();
+    let end = t.find(['<', '[', '(']).unwrap_or(t.len());
+    t[..end].trim().to_string()
+}
+
+/// The classifier or package reached from `from` by the names in `segs` (packages, then types and
+/// their nested types).
+fn walk_path(r: &Repo, from: Eid, segs: &[String]) -> Option<Eid> {
+    let mut cur = from;
+    for s in segs {
+        cur = r.list(cur, "ownedElements").into_iter().find(|c| r.name(*c) == *s && (r.kind_of(*c, "UMLPackage") || classifier_kind(r.ty(*c)).is_some()))?;
+    }
+    Some(cur)
+}
+
+/// The names from `target` down to `e` (`a`, `b`, `Book`).
+fn path_from(r: &Repo, target: Eid, e: Eid) -> Vec<String> {
+    let mut out = vec![];
+    let mut cur = Some(e);
+    while let Some(c) = cur {
+        if c == target {
+            break;
+        }
+        out.push(r.name(c));
+        cur = r.parent(c);
+    }
+    out.reverse();
+    out
+}
+
+/// Resolves the type names used in reversed code (the 7.x reverses' order, `_findType` in
+/// staruml-java's code-analyzer.js): a type parameter stays a name; then a nested type of the
+/// type or of the types around it; an explicit import; a type of the same package or of the
+/// packages around it; a wildcard import; and last any type of that name, the reversed ones first.
+/// A name imported from outside the folder (`import java.util.Date;`) stays a name.
+struct Resolver<'a> {
+    target: Eid,
+    made: &'a [(String, Eid)],
+    others: &'a [(String, Eid)],
+}
+
+impl Resolver<'_> {
+    fn is_classifier(r: &Repo, e: Eid) -> bool {
+        classifier_kind(r.ty(e)).is_some() || r.kind_of(e, "UMLClassifier")
+    }
+
+    fn resolve(&self, r: &Repo, from: Eid, imports: &[Import], tparams: &[String], text: &str) -> Option<Eid> {
+        let segs = name_path(text)?;
+        let found = |e: Eid| Some(e).filter(|e| Self::is_classifier(r, *e));
+        // the scopes around `from`: its types, then its packages, up to the target
+        let mut scopes = vec![];
+        let mut cur = Some(from);
+        while let Some(c) = cur {
+            scopes.push(c);
+            if c == self.target {
+                break;
+            }
+            cur = r.parent(c);
+        }
+        if segs.len() > 1 {
+            // a qualified name: from the scopes outwards, then through an import's alias
+            for &s in &scopes {
+                if let Some(e) = walk_path(r, s, &segs).and_then(found) {
+                    return Some(e);
+                }
+            }
+            if let Some(i) = imports.iter().find(|i| !i.wildcard && i.alias == segs[0]) {
+                let mut p = i.path.clone();
+                p.extend(segs[1..].iter().cloned());
+                if let Some(e) = walk_path(r, self.target, &p).and_then(found) {
+                    return Some(e);
+                }
+                // `import * as m from './m'` then `m.Book`: the reversed Book
+                if i.module && segs.len() == 2 {
+                    return self.made.iter().find(|m| m.0 == segs[1]).map(|m| m.1);
+                }
+            }
+            // a reversed type whose package path ends with the qualifier
+            let last = segs.last().unwrap();
+            return self.made.iter().find(|m| &m.0 == last && path_from(r, self.target, m.1).ends_with(&segs)).map(|m| m.1);
+        }
+        let n = &segs[0];
+        // a type parameter of the operation or of the types around it
+        let type_param = tparams.contains(n) || scopes.iter().any(|s| r.list(*s, "templateParameters").into_iter().any(|p| r.name(p) == *n));
+        if type_param {
+            return None;
+        }
+        let child = |s: Eid| r.list(s, "ownedElements").into_iter().find(|c| r.name(*c) == *n && Self::is_classifier(r, *c));
+        // nested types of the type and the types around it
+        for &s in scopes.iter().take_while(|s| Self::is_classifier(r, **s)) {
+            if r.name(s) == *n && s != from {
+                return Some(s);
+            }
+            if let Some(e) = child(s) {
+                return Some(e);
+            }
+        }
+        // an explicit import
+        if let Some(i) = imports.iter().find(|i| !i.wildcard && i.alias == *n) {
+            if let Some(e) = walk_path(r, self.target, &i.path).and_then(found) {
+                return Some(e);
+            }
+            let real = i.path.last().unwrap_or(n);
+            if i.module {
+                // a module path: the reversed type of that name whose path shares the most with it
+                let score = |e: Eid| path_from(r, self.target, e).iter().filter(|s| i.path.contains(s)).count();
+                return self.made.iter().filter(|m| &m.0 == real).max_by_key(|m| score(m.1)).map(|m| m.1);
+            }
+            // a reversed type at that path under a package of the target (reversed into a package
+            // that already had the outer ones)
+            return self.made.iter().find(|m| &m.0 == real && i.path.ends_with(&path_from(r, self.target, m.1))).map(|m| m.1);
+        }
+        // the type's package and the packages around it
+        for &s in scopes.iter().skip_while(|s| Self::is_classifier(r, **s)) {
+            if let Some(e) = child(s) {
+                return Some(e);
+            }
+        }
+        // wildcard imports
+        for i in imports.iter().filter(|i| i.wildcard) {
+            if let Some(e) = walk_path(r, self.target, &i.path).and_then(child) {
+                return Some(e);
+            }
+        }
+        self.made.iter().chain(self.others.iter()).find(|m| m.0 == *n).map(|m| m.1)
+    }
 }
 
 /// Import reversed units under `target`: packages merged by name, types merged by name in their
 /// package, members deduplicated, then super types, typed fields (as associations when asked),
-/// operations and parameters. Returns the number of types.
+/// operations and parameters, with type names resolved through each file's imports and packages.
+/// Returns the number of types.
 pub fn import_units(r: &mut Repo, target: Eid, units: Vec<Unit>, o: &RevOpts) -> usize {
     let mut pend: Vec<Pending> = vec![];
     fn child_pkg(r: &mut Repo, parent: Eid, name: &str) -> Eid {
@@ -765,7 +989,7 @@ pub fn import_units(r: &mut Repo, target: Eid, units: Vec<Unit>, o: &RevOpts) ->
         }
         r.create("UMLPackage", &[("name", json!(name))], Some((parent, "ownedElements")))
     }
-    fn add_type(r: &mut Repo, owner: Eid, t: Ty, pend: &mut Vec<Pending>) {
+    fn add_type(r: &mut Repo, owner: Eid, t: Ty, unit: usize, pend: &mut Vec<Pending>) {
         let ty = match t.kind {
             Kind::Class => "UMLClass",
             Kind::Interface => "UMLInterface",
@@ -788,20 +1012,28 @@ pub fn import_units(r: &mut Repo, target: Eid, units: Vec<Unit>, o: &RevOpts) ->
                 if t.is_abstract && t.kind == Kind::Class {
                     r.set(e, "isAbstract", json!(true));
                 }
-                for g in &t.generics {
-                    r.create("UMLTemplateParameter", &[("name", json!(g))], Some((e, "templateParameters")));
+                if t.is_leaf {
+                    r.set(e, "isFinalSpecialization", json!(true));
+                    r.set(e, "isLeaf", json!(true));
                 }
                 e
             }
         };
+        // the template parameters (their bounds are typed once every type exists)
+        if r.list(eid, "templateParameters").is_empty() {
+            for g in &t.generics {
+                r.create("UMLTemplateParameter", &[("name", json!(g))], Some((eid, "templateParameters")));
+            }
+        }
         let mut t = t;
         for n in std::mem::take(&mut t.nested) {
-            add_type(r, eid, n, pend);
+            add_type(r, eid, n, unit, pend);
         }
-        pend.push(Pending { eid, ty: t });
+        pend.push(Pending { eid, ty: t, unit });
     }
     let mut count = 0;
-    for u in units {
+    let mut imports: Vec<Vec<Import>> = vec![];
+    for (k, u) in units.into_iter().enumerate() {
         let mut owner = target;
         for n in &u.ns {
             if !n.is_empty() {
@@ -809,30 +1041,54 @@ pub fn import_units(r: &mut Repo, target: Eid, units: Vec<Unit>, o: &RevOpts) ->
             }
         }
         for t in u.types {
-            add_type(r, owner, t, &mut pend);
+            add_type(r, owner, t, k, &mut pend);
         }
+        imports.push(u.imports);
     }
     // the types by simple name: the reversed ones first, then the model's others
     let made: Vec<(String, Eid)> = pend.iter().map(|p| (r.name(p.eid), p.eid)).collect();
     let others: Vec<(String, Eid)> = r.all_of("UMLClassifier").into_iter().map(|c| (r.name(c), c)).collect();
-    let find = |n: &str| made.iter().chain(others.iter()).find(|m| m.0 == n && !n.is_empty()).map(|m| m.1);
-    let set_type = |r: &mut Repo, e: Eid, ty: &str| {
-        if ty.is_empty() {
+    let res = Resolver { target, made: &made, others: &others };
+    // a type name: a reference to the classifier it resolves to, else the name as written
+    let set_type = |r: &mut Repo, e: Eid, field: &str, ty: &str, from: Eid, imp: &[Import], tp: &[String]| {
+        if ty.trim().is_empty() {
             return;
         }
-        match find(&base_name(ty)).filter(|_| base_name(ty) == ty.trim()) {
-            Some(c) => r.set_ref(e, "type", Some(c)),
-            None => r.set(e, "type", json!(ty)),
+        match res.resolve(r, from, imp, tp, ty) {
+            Some(c) => r.set_ref(e, field, Some(c)),
+            None => r.set(e, field, json!(ty.trim())),
         }
+    };
+    let sig_of = |ty: &str| {
+        let (elem, mult) = element_type(ty);
+        format!("{}{}", base_name(&elem), if mult.is_empty() { "" } else { "*" })
     };
     for p in &pend {
         count += 1;
         let e = p.eid;
         let t = &p.ty;
+        let imp: &[Import] = imports.get(p.unit).map(|v| v.as_slice()).unwrap_or(&[]);
         let public = |v: &str| !o.public_only || v == "public" || v.is_empty();
-        for l in &t.literals {
+        // the template parameters' bounds and defaults
+        let tps = r.list(e, "templateParameters");
+        for (k, (bound, default)) in t.gen_bounds.iter().enumerate() {
+            let Some(&tp) = tps.get(k) else { break };
+            if !bound.is_empty() && r.str(tp, "parameterType").is_empty() && r.refd(tp, "parameterType").is_none() {
+                set_type(r, tp, "parameterType", &raw_name(bound), e, imp, &[]);
+                if raw_name(bound) != bound.trim() {
+                    r.set(tp, "parameterType", json!(bound.trim()));
+                }
+            }
+            if !default.is_empty() && r.str(tp, "defaultValue").is_empty() {
+                r.set(tp, "defaultValue", json!(default));
+            }
+        }
+        for (k, l) in t.literals.iter().enumerate() {
             if !r.list(e, "literals").into_iter().any(|x| r.name(x) == *l) {
-                r.create("UMLEnumerationLiteral", &[("name", json!(l))], Some((e, "literals")));
+                let lit = r.create("UMLEnumerationLiteral", &[("name", json!(l))], Some((e, "literals")));
+                if let Some(d) = t.literal_docs.get(k).filter(|d| !d.is_empty()) {
+                    r.set(lit, "documentation", json!(d));
+                }
             }
         }
         for f in &t.fields {
@@ -844,7 +1100,7 @@ pub fn import_units(r: &mut Repo, target: Eid, units: Vec<Unit>, o: &RevOpts) ->
             if !f.mult.is_empty() && mult.is_empty() {
                 mult = f.mult.clone();
             }
-            let target_cls = find(&base_name(&elem)).filter(|_| base_name(&elem) == elem.trim()).filter(|c| r.kind_of(*c, "UMLClassifier"));
+            let target_cls = res.resolve(r, e, imp, &[], &elem).filter(|c| r.kind_of(*c, "UMLClassifier"));
             if o.association && !f.is_static {
                 if let Some(tc) = target_cls {
                     let a = r.create("UMLAssociation", &[], Some((e, "ownedElements")));
@@ -858,6 +1114,10 @@ pub fn import_units(r: &mut Repo, target: Eid, units: Vec<Unit>, o: &RevOpts) ->
                     if !mult.is_empty() {
                         r.set(end, "multiplicity", json!(mult));
                     }
+                    if f.read_only {
+                        r.set(end, "isReadOnly", json!(true));
+                    }
+                    add_tags(r, end, &f.tags);
                     continue;
                 }
             }
@@ -868,13 +1128,17 @@ pub fn import_units(r: &mut Repo, target: Eid, units: Vec<Unit>, o: &RevOpts) ->
             if f.is_static {
                 r.set(a, "isStatic", json!(true));
             }
-            set_type(r, a, &elem);
+            set_type(r, a, "type", &elem, e, imp, &[]);
             if !mult.is_empty() {
                 r.set(a, "multiplicity", json!(mult));
             }
             if f.read_only {
                 r.set(a, "isReadOnly", json!(true));
             }
+            if f.is_leaf {
+                r.set(a, "isLeaf", json!(true));
+            }
+            add_tags(r, a, &f.tags);
             if !f.default.is_empty() {
                 r.set(a, "defaultValue", json!(f.default));
             }
@@ -886,13 +1150,22 @@ pub fn import_units(r: &mut Repo, target: Eid, units: Vec<Unit>, o: &RevOpts) ->
             if !public(&m.vis) {
                 continue;
             }
-            // the same operation from a header and its source file is kept once
-            if r.list(e, "operations").into_iter().any(|x| r.name(x) == m.name && r.list(x, "parameters").into_iter().filter(|p| r.str(*p, "direction") != "return").count() == m.params.len()) {
+            // the same operation from a header and its source file is kept once; overloads (other
+            // parameter types) are kept apart
+            let sig: Vec<String> = m.params.iter().map(|p| sig_of(&p.ty)).collect();
+            let same = r.list(e, "operations").into_iter().any(|x| {
+                let ps: Vec<String> = r.list(x, "parameters").into_iter().filter(|p| r.str(*p, "direction") != "return").map(|p| format!("{}{}", base_name(&views::type_name(r, p, "type")), if r.str(p, "multiplicity").is_empty() { "" } else { "*" })).collect();
+                r.name(x) == m.name && (ps == sig || (ps.len() == sig.len() && ps.iter().zip(&sig).all(|(a, b)| a.is_empty() || b.is_empty() || a == b)))
+            });
+            if same {
                 continue;
             }
             let op = r.create("UMLOperation", &[("name", json!(m.name))], Some((e, "operations")));
             if !m.vis.is_empty() && m.vis != "public" {
                 r.set(op, "visibility", json!(m.vis));
+            }
+            if !m.stereotype.is_empty() {
+                r.set(op, "stereotype", json!(m.stereotype));
             }
             if m.is_static {
                 r.set(op, "isStatic", json!(true));
@@ -900,13 +1173,23 @@ pub fn import_units(r: &mut Repo, target: Eid, units: Vec<Unit>, o: &RevOpts) ->
             if m.is_abstract {
                 r.set(op, "isAbstract", json!(true));
             }
+            if m.is_leaf {
+                r.set(op, "isLeaf", json!(true));
+            }
+            if m.concurrent {
+                r.set(op, "concurrency", json!("concurrent"));
+            }
+            add_tags(r, op, &m.tags);
             if !m.doc.is_empty() {
                 r.set(op, "documentation", json!(m.doc));
+            }
+            for g in &m.generics {
+                r.create("UMLTemplateParameter", &[("name", json!(g))], Some((op, "templateParameters")));
             }
             for p in &m.params {
                 let pe = r.create("UMLParameter", &[("name", json!(p.name))], Some((op, "parameters")));
                 let (elem, mult) = element_type(&p.ty);
-                set_type(r, pe, &elem);
+                set_type(r, pe, "type", &elem, e, imp, &m.generics);
                 if !mult.is_empty() {
                     r.set(pe, "multiplicity", json!(mult));
                 }
@@ -918,15 +1201,20 @@ pub fn import_units(r: &mut Repo, target: Eid, units: Vec<Unit>, o: &RevOpts) ->
             if !ret.is_empty() && !["void", "()", "Unit", "None", "Void"].contains(&ret) {
                 let pe = r.create("UMLParameter", &[("direction", json!("return"))], Some((op, "parameters")));
                 let (elem, mult) = element_type(ret);
-                set_type(r, pe, &elem);
+                set_type(r, pe, "type", &elem, e, imp, &m.generics);
                 if !mult.is_empty() {
                     r.set(pe, "multiplicity", json!(mult));
                 }
             }
+            // the declared exceptions, when they resolve to a classifier
+            let raised: Vec<Eid> = m.raises.iter().filter_map(|x| res.resolve(r, e, imp, &m.generics, x)).collect();
+            if !raised.is_empty() {
+                r.set_ref_list(op, "raisedExceptions", &raised);
+            }
         }
         // super types: a realization when an interface is reached from a class, else a generalization
         for (n, explicit_real) in t.supers.iter().map(|s| (s, false)).chain(t.reals.iter().map(|s| (s, true))) {
-            let Some(target) = find(&base_name(n)) else { continue };
+            let Some(target) = res.resolve(r, r.parent(e).unwrap_or(e), imp, &[], &raw_name(n)).or_else(|| res.resolve(r, e, imp, &[], &raw_name(n))) else { continue };
             if target == e {
                 continue;
             }
@@ -940,6 +1228,17 @@ pub fn import_units(r: &mut Repo, target: Eid, units: Vec<Unit>, o: &RevOpts) ->
         }
     }
     count
+}
+
+/// Tags on an element: a boolean one (checked) when the value is empty, else a string one.
+fn add_tags(r: &mut Repo, e: Eid, tags: &[(String, String)]) {
+    for (n, v) in tags {
+        if v.is_empty() {
+            r.create("Tag", &[("name", json!(n)), ("kind", json!("boolean")), ("checked", json!(true))], Some((e, "tags")));
+        } else {
+            r.create("Tag", &[("name", json!(n)), ("kind", json!("string")), ("value", json!(v))], Some((e, "tags")));
+        }
+    }
 }
 
 /// A visibility word in UML terms ("package" for Java's default, C#'s internal…).
@@ -992,7 +1291,8 @@ impl App {
     pub fn reverse_code(&mut self, l: Lang, target: Option<Eid>, dir: &Path, ms: &dyn Measure) -> Result<Vec<String>, String> {
         let never = AtomicBool::new(false);
         let mut log = vec![];
-        let src = read_sources(l, dir, &never, &mut |s| log.push(s))?.unwrap_or_default();
+        let o = rev_opts(&self.prefs, l);
+        let src = read_sources(l, dir, &o, &never, &mut |s| log.push(s))?.unwrap_or_default();
         log.extend(self.import_sources(l, target, src, ms));
         Ok(log)
     }
@@ -1090,7 +1390,7 @@ pub struct Sources {
 
 /// The first half of a reverse, on the dialog's worker thread: every source file of the folder is
 /// read and parsed, with a log line each; stops between two files when `cancel` is set (`Ok(None)`).
-pub fn read_sources(l: Lang, dir: &Path, cancel: &AtomicBool, log: &mut dyn FnMut(String)) -> Result<Option<Sources>, String> {
+pub fn read_sources(l: Lang, dir: &Path, o: &RevOpts, cancel: &AtomicBool, log: &mut dyn FnMut(String)) -> Result<Option<Sources>, String> {
     let files = source_files(dir, l);
     if files.is_empty() {
         return Err(format!("No {} source files found in {}.", l.label(), dir.display()));
@@ -1112,7 +1412,7 @@ pub fn read_sources(l: Lang, dir: &Path, cancel: &AtomicBool, log: &mut dyn FnMu
             s.errors += err as usize;
             s.tables.extend(t);
         } else {
-            let p = parse_source(l, &text, &rel);
+            let p = parse_source(l, &text, &rel, o);
             s.errors += p.errors as usize;
             s.units.extend(p.units);
         }
@@ -1162,7 +1462,7 @@ impl Job {
 
     /// Start a Reverse: the files are read and parsed on the worker thread; the import into the
     /// model happens on the main thread when they are all read.
-    pub fn reverse(l: Lang, dir: PathBuf, target: Option<Eid>, ctx: Option<egui::Context>) -> Job {
+    pub fn reverse(l: Lang, dir: PathBuf, o: RevOpts, target: Option<Eid>, ctx: Option<egui::Context>) -> Job {
         let cancel = Arc::new(AtomicBool::new(false));
         let (tx, rx) = mpsc::channel();
         let c = cancel.clone();
@@ -1170,7 +1470,7 @@ impl Job {
         std::thread::spawn(move || {
             let t2 = tx.clone();
             let ctx2 = ctx.clone();
-            let res = read_sources(l, &d2, &c, &mut |s| {
+            let res = read_sources(l, &d2, &o, &c, &mut |s| {
                 let _ = t2.send(JobMsg::Log(s));
                 if let Some(x) = &ctx2 {
                     x.request_repaint();
@@ -1426,7 +1726,8 @@ impl App {
                 Tab::Reverse => {
                     self.prefs.set(&format!("{k}.lastSourceFolder"), json!(d.src_dir.trim()));
                     self.prefs.flush();
-                    d.job = Some(Job::reverse(l, PathBuf::from(d.src_dir.trim()), d.target, Some(ctx.clone())));
+                    let o = rev_opts(&self.prefs, l);
+                    d.job = Some(Job::reverse(l, PathBuf::from(d.src_dir.trim()), o, d.target, Some(ctx.clone())));
                 }
             }
         }

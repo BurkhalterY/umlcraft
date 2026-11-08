@@ -209,7 +209,7 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
             types[k].methods.push(m);
         }
     }
-    Parsed { units: vec![Unit { ns: rel.to_vec(), types }], errors: !lex::balanced(&t) }
+    Parsed { units: vec![Unit { ns: rel.to_vec(), types, ..Default::default() }], errors: !lex::balanced(&t) }
 }
 
 /// A struct's members: fields, a first member of struct type named `base`/`super`/`parent` as the

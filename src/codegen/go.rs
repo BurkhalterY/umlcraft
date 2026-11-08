@@ -296,7 +296,7 @@ pub fn parse(src: &str) -> Parsed {
         }
     }
     let ns = if pkg.is_empty() || pkg == "main" { vec![] } else { vec![pkg] };
-    Parsed { units: vec![Unit { ns, types }], errors: !lex::balanced(&t) }
+    Parsed { units: vec![Unit { ns, types, ..Default::default() }], errors: !lex::balanced(&t) }
 }
 
 fn type_spec(h: &[T], block: Option<&[T]>, doc: &str, types: &mut Vec<Ty>, aliases: &mut Vec<String>) {

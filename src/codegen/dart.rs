@@ -192,8 +192,9 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
         if h[k].is("mixin") {
             ty.stereotype = "mixin".into();
         }
-        let (g, i) = lex::generics(h, k + 2);
-        ty.generics = g;
+        let (g, i) = lex::generic_params(h, k + 2);
+        ty.generics = g.iter().map(|p| p.0.clone()).collect();
+        ty.gen_bounds = g.into_iter().map(|p| (p.1, p.2)).collect();
         let (s, r) = super::java::super_lists(&h[i.min(h.len())..], &["extends", "with", "on"], &["implements"], &[]);
         ty.supers = s;
         ty.reals = r;
@@ -221,7 +222,7 @@ pub fn parse(src: &str, rel: &[String]) -> Parsed {
         }
         types.push(ty);
     }
-    Parsed { units: vec![Unit { ns: rel.to_vec(), types }], errors: !lex::balanced(&t) }
+    Parsed { units: vec![Unit { ns: rel.to_vec(), types, ..Default::default() }], errors: !lex::balanced(&t) }
 }
 
 fn member(t: &mut Ty, class: &str, head: &[T], has_body: bool) {
@@ -263,7 +264,7 @@ fn member(t: &mut Ty, class: &str, head: &[T], has_body: bool) {
                     continue;
                 }
                 let abs = !has_body && arrow.is_none() && !d.mods.iter().any(|m| m == "external");
-                t.methods.push(Method { name, params: ps.into_iter().map(|(n, ty, def)| Param { name: n, ty, default: def }).collect(), ret: d.ty, vis, is_static, is_abstract: abs, doc: doc.clone() });
+                t.methods.push(Method { name, params: ps.into_iter().map(|(n, ty, def)| Param { name: n, ty, default: def }).collect(), ret: d.ty, vis, is_static, is_abstract: abs, doc: doc.clone() , ..Default::default() });
             }
             None => {
                 let read_only = d.mods.iter().any(|m| m == "final" || m == "const");

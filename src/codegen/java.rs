@@ -218,6 +218,9 @@ pub fn super_lists(h: &[T], ext: &[&str], imp: &[&str], stop: &[&str]) -> (Vec<S
     (supers, reals)
 }
 
+/// The java.util collections the 7.x reverse reads as multiplicity `*` (code-analyzer.js).
+const COLLECTIONS: [&str; 13] = ["Collection", "Set", "SortedSet", "NavigableSet", "HashSet", "TreeSet", "LinkedHashSet", "List", "ArrayList", "LinkedList", "Deque", "ArrayDeque", "Queue"];
+
 pub const MODS: [&str; 13] = ["public", "protected", "private", "static", "final", "abstract", "synchronized", "native", "transient", "volatile", "strictfp", "default", "sealed"];
 
 pub fn parse(src: &str) -> Parsed {
@@ -227,8 +230,18 @@ pub fn parse(src: &str) -> Parsed {
         let h = st.head;
         if h.first().map(|x| x.is("package")).unwrap_or(false) {
             unit.ns = lex::join(&h[1..]).split('.').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+        } else if h.first().map(|x| x.is("import")).unwrap_or(false) {
+            // `import a.b.C;`, `import a.b.*;`; static imports name members, not types
+            if !h.get(1).map(|x| x.is("static")).unwrap_or(false) {
+                unit.imports.push(Import::of(&lex::join(&h[1..]), &[]));
+            }
         } else if let (Some(b), Some(ty)) = (st.block, type_head(h)) {
-            unit.types.push(read_type(ty, b, false));
+            let mut ty = read_type(ty, b, false);
+            // the documentation comment may come before the annotations
+            if ty.doc.is_empty() {
+                ty.doc = lex::doc_of(h);
+            }
+            unit.types.push(ty);
         }
     }
     Parsed { errors: !lex::balanced(&t), units: vec![unit] }
@@ -255,15 +268,18 @@ fn read_type(h: &[T], body: &[T], in_interface: bool) -> Ty {
     };
     let is_annotation = k > 0 && h[k - 1].is("@");
     let name = h.get(k + 1).map(|x| x.s.clone()).unwrap_or_default();
-    let mut t = Ty::new(kind, &name);
+    // an annotation type is a class «annotationType» (the 7.x reverse); its elements read as an interface's
+    let mut t = Ty::new(if is_annotation { Kind::Class } else { kind }, &name);
     t.doc = lex::doc_of(h);
     t.vis = vis_of(&mods, if in_interface { "public" } else { "package" });
     t.is_abstract = mods.iter().any(|m| m == "abstract");
+    t.is_leaf = mods.iter().any(|m| m == "final");
     if is_annotation {
         t.stereotype = "annotationType".into();
     }
-    let (g, mut i) = lex::generics(h, k + 2);
-    t.generics = g;
+    let (g, mut i) = lex::generic_params(h, k + 2);
+    t.generics = g.iter().map(|p| p.0.clone()).collect();
+    t.gen_bounds = g.into_iter().map(|p| (p.1, p.2)).collect();
     // a record's components are its fields
     if i < h.len() && h[i].is("(") {
         let j = lex::close(h, i);
@@ -290,6 +306,7 @@ fn members(t: &mut Ty, body: &[T], interface: bool) {
             let p = lex::skip_annotations(p);
             if let Some(x) = p.first().filter(|x| x.id()) {
                 t.literals.push(x.s.clone());
+                t.literal_docs.push(lex::doc_of(p));
             }
         }
         body = &body[(end + 1).min(body.len())..];
@@ -300,17 +317,24 @@ fn members(t: &mut Ty, body: &[T], interface: bool) {
         }
         if let Some(h) = type_head(st.head) {
             if let Some(b) = st.block {
-                t.nested.push(read_type(h, b, interface));
+                let mut n = read_type(h, b, interface);
+                if n.doc.is_empty() {
+                    n.doc = lex::doc_of(st.head);
+                }
+                t.nested.push(n);
                 continue;
             }
         }
-        for d in lex::typed_decls(st.head, &MODS) {
-            member(t, d, lex::doc_of(st.head), st.block.is_some(), interface);
+        // annotations anywhere in the declaration are skipped, and a method's own generics read
+        let head = lex::strip_annotations(st.head);
+        let (head, mg) = lex::take_method_generics(&head, &MODS);
+        for d in lex::typed_decls(&head, &MODS) {
+            member(t, d, lex::doc_of(&head), st.block.is_some(), interface, &mg);
         }
     }
 }
 
-fn member(t: &mut Ty, d: Decl, doc: String, has_body: bool, interface: bool) {
+fn member(t: &mut Ty, d: Decl, doc: String, has_body: bool, interface: bool, generics: &[(String, String, String)]) {
     if d.name.is_empty() {
         return;
     }
@@ -322,8 +346,20 @@ fn member(t: &mut Ty, d: Decl, doc: String, has_body: bool, interface: bool) {
             if d.ty.is_empty() && d.name != t.name {
                 return;
             }
-            let _ = ctor;
+            // `throws A, B` after the parameters
+            let raises = d.tail.split_once("throws").map(|(_, r)| r.split(',').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()).unwrap_or_default();
+            let mut tags: Vec<(String, String)> = d.mods.iter().filter(|m| *m == "native" || *m == "strictfp").map(|m| (m.clone(), String::new())).collect();
+            // an annotation type's element default (`String value() default "";`)
+            if let Some((_, v)) = d.tail.split_once("default") {
+                tags.push(("default".into(), v.trim().to_string()));
+            }
             t.methods.push(Method {
+                is_leaf: d.mods.iter().any(|m| m == "final"),
+                concurrent: d.mods.iter().any(|m| m == "synchronized"),
+                tags,
+                stereotype: if ctor { "constructor".into() } else { String::new() },
+                generics: generics.iter().map(|g| g.0.clone()).collect(),
+                raises,
                 name: d.name,
                 params: ps.into_iter().map(|(n, ty, def)| Param { name: n, ty, default: def }).collect(),
                 ret: d.ty,
@@ -333,6 +369,17 @@ fn member(t: &mut Ty, d: Decl, doc: String, has_body: bool, interface: bool) {
                 doc,
             });
         }
-        None => t.fields.push(Field { name: d.name, ty: d.ty, vis, is_static: is_static || interface, read_only: d.mods.iter().any(|m| m == "final") || interface, default: d.default, doc, ..Default::default() }),
+        None => {
+            let fin = d.mods.iter().any(|m| m == "final") || interface;
+            let mut tags: Vec<(String, String)> = d.mods.iter().filter(|m| *m == "volatile" || *m == "transient").map(|m| (m.clone(), String::new())).collect();
+            // the declared collection of a `List<Book>` field (the 7.x reverse's `collection` tag)
+            if let Some(head) = d.ty.split('<').next().filter(|_| d.ty.contains('<')) {
+                let head = head.rsplit('.').next().unwrap_or(head).trim();
+                if COLLECTIONS.contains(&head) {
+                    tags.push(("collection".into(), head.to_string()));
+                }
+            }
+            t.fields.push(Field { name: d.name, ty: d.ty, vis, is_static: is_static || interface, read_only: fin, is_leaf: fin, default: d.default, doc, tags, ..Default::default() })
+        }
     }
 }

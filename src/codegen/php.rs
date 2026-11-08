@@ -186,12 +186,32 @@ fn ns_path(h: &[T]) -> Vec<String> {
 }
 
 fn space(t: &[T], ns: Vec<String>, units: &mut Vec<Unit>) {
-    let mut unit = Unit { ns: ns.clone(), types: vec![] };
+    let mut unit = Unit { ns: ns.clone(), types: vec![], ..Default::default() };
     for st in lex::statements(t, false) {
         let mut h = lex::skip_annotations(st.head);
         // `<?php` and `?>` around the code
         while h.len() >= 2 && h[0].is("<") && h[1].is("?") {
             h = &h[if h.get(2).map(|x| x.is("php")).unwrap_or(false) { 3 } else { 2 }..];
+        }
+        if h.first().map(|x| x.is("use")).unwrap_or(false) && !h.get(1).map(|x| x.is("function") || x.is("const")).unwrap_or(false) {
+            // `use A\B\C;`, `use A\B\C as D;` and `use A\B\{C, D as E};`
+            let prefix = lex::join(&h[1..]);
+            let items: Vec<String> = match st.block {
+                Some(b) => lex::commas(b).into_iter().map(|p| format!("{prefix}{}", lex::join(p))).collect(),
+                None => prefix.split(',').map(|s| s.to_string()).collect(),
+            };
+            for it in items {
+                let (path, alias) = match it.split_once(" as ") {
+                    Some((p, a)) => (p.to_string(), Some(a.trim().to_string())),
+                    None => (it.clone(), None),
+                };
+                let mut i = Import::of(&path, &["\\"]);
+                if let Some(a) = alias {
+                    i.alias = a;
+                }
+                unit.imports.push(i);
+            }
+            continue;
         }
         if h.first().map(|x| x.is("namespace")).unwrap_or(false) {
             match st.block {
@@ -295,7 +315,7 @@ fn read_type(h: &[T], body: &[T]) -> Option<Ty> {
                 continue;
             }
             let ret = if q + 1 < h.len() && h[q + 1].is(":") { lex::join(&h[q + 2..]) } else { String::new() };
-            t.methods.push(Method { name: n.s.clone(), params, ret, vis, is_static, is_abstract: mods.iter().any(|m| m == "abstract") || (kind == Kind::Interface && st.block.is_none()), doc });
+            t.methods.push(Method { name: n.s.clone(), params, ret, vis, is_static, is_abstract: mods.iter().any(|m| m == "abstract") || (kind == Kind::Interface && st.block.is_none()), doc , ..Default::default() });
             continue;
         }
         // properties: `[type] $a [= v], $b`

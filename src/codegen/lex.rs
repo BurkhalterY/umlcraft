@@ -238,7 +238,8 @@ pub fn statements(t: &[T], nl: bool) -> Vec<Stmt<'_>> {
                     let j = close(t, i);
                     // an initializer (`= { … }`, `= new X { … }`) does not end the statement
                     let head = &t[start..i];
-                    let init = find_top(head, "=", false).is_some() || find_top(head, "=>", false).is_some();
+                    // (an `=` inside `<…>` is a template default: `template <int N = 3> class X {`)
+                    let init = find_top(head, "=", true).is_some() || find_top(head, "=>", false).is_some();
                     if init && !nl {
                         i = j + 1;
                         continue;
@@ -355,12 +356,88 @@ pub fn doc_of(t: &[T]) -> String {
 /// Generic parameter names of `<T, U extends X>` starting at `t[i]` (`<`); returns them and the
 /// index after `>`.
 pub fn generics(t: &[T], i: usize) -> (Vec<String>, usize) {
+    let (ps, j) = generic_params(t, i);
+    (ps.into_iter().map(|p| p.0).collect(), j)
+}
+
+/// The generic parameters of `<T, U extends X = Y>` at `t[i]` (`<`) as (name, bound, default):
+/// `T extends A` (Java, TypeScript, Dart), `T : A` (Kotlin, Swift, Rust, C#), `typename T = int`
+/// and `int N` (C++), `in T`/`out T`/`reified T` (C#, Kotlin), `const N: usize` (Rust). Returns them
+/// and the index after `>`.
+pub fn generic_params(t: &[T], i: usize) -> (Vec<(String, String, String)>, usize) {
     if i >= t.len() || !t[i].is("<") {
         return (vec![], i);
     }
     let j = close(t, i);
-    let names = commas(&t[i + 1..j]).iter().filter_map(|p| p.iter().find(|x| x.id() && !x.is("in") && !x.is("out") && !x.is("const") && !x.is("typename") && !x.is("class")).map(|x| x.s.clone())).collect();
-    (names, j + 1)
+    let mut out = vec![];
+    for p in commas(&t[i + 1..j.max(i + 1)]) {
+        let (left, default) = match find_top(p, "=", true) {
+            Some(e) => (&p[..e], join(&p[e + 1..])),
+            None => (p, String::new()),
+        };
+        let cut = left.iter().position(|x| x.is("extends") || x.is("super")).or_else(|| find_top(left, ":", true));
+        let (head, bound) = match cut {
+            Some(c) => (&left[..c], join(&left[c + 1..])),
+            None => (left, String::new()),
+        };
+        let Some(name) = head.iter().rev().find(|x| x.id()) else { continue };
+        if name.s.starts_with('\'') {
+            continue;
+        }
+        out.push((name.s.clone(), bound, default));
+    }
+    (out, j + 1)
+}
+
+/// Remove the annotations (`@Name`, `@a.b.Name(…)`) found anywhere in a declaration's tokens, as in
+/// `public @Nullable String name` or `List<@NonNull String>`; `@interface` stays.
+pub fn strip_annotations(t: &[T]) -> Vec<T> {
+    let mut out = vec![];
+    let mut i = 0;
+    while i < t.len() {
+        if t[i].is("@") && t.get(i + 1).map(|x| x.id() && !x.is("interface")).unwrap_or(false) {
+            let mut k = i + 2;
+            while k + 1 < t.len() && t[k].is(".") && t[k + 1].id() {
+                k += 2;
+            }
+            if k < t.len() && t[k].is("(") {
+                k = close(t, k) + 1;
+            }
+            // the documentation comment before the annotation belongs to the declaration
+            if !t[i].doc.is_empty() {
+                if let Some(n) = t.get(k.min(t.len())) {
+                    let mut n = n.clone();
+                    if n.doc.is_empty() {
+                        n.doc = t[i].doc.clone();
+                    }
+                    out.push(n);
+                    i = k + 1;
+                    continue;
+                }
+            }
+            i = k;
+            continue;
+        }
+        out.push(t[i].clone());
+        i += 1;
+    }
+    out
+}
+
+/// A method's own generics before its return type (`public <T extends X> T get()`): the tokens
+/// without them, and the parameters.
+pub fn take_method_generics(t: &[T], mods: &[&str]) -> (Vec<T>, Vec<(String, String, String)>) {
+    let mut i = 0;
+    while i < t.len() && t[i].id() && mods.contains(&t[i].s.as_str()) {
+        i += 1;
+    }
+    if i < t.len() && t[i].is("<") {
+        let (g, j) = generic_params(t, i);
+        let mut out: Vec<T> = t[..i].to_vec();
+        out.extend(t[j.min(t.len())..].iter().cloned());
+        return (out, g);
+    }
+    (t.to_vec(), vec![])
 }
 
 /// A declaration in the `Type name` languages (Java, C#, C++, C, Dart): its modifiers, type, name,
@@ -373,6 +450,8 @@ pub struct Decl {
     pub params: Option<Vec<(String, String, String)>>,
     pub default: String,
     pub tail: String,
+    /// a method's own generics after its name (`T Get<T>(…)`)
+    pub generics: Vec<String>,
 }
 
 /// Read `mods Type name(params) tail` or `mods Type a = 1, b` (`mods` lists the modifier words).
@@ -396,6 +475,27 @@ pub fn typed_decls(t: &[T], mods: &[&str]) -> Vec<Decl> {
         }
         let mut name = rest[p - 1].s.clone();
         let mut ty_end = p - 1;
+        // `Name<T, U>(…)`: the generics between the name and the parameters
+        if rest[p - 1].is(">") {
+            let mut depth = 0;
+            let mut open = None;
+            for k in (0..p).rev() {
+                if rest[k].is(">") {
+                    depth += 1;
+                } else if rest[k].is("<") {
+                    depth -= 1;
+                    if depth == 0 {
+                        open = Some(k);
+                        break;
+                    }
+                }
+            }
+            if let Some(o) = open.filter(|o| *o > 0 && rest[o - 1].id()) {
+                d.generics = generics(rest, o).0;
+                name = rest[o - 1].s.clone();
+                ty_end = o - 1;
+            }
+        }
         if p >= 2 && rest[p - 2].is("~") {
             name = format!("~{name}");
             ty_end = p - 2;
@@ -419,10 +519,20 @@ pub fn typed_decls(t: &[T], mods: &[&str]) -> Vec<Decl> {
             Some(e) => (&part[..e], join(&part[e + 1..])),
             None => (part, String::new()),
         };
+        // array brackets after the name (`int a[10]`, `T cells[N]`) belong to the type
+        let mut left = left;
+        let mut array = false;
+        while left.last().map(|x| x.is("]")).unwrap_or(false) {
+            let Some(open) = (0..left.len()).rev().find(|k| left[*k].is("[") && close(left, *k) == left.len() - 1) else { break };
+            if open == 0 || !left[open - 1].id() && !left[open - 1].is("]") {
+                break;
+            }
+            left = &left[..open];
+            array = true;
+        }
         let Some(ni) = left.iter().rposition(|x| x.id()) else { continue };
         let mut e = Decl { mods: d.mods.clone(), name: left[ni].s.clone(), default, ..Default::default() };
-        // array brackets after the name (`int a[10]`) belong to the type
-        let after = join(&left[ni + 1..]);
+        let after = if array { "[]".to_string() } else { join(&left[ni + 1..]) };
         if k == 0 {
             e.ty = format!("{}{}", join(&left[..ni]), if after.starts_with('[') { "[]" } else { "" });
         } else {
