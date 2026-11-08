@@ -75,6 +75,9 @@ pub trait Canvas: Measure {
         let pts = [P { x: r.x, y: r.y }, P { x: r.x + r.w, y: r.y }, P { x: r.x + r.w, y: r.y + r.h }, P { x: r.x, y: r.y + r.h }];
         self.polygon(&pts, fill, stroke);
     }
+    /// The font face of the texts that follow (a view's font face, core.js:1475); surfaces that
+    /// know only one face keep it, and `face()` tells the current one.
+    fn set_face(&mut self, _face: &str) {}
 }
 
 pub(crate) fn color(r: &Repo, v: Eid, key: &str, def: Rgba) -> Rgba {
@@ -104,16 +107,20 @@ pub(crate) fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
     let b = R { x: r.f(lv, "left"), y: r.f(lv, "top"), w: r.f(lv, "width"), h: r.f(lv, "height").max(13.0) };
     let align = r.val(lv, "horizontalAlignment").and_then(|v| v.as_i64()).unwrap_or(2);
     let (style, size) = (font_style(&font), font_size(&font));
+    // the label's own face, then the host's again
+    let face = font.split(';').next().filter(|f| !f.is_empty()).unwrap_or("Arial").to_string();
+    let host_face = c.face();
+    c.set_face(&face);
     if r.bool(lv, "wordWrap") {
         // one line per row of the label, broken where the layout broke it
-        let face = font.split(';').next().filter(|f| !f.is_empty()).unwrap_or("Arial").to_string();
         let lines = views::wrap_text(&views::Scaled { ms: &*c, face, size }, &t, b.w, style);
         for (i, l) in lines.iter().enumerate() {
             c.text(l, R { y: b.y + i as f64 * size, h: size, ..b }, align, style, size, fc, r.bool(lv, "underline"));
         }
-        return;
+    } else {
+        c.text(&t, b, align, style, size, fc, r.bool(lv, "underline"));
     }
-    c.text(&t, b, align, style, size, fc, r.bool(lv, "underline"));
+    c.set_face(&host_face);
 }
 
 pub(crate) fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid) {
@@ -1296,6 +1303,8 @@ pub fn draw_diagram(c: &mut dyn Canvas, r: &Repo, d: Eid, info: &HashMap<Eid, In
         if !r.alive(v) || matches!(r.raw(v, "visible"), Some(serde_json::Value::Bool(false))) {
             continue;
         }
+        // each view's texts in its own font face
+        c.set_face(&views::view_font(r, v).0);
         if is_edge(r, v) {
             draw_edge(c, r, v, info);
         } else if is_node(r, v) {
@@ -1357,6 +1366,20 @@ pub fn bounds(r: &Repo, d: Eid) -> Option<R> {
 pub struct Svg<'a> {
     pub out: String,
     pub measure: &'a dyn Measure,
+    /// the font face of the texts being written
+    pub face: String,
+}
+
+impl Svg<'_> {
+    /// The font-family of a text: the view's face first, then the Arial-compatible ones.
+    fn family(&self) -> String {
+        let base = "Arial, Liberation Sans, Arimo, sans-serif";
+        if crate::fonts::is_default(&self.face) {
+            base.into()
+        } else {
+            format!("'{}', {base}", esc(&self.face.replace('\'', "")))
+        }
+    }
 }
 
 fn hex(c: Rgba) -> String {
@@ -1378,11 +1401,20 @@ fn pts_attr(pts: &[P]) -> String {
 
 impl Measure for Svg<'_> {
     fn width(&self, text: &str, style: u8) -> f64 {
-        self.measure.width(text, style)
+        self.measure.width_face(text, style, &self.face)
+    }
+    fn width_face(&self, text: &str, style: u8, face: &str) -> f64 {
+        self.measure.width_face(text, style, face)
+    }
+    fn face(&self) -> String {
+        self.face.clone()
     }
 }
 
 impl Canvas for Svg<'_> {
+    fn set_face(&mut self, face: &str) {
+        self.face = face.to_string();
+    }
     fn image(&mut self, b: R, data_url: &str) {
         self.out += &format!(
             "<image x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" preserveAspectRatio=\"none\" href=\"{}\"/>\n",
@@ -1406,7 +1438,8 @@ impl Canvas for Svg<'_> {
         let (x, y) = (b.x + b.w / 2.0, b.y + b.h / 2.0);
         let weight = if style & 1 != 0 { " font-weight=\"bold\"" } else { "" };
         self.out += &format!(
-            "<text x=\"{x:.2}\" y=\"{y:.2}\" transform=\"rotate(-90 {x:.2} {y:.2})\" font-family=\"Arial, Liberation Sans, Arimo, sans-serif\" font-size=\"{size}\" text-anchor=\"middle\" dominant-baseline=\"central\"{weight}{}>{}</text>\n",
+            "<text x=\"{x:.2}\" y=\"{y:.2}\" transform=\"rotate(-90 {x:.2} {y:.2})\" font-family=\"{}\" font-size=\"{size}\" text-anchor=\"middle\" dominant-baseline=\"central\"{weight}{}>{}</text>\n",
+            self.family(),
             paint("fill", Some(color)),
             esc(t)
         );
@@ -1421,8 +1454,9 @@ impl Canvas for Svg<'_> {
         let italic = if style & 2 != 0 { " font-style=\"italic\"" } else { "" };
         let deco = if underline { " text-decoration=\"underline\"" } else { "" };
         self.out += &format!(
-            "<text x=\"{x:.2}\" y=\"{:.2}\" font-family=\"Arial, Liberation Sans, Arimo, sans-serif\" font-size=\"{size}\" text-anchor=\"{anchor}\" dominant-baseline=\"central\"{weight}{italic}{deco}{}>{}</text>\n",
+            "<text x=\"{x:.2}\" y=\"{:.2}\" font-family=\"{}\" font-size=\"{size}\" text-anchor=\"{anchor}\" dominant-baseline=\"central\"{weight}{italic}{deco}{}>{}</text>\n",
             b.y + b.h / 2.0,
+            self.family(),
             paint("fill", Some(color)),
             esc(t)
         );
@@ -1441,7 +1475,7 @@ pub fn to_svg_sized(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn M
     let m = BOUNDING_BOX_EXPAND;
     let (x, y) = (b.x - m, b.y - m);
     let (w, h) = (b.w + 2.0 * m + extra, b.h + 2.0 * m + extra);
-    let mut svg = Svg { out: String::new(), measure };
+    let mut svg = Svg { out: String::new(), measure, face: "Arial".into() };
     draw_diagram(&mut svg, r, d, info);
     Some(format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w:.0}\" height=\"{h:.0}\" viewBox=\"{x:.2} {y:.2} {w:.2} {h:.2}\">\n{}</svg>\n",
@@ -1461,6 +1495,10 @@ pub fn to_png(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure
     let svg = to_svg_sized(r, d, info, measure, PNG_EXTRA).ok_or("The diagram is empty.")?;
     let mut opt = usvg::Options::default();
     opt.fontdb_mut().load_system_fonts();
+    // the user fonts draw the faces they name (font-manager.js:132-140)
+    for f in crate::fonts::user_font_files() {
+        let _ = opt.fontdb_mut().load_font_file(f);
+    }
     let tree = usvg::Tree::from_str(&svg, &opt).map_err(|e| e.to_string())?;
     let size = tree.size();
     let (w, h) = ((size.width() * scale).ceil() as u32, (size.height() * scale).ceil() as u32);

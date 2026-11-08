@@ -67,7 +67,7 @@ impl App {
                         p.rect_filled(r, 0.0, Color32::WHITE);
                         let info = crate::views::layout_diagram(&mut self.repo, &ms, d);
                         let (s, at) = thumb_fit(crate::render::bounds(&self.repo, d));
-                        let mut c = ScreenCanvas { painter: &p, origin: r.min, scroll: at, zoom: s, measure: EguiMeasure { ctx: ui.ctx().clone() } };
+                        let mut c = ScreenCanvas { painter: &p, origin: r.min, scroll: at, zoom: s, measure: EguiMeasure { ctx: ui.ctx().clone() }, face: "Arial".into() };
                         crate::render::draw_diagram(&mut c, &self.repo, d, &info);
                         let current = self.diagram == Some(d);
                         let chosen = self.focus == Some(d);

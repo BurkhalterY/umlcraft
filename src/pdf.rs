@@ -181,6 +181,7 @@ struct PdfCanvas<'a> {
     out: String,
     measure: &'a dyn Measure,
     sh: &'a mut Shared,
+    face: String,
 }
 
 /// Text laid out in the PDF fonts: runs of glyphs, one per face, and the width.
@@ -281,7 +282,13 @@ impl PdfCanvas<'_> {
 
 impl Measure for PdfCanvas<'_> {
     fn width(&self, text: &str, style: u8) -> f64 {
-        self.measure.width(text, style)
+        self.measure.width_face(text, style, &self.face)
+    }
+    fn width_face(&self, text: &str, style: u8, face: &str) -> f64 {
+        self.measure.width_face(text, style, face)
+    }
+    fn face(&self) -> String {
+        self.face.clone()
     }
 }
 
@@ -294,6 +301,12 @@ fn path_of(pts: &[P]) -> String {
 }
 
 impl Canvas for PdfCanvas<'_> {
+    fn set_face(&mut self, face: &str) {
+        if self.face != face {
+            self.face = face.to_string();
+            self.sh.fonts.set_face(face);
+        }
+    }
     fn polyline(&mut self, pts: &[P], color: Rgba, dashed: bool) {
         if pts.len() < 2 {
             return;
@@ -500,7 +513,7 @@ impl App {
                 .filter(|s| s.is_finite() && *s > 0.0)
                 .unwrap_or(1.0)
                 .min(1.0);
-            let mut c = PdfCanvas { out: String::new(), measure: ms, sh: &mut sh };
+            let mut c = PdfCanvas { out: String::new(), measure: ms, sh: &mut sh, face: "Arial".into() };
             // PDF's origin is the bottom-left corner: turn the page so y goes down, as in the diagram
             let _ = writeln!(c.out, "1 0 0 -1 0 {} cm 1 w 0 J 0 j", num(page.1));
             let _ = writeln!(c.out, "q {} 0 0 {} {MARGIN} {MARGIN} cm", num(scale), num(scale));

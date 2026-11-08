@@ -1556,7 +1556,7 @@ fn recent_files() {
     b.auto_load_working_file();
     assert!(b.filename.as_ref().unwrap().ends_with("one.mdj"));
     // New forgets it
-    b.cmd_new(&ms);
+    b.file_new();
     assert_eq!(b.working_file(), None);
     let mut c = App::new(None);
     c.prefs = crate::prefs::Prefs::load(Some(dir.join("preferences.json")));
@@ -8149,4 +8149,115 @@ fn exec_mermaid_takes_a_base() {
     assert_eq!(a.repo.parent(d), Some(pkg));
     let bad = json!({ "code": "classDiagram\n  class B", "base": { "$ref": a.repo.id(d) } }).to_string();
     assert!(a.exec_command("mermaid:generate-diagram", Some(&bad), &[], &ms).is_err());
+}
+
+#[test]
+fn window_startup_arguments() {
+    use crate::window::Startup;
+    let lib = "examples/library.mdj".to_string();
+    // launched by the system without a file: the working file (main.js:20-31)
+    let s = Startup::from_args(&[]);
+    assert!(s.load_working && !s.skip_backup);
+    let s = Startup::from_args(&[lib.clone(), "--diagram".into(), "Main".into()]);
+    assert_eq!(s.file.as_deref(), Some(std::path::Path::new("examples/library.mdj")));
+    assert_eq!(s.diagram.as_deref(), Some("Main"));
+    assert!(!s.load_working && !s.skip_backup);
+    // a window opened by another skips the backup and the working file (application.js:246-258)
+    let s = Startup::from_args(&["--new-window".into(), "--template".into(), "UML Conventional".into()]);
+    assert!(s.skip_backup && !s.load_working);
+    let mut a = App::new(None);
+    a.start(s);
+    assert_eq!(a.filename, None);
+    assert!(a.repo.all().any(|e| a.repo.name(e) == "Use Case Model"));
+    // Save As adds .mdj only to a name without an extension (default-commands.js:163-165)
+    assert_eq!(crate::window::with_model_extension("a/b".into()), std::path::PathBuf::from("a/b.mdj"));
+    assert_eq!(crate::window::with_model_extension("a/b.json".into()), std::path::PathBuf::from("a/b.json"));
+    // the window fitted to the screen (window.js:84-94), a window on another screen left there
+    assert_eq!(crate::window::fit_to_screen(1000.0, 500.0, 1200.0, 900.0, 1920.0, 1080.0), (720.0, 180.0, 1200.0, 900.0));
+    assert_eq!(crate::window::fit_to_screen(10.0, 10.0, 3000.0, 2000.0, 1920.0, 1080.0), (0.0, 0.0, 1920.0, 1080.0));
+    assert_eq!(crate::window::fit_to_screen(2000.0, 0.0, 1200.0, 900.0, 1920.0, 1080.0).0, 2000.0);
+}
+
+#[test]
+fn new_and_open_use_new_windows() {
+    crate::window::SPAWNED.with(|s| s.borrow_mut().clear());
+    let mut a = App::new(None);
+    // a clean window without a file opens the file itself
+    a.open_file("examples/library.mdj".into());
+    assert!(a.filename.is_some());
+    // once it holds a file, Open, New and New From Template open new windows
+    a.open_file("examples/library.mdj".into());
+    a.new_window();
+    a.new_window_from_template("C4 Model");
+    let spawned = crate::window::SPAWNED.with(|s| s.borrow().clone());
+    assert_eq!(spawned.len(), 3);
+    assert_eq!(spawned[0][0], "--new-window");
+    assert!(spawned[0][1].ends_with("library.mdj"));
+    assert_eq!(spawned[1], vec!["--new-window".to_string()]);
+    assert_eq!(spawned[2], vec!["--new-window".to_string(), "--template".into(), "C4 Model".into()]);
+    assert!(a.filename.as_ref().unwrap().ends_with("library.mdj"), "this window keeps its project");
+}
+
+#[test]
+fn preferences_keep_what_other_windows_wrote() {
+    let dir = std::env::temp_dir().join(format!("umlcraft-merge-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&dir);
+    let path = Some(dir.join("preferences.json"));
+    let mut a = crate::prefs::Prefs::load(path.clone());
+    let mut b = crate::prefs::Prefs::load(path.clone());
+    a.set("one", json!(1));
+    a.flush();
+    b.set("two", json!(2));
+    b.flush();
+    let c = crate::prefs::Prefs::load(path);
+    assert_eq!(c.get("one"), Some(&json!(1)));
+    assert_eq!(c.get("two"), Some(&json!(2)));
+    assert_eq!(b.get("one"), Some(&json!(1)), "the window takes the others' values when it writes");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn user_fonts_folder() {
+    let dir = std::env::temp_dir().join(format!("umlcraft-fonts-{}", std::process::id()));
+    let f = dir.join("MyFont");
+    std::fs::create_dir_all(&f).unwrap();
+    std::fs::write(f.join("font.json"), r#"[{"name": "My Font", "regular": "A.ttf", "italic": "B.ttf", "bold": "C.ttf", "boldItalic": "D.ttf"}, {"name": "default", "regular": "K.ttf", "unicodeRanges": [90]}]"#).unwrap();
+    std::fs::create_dir_all(dir.join("Broken")).unwrap();
+    std::fs::write(dir.join("Broken/font.json"), "not json").unwrap();
+    let fonts = crate::fonts::read_user_fonts(&dir);
+    assert_eq!(fonts.len(), 2);
+    assert_eq!(fonts[0].name, "My Font");
+    // regular, bold, italic, bold italic: the style numbers of a view's font
+    assert_eq!(fonts[0].files, [f.join("A.ttf"), f.join("C.ttf"), f.join("B.ttf"), f.join("D.ttf")]);
+    assert_eq!(fonts[1].ranges, vec![90]);
+    assert_eq!(fonts[1].files[3], f.join("K.ttf"));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn view_font_faces_are_drawn() {
+    use crate::views::Measure;
+    let ms = measure();
+    let arial = ms.width_face("Hello World", 0, "Arial");
+    // the face is loaded on first use and measured from the next pass on
+    let _ = ms.width_face("Hello World", 0, "Times New Roman");
+    let _ = ms.width_face("Hello World", 0, "No Such Face 123");
+    let mut out = ms.ctx.run_ui(egui::RawInput::default(), |_| {});
+    out.textures_delta.clear();
+    if crate::fonts::face_file("Times New Roman", 0).is_some() {
+        let times = ms.width_face("Hello World", 0, "Times New Roman");
+        assert!((times - arial).abs() > 0.5, "Times New Roman ({times}) is not Arial ({arial})");
+    }
+    // a face that is nowhere draws as Arial
+    assert_eq!(ms.width_face("Hello World", 0, "No Such Face 123"), arial);
+    // SVG names the view's face first
+    let mut a = App::new(None);
+    a.open_path("examples/library.mdj".into());
+    let d = a.diagram.unwrap();
+    let v = a.repo.list(d, "ownedViews").into_iter().find(|v| a.repo.ty(*v) == "UMLClassView").unwrap();
+    a.repo.set(v, "font", json!("Times New Roman;13;0"));
+    let info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let svg = crate::render::to_svg(&a.repo, d, &info, &ms).unwrap();
+    assert!(svg.contains("font-family=\"'Times New Roman', Arial"));
+    assert!(svg.contains("font-family=\"Arial, Liberation Sans"));
 }

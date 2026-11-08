@@ -170,6 +170,7 @@ pub const COMMANDS: &[Command] = &[
     c("view:editors", "Editors", "Ctrl+6"),
     c("uml:apply-profile.uml-standard", "Apply UML Standard Profile (v2)", ""),
     c("help:documentation", "Documentation", ""),
+    c("help:forum", "Forum", ""),
     c("help:release-notes", "Release Notes", ""),
     c("help:about", "About UMLCraft", ""),
 ];
@@ -263,13 +264,7 @@ impl App {
         }
         match id {
             "application:new" => self.cmd_new(&ms),
-            "project:open" => {
-                if self.confirm_discard(&ms) {
-                    if let Some(p) = rfd::FileDialog::new().set_title("Open Model").add_filter("Models", &["mdj"]).add_filter("All Files", &["*"]).pick_file() {
-                        self.open_path(p);
-                    }
-                }
-            }
+            "project:open" => self.open_dialog(),
             "project:save" => {
                 self.save(&ms);
             }
@@ -350,6 +345,13 @@ impl App {
             "view:editors" => self.show_editors = !self.show_editors,
             "help:documentation" => ctx.open_url(egui::OpenUrl::new_tab(crate::ui::DOCS_URL)),
             "help:release-notes" => ctx.open_url(egui::OpenUrl::new_tab(crate::ui::RELEASES_URL)),
+            "help:forum" => ctx.open_url(egui::OpenUrl::new_tab(crate::ui::FORUM_URL)),
+            // the window commands (application.js:241-258, default-commands.js:81-93, 345-347)
+            "project:close" | "application:quit" => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            "application:reload" => {
+                crate::window::request_relaunch();
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
             "help:about" => self.about_open = true,
             "uml:apply-profile.uml-standard" => self.apply_standard_profile(),
             _ => {}

@@ -24,20 +24,22 @@ pub fn default_path() -> Option<PathBuf> {
 pub struct Prefs {
     pub path: Option<PathBuf>,
     pub values: Map<String, Value>,
-    /// What was last written, to write only on change.
-    written: String,
+    /// The file as this window last read or wrote it, to write only on change and to keep what
+    /// other windows wrote meanwhile.
+    base: Map<String, Value>,
+}
+
+fn read_map(path: &Option<PathBuf>) -> Option<Map<String, Value>> {
+    path.as_ref()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| v.as_object().cloned())
 }
 
 impl Prefs {
     pub fn load(path: Option<PathBuf>) -> Prefs {
-        let values = path
-            .as_ref()
-            .and_then(|p| std::fs::read_to_string(p).ok())
-            .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-            .and_then(|v| v.as_object().cloned())
-            .unwrap_or_default();
-        let written = Value::Object(values.clone()).to_string();
-        Prefs { path, values, written }
+        let values = read_map(&path).unwrap_or_default();
+        Prefs { path, base: values.clone(), values }
     }
 
     pub fn get(&self, key: &str) -> Option<&Value> {
@@ -52,22 +54,36 @@ impl Prefs {
         self.values.insert(key.to_string(), v);
     }
 
-    /// Write the file when something changed (and there is a file).
+    /// Write the file when something changed (and there is a file). Every window is its own process
+    /// and they share this file, as StarUML's windows share one localStorage: only the keys this
+    /// window changed are written over the file as it is now, so what another window wrote stays.
     pub fn flush(&mut self) {
-        let text = Value::Object(self.values.clone()).to_string();
-        if text == self.written {
+        let changed: Vec<String> = self.values.keys().chain(self.base.keys()).filter(|k| self.values.get(*k) != self.base.get(*k)).cloned().collect();
+        if changed.is_empty() {
             return;
         }
-        let Some(p) = &self.path else {
-            self.written = text;
+        let Some(p) = self.path.clone() else {
+            self.base = self.values.clone();
             return;
         };
+        let mut merged = read_map(&self.path).unwrap_or_else(|| self.base.clone());
+        for k in changed {
+            match self.values.get(&k) {
+                Some(v) => {
+                    merged.insert(k, v.clone());
+                }
+                None => {
+                    merged.remove(&k);
+                }
+            }
+        }
         if let Some(dir) = p.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
-        let pretty = serde_json::to_string_pretty(&Value::Object(self.values.clone())).unwrap_or_default();
-        if std::fs::write(p, pretty).is_ok() {
-            self.written = text;
+        let pretty = serde_json::to_string_pretty(&Value::Object(merged.clone())).unwrap_or_default();
+        if std::fs::write(&p, pretty).is_ok() {
+            self.values = merged.clone();
+            self.base = merged;
         }
     }
 }
@@ -678,7 +694,7 @@ impl App {
         let Some(repo) = loaded else { return false };
         self.set_project(repo, None);
         self.modified = true;
-        self.toast("App was unexpectedly terminated. Auto backup file has loaded.");
+        self.toast_error("App was unexpectedly terminated. Auto backup file has loaded.");
         true
     }
 

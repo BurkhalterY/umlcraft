@@ -92,6 +92,10 @@ pub trait Measure {
     fn face(&self) -> String {
         "Arial".into()
     }
+    /// Width of a text in a font face at 13 px; surfaces that know only one face measure with it.
+    fn width_face(&self, text: &str, style: u8, _face: &str) -> f64 {
+        self.width(text, style)
+    }
 }
 
 /// A view's own font: widths scale with its size, and labels inside it take its face and size, as
@@ -103,7 +107,7 @@ pub struct Scaled<'a> {
 }
 impl Measure for Scaled<'_> {
     fn width(&self, text: &str, style: u8) -> f64 {
-        self.ms.width(text, style) * self.size / 13.0
+        self.ms.width_face(text, style, &self.face) * self.size / 13.0
     }
     fn size(&self) -> f64 {
         self.size

@@ -7,7 +7,7 @@ use crate::app::App;
 use crate::export::{filenamify, Format};
 use std::path::PathBuf;
 
-pub const USAGE: &str = "Usage: umlcraft [file.mdj] [--diagram <name>] [--select <name>]
+pub const USAGE: &str = "Usage: umlcraft [file.mdj | --template <name or file.mdj>] [--diagram <name>] [--select <name>]
        umlcraft ejs <file.mdj> -t <template.ejs> [-o output.txt] [-s @Project]
        umlcraft image <file.mdj> [-f png|jpeg|svg] [-s selector] [-o output]
        umlcraft pdf <file.mdj> [-s selector] [-o output.pdf] [-z A4] [-l landscape|portrait] [-n true|false]
@@ -165,6 +165,8 @@ fn image(args: &[String], ctx: egui::Context) -> i32 {
         Ok(x) => x,
         Err(code) => return code,
     };
+    // the faces the views use, loaded before the layout (fonts.rs)
+    crate::fonts::preload(&ctx, &a.repo);
     let ms = crate::canvas::EguiMeasure { ctx };
     let mut n = 0;
     for d in diagrams {
@@ -249,6 +251,8 @@ fn pdf(args: &[String], ctx: egui::Context) -> i32 {
     if let Some(dir) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
         let _ = std::fs::create_dir_all(dir);
     }
+    // the faces the views use, loaded before the layout (fonts.rs)
+    crate::fonts::preload(&ctx, &a.repo);
     let ms = crate::canvas::EguiMeasure { ctx };
     match a.pdf_of(&diagrams, &o, &ms).and_then(|b| std::fs::write(&out, b).map_err(|e| e.to_string())) {
         Ok(()) => {
@@ -270,6 +274,8 @@ fn html(args: &[String], ctx: egui::Context) -> i32 {
         Err(code) => return code,
     };
     let out = PathBuf::from(opt(args, "-o").unwrap_or("./html-docs"));
+    // the faces the views use, loaded before the layout (fonts.rs)
+    crate::fonts::preload(&ctx, &a.repo);
     let ms = crate::canvas::EguiMeasure { ctx };
     match a.export_html(&out, &ms) {
         Ok(()) => {

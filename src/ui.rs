@@ -23,6 +23,8 @@ pub const SCREENSHOT_FRAMES: u32 = 120;
 /// Help › Documentation and Release Notes open these pages.
 pub const DOCS_URL: &str = "https://github.com/BurkhalterY/umlcraft#readme";
 pub const RELEASES_URL: &str = "https://github.com/BurkhalterY/umlcraft/releases";
+/// Help > Forum: UMLCraft has no forum, so its issues on GitHub (help:forum, default-commands.js:1164-1166).
+pub const FORUM_URL: &str = "https://github.com/BurkhalterY/umlcraft/issues";
 /// The grab handle a hidden sidebar or navigator leaves at the window edge (resizer.js:238-258).
 const GRIP_HIDDEN: f32 = 4.0;
 
@@ -2375,10 +2377,8 @@ impl App {
                 ui.menu_button("New From Template", |ui| {
                     for t in &crate::templates::TEMPLATES {
                         if ui.button(t.label).clicked() {
-                            if self.confirm_discard(&measure) {
-                                self.save_working_diagrams();
-                                self.set_project(crate::templates::project(t), None);
-                            }
+                            // a new window with the template (application.js:249-253)
+                            self.new_window_from_template(t.label);
                             ui.close();
                         }
                     }
@@ -2408,8 +2408,9 @@ impl App {
                     ui.close();
                 }
                 ui.separator();
+                // project:close closes the window, after the save prompt (default-commands.js:345-347)
                 if ui.button("Close").clicked() {
-                    self.cmd_new(&measure);
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     ui.close();
                 }
                 ui.separator();
@@ -2664,6 +2665,11 @@ impl App {
             ui.menu_button("Help", |ui| {
                 if ui.button("Documentation...").clicked() {
                     ui.ctx().open_url(egui::OpenUrl::new_tab(DOCS_URL));
+                    ui.close();
+                }
+                // the place to ask questions: the project's issues, as there is no forum
+                if ui.button("Forum...").clicked() {
+                    ui.ctx().open_url(egui::OpenUrl::new_tab(FORUM_URL));
                     ui.close();
                 }
                 if ui.button("Release Notes...").clicked() {
@@ -3183,18 +3189,14 @@ impl App {
         }
     }
 
-    /// File > New: a blank project, after the unsaved-changes prompt; the working file is forgotten.
-    pub(crate) fn cmd_new(&mut self, ms: &EguiMeasure) {
-        if self.confirm_discard(ms) {
-            self.save_working_diagrams();
-            self.set_project(crate::model::Repo::blank(), None);
-            self.set_working_file(None);
-        }
+    /// File > New: a new window with a blank project (application:new, application.js:246-248).
+    pub(crate) fn cmd_new(&mut self, _ms: &EguiMeasure) {
+        self.new_window();
     }
 
     /// Open a recent file; a file that is gone is dropped from the list with the toast
     /// "File not found: <path>" (open-recent/main.js:59).
-    fn open_recent(&mut self, ms: &EguiMeasure, p: std::path::PathBuf) {
+    fn open_recent(&mut self, _ms: &EguiMeasure, p: std::path::PathBuf) {
         if !p.exists() {
             self.toast_error(&format!("File not found: {}", p.display()));
             let mut list = self.recent_files();
@@ -3202,29 +3204,21 @@ impl App {
             self.set_recent(list);
             return;
         }
-        if self.confirm_discard(ms) {
-            self.open_path(p);
-        }
+        self.open_file(p);
     }
 
-    /// A .mdj file dropped on the window is opened (app-context.js:546-565); other files are ignored.
+    /// Each .mdj file dropped on the window is opened, here or in a new window (app-context.js:546-565);
+    /// other files are ignored.
     fn dropped_files(&mut self, ctx: &egui::Context) {
         let files: Vec<std::path::PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect());
-        if let Some(p) = files.into_iter().find(|p| p.extension().map(|e| e.eq_ignore_ascii_case("mdj")).unwrap_or(false)) {
-            let ms = EguiMeasure { ctx: ctx.clone() };
-            if self.confirm_discard(&ms) {
-                self.open_path(p);
-            }
+        for p in files.into_iter().filter(|p| p.extension().map(|e| e.eq_ignore_ascii_case("mdj")).unwrap_or(false)) {
+            self.open_file(p);
         }
     }
 
-    fn cmd_open(&mut self, ms: &EguiMeasure) {
-        if !self.confirm_discard(ms) {
-            return;
-        }
-        if let Some(p) = rfd::FileDialog::new().set_title("Open Model").add_filter("Models", &["mdj"]).add_filter("All Files", &["*"]).pick_file() {
-            self.open_path(p);
-        }
+    /// File > Open: the dialog, then the file here or in a new window (default-commands.js:221-234).
+    fn cmd_open(&mut self, _ms: &EguiMeasure) {
+        self.open_dialog();
     }
 
     /// The original replaces the project without asking; UMLCraft asks to save changes first.
@@ -3436,7 +3430,20 @@ impl App {
         egui::Window::new("Font").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
             egui::Grid::new("font-grid").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| {
                 ui.label("Face");
-                ui.add(egui::TextEdit::singleline(&mut face).hint_text("—").desired_width(160.0));
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut face).hint_text("—").desired_width(160.0));
+                    // the loaded fonts (dialog-manager.js:538); a face that is not installed draws as Arial
+                    egui::ComboBox::from_id_salt("font-faces").selected_text("").width(20.0).show_ui(ui, |ui| {
+                        for f in crate::fonts::face_names() {
+                            let ok = crate::fonts::available(&f);
+                            let r = ui.add_enabled(true, egui::Button::selectable(face == f, egui::RichText::new(&f).color(if ok { TEXT() } else { DIM() })));
+                            let r = if ok { r } else { r.on_hover_text("Not installed: drawn with the Arial-compatible font") };
+                            if r.clicked() {
+                                face = f.clone();
+                            }
+                        }
+                    });
+                });
                 ui.end_row();
                 ui.label("Size");
                 ui.horizontal(|ui| {
@@ -3477,7 +3484,8 @@ impl App {
             ui.add_space(4.0);
             let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 60.0), egui::Sense::hover());
             ui.painter().rect(rect, 0.0, Color32::WHITE, Stroke::new(1.0, BORDER()), egui::StrokeKind::Inside);
-            ui.painter().text(rect.center(), Align2::CENTER_CENTER, "AaBb123", egui::FontId::proportional(px), fg);
+            let family = crate::fonts::family(ui.ctx(), if face.trim().is_empty() { "Arial" } else { face.trim() }, 0);
+            ui.painter().text(rect.center(), Align2::CENTER_CENTER, "AaBb123", egui::FontId::new(px, family), fg);
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 ok = ui.button("OK").clicked();
@@ -3670,23 +3678,6 @@ impl App {
             }
         }
     }
-
-    fn handle_close(&mut self, ctx: &egui::Context) {
-        if ctx.input(|i| i.viewport().close_requested()) {
-            self.save_working_diagrams();
-        }
-        if ctx.input(|i| i.viewport().close_requested()) && self.modified && self.screenshot.is_none() && !self.quit_after_save {
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            let ms = EguiMeasure { ctx: ctx.clone() };
-            if self.confirm_discard(&ms) {
-                self.quit_after_save = true;
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            }
-        } else if ctx.input(|i| i.viewport().close_requested()) && self.screenshot.is_none() {
-            // a clean exit: no backup to recover at the next launch (app-context.js:809-811)
-            self.clear_backup();
-        }
-    }
 }
 
 /// View menu panels, in the order of their Ctrl+1…6 shortcuts.
@@ -3805,6 +3796,10 @@ impl App {
             self.theme_applied = Some(light);
         }
         self.handle_close(&ctx);
+        // the macOS title bar, and the splash screen until the start-up file is open (window.rs)
+        if self.shell_ui(ui) {
+            return;
+        }
         self.api_poll(&ctx);
         // remember the window's bounds and maximized state (window.js:26-94); they are written with
         // the other preferences when they change

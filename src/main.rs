@@ -22,6 +22,7 @@ mod exec;
 mod export;
 mod find;
 mod flowchart;
+mod fonts;
 mod gcp;
 mod fragment;
 mod generate;
@@ -64,6 +65,7 @@ mod timing;
 mod ui;
 mod validate;
 mod views;
+mod window;
 mod wireframe;
 mod xmi;
 #[cfg(test)]
@@ -133,7 +135,8 @@ pub(crate) fn setup_fonts(ctx: &egui::Context) {
         fonts.font_data.insert("ui".into(), Arc::new(FontData::from_owned(bytes)));
         fonts.families.entry(FontFamily::Proportional).or_default().insert(0, "ui".into());
     }
-    ctx.set_fonts(fonts);
+    // the other faces and the CJK fallbacks are added when a view needs them (fonts.rs)
+    fonts::install(ctx, fonts);
 }
 
 /// The app icon shown by the window manager (packaging/icons, drawn for UMLCraft).
@@ -198,24 +201,11 @@ fn main() -> eframe::Result {
         std::process::exit(if ok { 0 } else { 1 });
     }
     let mut screenshot: Option<PathBuf> = None;
-    let mut file: Option<PathBuf> = None;
-    let mut diagram: Option<String> = None;
-    let mut select: Option<String> = None;
-    let mut i = 0;
-    while i < args.len() {
-        if args[i] == "--diagram" || args[i] == "--select" {
-            // `--diagram <name>` opens that diagram, `--select <name>` selects that element in it
-            let v = args.get(i + 1).cloned();
-            if args[i] == "--diagram" { diagram = v } else { select = v }
-            i += 1;
-        } else if args[i] == "--screenshot" {
-            screenshot = Some(PathBuf::from(args.get(i + 1).cloned().unwrap_or_else(|| "screenshot.png".into())));
-            i += 1;
-        } else if args[i].ends_with(".mdj") && std::path::Path::new(&args[i]).exists() {
-            file = Some(PathBuf::from(&args[i]));
-        }
-        i += 1;
+    if let Some(i) = args.iter().position(|a| a == "--screenshot") {
+        screenshot = Some(PathBuf::from(args.get(i + 1).cloned().unwrap_or_else(|| "screenshot.png".into())));
     }
+    // the file, template, diagram and element to open (window.rs)
+    let startup = window::Startup::from_args(&args);
     if let Some(p) = &screenshot {
         if p.is_relative() {
             screenshot = std::env::current_dir().ok().map(|d| d.join(p));
@@ -239,6 +229,7 @@ fn main() -> eframe::Result {
                 }
             }
             if let (Some(x), Some(y)) = (f("x"), f("y")) {
+                let (x, y) = window::clamp_saved_position(x, y);
                 viewport = viewport.with_position([x, y]);
             }
             if ws.get("isMaximized").and_then(|v| v.as_bool()) == Some(true) {
@@ -246,8 +237,9 @@ fn main() -> eframe::Result {
             }
         }
     }
+    let viewport = window::title_bar_options(viewport);
     let options = eframe::NativeOptions { viewport, ..Default::default() };
-    eframe::run_native(
+    let result = eframe::run_native(
         "UMLCraft",
         options,
         Box::new(move |cc| {
@@ -268,20 +260,16 @@ fn main() -> eframe::Result {
                     }
                 }
             }
-            match file {
-                Some(f) => {
-                    a.open_path(f);
-                }
-                // with no file given: the backup after a crash, else the last file when asked to
-                None if !shot => {
-                    if !a.recover_backup() {
-                        a.auto_load_working_file();
-                    }
-                }
-                None => {}
+            // a screenshot opens its file at once; a window shows its splash screen first
+            if shot {
+                a.start(startup);
+            } else {
+                a.shell.startup = Some(startup);
             }
-            a.show_by_name(diagram.as_deref(), select.as_deref());
             Ok(Box::new(a))
         }),
-    )
+    );
+    // application:reload starts the app again once its window has closed
+    window::relaunch_if_requested(&args);
+    result
 }
