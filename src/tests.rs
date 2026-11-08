@@ -6070,6 +6070,12 @@ fn timing_diagrams_have_lifelines_states_segments_and_messages() {
     let t1 = a.change(|a| a.create_node("UMLTimeTick", rect(300.0, 590.0, 1.0, 1.0))).unwrap();
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     assert_eq!((a.repo.f(t1, "left"), a.repo.f(t1, "top")), (start, 5.0 + 595.0 - 5.0));
+    // a tick edits its own text on one line
+    a.edit_view(t1, None);
+    assert!(matches!(a.editing.as_ref().map(|x| (x.kind.clone(), x.multiline)), Some((crate::app::EditKind::Text(x), false)) if x == t1));
+    a.editing.as_mut().unwrap().text = "t0".into();
+    a.close_inline(true);
+    assert_eq!(a.repo.str(t1, "text"), "t0");
     // a time constraint on a segment, and a duration constraint lying across in the frame
     let tc = a.change(|a| a.create_node("UMLTimeConstraint", rect(a.repo.f(g1, "left") + 2.0, a.repo.f(g1, "top") + 5.0, 1.0, 1.0))).unwrap();
     assert_eq!(a.repo.parent(a.repo.refd(tc, "model").unwrap()), Some(g1m));

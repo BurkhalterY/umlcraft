@@ -1715,6 +1715,12 @@ impl App {
             self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None, orig: None });
             return;
         }
+        // a time tick edits its own text on one line (quickedits/uml.json "uml.view-input")
+        if t == "UMLTimeTickView" {
+            let text = self.repo.str(v, "text");
+            self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: false, center: false, fresh: true, host: None, orig: None });
+            return;
+        }
         if t == "UMLNoteView" || t == "UMLTextView" || t == "UMLTextBoxView" || t == "UMLCustomTextView" {
             let text = self.repo.str(v, "text");
             self.editing = Some(Editing { kind: EditKind::Text(v), text, rect: node_rect(&self.repo, v), multiline: true, center: false, fresh: true, host: None, orig: None });
