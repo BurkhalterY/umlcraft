@@ -162,6 +162,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/colorvars.rs` | StarUML 8's colour variables (`$background`, `$blue9`…) drawn in theme colours, the Convert / Keep Colors question and File › Export › StarUML V7 |
 | `src/splitter.rs` | Panel splitters: drag a panel's edge to resize it, or below 10 px to hide it |
 | `src/main.rs`, `src/cli.rs`, `src/selector.rs` | Start-up, the window, and the command line (`umlcraft ejs`, `image`, `pdf`, `html`, `exec`, `--help`) with the element selector language |
+| `src/window.rs`, `src/fonts.rs` | The application shell (one window per project, start-up order, splash screen, macOS title bar, close prompt) and the diagram font faces (system and user fonts, CJK fallbacks) |
 | `src/app.rs`, `src/ui.rs`, `src/icons.rs`, `src/prefs.rs`, `src/tags.rs`, `src/palette.rs`, `src/find.rs`, `src/validate.rs` | Project state, undo, open and save, and the panels, menus and icons |
 | `src/staruml_v1.rs` | File › Import › StarUML 1 File: reading old `.uml` projects into the current model |
 | `src/tests.rs` | Round-trips of StarUML files, editing, saving and keyboard shortcuts |

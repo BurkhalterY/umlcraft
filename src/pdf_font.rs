@@ -74,20 +74,25 @@ impl Face {
 /// screen falls back to), and system fonts found for characters none of those has.
 pub struct Fonts {
     pub faces: Vec<Face>,
+    /// the four styles of the current face (set_face), then of the Arial-compatible face
     styles: [Option<usize>; 4],
+    arial: [Option<usize>; 4],
+    /// the styles of each face used so far (lower case)
+    by_face: HashMap<String, [Option<usize>; 4]>,
     fallbacks: Vec<usize>,
     system: Vec<usize>,
     files: HashMap<(String, u32), usize>,
-    by_char: HashMap<(u8, char), (usize, u16)>,
+    by_char: HashMap<(usize, char), (usize, u16)>,
     searched: HashMap<char, bool>,
 }
 
 impl Fonts {
     pub fn new() -> Fonts {
-        let mut f = Fonts { faces: vec![], styles: [None; 4], fallbacks: vec![], system: vec![], files: HashMap::new(), by_char: HashMap::new(), searched: HashMap::new() };
+        let mut f = Fonts { faces: vec![], styles: [None; 4], arial: [None; 4], by_face: HashMap::new(), fallbacks: vec![], system: vec![], files: HashMap::new(), by_char: HashMap::new(), searched: HashMap::new() };
         for (i, (_, paths)) in crate::diagram_face_paths().into_iter().enumerate().take(4) {
-            f.styles[i] = paths.iter().find_map(|p| f.file(p, 0));
+            f.arial[i] = paths.iter().find_map(|p| f.file(p, 0));
         }
+        f.styles = f.arial;
         let defs = egui::FontDefinitions::default();
         for name in defs.families.get(&egui::FontFamily::Proportional).cloned().unwrap_or_default() {
             if let Some(fd) = defs.font_data.get(&name) {
@@ -114,17 +119,44 @@ impl Fonts {
 
     /// The face of a style (1 bold, 2 italic), or the regular one, or the first fallback.
     pub fn primary(&self, style: u8) -> Option<usize> {
-        self.styles[(style & 3) as usize].or(self.styles[0]).or(self.fallbacks.first().copied())
+        self.styles[(style & 3) as usize].or(self.styles[0]).or(self.arial[(style & 3) as usize]).or(self.arial[0]).or(self.fallbacks.first().copied())
+    }
+
+    /// Print the texts that follow in a view's font face: its files (fonts.rs) when they have
+    /// TrueType outlines, else the Arial-compatible face (pdf-graphics.js:102-140).
+    pub fn set_face(&mut self, face: &str) {
+        if crate::fonts::is_default(face) {
+            self.styles = self.arial;
+            return;
+        }
+        let key = face.trim().to_lowercase();
+        if let Some(s) = self.by_face.get(&key) {
+            self.styles = *s;
+            return;
+        }
+        let mut s = [None; 4];
+        for (i, slot) in s.iter_mut().enumerate() {
+            if let Some((p, index)) = crate::fonts::face_file(face, i as u8) {
+                *slot = self.file(&p.display().to_string(), index);
+            }
+        }
+        if s[0].is_none() {
+            s = self.arial;
+        }
+        self.by_face.insert(key, s);
+        self.styles = s;
     }
 
     /// The face and glyph that print a character: the style's face, then egui's fallbacks, then a
     /// system font that has it (asked from fontconfig), else the missing-glyph box of the face.
     pub fn glyph(&mut self, style: u8, c: char) -> Option<(usize, u16)> {
-        if let Some(hit) = self.by_char.get(&(style, c)) {
+        let primary = self.primary(style)?;
+        if let Some(hit) = self.by_char.get(&(primary, c)) {
             return Some(*hit);
         }
-        let primary = self.primary(style)?;
+        // a face without the character falls back to the Arial-compatible face (font-manager.js:114-126)
         let mut order: Vec<usize> = vec![primary];
+        order.extend(self.arial[(style & 3) as usize].filter(|a| *a != primary));
         order.extend(self.fallbacks.iter().copied());
         order.extend(self.system.iter().copied());
         let mut hit = order.iter().find_map(|i| self.faces[*i].glyph(c).map(|g| (*i, g)));
@@ -143,7 +175,7 @@ impl Fonts {
             }
         }
         let hit = hit.unwrap_or((primary, 0));
-        self.by_char.insert((style, c), hit);
+        self.by_char.insert((primary, c), hit);
         Some(hit)
     }
 }

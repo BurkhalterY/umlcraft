@@ -269,6 +269,8 @@ pub struct App {
     pub api_rx: Option<std::sync::mpsc::Receiver<crate::api::ApiRequest>>,
     /// The window's bounds and maximized state, kept as windowState.main.
     pub window_state: Option<serde_json::Value>,
+    /// The window itself: what it opens at start-up, its splash screen and title bar (window.rs).
+    pub shell: crate::window::Shell,
     pub md_preview: bool,
     pub md_buf: String,
     pub md_for: Option<Eid>,
@@ -396,6 +398,7 @@ impl App {
             tree_cleared: false,
             api_rx: None,
             window_state: None,
+            shell: Default::default(),
             md_preview: false,
             md_buf: String::new(),
             md_for: None,
@@ -546,20 +549,13 @@ impl App {
         }
     }
 
+    /// The "Save Project As" dialog, starting at "Untitled.mdj"; `.mdj` is added to a name without
+    /// an extension (default-commands.js:148-175).
     pub fn save_as(&mut self, ms: &dyn Measure) -> bool {
-        let name = self
-            .filename
-            .as_ref()
-            .and_then(|p| p.file_name())
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| format!("{}.mdj", self.repo.name(self.repo.root)));
-        let Some(mut p) = rfd::FileDialog::new().set_title("Save As").set_file_name(&name).add_filter("Models", &["mdj"]).add_filter("All Files", &["*"]).save_file() else {
+        let Some(p) = rfd::FileDialog::new().set_title("Save Project As").set_file_name("Untitled.mdj").add_filter("Models", &["mdj"]).add_filter("All Files", &["*"]).save_file() else {
             return false;
         };
-        if p.extension().map(|e| e != "mdj").unwrap_or(true) {
-            p.set_extension("mdj");
-        }
-        self.save_to(p, ms)
+        self.save_to(crate::window::with_model_extension(p), ms)
     }
 
     /// Ask before throwing away changes. Returns false when the person cancels.

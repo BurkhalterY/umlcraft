@@ -34,10 +34,16 @@ pub struct EguiMeasure {
 }
 impl Measure for EguiMeasure {
     fn width(&self, text: &str, style: u8) -> f64 {
+        self.width_face(text, style, "Arial")
+    }
+    /// The width in the view's face when it is loaded (fonts.rs), else in the Arial-compatible one.
+    fn width_face(&self, text: &str, style: u8, face: &str) -> f64 {
         if text.is_empty() {
             return 0.0;
         }
-        self.ctx.fonts_mut(|f| f.layout_no_wrap(text.to_string(), FontId::new(13.0, diagram_family(style)), Color32::BLACK).size().x as f64)
+        crate::fonts::need_glyphs(&self.ctx, text);
+        let family = crate::fonts::family(&self.ctx, face, style);
+        self.ctx.fonts_mut(|f| f.layout_no_wrap(text.to_string(), FontId::new(13.0, family), Color32::BLACK).size().x as f64)
     }
 }
 
@@ -47,6 +53,8 @@ pub struct ScreenCanvas<'a> {
     pub scroll: P,
     pub zoom: f64,
     pub measure: EguiMeasure,
+    /// the font face of the texts being drawn (Canvas::set_face)
+    pub face: String,
 }
 
 impl ScreenCanvas<'_> {
@@ -60,11 +68,31 @@ impl ScreenCanvas<'_> {
 
 impl Measure for ScreenCanvas<'_> {
     fn width(&self, text: &str, style: u8) -> f64 {
-        self.measure.width(text, style)
+        self.measure.width_face(text, style, &self.face)
+    }
+    fn width_face(&self, text: &str, style: u8, face: &str) -> f64 {
+        self.measure.width_face(text, style, face)
+    }
+    fn face(&self) -> String {
+        self.face.clone()
+    }
+}
+
+impl ScreenCanvas<'_> {
+    /// The egui font of the current face in a style and size.
+    fn font(&self, t: &str, style: u8, size: f64) -> FontId {
+        let ctx = self.painter.ctx();
+        crate::fonts::need_glyphs(ctx, t);
+        FontId::new((size * self.zoom) as f32, crate::fonts::family(ctx, &self.face, style))
     }
 }
 
 impl Canvas for ScreenCanvas<'_> {
+    fn set_face(&mut self, face: &str) {
+        if self.face != face {
+            self.face = face.to_string();
+        }
+    }
     fn image(&mut self, b: R, data_url: &str) {
         // one texture per picture, decoded once and kept in egui's memory
         let ctx = self.painter.ctx().clone();
@@ -115,7 +143,7 @@ impl Canvas for ScreenCanvas<'_> {
         }
     }
     fn text_up(&mut self, t: &str, b: R, style: u8, size: f64, color: Rgba) {
-        let font = FontId::new((size * self.zoom) as f32, diagram_family(style));
+        let font = self.font(t, style, size);
         let galley = self.painter.layout_no_wrap(t.to_string(), font, c32(color));
         let (gw, gh) = (galley.size().x, galley.size().y);
         // turned a quarter left about its top-left corner: it then spans gh across and gw up
@@ -124,7 +152,7 @@ impl Canvas for ScreenCanvas<'_> {
         self.painter.add(egui::epaint::TextShape::new(pos, galley, c32(color)).with_angle(-std::f32::consts::FRAC_PI_2));
     }
     fn text(&mut self, t: &str, b: R, align: i64, style: u8, size: f64, color: Rgba, underline: bool) {
-        let font = FontId::new((size * self.zoom) as f32, diagram_family(style));
+        let font = self.font(t, style, size);
         let (x, a) = match align {
             0 => (b.x, Align2::LEFT_CENTER),
             1 => (b.x + b.w, Align2::RIGHT_CENTER),
@@ -649,7 +677,7 @@ impl App {
             }
         };
         painter.rect_filled(rect, 0.0, c32(pref_color(self, "diagramEditor.backgroundColor", render::Rgba(255, 255, 255, 255))));
-        let mut c = ScreenCanvas { painter: &painter, origin: rect.min, scroll: self.scroll, zoom: self.zoom, measure: EguiMeasure { ctx: ctx.clone() } };
+        let mut c = ScreenCanvas { painter: &painter, origin: rect.min, scroll: self.scroll, zoom: self.zoom, measure: EguiMeasure { ctx: ctx.clone() }, face: "Arial".into() };
         if self.show_grid {
             let grid = Stroke::new(1.0, c32(pref_color(self, "diagramEditor.gridColor", render::GRID_COLOR)));
             // lines every two grid cells
@@ -815,6 +843,7 @@ impl App {
             scroll: P { x: wb.x, y: wb.y },
             zoom: s,
             measure: EguiMeasure { ctx: ctx.clone() },
+            face: "Arial".into(),
         };
         render::draw_diagram(&mut mc, &self.repo, d, &self.info);
         let vx = inner.left() + ((self.scroll.x - wb.x) * s) as f32;
@@ -2447,11 +2476,12 @@ impl App {
         let mut act: Option<Act> = None;
         let mut pick: Option<Pick> = None;
         let mut plain_enter = false;
-        let size = match (&ed.kind, ed.host) {
-            (EditKind::Text(v), _) => views::view_font(&self.repo, *v).1,
-            (_, Some(h)) => views::view_font(&self.repo, h).1,
-            _ => 13.0,
+        let (face, size) = match (&ed.kind, ed.host) {
+            (EditKind::Text(v), _) => views::view_font(&self.repo, *v),
+            (_, Some(h)) => views::view_font(&self.repo, h),
+            _ => ("Arial".to_string(), 13.0),
         };
+        let family = crate::fonts::family(ui.ctx(), &face, 0);
         let main = egui::Area::new(egui::Id::new("inline-editor")).fixed_pos(pos).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
             egui::Frame::NONE
                 .fill(Color32::WHITE)
@@ -2459,8 +2489,8 @@ impl App {
                 .show(ui, |ui| {
                     ui.visuals_mut().override_text_color = Some(Color32::BLACK);
                     ui.visuals_mut().extreme_bg_color = Color32::WHITE;
-                    // the editor uses the edited view's font size (quickedit-manager.js:365-381)
-                    let font = FontId::new((size * self.zoom) as f32, diagram_family(0));
+                    // the editor uses the edited view's font face and size (quickedit-manager.js:365-381)
+                    let font = FontId::new((size * self.zoom) as f32, family.clone());
                     let te = if ed.multiline {
                         egui::TextEdit::multiline(&mut ed.text).desired_width(w).desired_rows(((h / 16.0) as usize).max(2))
                     } else {
