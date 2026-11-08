@@ -541,6 +541,44 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 // a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
+/// The toolbox groups of a diagram kind (the "diagram-types" of each group in toolbox/*.json).
+pub(crate) fn tool_groups(diagram_type: Option<&str>) -> &'static [Group] {
+    match diagram_type {
+        Some("UMLClassDiagram") => CLASS_GROUPS,
+        Some("UMLUseCaseDiagram") => USECASE_GROUPS,
+        Some("UMLPackageDiagram") => PACKAGE_GROUPS,
+        Some("UMLObjectDiagram") => OBJECT_GROUPS,
+        Some("UMLInformationFlowDiagram") => INFO_FLOW_GROUPS,
+        Some("UMLProfileDiagram") => PROFILE_GROUPS,
+        Some("UMLCompositeStructureDiagram") => COMPOSITE_GROUPS,
+        Some("UMLStatechartDiagram") => STATECHART_GROUPS,
+        Some("UMLActivityDiagram") => ACTIVITY_GROUPS,
+        Some("FCFlowchartDiagram") => FLOWCHART_GROUPS,
+        Some("DFDDiagram") => DFD_GROUPS,
+        Some("MMMindmapDiagram") => MINDMAP_GROUPS,
+        Some("ERDDiagram") => ERD_GROUPS,
+        Some("C4Diagram") => C4_GROUPS,
+        Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
+        Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
+        Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,
+        Some("UMLInteractionOverviewDiagram") => OVERVIEW_GROUPS,
+        Some("UMLTimingDiagram") => TIMING_GROUPS,
+        Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
+        Some(_) => OTHER_GROUPS,
+        None => &[],
+    }
+}
+
+/// A toolbox tool by its factory id (the kind it creates), as the scriptable factory commands name
+/// it: first among the tools of the diagram kind, the plain one when several tools share the kind.
+pub(crate) fn tool_for(diagram_type: &str, id: &str) -> Option<Tool> {
+    let find = |groups: &[Group]| {
+        let all = || groups.iter().flat_map(|g| g.items.iter());
+        all().find(|t| t.kind == id && matches!(t.init, AssocInit::Plain)).or_else(|| all().find(|t| t.kind == id)).copied()
+    };
+    find(tool_groups(Some(diagram_type))).or_else(|| DIAGRAM_KINDS.iter().find_map(|(_, k)| find(tool_groups(Some(k)))))
+}
+
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
 const DIAGRAM_KINDS: [(&str, &str); 21] = [
     ("Class Diagram", "UMLClassDiagram"),
@@ -1876,30 +1914,7 @@ impl App {
             }
         });
         ui.add_space(5.0);
-        let groups: &[Group] = match self.diagram.map(|d| self.repo.ty(d).to_string()).as_deref() {
-            Some("UMLClassDiagram") => CLASS_GROUPS,
-            Some("UMLUseCaseDiagram") => USECASE_GROUPS,
-            Some("UMLPackageDiagram") => PACKAGE_GROUPS,
-            Some("UMLObjectDiagram") => OBJECT_GROUPS,
-            Some("UMLInformationFlowDiagram") => INFO_FLOW_GROUPS,
-            Some("UMLProfileDiagram") => PROFILE_GROUPS,
-            Some("UMLCompositeStructureDiagram") => COMPOSITE_GROUPS,
-            Some("UMLStatechartDiagram") => STATECHART_GROUPS,
-            Some("UMLActivityDiagram") => ACTIVITY_GROUPS,
-            Some("FCFlowchartDiagram") => FLOWCHART_GROUPS,
-            Some("DFDDiagram") => DFD_GROUPS,
-            Some("MMMindmapDiagram") => MINDMAP_GROUPS,
-            Some("ERDDiagram") => ERD_GROUPS,
-            Some("C4Diagram") => C4_GROUPS,
-            Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
-            Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
-            Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,
-            Some("UMLInteractionOverviewDiagram") => OVERVIEW_GROUPS,
-            Some("UMLTimingDiagram") => TIMING_GROUPS,
-            Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
-            Some(_) => OTHER_GROUPS,
-            None => &[],
-        };
+        let groups: &[Group] = tool_groups(self.diagram.map(|d| self.repo.ty(d)));
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
             for g in groups {

@@ -110,7 +110,7 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
 | **Views** | Working Diagrams remembered per file, Next/Previous Diagram, zoom from 10% to 300% around the screen centre, fit to window, a live mini-map, diagram thumbnails, every panel on Ctrl+1 to Ctrl+6 and resizable by dragging its edge, dark and light themes, your own shortcuts in `keymap.json`, Preferences for the grid and the style of new views |
 | **History** | Undo and redo for every change, the last 100 kept (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) |
 | **Export** | PNG, JPEG and SVG of one diagram or of every diagram into a folder, drawn off-screen with the original's 10-pixel margin; Print to PDF, one diagram per page in vector shapes with embedded fonts, in any of 50 page sizes; HTML docs of the whole model; XMI 2.1 and model fragments (`.mfj`) in and out; new projects from the UML templates, with the UML Standard Profile |
-| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj`, `umlcraft image model.mdj -f png\|jpeg\|svg -s <selector> -o <file>` , `umlcraft pdf model.mdj -z A4 -l landscape -o out.pdf` and `umlcraft html model.mdj -o docs` to export without a window |
+| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj`, `umlcraft image model.mdj -f png\|jpeg\|svg -s <selector> -o <file>` , `umlcraft pdf model.mdj -z A4 -l landscape -o out.pdf` and `umlcraft html model.mdj -o docs` to export without a window; `umlcraft ejs model.mdj -t template.ejs -s <selector> -o <file>` to generate code or text from EJS templates; `umlcraft exec model.mdj -c <command> -a <arg>` to run commands (including the factory commands that create diagrams, elements and views) and save |
 
 ## .mdj without compromise
 
@@ -145,6 +145,8 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/relview.rs` | View › Relationships: the relationships of the selected element |
 | `src/input.rs` | The input dialog (Working Diagrams › Rename) |
 | `src/api.rs` | The local HTTP API on port 58321 (diagram list, images, Mermaid generation) |
+| `src/ejs.rs`, `src/js.rs`, `src/jsregex.rs` | `umlcraft ejs`: EJS templates, the JavaScript subset their code runs in, and its regular expressions |
+| `src/exec.rs` | `umlcraft exec`: the commands it runs, with the scriptable factory and engine commands |
 | `src/keymap.rs` | The user's `keymap.json`: keystrokes bound to command ids |
 | `src/fragment.rs` | File › Import / Export › Fragment: `.mfj` files |
 | `src/templates.rs` | File › New From Template: the UML templates |
@@ -153,7 +155,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/pdf.rs`, `src/pdf_font.rs` | Print to PDF: the dialog, its remembered options, and a small PDF writer that draws diagrams as vector shapes with embedded font subsets |
 | `src/canvas.rs`, `src/parse.rs`, `src/align.rs`, `src/clipboard.rs`, `src/style.rs`, `src/related.rs` | The diagram canvas, the typed attribute and operation lines, Format › Alignment, cut, copy and paste, view colours, and the inline edit's "add related element" buttons |
 | `src/splitter.rs` | Panel splitters: drag a panel's edge to resize it, or below 10 px to hide it |
-| `src/main.rs`, `src/cli.rs`, `src/selector.rs` | Start-up, the window, and the command line (`umlcraft image`, `pdf`, `html`, `--help`) with the element selector language |
+| `src/main.rs`, `src/cli.rs`, `src/selector.rs` | Start-up, the window, and the command line (`umlcraft ejs`, `image`, `pdf`, `html`, `exec`, `--help`) with the element selector language |
 | `src/app.rs`, `src/ui.rs`, `src/icons.rs`, `src/prefs.rs`, `src/tags.rs`, `src/palette.rs`, `src/find.rs`, `src/validate.rs` | Project state, undo, open and save, and the panels, menus and icons |
 | `src/staruml_v1.rs` | File › Import › StarUML 1 File: reading old `.uml` projects into the current model |
 | `src/tests.rs` | Round-trips of StarUML files, editing, saving and keyboard shortcuts |
