@@ -868,6 +868,23 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             line(&[(11.0, 6.0), (11.0, 10.0)], W);
             line(&[(9.5, 8.5), (11.0, 10.0), (12.5, 8.5)], W);
         }
+        // UMLCraft's own drawings for the panel buttons: a frame with three small pages, a frame
+        // with a viewport in its corner, and two boxes joined by a line
+        "thumbnails" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, W);
+            for x in [3.0, 6.75, 10.5] {
+                rect_at(x, 9.0, 2.5, 3.0, W);
+            }
+        }
+        "minimap" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, W);
+            rect_at(8.0, 8.0, 5.0, 4.0, W);
+        }
+        "relationships" => {
+            rect_at(1.5, 2.0, 5.0, 4.0, W);
+            rect_at(9.5, 10.0, 5.0, 4.0, W);
+            line(&[(4.0, 6.0), (4.0, 12.0), (9.5, 12.0)], W);
+        }
         _ => rect_at(3.0, 3.0, 10.0, 10.0, W),
     }
 }
