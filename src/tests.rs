@@ -3169,7 +3169,7 @@ fn explorer_drop_acceptance() {
     let class = a.repo.all_of("UMLClass")[0];
     assert!(a.can_drop_model(class));
     let attr = a.repo.all_of("UMLAttribute")[0];
-    assert!(!a.can_drop_model(attr), "an attribute has no box of its own");
+    assert!(a.can_drop_model(attr), "an attribute is dropped as a part of its classifier");
     let assoc = a.repo.all_of("UMLAssociation")[0];
     assert!(a.can_drop_model(assoc));
 }
@@ -7952,5 +7952,46 @@ fn actors_take_attributes_and_operations() {
     let nc = a.repo.refd(v, "nameCompartment").unwrap();
     assert!(a.info[&v].compartments[0].y >= a.repo.f(nc, "top") + crate::views::NAME_MIN_H - 0.5);
     a.take_pending_item();
+    Repo::parse(&a.repo.serialize()).unwrap();
+}
+
+#[test]
+fn ports_parts_pins_and_connection_points_drop_on_their_parent() {
+    use crate::views::P;
+    let mut a = App::new(None);
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 200.0, 150.0))).unwrap();
+    a.change(|a| a.create_node("UMLClass", rect(400.0, 40.0, 200.0, 150.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    let port = a.change(|a| a.add_feature(cm, "UMLPort")).unwrap();
+    let part = a.change(|a| a.add_feature(cm, "UMLAttribute")).unwrap();
+    assert!(a.can_drop_model(port) && a.can_drop_model(part));
+    // elsewhere: the original's alerts (uml-factory.js:2488, 2507)
+    assert_eq!(a.drop_model(port, P { x: 450.0, y: 100.0 }).unwrap_err(), "Port should be dropped on it's parent Classifier or Part");
+    assert_eq!(a.drop_model(part, P { x: 900.0, y: 900.0 }).unwrap_err(), "Part (Attribute) should be dropped on it's parent Classifier");
+    let pv = a.drop_model(port, P { x: 230.0, y: 100.0 }).unwrap()[0];
+    assert_eq!((a.repo.ty(pv), a.repo.refd(pv, "containerView")), ("UMLPortView", Some(c)));
+    let av = a.drop_model(part, P { x: 80.0, y: 120.0 }).unwrap()[0];
+    assert_eq!((a.repo.ty(av), a.repo.refd(av, "model")), ("UMLPartView", Some(part)));
+    // a connector already shown: its own words (uml-factory.js:2525)
+    let conn = tool("UMLConnector", AssocInit::Plain);
+    let e = a.change(|a| a.create_edge(&conn, pv, av)).unwrap();
+    let em = a.repo.refd(e, "model").unwrap();
+    assert_eq!(a.drop_model(em, P::default()).unwrap_err(), "Connector View is already existed in this Diagram.");
+    // a pin on its action, a connection point reference on its state (uml-factory.js:3428, 3472)
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "UMLActivityDiagram"));
+    let s = a.change(|a| a.create_node("UMLAction", rect(100.0, 100.0, 80.0, 40.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    let pin = a.change(|a| a.repo.create("UMLInputPin", &[("name", json!("in"))], Some((sm, "inputs"))));
+    assert_eq!(a.drop_model(pin, P { x: 500.0, y: 500.0 }).unwrap_err(), "Pin should be dropped on it's parent Action");
+    let v = a.drop_model(pin, P { x: 110.0, y: 110.0 }).unwrap()[0];
+    assert_eq!(a.repo.ty(v), "UMLInputPinView");
+    a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let st = a.change(|a| a.create_node("UMLState", rect(100.0, 100.0, 120.0, 60.0))).unwrap();
+    let stm = a.repo.refd(st, "model").unwrap();
+    let cpr = a.change(|a| a.repo.create("UMLConnectionPointReference", &[("name", json!(""))], Some((stm, "connections"))));
+    assert_eq!(a.drop_model(cpr, P { x: 500.0, y: 500.0 }).unwrap_err(), "ConnectionPointReference should be dropped on it's parent State");
+    let v = a.drop_model(cpr, P { x: 110.0, y: 110.0 }).unwrap()[0];
+    assert_eq!(a.repo.ty(v), "UMLConnectionPointReferenceView");
     Repo::parse(&a.repo.serialize()).unwrap();
 }
