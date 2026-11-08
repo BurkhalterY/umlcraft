@@ -1,27 +1,43 @@
-//! Command-line commands, as StarUML's (src/main-process/cli.js): `umlcraft image <file.mdj>
-//! [-f png|jpeg|svg] [-s selector] [-o output]`, `umlcraft pdf <file.mdj> …`, `--help` and `--version`. They run without a window.
+//! Command-line commands, as StarUML's (src/main-process/cli.js): `umlcraft ejs <file.mdj> -t
+//! <template.ejs> …`, `umlcraft image <file.mdj> [-f png|jpeg|svg] [-s selector] [-o output]`,
+//! `umlcraft html …`, `umlcraft pdf <file.mdj> …`, `umlcraft exec <file.mdj> -c <command> [-a arg]`,
+//! `--help` and `--version`. They run without a window.
 
 use crate::app::App;
 use crate::export::{filenamify, Format};
 use std::path::PathBuf;
 
 pub const USAGE: &str = "Usage: umlcraft [file.mdj] [--diagram <name>] [--select <name>]
+       umlcraft ejs <file.mdj> -t <template.ejs> [-o output.txt] [-s @Project]
        umlcraft image <file.mdj> [-f png|jpeg|svg] [-s selector] [-o output]
        umlcraft pdf <file.mdj> [-s selector] [-o output.pdf] [-z A4] [-l landscape|portrait] [-n true|false]
        umlcraft html <file.mdj> [-o ./html-docs]
+       umlcraft exec <file.mdj> -c <command-id> [-a arg] [-c <command-id> [-a arg]]... | --list
        umlcraft --resave <in.mdj> <out.mdj>
        umlcraft --help | --version
 
+  ejs     render the EJS template once for each element matching the selector (default
+          @Project), with app, element and filenamify. -o (default output.txt) is itself a
+          template, so each element can get its own file.
   image   export the diagrams matching the selector (default @Diagram) as pictures.
-          -o is a file name; <%= element.name %> and <%= filenamify(element.name) %> in it
-          are replaced per diagram. The default is filenamify(<name>.<format>).
+          -o is an EJS template of the file name, rendered per diagram.
+          The default is filenamify(<name>.<format>).
   pdf     print the diagrams matching the selector (default @Diagram) to one PDF, one per page.
           -o defaults to output.pdf, -z to A4, -l to landscape; -n false hides the diagram names.
-  html    write the model as HTML pages into the folder -o (default ./html-docs).";
+  html    write the model as HTML pages into the folder -o (default ./html-docs).
+  exec    run commands on the model, in order (umlcraft exec --list shows them);
+          -a is the command's argument: a string, or JSON for the factory commands.
+          Nothing is saved unless a command saves (-c project:save [-a file.mdj]).";
 
 /// Run a command-line command when the arguments ask for one; returns the exit code, or None to start
 /// the window.
 pub fn run(args: &[String], ctx: impl Fn() -> egui::Context) -> Option<i32> {
+    // `--help` after a command shows the help too, as yargs does (cli.js:291-303)
+    let command = matches!(args.first().map(String::as_str), Some("ejs" | "image" | "html" | "pdf" | "exec"));
+    if command && args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("{USAGE}");
+        return Some(0);
+    }
     match args.first().map(String::as_str) {
         Some("--help") | Some("-h") => {
             println!("{USAGE}");
@@ -34,16 +50,104 @@ pub fn run(args: &[String], ctx: impl Fn() -> egui::Context) -> Option<i32> {
         Some("image") => Some(image(&args[1..], ctx())),
         Some("pdf") => Some(pdf(&args[1..], ctx())),
         Some("html") => Some(html(&args[1..], ctx())),
-        Some(cmd @ ("ejs" | "exec")) => {
-            eprintln!("[Error] The {cmd} command is not supported by UMLCraft.");
-            Some(2)
-        }
+        Some("ejs") => Some(big_stack(args[1..].to_vec(), |a| ejs(&a))),
+        Some("exec") => Some(crate::exec::cli(&args[1..], ctx())),
         _ => None,
     }
 }
 
-fn opt<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
-    args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1)).map(String::as_str)
+/// The value of an option, by its short flag or its long name (yargs aliases: -t/--template,
+/// -o/--output, -s/--select, -f/--format, -z/--size, -l/--layout, -n/--showname, -c/--command,
+/// -a/--arg), as `-o x`, `--output x` or `--output=x`.
+pub(crate) fn opt<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
+    let long = match flag {
+        "-t" => "--template",
+        "-o" => "--output",
+        "-s" => "--select",
+        "-f" => "--format",
+        "-z" => "--size",
+        "-l" => "--layout",
+        "-n" => "--showname",
+        "-c" => "--command",
+        "-a" => "--arg",
+        _ => flag,
+    };
+    for (i, a) in args.iter().enumerate() {
+        if a == flag || a == long {
+            return args.get(i + 1).map(String::as_str);
+        }
+        if let Some(v) = a.strip_prefix(long).and_then(|r| r.strip_prefix('=')) {
+            return Some(v);
+        }
+    }
+    None
+}
+
+/// Run a command on a thread with a large stack: templates may recurse deeply.
+fn big_stack(args: Vec<String>, f: fn(Vec<String>) -> i32) -> i32 {
+    std::thread::Builder::new().stack_size(512 * 1024 * 1024).spawn(move || f(args)).ok().and_then(|h| h.join().ok()).unwrap_or(1)
+}
+
+/// `ejs`: render the template for each selected element (cli.js:18-40, 132-163,
+/// default-commands.js:1184-1215).
+fn ejs(args: &[String]) -> i32 {
+    let Some(file) = args.first().filter(|a| !a.starts_with('-')) else {
+        eprintln!("{USAGE}");
+        return 2;
+    };
+    if !PathBuf::from(file).exists() {
+        eprintln!("[Error] File not found: {file}");
+        return 1;
+    }
+    let Some(template) = opt(args, "-t") else {
+        eprintln!("Missing required argument: t");
+        return 2;
+    };
+    let tpath = PathBuf::from(template);
+    if !tpath.exists() {
+        eprintln!("[Error] File not found: {template}");
+        return 1;
+    }
+    let mut a = App::new(None);
+    a.open_path(PathBuf::from(file));
+    if let Some((t, d)) = a.message.take() {
+        eprintln!("[Error] {t} {d}");
+        return 1;
+    }
+    let text = match std::fs::read_to_string(&tpath) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("[Error] {e}");
+            return 1;
+        }
+    };
+    let output = opt(args, "-o").unwrap_or("output.txt");
+    let filename = a.filename.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
+    let dir = tpath.parent().map(|d| if d.as_os_str().is_empty() { std::path::Path::new(".") } else { d });
+    let run = || -> Result<usize, String> {
+        let elements = crate::selector::select(&a.repo, opt(args, "-s").unwrap_or("@Project"))?;
+        for e in &elements {
+            let rendered = crate::ejs::render(&text, &a.repo, &filename, Some(*e), dir)?;
+            let out = crate::ejs::render(output, &a.repo, &filename, Some(*e), None)?;
+            let out = PathBuf::from(out);
+            if let Some(d) = out.parent().filter(|d| !d.as_os_str().is_empty()) {
+                std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
+            }
+            std::fs::write(&out, rendered).map_err(|e| format!("{}: {e}", out.display()))?;
+            println!("[UMLCraft] {}", out.display());
+        }
+        Ok(elements.len())
+    };
+    match run() {
+        Ok(n) => {
+            println!("[UMLCraft] Total {n} files were generated");
+            0
+        }
+        Err(e) => {
+            eprintln!("[Error] {e}");
+            1
+        }
+    }
 }
 
 /// `image`: export the diagrams the selector matches (cli.js:164-195, default-commands.js:1217-1260).
@@ -66,7 +170,13 @@ fn image(args: &[String], ctx: egui::Context) -> i32 {
     for d in diagrams {
         let name = a.repo.name(d);
         let out = match opt(args, "-o") {
-            Some(o) => o.replace("<%= filenamify(element.name) %>", &filenamify(&name)).replace("<%= element.name %>", &name),
+            Some(o) => match crate::ejs::render(o, &a.repo, &a.filename.as_ref().map(|p| p.display().to_string()).unwrap_or_default(), Some(d), None) {
+                Ok(o) => o,
+                Err(e) => {
+                    eprintln!("[Error] {e}");
+                    return 1;
+                }
+            },
             None => filenamify(&format!("{name}.{}", match format {
                 Format::Png => "png",
                 Format::Jpeg => "jpeg",

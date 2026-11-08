@@ -2810,18 +2810,23 @@ fn http_api() {
     let (st, all) = a.api_answer("/get_all_diagrams_info", &json!({}), &ms);
     let all: serde_json::Value = serde_json::from_str(&all).unwrap();
     assert_eq!(st, 200);
+    assert_eq!(all["success"], true);
+    let all = &all["data"];
     assert_eq!(all.as_array().unwrap().len(), a.repo.all_of("Diagram").len());
     assert_eq!(all[0]["type"], "UMLClassDiagram");
     let (_, cur) = a.api_answer("/get_current_diagram_info", &json!({}), &ms);
     let cur: serde_json::Value = serde_json::from_str(&cur).unwrap();
+    let cur = &cur["data"];
     assert_eq!(cur["id"], a.repo.id(a.diagram.unwrap()));
     let (st, img) = a.api_answer("/get_diagram_image_by_id", &json!({"diagramId": cur["id"]}), &ms);
     assert_eq!(st, 200);
-    assert!(img.contains("\"data\":\"iVBOR"), "a base64 PNG");
+    assert!(img.starts_with("{\"success\":true,\"data\":\"iVBOR"), "a base64 PNG");
     let (st, err) = a.api_answer("/get_diagram_image_by_id", &json!({"diagramId": "nope"}), &ms);
-    assert_eq!((st, err.contains("Diagram not found or invalid ID")), (500, true));
-    let (st, _) = a.api_answer("/generate_diagram", &json!({}), &ms);
+    assert_eq!((st, err.as_str()), (500, "{\"success\":false,\"error\":\"Error: Diagram not found or invalid ID: nope\"}"));
+    let (st, bad) = a.api_answer("/generate_diagram", &json!({}), &ms);
     assert_eq!(st, 400);
+    let bad: serde_json::Value = serde_json::from_str(&bad).unwrap();
+    assert_eq!(bad, json!({"success": false, "error": "Invalid request body", "details": {"formErrors": [], "fieldErrors": {"code": ["Required"]}}}));
     let (st, ok) = a.api_answer("/generate_diagram", &json!({"code": "classDiagram\nA <|-- B"}), &ms);
     assert_eq!((st, ok.as_str()), (200, "{\"success\":true}"));
 
@@ -7829,4 +7834,139 @@ fn a_stereotype_small_icon_replaces_the_tree_icon() {
     // a single quote makes the original reject it
     a.change(|a| a.repo.set(icon, "smallIcon", json!(svg.replace('"', "'"))));
     assert_eq!(crate::icons::stereotype_small_icon(&a.repo, c), None);
+}
+
+fn library() -> App {
+    let mut a = App::new(None);
+    a.open_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj"));
+    a
+}
+
+#[test]
+fn ejs_tags_and_whitespace() {
+    // the ejs package's rules: -%> drops the line break after it, <%_ _%> the spaces around them,
+    // <%= escapes & < > " ', <%- does not, <%# is a comment, <%% and %%> are literal
+    let a = library();
+    let t = "A <%# c %>\n  <% for (var i = 0; i < 2; i++) { -%>\n  <%= i %> <%- '<b>' %> <%= '\"&\\'' %>\n  <% } -%>\n    <%_ if (true) { _%>\nx\n    <%_ } _%>\n<%% y %%>\n";
+    let out = crate::ejs::render(t, &a.repo, "", None, None).unwrap();
+    assert_eq!(out, "A \n    0 <b> &#34;&amp;&#39;\n    1 <b> &#34;&amp;&#39;\n  x\n<% y %>\n");
+    assert_eq!(crate::ejs::render("<% if (1) { %>", &a.repo, "", None, None).unwrap_err(), "Unexpected end of input");
+    assert!(crate::ejs::render("<%= 1", &a.repo, "", None, None).unwrap_err().starts_with("Could not find matching close tag"));
+    assert_eq!(crate::ejs::render("<%= nope %>", &a.repo, "", None, None).unwrap_err(), "ReferenceError: nope is not defined");
+}
+
+#[test]
+fn ejs_model_elements() {
+    let a = library();
+    let book = *a.repo.by_id.get("AAAAAAGhopdDwLs68BY=").unwrap();
+    let t = "<%= element.getPathname() %>|<%= element.getClassName() %>|<%= element.attributes.map(x => x.name).join(',') %>|\
+<%= element.getGeneralElements()[0].name %>|<%= element instanceof type.UMLClassifier %>|<%= element.operations.length %>|\
+<%= element._parent.name %>|<%= element.isAbstract %>|<%= element.documentation === '' %>|\
+<%= app.repository.select('@UMLEnumeration')[0].literals.map(l => l.name) %>|<%= app.project.getProject().name %>|\
+<%= filenamify('a/b') %>|<%= element.attributes[0].type %>";
+    let out = crate::ejs::render(t, &a.repo, "", Some(book), None).unwrap();
+    assert_eq!(out, "Model::Book|UMLClass|isbn,pages|LibraryItem|true|0|Model|false|true|ACTIVE,RETURNED,OVERDUE|Library|a!b|String");
+    // elements are read-only
+    assert!(crate::ejs::render("<% element.name = 'x' %>", &a.repo, "", Some(book), None).unwrap_err().contains("read-only"));
+}
+
+#[test]
+fn ejs_javascript_subset() {
+    let a = library();
+    let r = |t: &str| crate::ejs::render(t, &a.repo, "", None, None).unwrap();
+    assert_eq!(r("<%= [3, 1, 10].sort() %> <%= [3, 1, 10].sort((x, y) => x - y) %>"), "1,10,3 1,3,10");
+    assert_eq!(r("<%= 0.1 + 0.2 %> <%= 1 / 3 %> <%= 2 ** 10 %> <%= 7 % 3 %> <%= '5' * 2 %> <%= '5' + 2 %>"), "0.30000000000000004 0.3333333333333333 1024 1 10 52");
+    assert_eq!(r("<% const {x, y: [, b] = []} = {x: 1, y: [2, 3]}; %><%= x %><%= b %>"), "13");
+    assert_eq!(r("<% function f(a, b = 2, ...c) { return a + b + c.length } %><%= f(1) %> <%= f(1, 1, 9, 9) %>"), "3 4");
+    assert_eq!(r("<%= `a${1 + 1}b` %> <%= 'Hello'.replace(/l+/g, 'L') %> <%= 'aXbxc'.split(/x/i) %> <%= 'fooBar'.replace(/([A-Z])/g, '_$1').toLowerCase() %>"), "a2b HeLo a,b,c foo_bar");
+    assert_eq!(r("<%= null ?? 'd' %> <%= ({a: {b: 1}}).a?.b %> <%= ({}).a?.b %> <%= typeof undefinedThing %> <%= [1, [2, [3]]].flat(2).length %>"), "d 1  undefined 3");
+    assert_eq!(r("<% let n = 0; for (const k in {a: 1, b: 2}) n++; while (n < 5) n++; %><%= n %> <% switch ('b') { case 'a': %>A<% break; case 'b': %>B<% break; } %>"), "5 B");
+    assert_eq!(r("<% try { null.x } catch (e) { %><%= e.name %><% } finally { %>!<% } %>"), "TypeError!");
+    assert_eq!(r("<%= JSON.stringify({a: [1, 'x', null], b: true}) %>"), "{&#34;a&#34;:[1,&#34;x&#34;,null],&#34;b&#34;:true}");
+    assert_eq!(r("<%= Math.max(...[1, 5, 3]) %> <%= parseInt('42px') %> <%= (3.14159).toFixed(2) %> <%= 'ab'.padStart(4, '.') %> <%= _.sortBy([{n: 'b'}, {n: 'a'}], 'n').map(o => o.n) %>"), "5 42 3.14 ..ab a,b");
+    assert_eq!(r("<% var counts = {}; ['a', 'b', 'a'].forEach(k => { counts[k] = (counts[k] || 0) + 1 }); counts.a++ %><%= counts.a %><%= counts.b %>"), "31");
+    assert_eq!(r("<%= /^\\d{3}-\\w+$/.test('123-abc') %> <%= 'x1y22'.match(/\\d+/g) %> <%= 'aaa'.replace(/a*?/g, '-') %>"), "true 1,22 -a-a-a-");
+    assert_eq!(r("<%= /(\\w)\\1/.test('abba') %> <%= 'a1b2'.replace(/[^a-z]/g, '') %> <%= /^b$/m.test('a\\nb') %> <%= 'cat dog'.replace(/(dog|cat)/, m => m.toUpperCase()) %> <%= '<a><b>'.match(/<.+?>/)[0] %> <%= /x(?=y)/.test('xz') %> <%= 'A-b'.split(/(-)/) %>"), "true ab true CAT dog &lt;a&gt; false A,-,b");
+}
+
+#[test]
+fn ejs_command_writes_one_file_per_element() {
+    let dir = std::env::temp_dir().join(format!("umlcraft-ejs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let tpl = dir.join("t.ejs");
+    std::fs::write(&tpl, "class <%= element.name %> {<% element.attributes.forEach(a => { %> <%= a.name %>;<% }) %> }").unwrap();
+    std::fs::write(dir.join("part.ejs"), "[<%= what %>]").unwrap();
+    std::fs::write(dir.join("inc.ejs"), "<%- include('part', {what: element.name}) %>").unwrap();
+    let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj").display().to_string();
+    let out = dir.join("gen/<%= filenamify(element.name) %>.java").display().to_string();
+    let args: Vec<String> = ["ejs", &file, "-t", &tpl.display().to_string(), "-s", "@UMLClass", "-o", &out].iter().map(|s| s.to_string()).collect();
+    assert_eq!(crate::cli::run(&args, || measure().ctx), Some(0));
+    assert_eq!(std::fs::read_to_string(dir.join("gen/Book.java")).unwrap(), "class Book { isbn; pages; }");
+    assert_eq!(std::fs::read_dir(dir.join("gen")).unwrap().count(), 5);
+    let out = dir.join("inc.txt").display().to_string();
+    let args: Vec<String> = ["ejs", &file, "--template", &dir.join("inc.ejs").display().to_string(), "--output", &out].iter().map(|s| s.to_string()).collect();
+    assert_eq!(crate::cli::run(&args, || measure().ctx), Some(0));
+    assert_eq!(std::fs::read_to_string(dir.join("inc.txt")).unwrap(), "[Library]");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn exec_factory_and_engine_commands() {
+    let ms = measure();
+    let mut a = library();
+    let mut res: Vec<Option<crate::model::Eid>> = vec![];
+    let run = |a: &mut App, id: &str, arg: &str, res: &mut Vec<Option<crate::model::Eid>>| {
+        let r = a.exec_command(id, Some(arg), res, &ms);
+        res.push(r.clone().ok().flatten());
+        r
+    };
+    let model = "AAAAAAGhopdDwLspZC4=";
+    let d = run(&mut a, "factory:create-diagram", &format!(r#"{{"id": "UMLClassDiagram", "parent": "{model}"}}"#), &mut res).unwrap().unwrap();
+    assert_eq!(a.repo.ty(d), "UMLClassDiagram");
+    assert_eq!(a.repo.parent(d), a.repo.by_id.get(model).copied());
+    let c1 = run(&mut a, "factory:create-model-and-view", r#"{"id": "UMLClass", "diagram": "$1", "x1": 20, "y1": 20, "x2": 140, "y2": 90, "model-init": {"name": "Alpha"}}"#, &mut res).unwrap().unwrap();
+    let c2 = run(&mut a, "factory:create-model-and-view", r#"{"id": "UMLClass", "diagram": "$1", "x1": 300, "y1": 20, "model-init": {"name": "Beta"}}"#, &mut res).unwrap().unwrap();
+    assert_eq!(a.repo.ty(c1), "UMLClassView");
+    assert_eq!((a.repo.f(c1, "left"), a.repo.f(c1, "width")), (20.0, 120.0));
+    assert_ne!(c1, c2);
+    let m1 = a.repo.refd(c1, "model").unwrap();
+    assert_eq!(a.repo.name(m1), "Alpha");
+    assert_eq!(a.repo.parent(m1), a.repo.parent(d), "the element goes in the diagram's owner");
+    let e = run(&mut a, "factory:create-model-and-view", r#"{"id": "UMLAssociation", "diagram": "$1", "tailView": "$2", "headView": "$3", "model-init": {"end2": {"aggregation": "composite"}}}"#, &mut res).unwrap().unwrap();
+    let assoc = a.repo.refd(e, "model").unwrap();
+    assert_eq!(a.repo.str(a.repo.child(assoc, "end2").unwrap(), "aggregation"), "composite");
+    let m1_id = a.repo.id(m1);
+    let attr = run(&mut a, "factory:create-model", &format!(r#"{{"id": "UMLAttribute", "parent": {{"$ref": "{m1_id}"}}, "model-init": {{"name": "size"}}}}"#), &mut res).unwrap().unwrap();
+    assert_eq!(a.repo.list(m1, "attributes"), vec![attr]);
+    assert_eq!(a.repo.name(attr), "size");
+    run(&mut a, "engine:set-property", r#"{"model": "$2", "set-model": "model", "property": "isAbstract", "value": true}"#, &mut res).unwrap();
+    assert!(a.repo.bool(m1, "isAbstract"));
+    assert!(run(&mut a, "factory:create-model-and-view", r#"{"id": "Nope", "diagram": "$1"}"#, &mut res).unwrap_err().contains("No such function"));
+    // importFromJson keeps the ids, and refuses ones already used
+    let j = format!(r#"{{"parent": "{model}", "data": {{"_type": "UMLClass", "_id": "AAAAAAAAAAAAAAAAAAAAAA==", "name": "Imported"}}}}"#);
+    let imp = run(&mut a, "project:import-from-json", &j, &mut res).unwrap().unwrap();
+    assert_eq!(a.repo.id(imp), "AAAAAAAAAAAAAAAAAAAAAA==");
+    assert!(run(&mut a, "project:import-from-json", &j, &mut res).unwrap_err().contains("already in the project"));
+    // the saved file has them
+    a.prepare_for_save(&ms);
+    let text = a.repo.serialize();
+    assert!(text.contains("\"name\": \"Alpha\"") && text.contains("\"isAbstract\": true") && text.contains("\"name\": \"Imported\""), "{text}");
+}
+
+#[test]
+fn exec_command_line() {
+    let dir = std::env::temp_dir().join(format!("umlcraft-exec-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/library.mdj").display().to_string();
+    let out = dir.join("out.mdj").display().to_string();
+    let args: Vec<String> = ["exec", &file, "-c", "factory:create-model", "-a", r#"{"id": "UMLClass", "parent": "AAAAAAGhopdDwLspZC4=", "model-init": {"name": "Gamma"}}"#, "-c", "project:save", "-a", &out].iter().map(|s| s.to_string()).collect();
+    assert_eq!(crate::cli::run(&args, || measure().ctx), Some(0));
+    let saved = Repo::parse(&std::fs::read_to_string(&out).unwrap()).unwrap();
+    assert!(saved.all().any(|e| saved.name(e) == "Gamma" && saved.ty(e) == "UMLClass"));
+    // an unknown command is reported
+    let args: Vec<String> = ["exec", &file, "-c", "no:such"].iter().map(|s| s.to_string()).collect();
+    assert_eq!(crate::cli::run(&args, || measure().ctx), Some(1));
+    let _ = std::fs::remove_dir_all(&dir);
 }

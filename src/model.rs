@@ -510,6 +510,14 @@ impl Repo {
         out
     }
 
+    /// Insert an exported element (with everything inside it) under parent[field], keeping its ids
+    /// (project-manager.js:264-283 importFromJson).
+    pub fn insert_json(&mut self, v: Value, parent: Eid, field: &str) -> Eid {
+        let e = self.import(v, Some(parent));
+        self.attach(e, parent, field, None);
+        e
+    }
+
     /// The field of its owner that holds this element (ownedElements, attributes, end1…).
     pub fn field_of(&self, eid: Eid) -> Option<String> {
         let p = self.parent(eid)?;

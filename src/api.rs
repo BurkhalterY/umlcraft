@@ -117,35 +117,58 @@ impl App {
         json!({"id": self.repo.id(d), "type": self.repo.ty(d), "name": self.repo.name(d), "description": self.repo.str(d, "documentation")})
     }
 
-    /// Answer one API request: (status, JSON text) (api-server.js:34-146).
+    /// Answer one API request: (status, JSON text) (api-server.js:34-146). Answers are
+    /// `{success: true, data}` (`{success: true}` for generate_diagram); a body without the field is
+    /// a 400 `{success: false, error: "Invalid request body", details}` with zod's flattened errors; a
+    /// failed command is a 500 `{success: false, error: "Error: …"}`.
     pub fn api_answer(&mut self, path: &str, body: &Value, ms: &dyn Measure) -> (u16, String) {
+        // zod's safeParse(...).error.flatten() for an object with one string field
+        let invalid = |field: &str| {
+            let details = match body.get(field) {
+                _ if !body.is_object() => json!({"formErrors": ["Required"], "fieldErrors": {}}),
+                None | Some(Value::Null) => json!({"formErrors": [], "fieldErrors": {field: ["Required"]}}),
+                Some(v) => {
+                    let got = match v {
+                        Value::Number(_) => "number",
+                        Value::Bool(_) => "boolean",
+                        Value::Array(_) => "array",
+                        _ => "object",
+                    };
+                    json!({"formErrors": [], "fieldErrors": {field: [format!("Expected string, received {got}")]}})
+                }
+            };
+            (400, json!({"success": false, "error": "Invalid request body", "details": details}).to_string())
+        };
+        let failed = |e: &str| (500, json!({"success": false, "error": format!("Error: {e}")}).to_string());
+        let data = |v: Value| (200, json!({"success": true, "data": v}).to_string());
         match path {
             "/generate_diagram" => {
-                let Some(code) = body.get("code").and_then(|c| c.as_str()) else {
-                    return (400, json!({"error": "Invalid request", "details": [{"path": ["code"], "message": "Required: a string"}]}).to_string());
-                };
+                let Some(code) = body.get("code").and_then(|c| c.as_str()) else { return invalid("code") };
                 match self.generate_mermaid(code, ms) {
                     Ok(_) => (200, json!({"success": true}).to_string()),
-                    Err(e) => (500, json!({"error": e}).to_string()),
+                    Err(e) => failed(&e),
                 }
             }
             "/get_all_diagrams_info" => {
                 let all: Vec<Value> = self.print_diagrams(true).into_iter().map(|d| self.diagram_info(d)).collect();
-                (200, Value::Array(all).to_string())
+                data(Value::Array(all))
             }
             "/get_current_diagram_info" => {
                 let v = self.diagram.filter(|d| self.repo.alive(*d)).map(|d| self.diagram_info(d)).unwrap_or(Value::Null);
-                (200, v.to_string())
+                data(v)
             }
             "/get_diagram_image_by_id" => {
-                let id = body.get("diagramId").and_then(|x| x.as_str()).unwrap_or("");
+                let Some(id) = body.get("diagramId").and_then(|x| x.as_str()) else { return invalid("diagramId") };
                 let d = self.repo.by_id.get(id).copied().filter(|d| self.repo.alive(*d) && self.is_diagram(*d));
                 let Some(d) = d else {
-                    return (500, json!({"error": "Diagram not found or invalid ID"}).to_string());
+                    return failed(&format!("Diagram not found or invalid ID: {id}"));
                 };
+                // the PNG without its data: URL prefix (diagram-export.js:106-170 getImageData)
                 match crate::export::render(self, d, ms, crate::export::Format::Png, 1.0) {
-                    Ok(png) => (200, json!({"success": true, "data": crate::model::base64(&png), "mimeType": "image/png"}).to_string()),
-                    Err(e) => (500, json!({"error": e}).to_string()),
+                    Ok(png) => data(Value::String(crate::model::base64(&png))),
+                    // an empty diagram: StarUML's handler catches the error and answers null
+                    // (default-commands.js:1420-1430)
+                    Err(_) => data(Value::Null),
                 }
             }
             _ => (404, json!({"error": "Not found"}).to_string()),
