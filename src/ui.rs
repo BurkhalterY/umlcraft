@@ -276,6 +276,25 @@ const COMMUNICATION_GROUPS: &[Group] = &[
     },
     ANNOTATIONS,
 ];
+// an interaction overview diagram (uml.json "uml.interaction-overview")
+const OVERVIEW_GROUPS: &[Group] = &[
+    Group {
+        id: "interaction-overview",
+        label: "Interaction Overview",
+        items: &[
+            node("Interaction Use", "UMLInteractionUseInOverview", "frame"),
+            node("Interaction (Inline)", "UMLInteractionInOverview", "frame"),
+            node("Initial", "UMLInitialNode", "initial"),
+            node("Final", "UMLActivityFinalNode", "final"),
+            node("Fork", "UMLForkNode", "fork"),
+            node("Join", "UMLJoinNode", "fork"),
+            node("Merge", "UMLMergeNode", "choice"),
+            node("Decision", "UMLDecisionNode", "choice"),
+            line("Control Flow", "UMLControlFlow", "dependency", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
 // a C4 diagram (c4/toolbox/c4.json)
 const C4_GROUPS: &[Group] = &[
     Group {
@@ -506,7 +525,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 19] = [
+const DIAGRAM_KINDS: [(&str, &str); 20] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -520,6 +539,7 @@ const DIAGRAM_KINDS: [(&str, &str); 19] = [
     ("Activity Diagram", "UMLActivityDiagram"),
     ("Sequence Diagram", "UMLSequenceDiagram"),
     ("Communication Diagram", "UMLCommunicationDiagram"),
+    ("Interaction Overview Diagram", "UMLInteractionOverviewDiagram"),
     ("Flowchart Diagram", "FCFlowchartDiagram"),
     // the original's labels (dfd/menus/dfd.json, mindmap/menus/mindmap.json)
     ("DataFlowDiagram", "DFDDiagram"),
@@ -1820,6 +1840,7 @@ impl App {
                 Some("WFWireframeDiagram") => self.open_groups.insert("wireframe.frames") | self.open_groups.insert("wireframe.components"),
                 Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
                 Some("UMLCommunicationDiagram") => self.open_groups.insert("communication"),
+                Some("UMLInteractionOverviewDiagram") => self.open_groups.insert("interaction-overview"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1854,6 +1875,7 @@ impl App {
             Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
             Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
             Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,
+            Some("UMLInteractionOverviewDiagram") => OVERVIEW_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

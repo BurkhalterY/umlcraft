@@ -630,11 +630,16 @@ pub fn create_note_view(r: &mut Repo, diagram: Eid, rect: R, ty: &str) -> Eid {
 /// A frame showing `model` (or nothing), with its name label and its bold diagram-kind label
 /// (UMLCustomFrameView, elements.js:12167-12180; uml-commands.js:244-262).
 pub fn create_frame_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, rect: R) -> Eid {
+    create_frame_view_of(r, "UMLFrameView", diagram, model, rect)
+}
+
+/// A frame-like view of the given type (a frame, or an interaction overview's inline interaction).
+pub fn create_frame_view_of(r: &mut Repo, ty: &str, diagram: Eid, model: Option<Eid>, rect: R) -> Eid {
     let mut props = vec![("font", json!(FONT)), ("parentStyle", json!(false)), ("left", num(rect.x)), ("top", num(rect.y)), ("width", num(rect.w)), ("height", num(rect.h))];
     if let Some(m) = model {
         props.insert(0, ("model", r.ref_to(m)));
     }
-    let v = r.create("UMLFrameView", &props, Some((diagram, "ownedViews")));
+    let v = r.create(ty, &props, Some((diagram, "ownedViews")));
     let nm = label(r, v, &[("height", json!(LABEL_H)), ("horizontalAlignment", json!(0))]);
     let ty = label(r, v, &[("font", json!("Arial;13;1")), ("height", json!(LABEL_H)), ("horizontalAlignment", json!(0))]);
     r.set_ref(v, "nameLabel", Some(nm));
@@ -1183,7 +1188,9 @@ pub fn frame_name_text(r: &Repo, v: Eid, m: Eid) -> String {
 /// A frame's labels and minimum size (UMLCustomFrameView.sizeObject and arrangeObject, elements.js:12182-12212).
 fn layout_frame(r: &mut Repo, ms: &dyn Measure, v: Eid) {
     let (Some(nl), Some(tl)) = (r.refd(v, "nameLabel"), r.refd(v, "frameTypeLabel")) else { return };
-    if let Some(m) = r.refd(v, "model") {
+    // an inline interaction shows the diagram its action calls (UMLInteractionInlineView.update)
+    let model = r.refd(v, "model").map(|m| if r.ty(m) == "UMLAction" { r.refd(m, "target").unwrap_or(m) } else { m });
+    if let Some(m) = model {
         let mut kind = frame_type_name(r, m);
         if kind.is_empty() {
             if let Some(d) = r.parent(v) {
@@ -2226,7 +2233,7 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         layout_hyperlink(r, ms, v);
         return Info { shape: "hyperlink", ..Default::default() };
     }
-    if t == "UMLFrameView" {
+    if t == "UMLFrameView" || t == "UMLInteractionInlineView" {
         layout_frame(r, ms, v);
         return Info { shape: "frame", ..Default::default() };
     }
@@ -2790,6 +2797,9 @@ pub fn layout_diagram(r: &mut Repo, ms: &dyn Measure, d: Eid) -> HashMap<Eid, In
                 layout_edge(r, ms, *v, &info);
             }
         }
+    }
+    if r.ty(d) == "UMLInteractionOverviewDiagram" {
+        crate::overview::layout_inlines(r, ms, d, &mut info);
     }
     for v in &views {
         if r.alive(*v) && r.ty(*v) == "UMLCommMessageView" {

@@ -29,6 +29,7 @@ mod keymap;
 mod meta;
 mod model;
 mod notations;
+mod overview;
 mod palette;
 mod parse;
 mod pdf;

@@ -831,6 +831,10 @@ impl App {
             self.apply_view_defaults(v);
             return Some(v);
         }
+        // an interaction overview's interaction uses and inline interactions (uml-factory.js:1833-1950)
+        if matches!(kind, "UMLInteractionUseInOverview" | "UMLInteractionInOverview") {
+            return self.create_overview_node(d, kind, rect);
+        }
         // a time constraint belongs to the message it is dropped on, its label 20 px under the point and
         // joined to the message; a duration constraint belongs to the interaction (timeConstraintFn,
         // durationConstraintFn, uml-factory.js:1718-1840)
@@ -1266,6 +1270,8 @@ impl App {
             "ERDDiagram" => vec!["Hyperlink", "Diagram", "ERDEntity", "ERDColumn", "ERDRelationship"],
             // C4Diagram.canAcceptModel (c4/elements.js:75-80)
             "C4Diagram" => vec!["Hyperlink", "Diagram", "C4Element", "C4Relationship"],
+            // UMLInteractionOverviewDiagram.canAcceptModel (elements.js:13823-13834)
+            "UMLInteractionOverviewDiagram" => vec!["Hyperlink", "Diagram", "UMLInteractionUse", "UMLInteraction"],
             // UMLSequenceDiagram.canAcceptModel (elements.js:10958-10985), and
             // UMLCommunicationDiagram's (elements.js:12914-12946)
             "UMLSequenceDiagram" | "UMLCommunicationDiagram" => {
@@ -1324,6 +1330,12 @@ impl App {
         // a classifier dropped on a sequence diagram becomes a lifeline representing a new role of that
         // type; a role of the collaboration a lifeline representing it (viewForSequenceDiagramFn,
         // uml-factory.js:2763-2850)
+        // an interaction use, an interaction or a sequence diagram on an interaction overview diagram
+        // becomes an action calling it
+        if self.repo.ty(d) == "UMLInteractionOverviewDiagram" && (matches!(self.repo.ty(m), "UMLInteractionUse" | "UMLInteraction" | "UMLSequenceDiagram")) {
+            let v = self.change(|a| a.drop_on_overview(d, m, p));
+            return Ok(v.into_iter().collect());
+        }
         let comm = self.repo.ty(d) == "UMLCommunicationDiagram";
         if (self.repo.ty(d) == "UMLSequenceDiagram" || comm) && (self.repo.kind_of(m, "UMLClassifier") || self.repo.ty(m) == "UMLAttribute") {
             let v = self.change(|a| {
@@ -2029,6 +2041,40 @@ impl App {
         // a sequence diagram goes in an interaction: the target if it is one, else a new interaction in
         // a classifier, else a new collaboration with an interaction; it starts with a frame showing
         // it (sequenceDiagramFn and _addFrame, uml-factory.js:251-310)
+        // an interaction overview diagram goes in an activity: the target if it is one, else a new
+        // "Activity1" in the interaction, the classifier's new interaction or a new collaboration's
+        // interaction; it starts with a frame (interactionOverviewDiagramFn, uml-factory.js:441-530)
+        if ty == "UMLInteractionOverviewDiagram" {
+            let target = match parent {
+                Some(p) if matches!(self.repo.ty(p), "UMLActivity" | "UMLInteraction") || self.repo.kind_of(p, "UMLClassifier") || self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" => p,
+                _ => self.package_for(self.diagram),
+            };
+            let act = if self.repo.ty(target) == "UMLActivity" {
+                target
+            } else {
+                let inter = if self.repo.ty(target) == "UMLInteraction" {
+                    target
+                } else {
+                    let holder = if self.repo.kind_of(target, "UMLClassifier") {
+                        target
+                    } else {
+                        let name = self.new_name(target, "UMLCollaboration");
+                        self.repo.create("UMLCollaboration", &[("name", json!(name))], Some((target, "ownedElements")))
+                    };
+                    let name = self.new_name(holder, "UMLInteraction");
+                    self.repo.create("UMLInteraction", &[("name", json!(name))], Some((holder, "ownedElements")))
+                };
+                let name = self.new_name(inter, "UMLActivity");
+                self.repo.create("UMLActivity", &[("name", json!(name))], Some((inter, "ownedElements")))
+            };
+            let name = self.new_name(act, ty);
+            let d = self.repo.create(ty, &[("name", json!(name))], Some((act, "ownedElements")));
+            let f = views::create_frame_view(&mut self.repo, d, Some(d), R { x: 8.0, y: 8.0, w: 692.0, h: 592.0 });
+            self.apply_view_defaults(f);
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
         // and a communication diagram the same way, but in a collaboration's new interaction
         // (communicationDiagramFn, uml-factory.js:312-370)
         if ty == "UMLSequenceDiagram" || ty == "UMLCommunicationDiagram" {

@@ -1239,6 +1239,9 @@ pub fn draw_diagram(c: &mut dyn Canvas, r: &Repo, d: Eid, info: &HashMap<Eid, In
             draw_edge(c, r, v, info);
         } else if is_node(r, v) {
             draw_node(c, r, v, info.get(&v));
+            if r.ty(v) == "UMLInteractionInlineView" {
+                crate::overview::draw_inline(c, r, v, info);
+            }
         }
     }
 }

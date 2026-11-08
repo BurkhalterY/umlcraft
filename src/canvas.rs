@@ -1581,9 +1581,19 @@ impl App {
                 }
             }
         }
-        // an interaction use selects the interaction it refers to (uml/main.js:90-96)
+        // an inline interaction opens the diagram it shows and selects it (uml/main.js:84-89)
+        if t == "UMLInteractionInlineView" {
+            if let Some(dg) = self.repo.refd(m, "target").filter(|x| self.repo.alive(*x)) {
+                self.open_diagram(dg);
+                self.reveal(dg);
+            }
+            return;
+        }
+        // an interaction use selects the interaction it refers to, or its action's target's
+        // (uml/main.js:90-96)
         if t == "UMLInteractionUseView" {
-            if let Some(target) = self.repo.refd(m, "refersTo") {
+            let iu = if self.repo.ty(m) == "UMLAction" { self.repo.refd(m, "target").unwrap_or(m) } else { m };
+            if let Some(target) = self.repo.refd(iu, "refersTo") {
                 self.reveal(target);
             }
         }

@@ -267,15 +267,15 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Timing `uml.timing` | UMLTimingDiagram | Time Constraint | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Timing `uml.timing` | UMLTimingDiagram | Duration Constraint | ❌ | extensions/essential/uml/toolbox/uml.json |
 | Timing `uml.timing` | UMLTimingDiagram | Message | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Interaction Use | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Interaction (Inline) | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Initial | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Final | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Fork | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Join | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Merge | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Decision | ❌ | extensions/essential/uml/toolbox/uml.json |
-| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Control Flow | ❌ | extensions/essential/uml/toolbox/uml.json |
+| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Interaction Use | ✅ | a call-behavior action of the diagram's activity calling a new interaction use "InteractionUse1" of the activity's interaction, which refers to a new interaction beside it; shown as a "ref" box (src/app.rs:834-837; src/overview.rs:111-146) | extensions/essential/uml/toolbox/uml.json |
+| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Interaction (Inline) | ✅ | a call-behavior action calling a new interaction's new sequence diagram, shown as a frame `sd Interaction` drawing that diagram shrunk to fit, 10 px in and 30 px down (src/overview.rs:23-110, 128-146) | extensions/essential/uml/toolbox/uml.json |
+| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Initial | ✅ | as on an activity diagram: in the diagram's activity (src/app.rs; src/ui.rs:280-298) | extensions/essential/uml/toolbox/uml.json |
+| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Final | ✅ | as on an activity diagram (src/ui.rs:280-298) | extensions/essential/uml/toolbox/uml.json |
+| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Fork | ✅ | as on an activity diagram (src/ui.rs:280-298) | extensions/essential/uml/toolbox/uml.json |
+| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Join | ✅ | as on an activity diagram (src/ui.rs:280-298) | extensions/essential/uml/toolbox/uml.json |
+| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Merge | ✅ | as on an activity diagram (src/ui.rs:280-298) | extensions/essential/uml/toolbox/uml.json |
+| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Decision | ✅ | as on an activity diagram (src/ui.rs:280-298) | extensions/essential/uml/toolbox/uml.json |
+| Interaction Overview `uml.interaction-overview` | UMLInteractionOverviewDiagram | Control Flow | ✅ | a control flow in the activity's edges, between actions and control nodes (src/ui.rs:280-298) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Simple State | ✅ | in the Statechart (Basic) group: a UMLState "State1" in the first region's vertices, drawn as a rounded box with its name and its entry/do/exit activities under a line (src/ui.rs:246-279; src/app.rs:749-814; src/views.rs:497-519; src/render.rs:393-425) | extensions/essential/uml/toolbox/uml.json |
 | Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Initial State | ✅ | an unnamed UMLPseudostate of kind initial in the first region, a filled circle at least 20 px (src/app.rs:828-836; src/views.rs:285-293, 2115-2145; src/render.rs:455-490) extensions/essential/uml/toolbox/uml.json |
 | Statechart (Basic) `uml.statechart` | UMLStatechartDiagram | Choice | ✅ | an unnamed pseudostate of kind choice, a diamond at least 23 × 19 (src/views.rs:285-293; src/render.rs:455-490) extensions/essential/uml/toolbox/uml.json |

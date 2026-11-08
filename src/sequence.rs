@@ -520,6 +520,9 @@ pub fn interaction_use_text(r: &Repo, m: Eid) -> String {
 /// of their views, elements.js:12098-12720).
 pub fn layout_fragment(r: &mut Repo, ms: &dyn Measure, v: Eid) {
     let Some(m) = r.refd(v, "model").filter(|m| r.alive(*m)) else { return };
+    // on an interaction overview diagram the view shows an action calling the interaction use
+    // (UMLInteractionUseView.update, elements.js:12625-12630)
+    let m = if r.ty(m) == "UMLAction" { r.refd(m, "target").filter(|t| r.alive(*t)).unwrap_or(m) } else { m };
     let lh = ms.size();
     let (x, y) = (r.f(v, "left"), r.f(v, "top"));
     match r.ty(v) {

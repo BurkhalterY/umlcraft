@@ -5769,3 +5769,51 @@ fn sequence_diagrams_take_time_and_duration_constraints() {
     crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn interaction_overview_diagrams_call_interactions() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLInteractionOverviewDiagram"));
+    let act = a.repo.parent(d).unwrap();
+    let inter = a.repo.parent(act).unwrap();
+    let collab = a.repo.parent(inter).unwrap();
+    assert_eq!((a.repo.ty(act), a.repo.ty(inter), a.repo.ty(collab)), ("UMLActivity", "UMLInteraction", "UMLCollaboration"));
+    assert_eq!(a.repo.name(d), "InteractionOverviewDiagram1");
+    // an interaction use calls a new interaction next to the diagram's
+    let u = a.change(|a| a.create_node("UMLInteractionUseInOverview", rect(50.0, 80.0, 160.0, 60.0))).unwrap();
+    let um = a.repo.refd(u, "model").unwrap();
+    assert_eq!((a.repo.ty(um), a.repo.str(um, "kind").as_str(), a.repo.parent(um)), ("UMLAction", "callBehavior", Some(act)));
+    let iu = a.repo.refd(um, "target").unwrap();
+    assert_eq!((a.repo.ty(iu), a.repo.parent(iu)), ("UMLInteractionUse", Some(inter)));
+    let called = a.repo.refd(iu, "refersTo").unwrap();
+    assert_eq!((a.repo.name(called).as_str(), a.repo.parent(called)), ("Interaction2", Some(collab)));
+    // an inline interaction draws a new sequence diagram of a new interaction
+    let f = a.change(|a| a.create_node("UMLInteractionInOverview", rect(300.0, 80.0, 300.0, 250.0))).unwrap();
+    assert_eq!(a.repo.ty(f), "UMLInteractionInlineView");
+    let fm = a.repo.refd(f, "model").unwrap();
+    let sd = a.repo.refd(fm, "target").unwrap();
+    assert_eq!((a.repo.ty(sd), a.repo.name(fm).as_str()), ("UMLSequenceDiagram", "Actions1"));
+    // control nodes and flows join them
+    let ini = a.change(|a| a.create_node("UMLInitialNode", rect(100.0, 20.0, 1.0, 1.0))).unwrap();
+    let cf = tool("UMLControlFlow", AssocInit::Plain);
+    assert!(a.can_connect(&cf, ini, u));
+    let e = a.change(|a| a.create_edge(&cf, ini, u)).unwrap();
+    assert_eq!(a.repo.parent(a.repo.refd(e, "model").unwrap()), Some(act));
+    // the called sequence diagram gets a lifeline, shown small inside the frame
+    a.diagram = Some(sd);
+    a.change(|a| a.create_node("UMLLifeline", rect(20.0, 40.0, 100.0, 200.0))).unwrap();
+    a.diagram = Some(d);
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let lv = a.repo.list(sd, "ownedViews")[0];
+    assert!(a.info.contains_key(&lv), "the inline diagram is laid out with it");
+    assert_eq!(a.repo.str(a.repo.refd(f, "frameTypeLabel").unwrap(), "text"), "sd");
+    let u_text = a.repo.str(a.repo.refd(u, "nameLabel").unwrap(), "text");
+    assert_eq!(u_text, "Interaction2");
+    // dropping an interaction makes an interaction use calling it
+    let v = a.drop_model(called, crate::views::P { x: 50.0, y: 300.0 }).unwrap();
+    assert_eq!(a.repo.ty(v[0]), "UMLInteractionUseView");
+    crate::export::render(&mut a, d, &ms, crate::export::Format::Png, 1.0).unwrap();
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

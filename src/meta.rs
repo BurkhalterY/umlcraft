@@ -225,6 +225,7 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLInformationFlowDiagram", Some("UMLDiagram"), vec![]);
     def("UMLProfileDiagram", Some("UMLDiagram"), vec![]);
     def("UMLSequenceDiagram", Some("UMLDiagram"), vec![("showSequenceNumber", d(json!(true))), ("sequenceNumbering", d(json!("auto"))), ("showSignature", d(json!(true))), ("showActivation", d(json!(true)))]);
+    def("UMLInteractionOverviewDiagram", Some("UMLDiagram"), vec![]);
     def("UMLCommunicationDiagram", Some("UMLDiagram"), vec![("showSequenceNumber", d(json!(true))), ("sequenceNumbering", d(json!("auto"))), ("showSignature", d(json!(true)))]);
 
     // UML views
@@ -308,6 +309,7 @@ fn build() -> HashMap<&'static str, Kind> {
     // a frame shows a model element (often a diagram) by name, with a tab naming the diagram kind
     def("UMLCustomFrameView", Some("NodeView"), vec![("nameLabel", n()), ("frameTypeLabel", n())]);
     def("UMLFrameView", Some("UMLCustomFrameView"), vec![("showType", d(json!(false))), ("showNamespace", d(json!(false))), ("showDiagramName", d(json!(false)))]);
+    def("UMLInteractionInlineView", Some("UMLFrameView"), vec![]);
     // plain shapes: a rectangle, a rounded rectangle, an ellipse (elements.js:14332-14378)
     def("ShapeView", Some("NodeView"), vec![]);
     // a picture, kept as a data URL with its natural size (uml/metamodel.json ImageView)
