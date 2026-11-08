@@ -2789,8 +2789,12 @@ impl App {
         self.change(|a| {
             for e in edges {
                 a.repo.set(e, "lineStyle", json!(style));
+                // oblique and curved lines keep their bend points, as do lines that are already
+                // rectilinear (EdgeView.recalcPoints, core.js:2978-3007); a slanted line made
+                // rectilinear starts again from its ends, where the original squares each segment
                 let pts = views::points_of(&a.repo, e);
-                if pts.len() > 2 {
+                let square = pts.windows(2).all(|w| (w[0].x - w[1].x).abs() < 0.5 || (w[0].y - w[1].y).abs() < 0.5);
+                if pts.len() > 2 && views::rectilinear(style) && !square {
                     a.repo.set(e, "points", json!(views::format_points(&[pts[0], pts[pts.len() - 1]])));
                 }
             }

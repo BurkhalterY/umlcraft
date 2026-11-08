@@ -803,6 +803,13 @@ fn rounded_and_curved_line_styles() {
     a.set_line_style(2);
     a.select(vec![e, e2]);
     assert_eq!(a.line_style_state(), None, "mixed");
+    // an oblique line keeps its bend points; a slanted one made rectilinear starts from its ends
+    a.change(|a| a.repo.set(e2, "points", json!("90:100;150:200;240:270")));
+    a.select(vec![e2]);
+    a.set_line_style(1);
+    assert_eq!(crate::views::points_of(&a.repo, e2).len(), 3);
+    a.set_line_style(0);
+    assert_eq!(crate::views::points_of(&a.repo, e2).len(), 2);
     // rounded rectilinear is routed like rectilinear
     let ms = measure();
     crate::views::layout_diagram(&mut a.repo, &ms, a.diagram.unwrap());
