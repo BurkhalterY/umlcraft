@@ -6124,3 +6124,24 @@ fn copy_deselects_what_cannot_be_copied() {
     assert_eq!(a.selection, vec![c1]);
     assert!(a.message.is_none());
 }
+
+#[test]
+fn a_box_grows_over_children_that_extend_it() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let p = a.change(|a| a.create_node("UMLPackage", rect(40.0, 40.0, 200.0, 150.0))).unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(60.0, 80.0, 100.0, 60.0))).unwrap();
+    a.change(|a| {
+        a.repo.set_ref(c, "containerView", Some(p));
+        let r = a.repo.ref_to(c);
+        a.repo.set_raw(p, "containedViews", json!([r]));
+        a.repo.set(c, "left", json!(300));
+    });
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.f(p, "width"), 200.0, "containerExtending is off by default");
+    a.change(|a| a.repo.set(c, "containerExtending", json!(true)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let cw = a.repo.f(c, "width");
+    assert_eq!(a.repo.f(p, "left") + a.repo.f(p, "width"), 300.0 + cw + 5.0);
+}

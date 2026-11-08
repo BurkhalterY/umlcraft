@@ -2811,6 +2811,26 @@ pub fn layout_diagram(r: &mut Repo, ms: &dyn Measure, d: Eid) -> HashMap<Eid, In
     if r.ty(d) == "UMLTimingDiagram" {
         crate::timing::layout(r, ms, d);
     }
+    // a UML box grows over the contained views that extend their container, with the compartment
+    // padding around them (UMLGeneralNodeView.delimitContainingBoundary, elements.js:4789-4808)
+    for v in &views {
+        if r.alive(*v) && is_node(r, *v) && r.ty(*v).starts_with("UML") {
+            let kids: Vec<Eid> = views.iter().copied().filter(|c| r.alive(*c) && r.refd(*c, "containerView") == Some(*v) && r.bool(*c, "containerExtending")).collect();
+            if kids.is_empty() {
+                continue;
+            }
+            let b = node_rect(r, *v);
+            let (mut x1, mut y1, mut x2, mut y2) = (b.x, b.y, b.x + b.w, b.y + b.h);
+            for c in kids {
+                let k = node_rect(r, c);
+                x1 = x1.min(k.x - PAD);
+                y1 = y1.min(k.y - PAD);
+                x2 = x2.max(k.x + k.w + PAD);
+                y2 = y2.max(k.y + k.h + PAD);
+            }
+            set_box(r, *v, x1, y1, x2 - x1, y2 - y1);
+        }
+    }
     for v in &views {
         // only line kinds UMLCraft knows are re-routed; others keep the points they were saved with
         if r.alive(*v) && KNOWN_EDGE_VIEWS.contains(&r.ty(*v)) && is_edge(r, *v) {
