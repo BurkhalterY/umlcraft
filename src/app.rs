@@ -1885,6 +1885,8 @@ impl App {
     /// the refusal message when the kinds do not fit (uml/main.js:44-82).
     pub fn reconnect(&mut self, e: Eid, tail: bool, to: Eid) -> Result<(), String> {
         let (Some(t), Some(h)) = (self.repo.refd(e, "tail"), self.repo.refd(e, "head")) else { return Ok(()) };
+        // a sequence message goes onto the lifeline's line part (uml/main.js:45-47)
+        let to = if self.repo.ty(e) == "UMLSeqMessageView" && self.repo.ty(to) == "UMLSeqLifelineView" { self.repo.refd(to, "linePart").unwrap_or(to) } else { to };
         if (tail && to == t) || (!tail && to == h) {
             return Ok(());
         }

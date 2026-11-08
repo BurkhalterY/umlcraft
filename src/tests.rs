@@ -7103,3 +7103,42 @@ fn bpmn_choreographies_messages_conversations_and_annotations() {
     assert_eq!((p.ty(bd), p.name(bd).as_str(), p.bool(bd, "defaultDiagram")), ("BPMNDiagram", "BPMN Diagram", true));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn a_message_reconnected_onto_a_lifeline_goes_onto_its_line() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.change(|a| a.add_diagram(Some(a.repo.root), "UMLSequenceDiagram"));
+    let l1 = a.change(|a| a.create_node("UMLLifeline", rect(50.0, 100.0, 100.0, 300.0))).unwrap();
+    let l2 = a.change(|a| a.create_node("UMLLifeline", rect(250.0, 100.0, 100.0, 300.0))).unwrap();
+    let l3 = a.change(|a| a.create_node("UMLLifeline", rect(450.0, 100.0, 100.0, 300.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let e = a.change(|a| a.create_edge(&tool("UMLMessage", AssocInit::Plain), l1, l2)).unwrap();
+    a.reconnect(e, false, l3).unwrap();
+    let lp3 = a.repo.refd(l3, "linePart").unwrap();
+    assert_eq!(a.repo.refd(e, "head"), Some(lp3));
+    let m = a.repo.refd(e, "model").unwrap();
+    assert_eq!(a.repo.refd(m, "target"), a.repo.refd(lp3, "model"));
+}
+
+#[test]
+fn a_click_makes_boxes_at_their_smallest_size() {
+    let ms = measure();
+    for (diagram, kinds) in [
+        ("UMLClassDiagram", &["UMLClass", "UMLInterface", "UMLEnumeration", "UMLPackage", "UMLDataType", "UMLSignal", "UMLPrimitiveType"][..]),
+        ("UMLUseCaseDiagram", &["UMLUseCase", "UMLActor", "UMLUseCaseSubject"][..]),
+        ("UMLComponentDiagram", &["UMLComponent", "UMLArtifact"][..]),
+        ("UMLDeploymentDiagram", &["UMLNode"][..]),
+        ("UMLStatechartDiagram", &["UMLState"][..]),
+    ] {
+        let mut a = App::new(None);
+        let d = a.change(|a| a.add_diagram(Some(a.repo.root), diagram));
+        for k in kinds {
+            let (w, h) = crate::views::default_size(k);
+            let v = a.change(|a| a.create_node(k, rect(40.0, 40.0, w, h))).unwrap_or_else(|| panic!("{k}"));
+            a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+            let (w, h) = (a.repo.f(v, "width"), a.repo.f(v, "height"));
+            assert!(w >= 20.0 && h >= 20.0, "{k}: {w}x{h}");
+        }
+    }
+}

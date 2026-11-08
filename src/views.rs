@@ -386,27 +386,20 @@ pub fn pseudostate_kind(tool: &str) -> Option<&'static str> {
 
 pub fn default_size(kind: &str) -> (f64, f64) {
     match kind {
-        "UMLClass" => (160.0, 100.0),
-        "UMLInterface" => (140.0, 80.0),
-        "UMLEnumeration" | "UMLPackage" | "UMLModel" | "UMLSubsystem" => (140.0, 100.0),
-        "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" => (160.0, 80.0),
-        "UMLUseCase" | "UMLCollaboration" | "UMLCollaborationUse" => (120.0, 40.0),
-        "UMLActor" => (40.0, 80.0),
-        "UMLComponent" => (160.0, 60.0),
-        "UMLArtifact" => (80.0, 70.0),
-        "UMLNode" => (160.0, 80.0),
+        // a click makes a UML box at its smallest size: the click's empty rectangle, grown by the
+        // view's minimum (NodeView.initialize, core.js:2105-2111; diagram-editor.js:1025-1036)
+        "UMLClass" | "UMLInterface" | "UMLEnumeration" | "UMLPackage" | "UMLModel" | "UMLSubsystem" | "UMLDataType" | "UMLPrimitiveType" | "UMLSignal" | "UMLUseCase" | "UMLCollaboration"
+        | "UMLCollaborationUse" | "UMLActor" | "UMLComponent" | "UMLArtifact" | "UMLNode" | "UMLUseCaseSubject" | "UMLPart" | "UMLState" | "SubmachineState" => (1.0, 1.0),
         "Boundary" | "Entity" | "Control" => (ROBUST_ICON_W, ROBUST_ICON_H + NAME_MIN_H),
         "UMLUseCaseSubject" => (240.0, 250.0),
-        "Note" => (140.0, 60.0),
-        "Text" => (60.0, 15.0),
-        "TextBox" => (100.0, 40.0),
+        // the common tools' min-width and min-height (common/toolbox/common.json)
+        "Note" => (70.0, 40.0),
+        "Text" | "TextBox" => (60.0, 15.0),
         "Frame" => (FRAME_MIN_W, FRAME_MIN_H),
         "Hyperlink" => (HYPERLINK_MIN_W, HYPERLINK_MIN_H),
         "Rect" | "RoundRect" | "Ellipse" => (50.0, 50.0),
         "Image" => (100.0, 100.0),
-        "UMLPart" => (80.0, 30.0),
         "UMLPort" => (PORT_SIZE, PORT_SIZE),
-        "UMLState" => (100.0, 40.0),
         // activities: the minimum sizes, which a plain click makes (elements.js:155-175)
         "UMLAction" | "SendSignal" | "AcceptSignal" => (ACTION_MIN_W, ACTION_MIN_H),
         "AcceptTimeEvent" => (24.0, 24.0 + NAME_MIN_H),
@@ -421,7 +414,6 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "SwimlaneHorz" => (LANE_LONG, LANE_THIN),
         "UMLMergeNode" | "UMLDecisionNode" => (DECISION_W, DECISION_H),
         "CompositeState" | "OrthogonalState" => (200.0, 150.0),
-        "SubmachineState" => (100.0, 40.0),
         "UMLFinalState" => (FINAL_SIZE, FINAL_SIZE),
         _ if pseudostate_kind(kind).is_some() => pseudostate_min(pseudostate_kind(kind).unwrap_or("initial")),
         "UMLConnectionPointReference" => (CONNECTION_POINT_SIZE, CONNECTION_POINT_SIZE),
@@ -2356,8 +2348,11 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
     }
     if t == "UMLUseCaseSubjectView" {
         if let Some(m) = m {
-            let (x, y, w) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"));
-            layout_name(r, ms, v, m, x, y, w, None, false);
+            // at least as big as its name (UMLGeneralNodeView.sizeObject)
+            let min_w = name_min_width(r, ms, v, m, None, false);
+            let (x, y, w) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width").max(min_w));
+            let nh = layout_name(r, ms, v, m, x, y, w, None, false);
+            grow(r, v, min_w, nh);
         }
         return Info { shape: "subject", ..Default::default() };
     }
