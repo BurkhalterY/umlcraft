@@ -148,6 +148,8 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             ]
         }
         "ERDRelationship" => return vec![NOTE],
+        // C4 elements and relationships: Add Note (quickedits/c4.json)
+        t if t.starts_with("C4") => return vec![NOTE],
         // a flow: only Add Note ("fc.edge")
         "FCFlow" | "DFDDataFlow" => return vec![NOTE],
         // data flow nodes (dfd/quickedits/dfd.json; dfd-commands.js:19-118)

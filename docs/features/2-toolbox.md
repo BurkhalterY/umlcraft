@@ -4,7 +4,7 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, flowchart, data flow, mind map and ER diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
+UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, flowchart, data flow, mind map, ER and C4 diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
@@ -72,16 +72,16 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | BPMN Conversation `bpmn.conversation` | BPMNDiagram | Sub Conversation | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
 | BPMN Conversation `bpmn.conversation` | BPMNDiagram | Call Conversation | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
 | BPMN Conversation `bpmn.conversation` | BPMNDiagram | Conversation Link | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| C4 Model `c4` | C4Diagram | Person | ❌ | extensions/essential/c4/toolbox/c4.json |
-| C4 Model `c4` | C4Diagram | Software System | ❌ | extensions/essential/c4/toolbox/c4.json |
-| C4 Model `c4` | C4Diagram | Container | ❌ | extensions/essential/c4/toolbox/c4.json |
-| C4 Model `c4` | C4Diagram | Container (Database) | ❌ | extensions/essential/c4/toolbox/c4.json |
-| C4 Model `c4` | C4Diagram | Container (Web App) | ❌ | extensions/essential/c4/toolbox/c4.json |
-| C4 Model `c4` | C4Diagram | Container (Desktop App) | ❌ | extensions/essential/c4/toolbox/c4.json |
-| C4 Model `c4` | C4Diagram | Container (Mobile App) | ❌ | extensions/essential/c4/toolbox/c4.json |
-| C4 Model `c4` | C4Diagram | Component | ❌ | extensions/essential/c4/toolbox/c4.json |
-| C4 Model `c4` | C4Diagram | Element | ❌ | extensions/essential/c4/toolbox/c4.json |
-| C4 Model `c4` | C4Diagram | Relationship | ❌ | extensions/essential/c4/toolbox/c4.json |
+| C4 Model `c4` | C4Diagram | Person | ✅ | a C4Person ("C4Person1"…) in the element that owns the diagram: a head a third of its width over a rounded body, its bold name, "[Person]" and its description (src/app.rs:800-813; src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
+| C4 Model `c4` | C4Diagram | Software System | ✅ | a C4SoftwareSystem, a box rounded by 6 with its name, "[Software System: technology]" and description (src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
+| C4 Model `c4` | C4Diagram | Container | ✅ | a C4Container of kind etc, "[Container: technology]" (src/app.rs:800-813; src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
+| C4 Model `c4` | C4Diagram | Container (Database) | ✅ | a container of kind database, drawn as a cylinder (src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
+| C4 Model `c4` | C4Diagram | Container (Web App) | ✅ | a container of kind client-webapp, with a browser bar (src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
+| C4 Model `c4` | C4Diagram | Container (Desktop App) | ✅ | a container of kind desktop-app, with a title bar and a close cross (src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
+| C4 Model `c4` | C4Diagram | Container (Mobile App) | ✅ | a container of kind mobile-app, with a phone's bars and button (src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
+| C4 Model `c4` | C4Diagram | Component | ✅ | a C4Component, "[Component: technology]" (src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
+| C4 Model `c4` | C4Diagram | Element | ✅ | a generic C4Element, its labels at the bottom left (src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
+| C4 Model `c4` | C4Diagram | Relationship | ✅ | a C4Relationship between two C4 elements, owned by its source: a dotted line with a filled arrow, its description on one side and "[technology]" on the other (src/app.rs:1421; src/views.rs; src/render.rs) | extensions/essential/c4/toolbox/c4.json |
 | Annotations `annotation` | all | Text | ✅ | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Text Box | ✅ | extensions/essential/common/toolbox/common.json |
 | Annotations `annotation` | all | Free Line | ✅ | extensions/essential/common/toolbox/common.json |

@@ -1477,12 +1477,15 @@ impl App {
                     }
                 }
             }
-            let lv = self.repo.refd(v, "nameLabel");
+            // a C4 relationship's inline edit is its description, in a text area (quickedits/c4.json)
+            let c4 = self.repo.ty(m) == "C4Relationship";
+            let lv = self.repo.refd(v, if c4 { "descriptionLabel" } else { "nameLabel" });
             let rect = match lv {
-                Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: 19.0 },
-                _ => R { x: mid.x - 50.0, y: mid.y - 10.0, w: 100.0, h: 19.0 },
+                Some(l) if !self.repo.str(l, "text").is_empty() => R { x: self.repo.f(l, "left") - 20.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width") + 40.0, h: if c4 { self.repo.f(l, "height").max(19.0) + 20.0 } else { 19.0 } },
+                _ => R { x: mid.x - 50.0, y: mid.y - 10.0, w: 100.0, h: if c4 { 40.0 } else { 19.0 } },
             };
-            self.editing = Some(Editing { kind: EditKind::Name(m), text: crate::parse::name_text(&self.repo, m), rect, multiline: false, center: true, fresh: true, host: None, orig: None });
+            let text = if c4 { self.repo.str(m, "description") } else { crate::parse::name_text(&self.repo, m) };
+            self.editing = Some(Editing { kind: EditKind::Name(m), text, rect, multiline: c4, center: !c4, fresh: true, host: None, orig: None });
             return;
         }
         if let Some(iv) = p.and_then(|p| self.row_at(v, p)) {
@@ -1491,7 +1494,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || self.repo.ty(v) == "ERDEntityView"));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || self.repo.ty(v) == "ERDEntityView" || crate::c4::is_node_view(self.repo.ty(v))));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
@@ -1868,6 +1871,12 @@ impl App {
             EditKind::Name(m) if self.repo.ty(m) == "UMLTransition" => {
                 if self.repo.alive(m) && crate::parse::name_text(&self.repo, m) != e.text {
                     self.change(|a| crate::parse::apply_transition(&mut a.repo, m, &e.text));
+                }
+            }
+            EditKind::Name(m) if self.repo.ty(m) == "C4Relationship" => {
+                if self.repo.alive(m) && self.repo.str(m, "description") != e.text {
+                    let t = e.text.clone();
+                    self.change(|a| a.repo.set(m, "description", serde_json::json!(t)));
                 }
             }
             EditKind::Name(m) if crate::meta::plain_named(self.repo.ty(m)) => {

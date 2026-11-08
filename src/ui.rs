@@ -190,6 +190,26 @@ const MINDMAP_GROUPS: &[Group] = &[
     Group { id: "mindmap", label: "Mindmap", items: &[node("Node", "MMNode", "MMNode"), line("Edge", "MMEdge", "MMEdge", AssocInit::Plain)] },
     ANNOTATIONS,
 ];
+// a C4 diagram (c4/toolbox/c4.json)
+const C4_GROUPS: &[Group] = &[
+    Group {
+        id: "c4",
+        label: "C4 Model",
+        items: &[
+            node("Person", "C4Person", "C4Person"),
+            node("Software System", "C4SoftwareSystem", "C4SoftwareSystem"),
+            node("Container", "C4Container", "C4Container"),
+            node("Container (Database)", "C4ContainerDatabase", "C4ContainerDatabase"),
+            node("Container (Web App)", "C4ContainerWebApp", "C4Container"),
+            node("Container (Desktop App)", "C4ContainerDesktopApp", "C4Container"),
+            node("Container (Mobile App)", "C4ContainerMobileApp", "C4Container"),
+            node("Component", "C4Component", "C4Component"),
+            node("Element", "C4Element", "C4Element"),
+            line("Relationship", "C4Relationship", "C4Relationship", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
 // an ER diagram (erd/toolbox/erd.json)
 const ERD_GROUPS: &[Group] = &[
     Group {
@@ -400,7 +420,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 15] = [
+const DIAGRAM_KINDS: [(&str, &str); 16] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -417,6 +437,7 @@ const DIAGRAM_KINDS: [(&str, &str); 15] = [
     ("DataFlowDiagram", "DFDDiagram"),
     ("MindmapDiagram", "MMMindmapDiagram"),
     ("ER Diagram", "ERDDiagram"),
+    ("C4 Diagram", "C4Diagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -654,6 +675,14 @@ impl App {
         if t == "Project" || self.repo.kind_of(e, "UMLPackage") {
             adds.push(("DataFlowModel", "DFDDataFlowModel", false));
         }
+        // a C4 model in the project, C4 elements in a C4 model or element (c4/menus/c4.json;
+        // c4-commands.js:20-40)
+        if t == "Project" {
+            adds.push(("C4 Model", "C4Model", false));
+        }
+        if self.repo.kind_of(e, "C4Element") {
+            adds.extend([("C4 Person", "C4Person", false), ("C4 Software System", "C4SoftwareSystem", false), ("C4 Container", "C4Container", false), ("C4 Component", "C4Component", false)]);
+        }
         // ER data models in a project or package, entities in a data model, columns in an entity
         // (erd/menus/erd.json; erd-commands.js:160-175)
         if t == "Project" || self.repo.kind_of(e, "UMLPackage") {
@@ -769,7 +798,7 @@ impl App {
         if is_pkg || is_classifier || other {
             let dfd = self.repo.kind_of(e, "DFDElement");
             ui.menu_button("Add Diagram", |ui| {
-                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram") || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel")).collect();
+                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram") || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
                 for (l, k) in kinds {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
@@ -1029,6 +1058,23 @@ impl App {
         if t == "Hyperlink" {
             return vec![("name", "text"), ("reference", "link"), ("url", "text"), ("showName", "bool")];
         }
+        // the other notations' visible attributes (their metamodel.json files)
+        match t {
+            "FCFlow" | "DFDDataFlow" | "MMEdge" => return vec![("name", "text"), ("source", "ref"), ("target", "ref")],
+            "C4Relationship" => return vec![("name", "text"), ("source", "ref"), ("target", "ref"), ("technology", "text"), ("description", "multiline")],
+            "ERDRelationship" => {
+                return vec![("name", "text"), ("identifying", "bool"), ("-", ""), ("end1.name", "text"), ("end1.cardinality", "enum"), ("-", ""), ("end2.name", "text"), ("end2.cardinality", "enum")];
+            }
+            "ERDColumn" => {
+                return vec![
+                    ("name", "text"), ("type", "text"), ("length", "text"), ("primaryKey", "bool"), ("foreignKey", "bool"), ("referenceTo", "ref"), ("nullable", "bool"), ("unique", "bool"),
+                ];
+            }
+            "C4Container" => return vec![("name", "text"), ("technology", "text"), ("description", "multiline"), ("kind", "enum")],
+            _ if r.kind_of(e, "C4Element") => return vec![("name", "text"), ("technology", "text"), ("description", "multiline")],
+            _ if r.kind_of(e, "DFDElement") => return vec![("name", "text"), ("id", "text")],
+            _ => {}
+        }
         if t == "UMLAssociation" {
             let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isDerived", "bool"), ("-", "")];
             f.extend(end("end1"));
@@ -1159,6 +1205,10 @@ impl App {
     fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
         match (ty, field) {
             ("UMLTransition", "kind") => return &["external", "internal", "local"],
+            ("ERDRelationshipEnd", "cardinality") => return &["0..1", "1", "0..*", "1..*"],
+            ("C4Container", "kind") => {
+                return &["server-webapp", "client-webapp", "desktop-app", "mobile-app", "console-app", "serverless-function", "database", "blob-store", "filesystem", "shell-script", "etc"]
+            }
             ("UMLEvent", "kind") => return &["signal", "call", "change", "time", "anyReceive"],
             ("UMLAction", "kind") => {
                 return &["opaque", "create", "destroy", "read", "write", "insert", "delete", "sendSignal", "acceptSignal", "triggerEvent", "acceptEvent", "structured", "timeEvent", "callBehavior", "callOperation"]
@@ -1664,6 +1714,7 @@ impl App {
                 Some("DFDDiagram") => self.open_groups.insert("dfd"),
                 Some("MMMindmapDiagram") => self.open_groups.insert("mindmap"),
                 Some("ERDDiagram") => self.open_groups.insert("erd"),
+                Some("C4Diagram") => self.open_groups.insert("c4"),
                 _ => false,
             };
             self.toolbox_for = dty;
@@ -1694,6 +1745,7 @@ impl App {
             Some("DFDDiagram") => DFD_GROUPS,
             Some("MMMindmapDiagram") => MINDMAP_GROUPS,
             Some("ERDDiagram") => ERD_GROUPS,
+            Some("C4Diagram") => C4_GROUPS,
             Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
             Some(_) => OTHER_GROUPS,
             None => &[],

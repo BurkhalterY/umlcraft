@@ -48,7 +48,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLPseudostate" => "initial",
         "UMLConnectionPointReference" => "connection-point",
         // a flowchart element's icon is its type (the shapes are drawn by key)
-        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") => crate::meta::static_name(t),
+        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") => crate::meta::static_name(t),
         "UMLTransition" => "dependency",
         // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
         "UMLAction" => match r.str(e, "kind").as_str() {
@@ -302,6 +302,37 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
                 line(&[(x, 5.5), (x, 10.5)], Y);
             }
         }
+        // C4 elements
+        "C4Model" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, Y);
+            p.rect_stroke(Rect::from_min_size(at(4.0, 4.0), Vec2::new(8.0 * s, 8.0 * s)), (1.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "C4Diagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            p.rect_stroke(Rect::from_min_size(at(4.0, 5.0), Vec2::new(8.0 * s, 6.0 * s)), (1.5 * s) as f32, st(G), egui::StrokeKind::Middle);
+        }
+        "C4Person" => {
+            p.circle_stroke(at(8.0, 4.0), 2.5 * s, st(Y));
+            p.rect_stroke(Rect::from_min_size(at(2.5, 7.5), Vec2::new(11.0 * s, 7.0 * s)), (2.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "C4SoftwareSystem" | "C4Container" | "C4Component" | "C4Element" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(13.0 * s, 9.0 * s)), (2.0 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            match key {
+                "C4Container" => line(&[(1.5, 6.5), (14.5, 6.5)], Y),
+                "C4Component" => {
+                    line(&[(4.0, 6.5), (12.0, 6.5)], Y);
+                    line(&[(4.0, 9.5), (12.0, 9.5)], Y);
+                }
+                _ => {}
+            }
+        }
+        "C4ContainerDatabase" => {
+            p.add(Shape::ellipse_stroke(at(8.0, 4.0), Vec2::new(6.0 * s, 2.0 * s), st(Y)));
+            line(&[(2.0, 4.0), (2.0, 12.0)], Y);
+            line(&[(14.0, 4.0), (14.0, 12.0)], Y);
+            line(&[(2.0, 12.0), (4.0, 13.5), (8.0, 14.0), (12.0, 13.5), (14.0, 12.0)], Y);
+        }
+        "C4Relationship" => dashed(&[(2.0, 13.0), (13.0, 3.0)], B),
         // ER elements
         "ERDDataModel" => {
             p.add(Shape::ellipse_stroke(at(8.0, 4.0), Vec2::new(6.0 * s, 2.0 * s), st(Y)));

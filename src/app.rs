@@ -795,6 +795,20 @@ impl App {
             self.apply_view_defaults(v);
             return Some(v);
         }
+        // a C4 element goes in the element that owns the diagram, named after its class ("C4Person1"…);
+        // the container tools set its kind (c4-factory.js:70-90, toolbox/c4.json)
+        if let Some((ty, ckind)) = crate::c4::tool(kind) {
+            let owner = self.repo.parent(d)?;
+            let names: HashSet<String> = self.repo.children(owner).into_iter().map(|(_, c)| self.repo.name(c)).collect();
+            let name = (1..).map(|i| format!("{ty}{i}")).find(|n| !names.contains(n)).unwrap();
+            let m = self.repo.create(ty, &[("name", json!(name))], Some((owner, "ownedElements")));
+            if ty == "C4Container" {
+                self.repo.set(m, "kind", json!(ckind.unwrap_or("etc")));
+            }
+            let v = crate::c4::create_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            return Some(v);
+        }
         // an entity goes in the data model that owns the diagram (erd-factory.js:70-75)
         if kind == "ERDEntity" {
             let owner = self.repo.parent(d)?;
@@ -1132,6 +1146,8 @@ impl App {
             "MMMindmapDiagram" => vec!["Hyperlink", "Diagram", "MMNode", "MMEdge"],
             // ERDDiagram.canAcceptModel (erd/elements.js:40-47)
             "ERDDiagram" => vec!["Hyperlink", "Diagram", "ERDEntity", "ERDColumn", "ERDRelationship"],
+            // C4Diagram.canAcceptModel (c4/elements.js:75-80)
+            "C4Diagram" => vec!["Hyperlink", "Diagram", "C4Element", "C4Relationship"],
             "UMLUseCaseDiagram" => vec![
                 "Hyperlink", "Diagram", "UMLConstraint", "UMLPackage", "UMLClassifier", "UMLUseCaseSubject", "UMLInstance", "UMLExtensionPoint", "UMLTemplateParameter", "UMLAttribute",
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
@@ -1211,7 +1227,7 @@ impl App {
             }
             return Ok(v.into_iter().collect());
         }
-        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" {
+        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) {
             return Ok(vec![]);
         }
         // a hidden view of it is shown again instead of a second one
@@ -1401,6 +1417,8 @@ impl App {
             "DFDDataFlow" => r.kind_of(tm, "DFDElement") && r.kind_of(hm, "DFDElement"),
             "MMEdge" => r.ty(tm) == "MMNode" && r.ty(hm) == "MMNode",
             // a relationship joins two entities (entityLinkPrecondition, erd-factory.js:20-26)
+            // a C4 relationship joins two C4 elements (linkPrecondition, c4-factory.js:20-25)
+            "C4Relationship" => r.kind_of(tm, "C4Element") && r.kind_of(hm, "C4Element"),
             "ERDRelationship" | "ERDRelationshipOneToMany" | "ERDRelationshipManyToMany" => r.ty(tm) == "ERDEntity" && r.ty(hm) == "ERDEntity",
             "UMLControlFlow" | "UMLActivityInterrupt" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
             // an exception handler joins two actions (actionLinkPrecondition, uml-factory.js:129-135)
@@ -1794,6 +1812,10 @@ impl App {
         let name = self.new_name(parent, ty);
         let m = self.repo.create(ty, &[("name", json!(name))], Some((parent, "ownedElements")));
         add_stereotype_icon(&mut self.repo, m);
+        // a C4 container is of no particular kind (c4/elements.js:95-100)
+        if ty == "C4Container" {
+            self.repo.set(m, "kind", json!("etc"));
+        }
         // a state machine starts with one region (uml-factory.js:606-626)
         if ty == "UMLStateMachine" {
             self.repo.create("UMLRegion", &[], Some((m, "regions")));
@@ -1812,6 +1834,25 @@ impl App {
         // (flowchart-factory.js:31-62)
         // and so do a data flow diagram (in any DFD element, else a new "DataFlowModel1") and a mind
         // map diagram (in a mind map, else a new "Mindmap1") (dfd-factory.js:30-55, mindmap-factory.js:30-60)
+        // a C4 diagram goes in the C4 element it is added to; elsewhere in a new "C4Model1" in the
+        // project (c4-factory.js:28-55)
+        if ty == "C4Diagram" {
+            let target = match parent {
+                Some(p) if self.repo.kind_of(p, "C4Element") => p,
+                _ => self.repo.root,
+            };
+            let target = if self.repo.ty(target) == "Project" {
+                let name = self.new_name(target, "C4Model");
+                self.repo.create("C4Model", &[("name", json!(name))], Some((target, "ownedElements")))
+            } else {
+                target
+            };
+            let name = self.new_name(target, ty);
+            let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
         let holder = match ty {
             "FCFlowchartDiagram" => Some(("FCFlowchart", "Flowchart", "FCFlowchart")),
             "DFDDiagram" => Some(("DFDElement", "DataFlowModel", "DFDDataFlowModel")),

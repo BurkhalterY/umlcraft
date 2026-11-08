@@ -562,6 +562,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             crate::flowchart::draw(c, r, v, fill, line, fc);
             return;
         }
+        "c4" => {
+            crate::c4::draw(c, r, v, fill, line, fc);
+            return;
+        }
         "erd-entity" => {
             crate::erd::draw(c, r, v, fill, line, fc);
             return;
@@ -983,7 +987,7 @@ fn assoc_end(r: &Repo, end: Option<Eid>) -> Option<End> {
 const LONG_DASH: (f64, f64) = (8.0, 4.0);
 
 /// Draw a polyline as dashes of `on` units with `off` gaps.
-fn dashes(c: &mut dyn Canvas, pts: &[P], color: Rgba, on: f64, off: f64) {
+pub(crate) fn dashes(c: &mut dyn Canvas, pts: &[P], color: Rgba, on: f64, off: f64) {
     let (mut in_dash, mut left) = (true, on);
     let mut cur = vec![pts[0]];
     for w in pts.windows(2) {
@@ -1060,6 +1064,11 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         "UMLDependencyView" | "UMLIncludeView" | "UMLExtendView" | "UMLDeploymentView" | "UMLTemplateBindingView" | "UMLInformationFlowView" | "UMLRoleBindingView" | "UMLTransitionView" | "UMLControlFlowView" | "UMLObjectFlowView" | "UMLExceptionHandlerView" | "UMLActivityInterruptView" => head = Some(End::Arrow),
         // a flowchart flow ends in a filled arrow (FCGeneralEdgeView, flowchart/elements.js:200)
         "FCFlowView" | "DFDDataFlowView" => head = Some(End::SolidArrow),
+        // a C4 relationship is dotted with a filled arrow (C4RelationshipView, c4/elements.js:590-597)
+        "C4RelationshipView" => {
+            head = Some(End::SolidArrow);
+            dashed = true;
+        }
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
             if let Some(m) = r.refd(e, "model") {

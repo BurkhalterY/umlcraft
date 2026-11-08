@@ -5306,3 +5306,52 @@ fn er_diagrams_have_entities_columns_and_crows_feet() {
     assert_eq!((p.ty(dms[0]), p.name(dms[0]).as_str()), ("ERDDataModel", "Data Model"));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
+
+#[test]
+fn c4_diagrams_have_people_systems_containers_and_boundaries() {
+    use crate::views::Measure;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "C4Diagram"));
+    let model = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(model), a.repo.name(model).as_str(), a.repo.name(d).as_str()), ("C4Model", "C4Model1", "C4Diagram1"));
+    let p = a.change(|a| a.create_node("C4Person", rect(0.0, 0.0, 1.0, 1.0))).unwrap();
+    let s = a.change(|a| a.create_node("C4SoftwareSystem", rect(300.0, 0.0, 1.0, 1.0))).unwrap();
+    let db = a.change(|a| a.create_node("C4ContainerDatabase", rect(600.0, 0.0, 1.0, 1.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    assert_eq!(a.repo.name(sm), "C4SoftwareSystem1");
+    let dbm = a.repo.refd(db, "model").unwrap();
+    assert_eq!((a.repo.ty(dbm), a.repo.str(dbm, "kind").as_str()), ("C4Container", "database"));
+    a.repo.set(sm, "technology", json!("Rust"));
+    a.repo.set(sm, "description", json!("Keeps the books"));
+    assert_eq!(a.repo.str(p, "fillColor"), "#38bcff", "the C4 preference's default colour");
+    a.repo.set(s, "width", json!(300));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(s, "technologyLabel").unwrap(), "text"), "[Software System: Rust]");
+    let lh = ms.size();
+    // padding 8, name, 2, technology (0.9 size), 2, description, 8, plus the description margin 8
+    let h = 8.0 + lh + 2.0 + lh * 0.9 + 2.0 + lh + 8.0 + 8.0;
+    assert!((a.repo.f(s, "height") - h).abs() < 0.01, "{} vs {h}", a.repo.f(s, "height"));
+    // a dotted relationship with its description and technology
+    let t = tool("C4Relationship", AssocInit::Plain);
+    assert!(a.can_connect(&t, p, s));
+    let rv = a.change(|a| a.create_edge(&t, p, s)).unwrap();
+    let rm = a.repo.refd(rv, "model").unwrap();
+    a.repo.set(rm, "description", json!("Uses"));
+    a.repo.set(rm, "technology", json!("HTTPS"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(a.repo.refd(rv, "technologyLabel").unwrap(), "text"), "[HTTPS]");
+    // a diagram inside the software system shows it as a dashed boundary without its description
+    let inner = a.change(|a| a.add_diagram(Some(sm), "C4Diagram"));
+    assert_eq!(a.repo.parent(inner), Some(sm));
+    a.drop_model(sm, crate::views::P { x: 10.0, y: 10.0 }).unwrap();
+    let bv = a.repo.list(inner, "ownedViews")[0];
+    assert!(crate::c4::is_boundary(&a.repo, bv));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, inner);
+    assert_eq!(a.repo.raw(a.repo.refd(bv, "descriptionLabel").unwrap(), "visible"), Some(&json!(false)));
+    let t = crate::templates::TEMPLATES.iter().find(|t| t.label == "C4 Model").unwrap();
+    let pr = crate::templates::project(t);
+    assert_eq!(pr.children(pr.root).len(), 1);
+    Repo::parse(&a.repo.serialize()).unwrap();
+}

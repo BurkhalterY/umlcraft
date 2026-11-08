@@ -331,6 +331,21 @@ fn build() -> HashMap<&'static str, Kind> {
     def("FCGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
     def("FCGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
     def("FCFlowView", Some("FCGeneralEdgeView"), vec![]);
+    // C4 models (c4/metamodel.json)
+    def("C4Element", Some("ExtensibleModel"), vec![("technology", d(json!(""))), ("description", d(json!("")))]);
+    def("C4Model", Some("C4Element"), vec![]);
+    def("C4Diagram", Some("Diagram"), vec![]);
+    for ty in ["C4Person", "C4SoftwareSystem", "C4Component"] {
+        def(ty, Some("C4Element"), vec![]);
+    }
+    def("C4Container", Some("C4Element"), vec![("kind", n())]);
+    def("C4Relationship", Some("DirectedRelationship"), vec![("technology", d(json!(""))), ("description", d(json!("")))]);
+    def("C4GeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("technologyLabel", n()), ("descriptionLabel", n()), ("wordWrap", d(json!(true)))]);
+    def("C4GeneralEdgeView", Some("EdgeView"), vec![("descriptionLabel", n()), ("technologyLabel", n())]);
+    for name in ["C4ElementView", "C4PersonView", "C4SoftwareSystemView", "C4ContainerView", "C4ComponentView"] {
+        def(name, Some("C4GeneralNodeView"), vec![]);
+    }
+    def("C4RelationshipView", Some("C4GeneralEdgeView"), vec![]);
     // entity-relationship diagrams (erd/metamodel.json)
     def("ERDElement", Some("ExtensibleModel"), vec![]);
     def("ERDDataModel", Some("ERDElement"), vec![]);
@@ -438,5 +453,5 @@ pub fn static_name(ty: &str) -> &'static str {
 /// Whether an element of another notation than UML takes its name as typed, without the UML name
 /// grammar (flowcharts, data flow diagrams, mind maps: their quick edits only set the name).
 pub fn plain_named(ty: &str) -> bool {
-    ["FC", "DFD", "MM", "ERD"].iter().any(|p| ty.starts_with(p))
+    ["FC", "DFD", "MM", "ERD", "C4"].iter().any(|p| ty.starts_with(p))
 }

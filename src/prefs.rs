@@ -269,6 +269,14 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         v.push(("Flowchart", "", label, Kind::Header, Value::Null));
         v.push(("Flowchart", key, "Fill Color", Kind::Color, Value::Null));
     }
+    // C4 (c4/preferences/c4.json): the boxes' own fill colours and the relationship's line style
+    for (label, id, def) in [("Person", "person", "#38bcff"), ("Software System", "software-system", "#6dceff"), ("Container", "container", "#a3e0ff"), ("Component", "component", "#d8f2ff")] {
+        let key: &'static str = Box::leak(format!("c4.{id}.fillColor").into_boxed_str());
+        v.push(("C4 Model", "", label, Kind::Header, Value::Null));
+        v.push(("C4 Model", key, "Fill Color", Kind::Color, json!(def)));
+    }
+    v.push(("C4 Model", "", "Relationship", Kind::Header, Value::Null));
+    v.push(("C4 Model", "c4.relationship.lineStyle", "Line Style", Kind::LineStyle, json!(1)));
     // ER diagrams (erd/preferences/erd.json)
     v.push(("ERD", "", "Entity", Kind::Header, Value::Null));
     v.push(("ERD", "erd.entity.fillColor", "Fill Color", Kind::Color, Value::Null));
@@ -385,6 +393,10 @@ impl App {
             Some("DFDDataStore") => Some("dfd.datastore.fillColor"),
             Some("MMNode") => Some("mindmap.node.fillColor"),
             Some("ERDEntity") => Some("erd.entity.fillColor"),
+            Some("C4Person") => Some("c4.person.fillColor"),
+            Some("C4SoftwareSystem") => Some("c4.software-system.fillColor"),
+            Some("C4Container") => Some("c4.container.fillColor"),
+            Some("C4Component") => Some("c4.component.fillColor"),
             _ => None,
         };
         if let Some(p) = own.map(|k| self.pref(k)).filter(|p| p.is_string()) {
@@ -411,6 +423,7 @@ impl App {
                 "DFDDataFlowView" => Some("dfd.dataflow.lineStyle"),
                 "MMEdgeView" => Some("mindmap.edge.lineStyle"),
                 "ERDRelationshipView" => Some("erd.relationship.lineStyle"),
+                "C4RelationshipView" => Some("c4.relationship.lineStyle"),
                 _ => None,
             };
             let own = key.and_then(|k| self.pref(k).as_i64()).filter(|s| *s != 0);
@@ -445,7 +458,7 @@ impl App {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(120.0);
-                    for s in ["General", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "UML"] {
+                    for s in ["General", "C4 Model", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "UML"] {
                         if ui.selectable_label(section == s, s).clicked() {
                             pick = Some(s.to_string());
                         }

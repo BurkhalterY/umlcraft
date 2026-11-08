@@ -15,7 +15,7 @@ pub struct Template {
 
 /// The UML templates, in menu order. Diagram names are the original's where the docs give them,
 /// otherwise the model's name (estimated).
-pub const TEMPLATES: [Template; 5] = [
+pub const TEMPLATES: [Template; 6] = [
     Template { label: "UML Minimal", models: &[("Model", "UMLClassDiagram", "Main")] },
     Template {
         label: "UML Conventional",
@@ -49,6 +49,8 @@ pub const TEMPLATES: [Template; 5] = [
     // the ERD template: a data model "Data Model" with the diagram "Main", without the UML profile
     // (erd/templates/DataModel.mdj, File › New From Template › Data Model in erd/menus/erd.json)
     Template { label: "Data Model", models: &[("Data Model", "ERDDiagram", "Main")] },
+    // the C4 template: a C4 model with its "System Context Diagram" (c4/templates/C4Model.mdj)
+    Template { label: "C4 Model", models: &[("C4Model", "C4Diagram", "System Context Diagram")] },
 ];
 
 /// The UML Standard Profile in its order (uml/profiles/UMLStandardProfile.mfj): the metaclasses, each
@@ -120,9 +122,13 @@ pub fn project(t: &Template) -> Repo {
     for (_, m) in r.children(root) {
         r.detach(m);
     }
-    let erd = t.models.iter().all(|m| m.1 == "ERDDiagram");
+    let erd = t.models.iter().all(|m| m.1 == "ERDDiagram" || m.1 == "C4Diagram");
     for (i, (model, kind, diagram)) in t.models.iter().enumerate() {
-        let ty = if *kind == "ERDDiagram" { "ERDDataModel" } else { "UMLModel" };
+        let ty = match *kind {
+            "ERDDiagram" => "ERDDataModel",
+            "C4Diagram" => "C4Model",
+            _ => "UMLModel",
+        };
         let m = r.create(ty, &[("name", json!(model))], Some((root, "ownedElements")));
         let d = r.create(kind, &[("name", json!(diagram))], Some((m, "ownedElements")));
         if i == 0 {
