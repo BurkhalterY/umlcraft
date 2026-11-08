@@ -3813,6 +3813,27 @@ fn xmi_import() {
     let assoc = b.repo.all_of("UMLAssociation")[0];
     assert!(b.repo.child(assoc, "end1").and_then(|e| b.repo.refd(e, "reference")).is_some());
     assert_eq!(b.repo.all_of("Diagram").len(), 1, "only the blank project's diagram: none is imported");
+    // types given as text come back as text, a UML primitive by its library href and the others by
+    // the data types written for them
+    let typed = |r: &crate::model::Repo, n: &str| r.all().find(|e| r.ty(*e) == "UMLAttribute" && r.name(*e) == n).map(|e| r.str(e, "type"));
+    let mut t = App::new(None);
+    let tc = t.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let tm = t.repo.refd(tc, "model").unwrap();
+    for (n, ty) in [("title", "String"), ("count", "int"), ("tags", "List<String>")] {
+        let at = t.change(|a| a.add_feature(tm, "UMLAttribute")).unwrap();
+        t.repo.set(at, "name", json!(n));
+        t.repo.set(at, "type", json!(ty));
+    }
+    let tx = export(&t.repo);
+    assert!(tx.contains("<type xmi:type=\"uml:PrimitiveType\" href=\"http://schema.omg.org/spec/UML/2.1/uml.xml#String\"/>"), "{tx}");
+    assert!(tx.contains("xmi:type=\"uml:DataType\" xmi:id=\"TextType_0_List_String_\" name=\"List&lt;String&gt;\""), "{tx}");
+    assert!(tx.contains("type=\"TextType_1_int\""));
+    let mut u = App::new(None);
+    import(&mut u.repo, &tx).unwrap();
+    assert_eq!(typed(&u.repo, "title").as_deref(), Some("String"));
+    assert_eq!(typed(&u.repo, "count").as_deref(), Some("int"));
+    assert_eq!(typed(&u.repo, "tags").as_deref(), Some("List<String>"));
+    assert_eq!(u.repo.all_of("UMLDataType").len(), 0, "no data type made for them");
     // memberEnd associations from other tools
     let other = r#"<xmi:XMI xmi:version="2.1" xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmlns:uml="http://schema.omg.org/spec/UML/2.1">
       <uml:Model xmi:id="m" name="M">
