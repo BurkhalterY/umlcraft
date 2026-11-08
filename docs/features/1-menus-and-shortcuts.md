@@ -173,22 +173,22 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Model › Add Diagram › Mindmap Diagram | `factory:create-diagram` |  | ✅ | "MindmapDiagram": in the selected mind map, or in a new "Mindmap1" (src/ui.rs:404; src/app.rs:1782-1805) | extensions/essential/mindmap/menus/mindmap.json |
 | Model › Add › Mindmap | `factory:create-model` |  | ✅ | "Mindmap" under any element, named MMMindmap1… as the original names it (src/ui.rs:646) | extensions/essential/mindmap/menus/mindmap.json |
 | Model › Add Diagram › Requirement Diagram | `factory:create-diagram` |  | ✅ | offered with nothing, the project or a package selected; in the selected element, or under the project in a new model "Model1", with a frame that shows its type and name at 8, 8 to 700, 600 (src/ui.rs:587, 953, 2271; src/sysml.rs:533-586) | extensions/essential/sysml/menus/sysml.json |
-| Model › Add Diagram › Block Definition Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/sysml/menus/sysml.json |
+| Model › Add Diagram › Block Definition Diagram | `factory:create-diagram` |  | ✅ | offered with nothing, the project or a package selected; in the selected element, or under the project in a new model "Model1", with a frame showing "bdd" (src/ui.rs:613; src/sysml.rs:609-630, 807-823) | extensions/essential/sysml/menus/sysml.json |
 | Model › Add Diagram › Internal Block Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/sysml/menus/sysml.json |
 | Model › Add Diagram › Parametric Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/sysml/menus/sysml.json |
 | Model › Add › Requirement | `factory:create-model` |  | ✅ | under the project, a package or a classifier, named "Requirement1"… (src/ui.rs:854; src/sysml.rs:589-598) | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Block | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Value Type | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Interface Block | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Constraint Block | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Part | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Reference | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Value | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Port | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Property | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Constraint Property | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Flow Property | `factory:create-model` |  | ❌ |  | extensions/essential/sysml/menus/sysml.json |
-| Model › Add › Parameter | `factory:create-model` |  | ✅ | explorer Add (operations), Editors button (src/ui.rs:498) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Block | `factory:create-model` |  | ✅ | under the project, a package or a classifier, named "Block1"… (src/sysml.rs:825-847) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Value Type | `factory:create-model` |  | ✅ | under the project, a package or a classifier (src/sysml.rs:825-847) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Interface Block | `factory:create-model` |  | ✅ | under the project, a package or a classifier (src/sysml.rs:825-847) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Constraint Block | `factory:create-model` |  | ✅ | under the project, a package or a classifier (src/sysml.rs:825-847) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Part | `factory:create-model` |  | ✅ | in a block's parts, composite, "Part1"… (src/sysml.rs:646-667, 825-847) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Reference | `factory:create-model` |  | ✅ | in a block's references, "Reference1"… (src/sysml.rs:646-667, 825-847) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Value | `factory:create-model` |  | ✅ | in a block's values, composite, "Value1"… (src/sysml.rs:646-667, 825-847) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Port | `factory:create-model` |  | ✅ | a SysMLPort in a block's ports (src/sysml.rs:646-667, 825-847) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Property | `factory:create-model` |  | ✅ | in a block's properties; a block no longer offers Attribute (src/sysml.rs:825-847; src/ui.rs:880) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Constraint Property | `factory:create-model` |  | ✅ | in a block's constraints, "Constraint1"… (src/sysml.rs:646-667, 825-847) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Flow Property | `factory:create-model` |  | ✅ | a SysMLFlowProperty (inout) in a block's flow properties, "FlowProperty1"… (src/sysml.rs:646-667, 825-847) | extensions/essential/sysml/menus/sysml.json |
+| Model › Add › Parameter | `factory:create-model` |  | ✅ | in an operation (explorer Add, Editors button, src/ui.rs:498), and in a constraint block's parameters, "Parameter1"… (src/sysml.rs:825-847) | extensions/essential/sysml/menus/sysml.json |
 | Format › Suppress Property Values | `format:suppress-property-values` |  | ❌ | SysML | extensions/essential/sysml/menus/sysml.json |
 | Format › Suppress Constraints | `format:suppress-constraints` |  | ❌ | SysML | extensions/essential/sysml/menus/sysml.json |
 | Format › Suppress Parts | `format:suppress-parts` |  | ❌ | SysML | extensions/essential/sysml/menus/sysml.json |

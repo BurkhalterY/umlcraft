@@ -5985,3 +5985,88 @@ fn sysml_requirement_diagrams_have_requirements_and_traces() {
     assert!(text.contains("\"_type\": \"SysMLRequirement\"") && text.contains("\"_type\": \"SysMLPropertyValueCompartmentView\""));
     Repo::parse(&text).unwrap();
 }
+
+#[test]
+fn sysml_block_definition_diagrams_have_blocks_with_compartments() {
+    use crate::canvas::ItemKey;
+    use crate::model::Eid;
+    use crate::sysml::Quick;
+    use crate::views::Measure;
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.prefs.set("sysml.block.suppressValues", json!(false));
+    let d = a.change(|a| a.add_diagram(Some(root), "SysMLBlockDefinitionDiagram"));
+    let model = a.repo.parent(d).unwrap();
+    assert_eq!(a.repo.name(d), "BlockDefinitionDiagram1");
+    let b = a.change(|a| a.create_node("SysMLBlock", rect(50.0, 50.0, 1.0, 1.0))).unwrap();
+    let bm = a.repo.refd(b, "model").unwrap();
+    assert_eq!((a.repo.ty(b), a.repo.name(bm).as_str()), ("SysMLBlockView", "Block1"));
+    // the Block tool hides attributes and operations; the preference shows the values
+    assert!(a.repo.bool(b, "suppressAttributes") && a.repo.bool(b, "suppressOperations") && a.repo.bool(b, "suppressParts"));
+    assert!(!a.repo.bool(b, "suppressValues"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let nc = a.repo.refd(b, "nameCompartment").unwrap();
+    assert_eq!(a.repo.str(a.repo.refd(nc, "stereotypeLabel").unwrap(), "text"), "«block»");
+    // Add Part shows the parts compartment, with its title over a composite "Part1"
+    a.sysml_item_key(b, bm, None, ItemKey::SysML(Quick::AddItem("parts")));
+    assert!(!a.repo.bool(b, "suppressParts"));
+    let part = a.repo.list(bm, "parts")[0];
+    assert_eq!((a.repo.ty(part), a.repo.name(part).as_str(), a.repo.str(part, "aggregation").as_str()), ("SysMLProperty", "Part1", "composite"));
+    a.sysml_item_key(b, bm, None, ItemKey::SysML(Quick::AddItem("flowProperties")));
+    // Ctrl+Enter on the name adds a property
+    assert!(a.sysml_item_key(b, bm, None, ItemKey::Add));
+    assert_eq!(a.repo.name(a.repo.list(bm, "properties")[0]), "Property1");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let pc = a.repo.refd(b, "partCompartment").unwrap();
+    let row = a.repo.list(pc, "subViews")[0];
+    assert_eq!((a.repo.ty(row), a.repo.str(row, "text").as_str()), ("SysMLPartCompartmentItemView", "+Part1"));
+    let title = ms.size() * 0.8 + crate::views::PAD;
+    assert!((a.repo.f(row, "top") - (a.repo.f(pc, "top") + title + crate::views::PAD)).abs() < 0.01, "the row sits under the title");
+    let fc = a.repo.refd(b, "flowPropertyCompartment").unwrap();
+    assert_eq!(a.repo.str(a.repo.list(fc, "subViews")[0], "text"), "inout +FlowProperty1");
+    assert!(a.info[&b].compartments.iter().any(|c| c.rows.iter().any(|r| r.iv == row)), "the rows can be edited");
+    // a port on the block's border, in its ports
+    let at = crate::views::P { x: 50.0 + a.repo.f(b, "width"), y: 70.0 };
+    let p1 = a.change(|a| a.create_feature_box("SysMLPort", at, rect(0.0, 0.0, 0.0, 0.0))).unwrap();
+    assert_eq!(a.repo.ty(p1), "SysMLPortView");
+    assert_eq!(a.repo.list(bm, "ports").len(), 1);
+    assert_eq!(a.repo.refd(p1, "containerView"), Some(b));
+    assert_eq!(a.create_feature_box("SysMLPort", crate::views::P { x: 900.0, y: 900.0 }, rect(0.0, 0.0, 0.0, 0.0)).err(), Some("Port should be placed in a block or a part".to_string()));
+    // a connector between two ports belongs to the diagram's owner
+    a.sysml_item_key(b, bm, None, ItemKey::SysML(Quick::AddPort));
+    let p2 = a.repo.list(d, "ownedViews").into_iter().filter(|v| a.repo.ty(*v) == "SysMLPortView").last().unwrap();
+    assert_ne!(p1, p2);
+    let t = tool("SysMLConnector", AssocInit::Plain);
+    assert!(a.can_connect(&t, p1, p2));
+    assert!(!a.can_connect(&t, p1, b));
+    let e = a.change(|a| a.create_edge(&t, p1, p2)).unwrap();
+    let em = a.repo.refd(e, "model").unwrap();
+    assert_eq!((a.repo.ty(e), a.repo.ty(em), a.repo.parent(em)), ("SysMLConnectorView", "SysMLConnector", Some(model)));
+    assert!(a.repo.refd(e, "itemFlowToHeadLabel").is_some());
+    // Add Composited Block: an association whose end at the edited block is composite
+    a.sysml_item_key(b, bm, None, ItemKey::SysML(Quick::CompositedBlock));
+    let assoc = a.repo.all_of("UMLAssociation")[0];
+    let end1 = a.repo.child(assoc, "end1").unwrap();
+    assert_eq!((a.repo.refd(end1, "reference"), a.repo.str(end1, "aggregation").as_str()), (Some(bm), "composite"));
+    // value types, interface blocks and constraint blocks keep their keyword
+    let vt = a.change(|a| a.create_node("SysMLValueType", rect(400.0, 50.0, 1.0, 1.0))).unwrap();
+    let cb = a.change(|a| a.create_node("SysMLConstraintBlock", rect(400.0, 250.0, 1.0, 1.0))).unwrap();
+    let cbm = a.repo.refd(cb, "model").unwrap();
+    a.repo.set(cbm, "stereotype", json!("mine"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let kw = |a: &App, v: Eid| a.repo.str(a.repo.refd(a.repo.refd(v, "nameCompartment").unwrap(), "stereotypeLabel").unwrap(), "text");
+    assert_eq!((kw(&a, vt).as_str(), kw(&a, cb).as_str()), ("«valueType»", "«constraint»"));
+    // Model › Add: SysML items in a block, no plain attribute; parameters in a constraint block
+    let adds = a.add_kinds(bm);
+    assert!(adds.iter().any(|k| k.1 == "sysml:parts") && !adds.iter().any(|k| k.1 == "UMLAttribute"));
+    let prm = a.change(|a| a.add_feature(cbm, "sysml:parameters")).unwrap();
+    assert_eq!((a.repo.name(prm).as_str(), a.repo.field_of(prm).as_deref()), ("Parameter1", Some("parameters")));
+    // a port dragged from the explorer goes onto its block's box only
+    let port = a.repo.list(bm, "ports")[0];
+    assert!(a.drop_model(port, crate::views::P { x: 700.0, y: 700.0 }).is_err());
+    let dropped = a.drop_model(port, crate::views::P { x: 55.0, y: 55.0 }).unwrap();
+    assert_eq!(a.repo.refd(dropped[0], "containerView"), Some(b));
+    let text = a.repo.serialize();
+    Repo::parse(&text).unwrap();
+}

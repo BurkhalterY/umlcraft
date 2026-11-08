@@ -558,9 +558,34 @@ const SYSML_REQUIREMENTS: Group = Group {
     ],
 };
 const SYSML_REQUIREMENT_GROUPS: &[Group] = &[SYSML_REQUIREMENTS, ANNOTATIONS];
+const SYSML_BLOCK: Group = Group {
+    id: "sysml.block",
+    label: "Block",
+    items: &[
+        node("Block", "SysMLBlock", "SysMLBlock"),
+        node("Value Type", "SysMLValueType", "datatype"),
+        node("Interface Block", "SysMLInterfaceBlock", "SysMLBlock"),
+        node("Constraint Block", "SysMLConstraintBlock", "SysMLConstraintBlock"),
+        node("Enumeration", "UMLEnumeration", "enumeration"),
+        node("Signal", "UMLSignal", "datatype"),
+        node("Port", "SysMLPort", "port"),
+        node("Object", "UMLObject", "object"),
+        node("Frame", "Frame", "frame"),
+        line("Association", "UMLAssociation", "association", AssocInit::Plain),
+        line("Directed Association", "UMLAssociation", "directed", AssocInit::Directed),
+        line("Aggregation", "UMLAssociation", "aggregation", AssocInit::Shared),
+        line("Composition", "UMLAssociation", "composition", AssocInit::Composite),
+        line("Dependency", "UMLDependency", "dependency", AssocInit::Plain),
+        line("Generalization", "UMLGeneralization", "generalization", AssocInit::Plain),
+        line("Interface Realization", "UMLInterfaceRealization", "realization", AssocInit::Plain),
+        line("Connector", "SysMLConnector", "association", AssocInit::Plain),
+        line("Containment", "Containment", "containment", AssocInit::Plain),
+    ],
+};
+const SYSML_BLOCK_GROUPS: &[Group] = &[SYSML_BLOCK, ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 22] = [
+const DIAGRAM_KINDS: [(&str, &str); 23] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -585,6 +610,7 @@ const DIAGRAM_KINDS: [(&str, &str); 22] = [
     ("Wireframe Diagram", "WFWireframeDiagram"),
     // the SysML kinds (sysml/menus/sysml.json)
     ("Requirement Diagram", "SysMLRequirementDiagram"),
+    ("Block Definition Diagram", "SysMLBlockDefinitionDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -600,7 +626,7 @@ pub(crate) fn order_rank(t: &str) -> u32 {
         "UMLAssociationEnd" => 1801, "UMLAssociation" => 1802, "UMLDependency" => 1806, "UMLGeneralization" => 1807, "UMLRealization" => 1808,
         "UMLInterfaceRealization" => 1809, "UMLComponentRealization" => 1810, "UMLAbstraction" => 1811, "UMLInclude" => 1816, "UMLExtend" => 1817,
         "UMLTransition" => 1819, "UMLMessage" => 1822, "UMLProfile" => 1901, "UMLStereotype" => 1903,
-        _ => 0,
+        t => crate::sysml::order_rank(t),
     }
 }
 
@@ -871,6 +897,10 @@ impl App {
         }
         if t == "UMLTransition" {
             adds.push(("Effect", "effects", false));
+        }
+        // a block takes no plain attributes (updateMenus, sysml-commands.js:308-309)
+        if self.repo.kind_of(e, "SysMLBlock") {
+            adds.retain(|a| a.1 != "UMLAttribute");
         }
         adds
     }
@@ -1365,6 +1395,9 @@ impl App {
     }
 
     fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
+        if let Some(o) = crate::sysml::enum_options(ty, field) {
+            return o;
+        }
         match (ty, field) {
             ("UMLTransition", "kind") => return &["external", "internal", "local"],
             ("ERDRelationshipEnd", "cardinality") => return &["0..1", "1", "0..*", "1..*"],
@@ -1881,6 +1914,7 @@ impl App {
                 Some("ERDDiagram") => self.open_groups.insert("erd"),
                 Some("C4Diagram") => self.open_groups.insert("c4"),
                 Some("SysMLRequirementDiagram") => self.open_groups.insert("sysml.requirement"),
+                Some("SysMLBlockDefinitionDiagram") => self.open_groups.insert("sysml.block"),
                 // both groups open on a wireframe diagram ("auto-expands")
                 Some("WFWireframeDiagram") => self.open_groups.insert("wireframe.frames") | self.open_groups.insert("wireframe.components"),
                 Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
@@ -1919,6 +1953,7 @@ impl App {
             Some("ERDDiagram") => ERD_GROUPS,
             Some("C4Diagram") => C4_GROUPS,
             Some("SysMLRequirementDiagram") => SYSML_REQUIREMENT_GROUPS,
+            Some("SysMLBlockDefinitionDiagram") => SYSML_BLOCK_GROUPS,
             Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
             Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
             Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,

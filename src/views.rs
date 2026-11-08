@@ -1319,7 +1319,7 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
         r.set_ref(e, "adornment", Some(z));
     }
     // associations and links have end labels; only associations have qualifiers
-    if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" || r.ty(m) == "UMLConnector" {
+    if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" || r.kind_of(m, "UMLConnector") {
         r.set_raw(e, "showEndOrder", json!("hide")); // as the original writes it (sample.mdj)
         let end1 = r.child(m, "end1");
         let end2 = r.child(m, "end2");
@@ -1350,6 +1350,14 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
             r.set(q, "width", json!(10));
             r.set(q, "height", json!(10));
             r.set_ref(e, field, Some(q));
+        }
+    }
+    // a SysML connector's item flow labels, 15 px off its middle on each side (SysMLConnectorView,
+    // sysml/elements.js:1610-1630)
+    if ty == "SysMLConnectorView" {
+        for (field, a) in [("itemFlowToHeadLabel", HALF_PI), ("itemFlowToTailLabel", -HALF_PI)] {
+            let l = edge_label(r, e, Some(m), a, 15.0, 1, false);
+            r.set_ref(e, field, Some(l));
         }
     }
     Some(e)
@@ -2690,7 +2698,7 @@ pub(crate) fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> 
     if r.ty(m) == "UMLRoleBinding" {
         out.push(("roleNameLabel", r.str(m, "roleName")));
     }
-    if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" || r.ty(m) == "UMLConnector" {
+    if r.kind_of(m, "UMLAssociation") || r.ty(m) == "UMLLink" || r.kind_of(m, "UMLConnector") {
         let role = |end: Option<Eid>| end.map(|x| { let n = r.name(x); if n.is_empty() { n } else { vis(x) + &n } }).unwrap_or_default();
         let (e1, e2) = (r.child(m, "end1"), r.child(m, "end2"));
         let show_mult = r.bool(e, "showMultiplicity");
@@ -2864,6 +2872,7 @@ pub fn sizable(r: &Repo, v: Eid) -> Sizable {
     match r.ty(v) {
         "UMLPortView" | "UMLPinView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLConnectionPointReferenceView" | "UMLEndpointView" | "UMLGateView" | "UMLCommMessageView" | "UMLTimeConstraintView"
         | "UMLTimingStateView" | "UMLZigZagAdornmentView" | "WFSwitchView" | "ERDColumnView" => Sizable::None,
+        t if crate::sysml::floating(t) => Sizable::None,
         "UMLTimeSegmentView" | "UMLTimeTickView" | "WFSliderView" | "EdgeLabelView" | "NodeLabelView" => Sizable::Horz,
         "UMLActivationView" | "UMLLinePartView" | "UMLRegionView" | "UMLInteractionOperandView" => Sizable::Vert,
         "UMLDurationConstraintView" => if timing() { Sizable::Horz } else { Sizable::Vert },

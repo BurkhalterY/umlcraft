@@ -137,31 +137,31 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Mindmap `mindmap` | MMMindmapDiagram | Edge | ✅ | an MMEdge between two nodes, a plain line without arrows or label (src/app.rs:1389; src/views.rs) | extensions/essential/mindmap/toolbox/mindmap.json |
 | Requirements `sysml.requirement` | SysMLRequirementDiagram | Package | ✅ | a UMLPackage in the diagram's owner, as on a package diagram (src/app.rs:1063-1100) | extensions/essential/sysml/toolbox/sysml.json |
 | Requirements `sysml.requirement` | SysMLRequirementDiagram | Requirement | ✅ | a SysMLRequirement ("Requirement1"…) in the diagram's owner: a box with «requirement» over its bold name, its id and text listed as `id = "…"` property values, attributes and operations suppressed; a click makes it at its smallest (src/app.rs:911; src/sysml.rs:350-498, 555-566) | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Frame | ✅ | asks which element the frame shows, as on the UML diagrams (src/canvas.rs:1389) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Frame | ✅ | asks which element the frame shows, as on the UML diagrams (src/canvas.rs:1391) | extensions/essential/sysml/toolbox/sysml.json |
 | Requirements `sysml.requirement` | SysMLRequirementDiagram | Copy | ✅ | a SysMLCopy from the tail's element to the head's, in the tail's owned elements: a dashed line with an open arrow and its «copy» keyword, unless it has a stereotype of its own (src/sysml.rs:123-164, 186-200; src/views.rs:2685; src/render.rs:1106) | extensions/essential/sysml/toolbox/sysml.json |
 | Requirements `sysml.requirement` | SysMLRequirementDiagram | DeriveReqt | ✅ | a SysMLDeriveReqt, drawn as Copy with «deriveReqt» (src/sysml.rs:123-164) | extensions/essential/sysml/toolbox/sysml.json |
 | Requirements `sysml.requirement` | SysMLRequirementDiagram | Verify | ✅ | a SysMLVerify, drawn as Copy with «verify» (src/sysml.rs:123-164) | extensions/essential/sysml/toolbox/sysml.json |
 | Requirements `sysml.requirement` | SysMLRequirementDiagram | Satisfy | ✅ | a SysMLSatisfy, drawn as Copy with «satisfy» (src/sysml.rs:123-164) | extensions/essential/sysml/toolbox/sysml.json |
 | Requirements `sysml.requirement` | SysMLRequirementDiagram | Refine | ✅ | a SysMLRefine, drawn as Copy with «refine» (src/sysml.rs:123-164) | extensions/essential/sysml/toolbox/sysml.json |
 | Requirements `sysml.requirement` | SysMLRequirementDiagram | Containment | ✅ | on a SysML diagram between any two model elements, the head not inside the tail; the tail's element moves into the head's, and a circle with a plus marks the container (src/sysml.rs:186-200; src/app.rs:1740) | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Block | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Value Type | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Interface Block | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Constraint Block | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Enumeration | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Signal | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Port | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Object | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Frame | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Association | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Directed Association | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Aggregation | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Composition | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Dependency | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Generalization | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Interface Realization | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Connector | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Containment | ❌ | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Block | ✅ | a SysMLBlock ("Block1"…) in the diagram's owner: «block» over its bold name, then the constraints, parts, ports, references, values, properties, flow properties, operations and receptions compartments, each titled in small italics and suppressed by default (the Block preferences); the tool hides attributes and operations (src/sysml.rs:284-296, 407-560, 632-643) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Value Type | ✅ | a SysMLValueType with «valueType» (whatever its stereotype) and its unit and quantity kind as property values (src/sysml.rs:338-390) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Interface Block | ✅ | a SysMLInterfaceBlock drawn as a block with «interfaceBlock» (src/sysml.rs:322-336) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Constraint Block | ✅ | a SysMLConstraintBlock with «constraint» and its constraints and parameters compartments; Suppress Properties hides the parameters (src/sysml.rs:298-301) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Enumeration | ✅ | a UMLEnumeration, as on class diagrams (src/app.rs:1063-1100) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Signal | ✅ | a UMLSignal, as on class diagrams (src/app.rs:1063-1100) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Port | ✅ | a SysMLPort ("Port1"…) in the ports of the block under the point, a 14 × 14 square on its border with its name floating by it; elsewhere "Port should be placed in a block or a part" (src/sysml.rs:669-704, 790-803; src/canvas.rs:1372) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Object | ✅ | a UMLObject, as on object diagrams (src/app.rs:1063-1100) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Frame | ✅ | asks which element the frame shows, as on the UML diagrams (src/canvas.rs:1391) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Association | ✅ | a UMLAssociation between two classifiers, as on class diagrams (src/app.rs:1759-1780) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Directed Association | ✅ | end2 navigable, as on class diagrams (src/app.rs:1759-1780) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Aggregation | ✅ | end2 shared, as on class diagrams (src/app.rs:1759-1780) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Composition | ✅ | end2 composite, as on class diagrams (src/app.rs:1759-1780) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Dependency | ✅ | a UMLDependency, as on class diagrams (src/app.rs:1781-1792) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Generalization | ✅ | a UMLGeneralization between two classifiers (src/app.rs:1781-1792) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Interface Realization | ✅ | a UMLInterfaceRealization to an interface (src/app.rs:1781-1792) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Connector | ✅ | a SysMLConnector between two parts or ports, owned by the diagram's owner, with role, multiplicity and item flow labels; the original checks only the tail end, UMLCraft both (src/sysml.rs:237-262, 706-716; src/views.rs) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Containment | ✅ | on a SysML diagram between any two model elements (src/sysml.rs:237-262) | extensions/essential/sysml/toolbox/sysml.json |
 | Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Part | ❌ | extensions/essential/sysml/toolbox/sysml.json |
 | Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Reference | ❌ | extensions/essential/sysml/toolbox/sysml.json |
 | Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Value | ❌ | extensions/essential/sysml/toolbox/sysml.json |

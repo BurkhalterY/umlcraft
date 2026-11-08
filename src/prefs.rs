@@ -445,6 +445,13 @@ impl App {
                 }
             }
         }
+        // a SysML block view's suppressed compartments (preferences/sysml.json)
+        for (field, key) in crate::sysml::suppress_prefs(&ty) {
+            let p = self.pref(key);
+            if !p.is_null() {
+                sets.push((field, p));
+            }
+        }
         for (field, value) in sets {
             if crate::meta::order_of(&ty, field).is_some() {
                 self.repo.set(v, field, value);
