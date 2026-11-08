@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>UML modeling; an open-source, clean-room reimplementation of StarUML, rebuilt in pure Rust.</b><br>
-  Class and use case diagrams, a model explorer, a property editor and real <code>.mdj</code> files,<br>
+  UML, SysML, BPMN, ER, C4 and cloud diagrams, a model explorer, a property editor and real <code>.mdj</code> files,<br>
   in a native app written entirely in Rust. Open source, offline, and yours.
 </p>
 
