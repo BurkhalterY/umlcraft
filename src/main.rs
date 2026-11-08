@@ -31,6 +31,7 @@ mod markdown;
 mod mermaid;
 mod mermaid_kinds;
 mod mermaid_sequence;
+mod mcp;
 mod canvas;
 mod icons;
 mod input;

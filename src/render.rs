@@ -156,8 +156,8 @@ pub fn fit_ratio(b: R, w: f64, h: f64) -> R {
 /// Draw an icon script into `b`: `!icon w h` sets its coordinate space, fitted and centred; then
 /// l, r, rr, e, pl, pg and a draw lines, rectangles, rounded rectangles, ellipses, polylines,
 /// polygons and arcs, fr, frr, fe, fp and fa fill them, and %l, %f, %a and %p set the line colour,
-/// the fill colour, the opacity and a dash pattern (graphics.js:2384-2654). %w (line width) is read
-/// but UMLCraft draws one-pixel lines.
+/// the fill colour, the opacity and a dash pattern, and %w the line width in diagram units, not
+/// scaled with the icon (graphics.js:2384-2654).
 /// The actor's stick figure in the box `b`: head, body, arms and legs.
 pub fn draw_stick_figure(c: &mut dyn Canvas, b: R, fill: Rgba, line: Rgba) {
     let (ix, iy, iw, ih) = (b.x, b.y, b.w, b.h);
@@ -193,6 +193,7 @@ pub fn draw_icon_script(c: &mut dyn Canvas, b: R, script: &str, line0: Rgba, fil
     }
     let (ox, oy, s) = (b.x + ((b.w - w) / 2.0).round(), b.y + ((b.h - h) / 2.0).round(), w / sw);
     let (mut line, mut fill, mut alpha, mut pattern): (Rgba, Rgba, f64, Option<(f64, f64)>) = (line0, fill0, 1.0, None);
+    let mut width = 1.0_f64;
     let num = |t: &[String], i: usize| t.get(i).and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0);
     let pt = |x: f64, y: f64| P { x: ox + x * s, y: oy + y * s };
     let with_alpha = |c: Rgba, a: f64| Rgba(c.0, c.1, c.2, (c.3 as f64 * a.clamp(0.0, 1.0)).round() as u8);
@@ -210,7 +211,16 @@ pub fn draw_icon_script(c: &mut dyn Canvas, b: R, script: &str, line0: Rgba, fil
         };
         let ellipse = |rr: R| -> Vec<P> { (0..=48).map(|i| { let a = std::f64::consts::TAU * i as f64 / 48.0; P { x: rr.x + rr.w / 2.0 * (1.0 + a.cos()), y: rr.y + rr.h / 2.0 * (1.0 + a.sin()) } }).collect() };
         let stroke = |c: &mut dyn Canvas, p: &[P]| match pattern {
-            Some((on, off)) => dashes(c, p, l, on, off),
+            Some((on, off)) => {
+                // a wide dashed line: the dashes side by side, as thick_polyline does
+                let k = ((width - 1.0) / 2.0).max(0.0);
+                let offsets: &[(f64, f64)] = if k > 0.0 { &[(0.0, 0.0), (-k, 0.0), (k, 0.0), (0.0, -k), (0.0, k)] } else { &[(0.0, 0.0)] };
+                for (dx, dy) in offsets {
+                    let s: Vec<P> = p.iter().map(|q| P { x: q.x + dx, y: q.y + dy }).collect();
+                    dashes(c, &s, l, on, off);
+                }
+            }
+            None if width > 1.0 => c.thick_polyline(p, l, width),
             None => c.polyline(p, l, false),
         };
         let closed = |p: Vec<P>| -> Vec<P> { let mut p = p; if let Some(&f0) = p.first() { p.push(f0); } p };
@@ -231,6 +241,8 @@ pub fn draw_icon_script(c: &mut dyn Canvas, b: R, script: &str, line0: Rgba, fil
             "%l" => line = t.get(1).map(|x| parse_color(x, line0)).unwrap_or(line0),
             "%f" => fill = t.get(1).map(|x| parse_color(x, BLACK)).unwrap_or(fill0),
             "%a" => alpha = t.get(1).and_then(|x| x.parse().ok()).unwrap_or(1.0),
+            // `cmd.w || 1.0`: no argument, or 0, is one unit (graphics.js:2639-2641)
+            "%w" => width = t.get(1).and_then(|x| x.parse::<f64>().ok()).filter(|w| *w > 0.0).unwrap_or(1.0),
             "%p" => pattern = (t.len() > 1).then(|| (num(&t, 1), if t.len() > 2 { num(&t, 2) } else { num(&t, 1) })),
             _ => {}
         }
