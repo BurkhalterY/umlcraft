@@ -8163,3 +8163,34 @@ fn exec_mermaid_takes_a_base() {
     let bad = json!({ "code": "classDiagram\n  class B", "base": { "$ref": a.repo.id(d) } }).to_string();
     assert!(a.exec_command("mermaid:generate-diagram", Some(&bad), &[], &ms).is_err());
 }
+
+#[test]
+fn the_clipboard_uses_the_originals_layout() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    a.last_area = crate::app::Area::Canvas;
+    a.select(vec![c1]);
+    let text = a.copy_text().unwrap();
+    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(v["kind"], "views");
+    assert!(v["type"].is_null());
+    assert_eq!(v["data"][0]["_type"], "UMLClassView");
+    assert_eq!(v["context"]["type"], "UMLClassDiagram");
+    let m1 = a.repo.refd(c1, "model").unwrap();
+    assert_eq!(v["context"]["refs"], json!([a.repo.id(m1)]), "the model is the one outside reference");
+    // a model copied in the explorer
+    a.last_area = crate::app::Area::Explorer;
+    a.select(vec![]);
+    a.focus = Some(m1);
+    let mv: serde_json::Value = serde_json::from_str(&a.copy_text().unwrap()).unwrap();
+    assert_eq!((mv["kind"].as_str(), mv["type"].as_str(), mv["context"]["field"].as_str()), (Some("model"), Some("UMLClass"), Some("ownedElements")));
+    // text in StarUML's layout pastes: a class model into the selected model
+    let model = a.repo.parent(m1).unwrap();
+    let star = json!({ "kind": "model", "type": "UMLClass", "data": { "_type": "UMLClass", "_id": "AAAAAAGStarUMLclass1=", "name": "FromStarUML" }, "context": { "id": "x", "type": "UMLModel", "field": "ownedElements" } }).to_string();
+    a.focus = Some(model);
+    a.paste_text(&star);
+    assert!(a.repo.children(model).iter().any(|(_, e)| a.repo.name(*e) == "FromStarUML"));
+}
