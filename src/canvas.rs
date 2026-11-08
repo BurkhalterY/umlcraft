@@ -433,6 +433,21 @@ impl App {
         out
     }
 
+    /// The operand of a combined fragment view under `p`.
+    fn operand_at(&self, v: Eid, p: P) -> Option<Eid> {
+        if self.repo.ty(v) != "UMLCombinedFragmentView" {
+            return None;
+        }
+        let mut stack = self.repo.list(v, "subViews");
+        while let Some(s) = stack.pop() {
+            if self.repo.ty(s) == "UMLInteractionOperandView" && !matches!(self.repo.raw(s, "visible"), Some(serde_json::Value::Bool(false))) && in_rect(p, &node_rect(&self.repo, s)) {
+                return Some(s);
+            }
+            stack.extend(self.repo.list(s, "subViews"));
+        }
+        None
+    }
+
     /// The line whose shown qualifier box is under `p`.
     pub(crate) fn hit_qualifier(&self, p: P) -> Option<Eid> {
         let d = self.diagram?;
@@ -1160,7 +1175,8 @@ impl App {
         }
         let add = mods.shift;
         // a compartment item under the press is selected on its own (View.getViewAt, core.js:1793-1806)
-        let hit = self.hit_view(p, false).map(|v| if is_node(&self.repo, v) { self.row_at(v, p).filter(|iv| views::is_item_view(self.repo.ty(*iv))).unwrap_or(v) } else { v });
+        // and so is a combined fragment's operand (UMLInteractionOperandView is selectable, elements.js:12382)
+        let hit = self.hit_view(p, false).map(|v| if is_node(&self.repo, v) { self.row_at(v, p).filter(|iv| views::is_item_view(self.repo.ty(*iv))).or_else(|| self.operand_at(v, p)).unwrap_or(v) } else { v });
         match hit {
             None => {
                 if !add {
@@ -1730,6 +1746,18 @@ impl App {
 
     pub fn edit_view(&mut self, v: Eid, p: Option<P>) {
         let t = self.repo.ty(v).to_string();
+        // a selected operand edits its guard in its fragment
+        if t == "UMLInteractionOperandView" {
+            let mut host = self.repo.parent(v);
+            while let Some(h) = host.filter(|h| self.repo.ty(*h) != "UMLCombinedFragmentView") {
+                host = self.repo.parent(h);
+            }
+            if let Some(h) = host {
+                let b = node_rect(&self.repo, v);
+                self.edit_view(h, Some(P { x: b.x + 10.0, y: b.y + 10.0 }));
+            }
+            return;
+        }
         // a selected label edits its line or box
         if t == "EdgeLabelView" || t == "NodeLabelView" {
             if let Some(e) = self.repo.parent(v) {

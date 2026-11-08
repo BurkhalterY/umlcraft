@@ -8818,3 +8818,28 @@ fn view_font_faces_are_drawn() {
     assert!(svg.contains("font-family=\"'Times New Roman', Arial"));
     assert!(svg.contains("font-family=\"Arial, Liberation Sans"));
 }
+
+#[test]
+fn a_click_in_an_operand_selects_it() {
+    use egui::{Modifiers, Pos2};
+    let ms = measure();
+    let mut a = App::new(None);
+    let canvas = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 700.0));
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLSequenceDiagram"));
+    a.change(|a| a.create_node("UMLLifeline", rect(50.0, 40.0, 100.0, 300.0))).unwrap();
+    let cf = a.change(|a| a.create_node("UMLCombinedFragment", rect(20.0, 120.0, 300.0, 150.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let oc = a.repo.refd(cf, "operandCompartment").unwrap();
+    let ov = a.repo.list(oc, "subViews")[0];
+    assert_eq!(a.repo.ty(ov), "UMLInteractionOperandView");
+    let b = crate::views::node_rect(&a.repo, ov);
+    let at = Pos2::new((b.x + b.w - 10.0) as f32, (b.y + b.h / 2.0) as f32);
+    a.on_press(canvas, at, Modifiers::NONE);
+    a.on_release(canvas.min, at);
+    assert_eq!(a.selection, vec![ov]);
+    // Enter edits its guard
+    a.edit_view(ov, None);
+    let om = a.repo.refd(ov, "model").unwrap();
+    assert!(matches!(a.editing.as_ref().map(|e| e.kind.clone()), Some(crate::app::EditKind::Name(x)) if x == om));
+}
