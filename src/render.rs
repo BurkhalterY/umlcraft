@@ -107,6 +107,9 @@ pub(crate) fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
     if t.is_empty() {
         return;
     }
+    // a compartment item that does not inherit its box's style keeps its own text colour
+    // (View.setup, core.js:1659-1666)
+    let fc = if views::own_font(r, lv).is_some() { color(r, lv, "fontColor", fc) } else { fc };
     let font = r.str(lv, "font");
     // a floating label (a line's name, role or multiplicity, a port's name…) first fills its box
     // with its fill colour, hiding what lies under its text (NodeLabelView.draw and EdgeLabelView.draw,

@@ -9203,6 +9203,7 @@ fn an_interaction_dropped_on_a_sequence_diagram_is_used() {
 #[derive(Default)]
 struct Recorder {
     ops: Vec<(String, crate::views::R)>,
+    text_colors: Vec<crate::render::Rgba>,
 }
 impl crate::views::Measure for Recorder {
     fn width(&self, text: &str, _style: u8) -> f64 {
@@ -9221,6 +9222,7 @@ impl crate::render::Canvas for Recorder {
     fn ellipse(&mut self, _c: crate::views::P, _rx: f64, _ry: f64, _fill: Option<crate::render::Rgba>, _stroke: Option<crate::render::Rgba>) {}
     fn text(&mut self, t: &str, b: crate::views::R, _align: i64, _style: u8, _size: f64, _color: crate::render::Rgba, _underline: bool) {
         self.ops.push((format!("text {t}"), b));
+        self.text_colors.push(_color);
     }
 }
 
@@ -9257,4 +9259,44 @@ fn a_line_label_fills_its_box_before_its_text() {
     let mut rec = Recorder::default();
     crate::render::draw_label(&mut rec, &a.repo, row, crate::render::Rgba(0, 0, 0, 255));
     assert!(rec.ops.iter().all(|o| o.0.starts_with("text")));
+}
+
+#[test]
+fn a_compartment_item_may_stop_inheriting_its_box_style() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let d = a.diagram.unwrap();
+    let c = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 160.0, 10.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    let at = a.change(|a| a.add_feature(cm, "UMLAttribute")).unwrap();
+    a.change(|a| a.add_feature(cm, "UMLAttribute"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let rows: Vec<_> = a.repo.all().into_iter().filter(|v| a.repo.ty(*v) == "UMLAttributeView").collect();
+    let row = *rows.iter().find(|v| a.repo.refd(**v, "model") == Some(at)).unwrap();
+    let other = *rows.iter().find(|v| **v != row).unwrap();
+    let h0 = a.repo.f(c, "height");
+    // the row is selected on its own; Inherit Style is on, as on every new row
+    a.select(vec![row]);
+    assert_eq!(a.flag_state("parentStyle"), Some(true));
+    a.toggle_flag("parentStyle");
+    assert!(!a.repo.bool(row, "parentStyle"));
+    // off, its own font and colour are kept by the layout and drawn (View.setup, core.js:1659-1666)
+    a.set_font(None, Some(20.0));
+    a.set_color("fontColor", crate::render::Rgba(255, 0, 0, 255));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(crate::views::view_font(&a.repo, row).1, 20.0);
+    assert_eq!(a.repo.f(row, "height"), 20.0);
+    assert_eq!(a.repo.f(c, "height"), h0 + 7.0, "the box grows by the taller row");
+    assert_eq!(crate::views::view_font(&a.repo, other).1, 13.0, "the other row still inherits");
+    let mut rec = Recorder::default();
+    crate::render::draw_label(&mut rec, &a.repo, row, crate::render::Rgba(0, 0, 0, 255));
+    assert_eq!(rec.text_colors, vec![crate::render::Rgba(255, 0, 0, 255)]);
+    let mut rec = Recorder::default();
+    crate::render::draw_label(&mut rec, &a.repo, other, crate::render::Rgba(0, 0, 0, 255));
+    assert_eq!(rec.text_colors, vec![crate::render::Rgba(0, 0, 0, 255)]);
+    // on again: it takes its box's font back
+    a.toggle_flag("parentStyle");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(crate::views::view_font(&a.repo, row).1, 13.0);
+    assert_eq!(a.repo.f(row, "height"), 13.0);
 }
