@@ -529,8 +529,9 @@ impl App {
             open = false;
         }
         crate::dialogs::dialog(ctx, "preferences", "Preferences", |ui| {
-            ui.set_min_width(620.0);
-            ui.horizontal_top(|ui| {
+            // a fixed 620×440 body, as the window it replaces had
+            ui.allocate_ui_with_layout(egui::Vec2::new(620.0, 440.0), egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                ui.set_min_size(egui::Vec2::new(620.0, 440.0));
                 ui.vertical(|ui| {
                     ui.set_width(120.0);
                     for s in ["General", "BPMN", "C4 Model", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "UML"] {
@@ -555,6 +556,7 @@ impl App {
                             }
                             // the name, with its description under it (preference-dialog-item-*.html)
                             ui.vertical(|ui| {
+                                ui.set_width(230.0);
                                 ui.label(label);
                                 ui.label(egui::RichText::new(description(key, label, header)).small().weak());
                             });
@@ -575,7 +577,7 @@ impl App {
                     }
                 }));
             });
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+            ui.allocate_ui_with_layout(egui::Vec2::new(620.0, 24.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let close = ui.button("Close");
                 crate::ui::focus_primary(ui, &close);
                 if close.clicked() {
@@ -600,7 +602,7 @@ fn pref_widget(ui: &mut egui::Ui, key: &str, kind: Kind, cur: &Value) -> Option<
             let mut t = cur.as_str().unwrap_or("").to_string();
             let mut out = None;
             ui.horizontal(|ui| {
-                if ui.add(egui::TextEdit::singleline(&mut t).desired_width(140.0)).changed() {
+                if ui.add(egui::TextEdit::singleline(&mut t).desired_width(110.0)).changed() {
                     out = Some(json!(t));
                 }
                 if let Some(f) = crate::style::font_face_menu(ui, key) {
