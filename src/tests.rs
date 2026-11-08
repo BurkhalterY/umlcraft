@@ -5936,3 +5936,95 @@ fn views_move_and_resize_only_the_ways_they_may() {
     let sw = a.change(|a| a.create_node("WFSwitch", rect(50.0, 50.0, 1.0, 1.0))).unwrap();
     assert_eq!(sizable(&a.repo, sw), Sizable::None);
 }
+
+#[test]
+fn aws_diagrams_have_groups_icons_callouts_and_arrows() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "AWSDiagram"));
+    let model = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(model), a.repo.name(model).as_str(), a.repo.name(d).as_str()), ("AWSModel", "AWSModel1", "AWSDiagram1"));
+    // a group, with a service drawn in it: the service belongs to the group
+    let g = a.change(|a| a.create_node("AWSGroup", rect(0.0, 0.0, 300.0, 200.0))).unwrap();
+    let gm = a.repo.refd(g, "model").unwrap();
+    assert_eq!((a.repo.name(gm).as_str(), a.repo.str(gm, "icon").as_str()), ("AWSGroup1", "AWS-Cloud.svg"));
+    let s = a.change(|a| a.create_node("AWSService", rect(50.0, 60.0, 1.0, 1.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    assert_eq!(a.repo.parent(sm), Some(gm), "an element drawn in a group goes in it");
+    assert_eq!(a.repo.refd(s, "containerView"), Some(g));
+    assert_eq!(a.repo.str(sm, "icon"), "Amazon-EC2.svg");
+    let c = a.change(|a| a.create_node("AWSCallout", rect(400.0, 0.0, 1.0, 1.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    assert_eq!(a.repo.name(cm), "1");
+    assert_eq!((a.repo.str(c, "fillColor").as_str(), a.repo.str(c, "fontColor").as_str()), ("#000000", "#ffffff"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // an icon is at least 48 square, its name floating under it
+    assert_eq!((a.repo.f(s, "width"), a.repo.f(s, "height")), (48.0, 48.0));
+    let sl = a.repo.refd(s, "nameLabel").unwrap();
+    assert_eq!(a.repo.ty(sl), "NodeLabelView");
+    assert!(a.repo.f(sl, "top") > a.repo.f(s, "top") + 48.0, "the name is under the icon");
+    assert_eq!((a.repo.f(c, "width"), a.repo.f(c, "height")), (24.0, 24.0));
+    // a group's name is right of its 32 px icon; its icon sets its colour
+    let gl = a.repo.refd(g, "nameLabel").unwrap();
+    assert_eq!((a.repo.f(gl, "left"), a.repo.f(gl, "height")), (42.0, 32.0));
+    a.repo.set(gm, "icon", json!("Region.svg"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(g, "lineColor"), crate::aws::ORBIT);
+    // an arrow joins two AWS elements, in the rounded rectilinear style of the preference
+    let t = tool("AWSArrow", AssocInit::Plain);
+    assert!(a.can_connect(&t, s, c));
+    let e = a.change(|a| a.create_edge(&t, s, c)).unwrap();
+    assert_eq!(a.repo.ty(e), "AWSArrowView");
+    assert_eq!(a.repo.val(e, "lineStyle"), Some(json!(2)));
+    let em = a.repo.refd(e, "model").unwrap();
+    assert_eq!((a.repo.refd(em, "source"), a.repo.refd(em, "target")), (Some(sm), Some(cm)));
+    // Set Icon renames the element from the file name
+    a.set_icon(sm, "name", "Amazon-Simple-Storage-Service_S3.svg");
+    assert_eq!((a.repo.name(sm).as_str(), a.repo.str(sm, "icon").as_str()), ("Amazon Simple Storage Service S3", "Amazon-Simple-Storage-Service_S3.svg"));
+    // a generic group's Dashed is in the Properties panel
+    let gg = a.change(|a| a.create_node("AWSGenericGroup", rect(0.0, 300.0, 200.0, 100.0))).unwrap();
+    let ggm = a.repo.refd(gg, "model").unwrap();
+    assert!(crate::cloud::fields(a.repo.ty(ggm)).contains(&("dashed", "bool")));
+    // the saved file keeps the original's names and opens again
+    let text = a.repo.serialize();
+    assert!(text.contains("AWSServiceView"));
+    let back = Repo::parse(&text).unwrap();
+    let svc = back.all_of("AWSService");
+    assert_eq!(back.str(svc[0], "icon"), "Amazon-Simple-Storage-Service_S3.svg");
+    // Model › Add › AWS Model and the template
+    let am = a.change(|a| a.add_model(root, "AWSModel"));
+    assert_eq!(a.repo.name(am), "AWSModel2");
+    let tp = crate::templates::TEMPLATES.iter().find(|t| t.label == "AWS Architecture").unwrap();
+    let pr = crate::templates::project(tp);
+    let ms0 = pr.children(pr.root);
+    assert_eq!(ms0.len(), 1);
+    assert_eq!((pr.ty(ms0[0].1), pr.name(ms0[0].1).as_str()), ("AWSModel", "AWS Architecture"));
+    let main = pr.children(ms0[0].1)[0].1;
+    assert_eq!((pr.ty(main), pr.name(main).as_str(), pr.bool(main, "defaultDiagram")), ("AWSDiagram", "Main", true));
+}
+
+#[test]
+fn cloud_icons_come_from_the_icon_folder() {
+    use crate::cloud::*;
+    assert_eq!(picker_label("Amazon-EC2_Instance.svg"), "Amazon EC2 Instance");
+    // the picker strips only ".svg", as the original does; the name drops any extension
+    assert_eq!(picker_label("Users.png"), "Users.png");
+    assert_eq!(name_from_icon("Users.png"), "Users");
+    assert_eq!(initials("Amazon-EC2.svg"), "EC2");
+    assert_eq!(initials("App-Services.svg"), "AS");
+    let dir = std::env::temp_dir().join(format!("umlcraft-cloud-icons-{}", std::process::id()));
+    let base = dir.join("aws/service-icons");
+    std::fs::create_dir_all(&base).unwrap();
+    let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#ED7100"/></svg>"##;
+    std::fs::write(base.join("Amazon-EC2.svg"), svg).unwrap();
+    std::fs::write(base.join("AWS-Lambda.svg"), svg).unwrap();
+    let files = list_icons(&dir, "aws/service-icons");
+    assert_eq!(files, vec!["AWS-Lambda.svg".to_string(), "Amazon-EC2.svg".to_string()]);
+    assert_eq!(filter_icons(&files, "ec2"), vec!["Amazon-EC2.svg".to_string()]);
+    assert_eq!(filter_icons(&files, "aws lambda"), vec!["AWS-Lambda.svg".to_string()]);
+    let url = icon_url(&dir, "aws/service-icons", "Amazon-EC2.svg").unwrap();
+    assert!(url.starts_with("data:image/svg+xml;base64,"));
+    assert!(icon_url(&dir, "aws/service-icons", "Missing.svg").is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}

@@ -118,9 +118,9 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | View › Minimap | `minimap:toggle` | `ctrl-alt-m` | ✅ | check item in the View menu; the state is kept in `view.minimap.visibility`, on by default (src/ui.rs:1967; src/prefs.rs:95, 122; src/canvas.rs:579, 826) | extensions/default/minimap/menus/minimap.json |
 | View › Relationships | `relationship-view:toggle` | `ctrl-alt-r` | ✅ | check item in the View menu; the panel's visibility is kept in `view.relationships.visibility` (src/ui.rs:1970; src/prefs.rs:93, 120) | extensions/default/relationship-view/menus/relationship-view.json |
 | File › Import › StarUML 1 File (.uml)... | `staruml-v1:import` |  | ❌ |  | extensions/default/staruml-v1/menus/staruml-v1.json |
-| File › New From Template › AWS Architecture | `aws:new-from-template` |  | ❌ | no templates | extensions/essential/aws/menus/aws.json |
-| Model › Add Diagram › AWS Architecture Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/aws/menus/aws.json |
-| Model › Add › AWS Model | `factory:create-model` |  | ❌ |  | extensions/essential/aws/menus/aws.json |
+| File › New From Template › AWS Architecture | `aws:new-from-template` |  | ✅ | an AWSModel "AWS Architecture" with its default diagram "Main", without the UML profile (src/templates.rs:58) | extensions/essential/aws/menus/aws.json |
+| Model › Add Diagram › AWS Architecture Diagram | `factory:create-diagram` |  | ✅ | under any element ("AWSDiagram1"); under the project, in a new "AWSModel1" (src/ui.rs:587; src/app.rs:2210) | extensions/essential/aws/menus/aws.json |
+| Model › Add › AWS Model | `factory:create-model` |  | ✅ | "AWSModel1" under any element, as the menu is not filtered (src/ui.rs:851) | extensions/essential/aws/menus/aws.json |
 | File › New From Template › Azure Architecture | `azure:new-from-template` |  | ❌ | no templates | extensions/essential/azure/menus/azure.json |
 | Model › Add Diagram › Azure Architecture Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/azure/menus/azure.json |
 | Model › Add › Azure Model | `factory:create-model` |  | ❌ |  | extensions/essential/azure/menus/azure.json |

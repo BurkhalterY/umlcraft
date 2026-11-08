@@ -266,12 +266,14 @@ pub fn edge_view_of(model_ty: &str) -> Option<&'static str> {
         "MMEdge" => "MMEdgeView",
         "ERDRelationship" => "ERDRelationshipView",
         "C4Relationship" => "C4RelationshipView",
+        // the cloud notations' lines (aws, azure, gcp metamodel.json)
+        t if crate::cloud::edge_view_of(t).is_some() => return crate::cloud::edge_view_of(t),
         _ => return None,
     })
 }
 
-const KNOWN_EDGE_VIEWS: [&str; 32] = [
-    "C4RelationshipView", "ERDRelationshipView", "FCFlowView", "DFDDataFlowView", "MMEdgeView", "UMLExceptionHandlerView", "UMLActivityInterruptView", "UMLConnectorView", "UMLTimeConstraintLinkView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
+const KNOWN_EDGE_VIEWS: [&str; 33] = [
+    "AWSArrowView", "C4RelationshipView", "ERDRelationshipView", "FCFlowView", "DFDDataFlowView", "MMEdgeView", "UMLExceptionHandlerView", "UMLActivityInterruptView", "UMLConnectorView", "UMLTimeConstraintLinkView", "UMLRoleBindingView", "UMLTransitionView", "UMLControlFlowView", "UMLObjectFlowView",
     "UMLAssociationView", "UMLGeneralizationView", "UMLDependencyView", "UMLRealizationView",
     "UMLInterfaceRealizationView", "UMLIncludeView", "UMLExtendView", "UMLNoteLinkView", "UMLContainmentView",
     "UMLComponentRealizationView", "UMLDeploymentView", "UMLCommunicationPathView", "UMLAssociationClassLinkView",
@@ -432,7 +434,7 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "UMLTimeConstraint" => (1.0, 1.0),
         "UMLDurationConstraint" => (crate::sequence::DURATION_MIN_W, crate::sequence::DURATION_MIN_H),
         // a click makes a flowchart node at its smallest size, as in the original (factory.js:279-292)
-        _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) || kind == "ERDEntity" || crate::c4::tool(kind).is_some() || crate::wireframe::is_node_type(kind) => (1.0, 1.0),
+        _ if crate::flowchart::is_node_type(kind) || crate::notations::is_node_type(kind) || kind == "ERDEntity" || crate::c4::tool(kind).is_some() || crate::wireframe::is_node_type(kind) || crate::cloud::is_node_type(kind) => (1.0, 1.0),
         _ => (100.0, 60.0),
     }
 }
@@ -558,6 +560,9 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
     }
     if crate::c4::is_node_type(r.ty(model)) {
         return Some(crate::c4::create_view(r, diagram, model, rect));
+    }
+    if crate::cloud::is_node_type(r.ty(model)) {
+        return Some(crate::cloud::create_view(r, diagram, model, rect));
     }
     let kind = node_kind(r.ty(model))?;
     let m = r.ref_to(model);
@@ -1055,7 +1060,7 @@ fn layout_part(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
 
 /// A floating label's box: its text's size, centred on the point at its angle and distance from
 /// the host's centre (NodeParasiticView.arrange, core.js:3600-3616).
-fn place_floating_label(r: &mut Repo, ms: &dyn Measure, host: Eid, lv: Eid, text: &str, shown: bool) {
+pub(crate) fn place_floating_label(r: &mut Repo, ms: &dyn Measure, host: Eid, lv: Eid, text: &str, shown: bool) {
     r.set(lv, "text", json!(text));
     r.set(lv, "visible", json!(shown && !text.is_empty()));
     let w = ms.width(text, 0).ceil();
@@ -1263,7 +1268,7 @@ pub fn create_edge_view(r: &mut Repo, diagram: Eid, model: Option<Eid>, tail: Ei
     // a flow has only its name, 15 px off its middle (FCGeneralEdgeView, flowchart/elements.js:197-215)
     // and so does a data flow (DFDGeneralEdgeView, dfd/elements.js:335-350); a mind map edge has no
     // label (MMEdgeView, mindmap/elements.js:103-115)
-    if ty == "FCFlowView" || ty == "DFDDataFlowView" {
+    if ty == "FCFlowView" || ty == "DFDDataFlowView" || crate::cloud::is_edge_view(ty) {
         let nl = edge_label(r, e, Some(m), HALF_PI, 15.0, 1, false);
         r.set_ref(e, "nameLabel", Some(nl));
         return Some(e);
@@ -2160,6 +2165,10 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         crate::wireframe::layout(r, ms, v);
         return Info { shape: "wireframe", ..Default::default() };
     }
+    if crate::cloud::is_node_view(&t) {
+        crate::cloud::layout(r, ms, v);
+        return Info { shape: "cloud", ..Default::default() };
+    }
     if let Some(m) = m {
         if let Some(k) = node_kind(r.ty(m)) {
             if k.classifier && k.view == t {
@@ -2635,7 +2644,7 @@ pub(crate) fn edge_label_texts(r: &Repo, e: Eid) -> Vec<(&'static str, String)> 
     let name = r.name(m);
     // a derived association shows "/" before its name (StarUML 5.x)
     let derived = if r.kind_of(m, "UMLAssociation") && r.bool(m, "isDerived") { "/" } else { "" };
-    if r.ty(m) == "FCFlow" || r.ty(m) == "DFDDataFlow" {
+    if r.ty(m) == "FCFlow" || r.ty(m) == "DFDDataFlow" || crate::cloud::edge_view_of(r.ty(m)).is_some() {
         return vec![("nameLabel", name)];
     }
     if r.ty(m) == "MMEdge" {
@@ -2800,6 +2809,10 @@ pub fn layout_diagram(r: &mut Repo, ms: &dyn Measure, d: Eid) -> HashMap<Eid, In
         // only line kinds UMLCraft knows are re-routed; others keep the points they were saved with
         if r.alive(*v) && KNOWN_EDGE_VIEWS.contains(&r.ty(*v)) && is_edge(r, *v) {
             layout_edge(r, ms, *v, &info);
+            // what a cloud line's update sets on its view (its colour by kind)
+            if crate::cloud::is_edge_view(r.ty(*v)) {
+                crate::cloud::update_edge(r, *v);
+            }
         }
     }
     if r.ty(d) == "UMLSequenceDiagram" {

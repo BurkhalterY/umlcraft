@@ -4,22 +4,22 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER and C4 diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
+UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER, C4 and AWS architecture diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
 | Robustness `uml.robustness` | UMLClassDiagram | Boundary | ✅ | extensions/default/robustness/toolbox/robustness.json |
 | Robustness `uml.robustness` | UMLClassDiagram | Entity | ✅ | extensions/default/robustness/toolbox/robustness.json |
 | Robustness `uml.robustness` | UMLClassDiagram | Control | ✅ | extensions/default/robustness/toolbox/robustness.json |
-| AWS `aws.elements` | AWSDiagram | AWS Group | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Generic Group | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Availability Zone | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Security Group | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Service | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Resource | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS General Resource | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Callout | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Arrow | ❌ | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Group | 🟡 | an AWSGroup ("AWSGroup1") with the icon AWS-Cloud.svg at its top left, its name right of it, and the line colour and dashes its icon gives (Region, VPC, subnets, Auto Scaling group…); it holds the AWS boxes drawn or dropped in it (src/aws.rs; src/app.rs:915). The AWS icon sets are not bundled, for licensing reasons: the icon is read from the Cloud Icon Folder preference, else drawn as a placeholder with its initials (src/cloud.rs) | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Generic Group | ✅ | an unfilled #232F3E box, dashed when `dashed` is on (Properties); it holds other AWS boxes (src/aws.rs) | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Availability Zone | ✅ | a dashed (3, 3) #01A88D box with its name at the top that holds other AWS boxes (src/aws.rs) | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Security Group | ✅ | a #CB464F box with its name at the top that holds other AWS boxes (src/aws.rs) | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Service | 🟡 | an AWSService with the icon Amazon-EC2.svg, at least 48 × 48, its name 42 under its centre (src/aws.rs; src/cloud.rs). The AWS icon sets are not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Resource | 🟡 | an AWSResource with the icon Amazon-EC2_Instance.svg, drawn as a service is (src/aws.rs). The AWS icon sets are not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS General Resource | 🟡 | an AWSGeneralResource with the icon Users.svg, drawn as a service is (src/aws.rs). The AWS icon sets are not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Callout | ✅ | an AWSCallout named "1": a black circle, at least 24 × 24, with its number in white (src/aws.rs; src/cloud.rs) | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Arrow | ✅ | an AWSArrow between two AWS elements, owned by the first: an open arrow head, its name 15 px off its middle, in the `aws.arrow.lineStyle` style (src/render.rs; src/app.rs) | extensions/essential/aws/toolbox/aws.json |
 | Azure `azure.elements` | AzureDiagram | Azure Group | ❌ | extensions/essential/azure/toolbox/azure.json |
 | Azure `azure.elements` | AzureDiagram | Azure Service | ❌ | extensions/essential/azure/toolbox/azure.json |
 | Azure `azure.elements` | AzureDiagram | Azure Callout | ❌ | extensions/essential/azure/toolbox/azure.json |

@@ -377,6 +377,25 @@ fn build() -> HashMap<&'static str, Kind> {
     def("FCGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
     def("FCGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
     def("FCFlowView", Some("FCGeneralEdgeView"), vec![]);
+    // AWS architecture diagrams (aws/metamodel.json)
+    def("AWSElement", Some("ExtensibleModel"), vec![("icon", d(json!("")))]);
+    def("AWSModel", Some("AWSElement"), vec![]);
+    def("AWSDiagram", Some("Diagram"), vec![]);
+    for ty in ["AWSGroup", "AWSAvailabilityZone", "AWSSecurityGroup", "AWSService", "AWSResource", "AWSGeneralResource", "AWSCallout"] {
+        def(ty, Some("AWSElement"), vec![]);
+    }
+    def("AWSGenericGroup", Some("AWSElement"), vec![("dashed", d(json!(false)))]);
+    def("AWSArrow", Some("DirectedRelationship"), vec![]);
+    def("AWSGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
+    def("AWSIconNodeView", Some("NodeView"), vec![("nameLabel", n())]);
+    def("AWSGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
+    for ty in ["AWSGroupView", "AWSGenericGroupView", "AWSAvailabilityZoneView", "AWSSecurityGroupView", "AWSCalloutView"] {
+        def(ty, Some("AWSGeneralNodeView"), vec![]);
+    }
+    for ty in ["AWSServiceView", "AWSResourceView", "AWSGeneralResourceView"] {
+        def(ty, Some("AWSIconNodeView"), vec![]);
+    }
+    def("AWSArrowView", Some("AWSGeneralEdgeView"), vec![]);
     // C4 models (c4/metamodel.json)
     def("C4Element", Some("ExtensibleModel"), vec![("technology", d(json!(""))), ("description", d(json!("")))]);
     def("C4Model", Some("C4Element"), vec![]);
@@ -530,5 +549,5 @@ pub fn static_name(ty: &str) -> &'static str {
 /// Whether an element of another notation than UML takes its name as typed, without the UML name
 /// grammar (flowcharts, data flow diagrams, mind maps: their quick edits only set the name).
 pub fn plain_named(ty: &str) -> bool {
-    ["FC", "DFD", "MM", "ERD", "C4", "WF"].iter().any(|p| ty.starts_with(p))
+    ["FC", "DFD", "MM", "ERD", "C4", "WF", "AWS"].iter().any(|p| ty.starts_with(p))
 }

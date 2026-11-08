@@ -94,6 +94,7 @@ impl App {
         self.show_thumbnails = p.bool("view.diagramThumbnails.visibility", false);
         self.show_minimap = p.bool("view.minimap.visibility", true);
         self.show_markdown = p.bool("view.markdown.visibility", false);
+        crate::cloud::set_icon_dir(p.get(crate::cloud::ICON_FOLDER_PREF).and_then(|v| v.as_str()).map(PathBuf::from));
         for (id, _) in crate::splitter::PANELS {
             if let Some(s) = p.get(&format!("_viewState.{id}.size")).and_then(|v| v.as_f64()) {
                 self.panel_sizes.insert(id.to_string(), s as f32);
@@ -202,6 +203,8 @@ pub enum Kind {
     LineStyle,
     StereotypeDisplay,
     Theme,
+    /// A folder path, typed or chosen with Browse…
+    Folder,
 }
 
 /// The preferences UMLCraft uses, by section, with StarUML's keys, labels and defaults
@@ -228,7 +231,14 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("General", "diagramEditor.gridColor", "Grid Color", Kind::Color, json!("#e0e0e0")),
         ("General", "", "Validation", Kind::Header, Value::Null),
         ("General", "validation.validateModel", "Validate Model", Kind::Check, json!(true)),
+        // UMLCraft's own: where the AWS, Azure and GCP icons are read from, as they are not bundled
+        // (docs/features/8-beyond-staruml.md)
+        ("General", "", "Cloud Icons", Kind::Header, Value::Null),
+        ("General", crate::cloud::ICON_FOLDER_PREF, "Cloud Icon Folder", Kind::Folder, json!("")),
     ];
+    // the cloud diagrams' line styles (aws/preferences/aws.json)
+    v.push(("AWS", "", "Arrow", Kind::Header, Value::Null));
+    v.push(("AWS", "aws.arrow.lineStyle", "Line Style", Kind::LineStyle, json!(2)));
     // per element kind: fill colour (null = the general one), stereotype display and compartments
     let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 29] = [
         ("Package", "package", None),
@@ -431,6 +441,7 @@ impl App {
                 "MMEdgeView" => Some("mindmap.edge.lineStyle"),
                 "ERDRelationshipView" => Some("erd.relationship.lineStyle"),
                 "C4RelationshipView" => Some("c4.relationship.lineStyle"),
+                "AWSArrowView" => Some("aws.arrow.lineStyle"),
                 _ => None,
             };
             let own = key.and_then(|k| self.pref(k).as_i64()).filter(|s| *s != 0);
@@ -465,7 +476,7 @@ impl App {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     ui.set_width(120.0);
-                    for s in ["General", "C4 Model", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "UML"] {
+                    for s in ["General", "AWS", "C4 Model", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "UML"] {
                         if ui.selectable_label(section == s, s).clicked() {
                             pick = Some(s.to_string());
                         }
@@ -505,6 +516,7 @@ impl App {
         // Show Grid and Snap to Grid are the same settings as the View menu's
         self.show_grid = self.pref("diagramEditor.showGrid").as_bool().unwrap_or(true);
         self.snap = self.pref("diagramEditor.snapToGrid").as_bool().unwrap_or(true);
+        crate::cloud::set_icon_dir(self.pref(crate::cloud::ICON_FOLDER_PREF).as_str().map(PathBuf::from));
         self.prefs_open = if open { Some(pick.unwrap_or(section)) } else { None };
     }
 }
@@ -568,6 +580,21 @@ fn pref_widget(ui: &mut egui::Ui, key: &str, kind: Kind, cur: &Value) -> Option<
                 ui.selectable_value(&mut s, "light".to_string(), "Light");
             });
             (s != before).then(|| json!(s))
+        }
+        Kind::Folder => {
+            let mut t = cur.as_str().unwrap_or("").to_string();
+            let mut out = None;
+            ui.horizontal(|ui| {
+                if ui.add(egui::TextEdit::singleline(&mut t).desired_width(220.0)).changed() {
+                    out = Some(json!(t.clone()));
+                }
+                if ui.button("Browse…").clicked() {
+                    if let Some(p) = rfd::FileDialog::new().set_title("Cloud Icon Folder").pick_folder() {
+                        out = Some(json!(p.display().to_string()));
+                    }
+                }
+            });
+            out
         }
         Kind::Header => None,
     }

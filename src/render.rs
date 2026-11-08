@@ -613,6 +613,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             crate::c4::draw(c, r, v, fill, line, fc);
             return;
         }
+        "cloud" => {
+            crate::cloud::draw(c, r, v, fill, line, fc);
+            return;
+        }
         "erd-entity" => {
             crate::erd::draw(c, r, v, fill, line, fc);
             return;
@@ -1128,6 +1132,8 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
             head = Some(End::SolidArrow);
             dashed = true;
         }
+        // an AWS arrow ends in an open arrow head (AWSArrowView, aws/elements.js:650-660)
+        "AWSArrowView" => head = Some(End::Arrow),
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
             if let Some(m) = r.refd(e, "model") {

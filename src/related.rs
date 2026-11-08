@@ -168,6 +168,9 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
         // named wireframe widgets and tab lists: Add Note (wireframe/quickedits/wireframe.json)
         "WFButton" | "WFText" | "WFRadio" | "WFCheckbox" | "WFLink" | "WFTab" | "WFInput" | "WFDropdown" | "WFTabList" => return vec![NOTE],
         t if t.starts_with("WF") => return vec![],
+        // cloud elements: Add Note, but on a callout (quickedits/aws.json, azure.json, gcp.json)
+        t if t.ends_with("Callout") && crate::cloud::element_kind(t).is_some() => return vec![],
+        t if crate::cloud::element_kind(t).is_some() => return vec![NOTE],
         "MMNode" => return vec![r("Add Node Left", "MMNode", "MMEdge", Plain, true, Left), r("Add Node Right", "MMNode", "MMEdge", Plain, true, Right)],
         _ => vec![],
     };

@@ -7,10 +7,12 @@
 mod align;
 mod api;
 mod app;
+mod aws;
 mod c4;
 mod communication;
 mod cli;
 mod clipboard;
+mod cloud;
 mod erd;
 mod export;
 mod find;

@@ -312,6 +312,25 @@ const OVERVIEW_GROUPS: &[Group] = &[
     },
     ANNOTATIONS,
 ];
+// an AWS architecture diagram (aws/toolbox/aws.json)
+const AWS_GROUPS: &[Group] = &[
+    Group {
+        id: "aws.elements",
+        label: "AWS",
+        items: &[
+            node("AWS Group", "AWSGroup", "AWSGroup"),
+            node("AWS Generic Group", "AWSGenericGroup", "AWSGenericGroup"),
+            node("AWS Availability Zone", "AWSAvailabilityZone", "AWSAvailabilityZone"),
+            node("AWS Security Group", "AWSSecurityGroup", "AWSSecurityGroup"),
+            node("AWS Service", "AWSService", "AWSService"),
+            node("AWS Resource", "AWSResource", "AWSResource"),
+            node("AWS General Resource", "AWSGeneralResource", "AWSGeneralResource"),
+            node("AWS Callout", "AWSCallout", "AWSCallout"),
+            line("AWS Arrow", "AWSArrow", "AWSArrow", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
 // a C4 diagram (c4/toolbox/c4.json)
 const C4_GROUPS: &[Group] = &[
     Group {
@@ -542,7 +561,7 @@ const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE
 const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 21] = [
+const DIAGRAM_KINDS: [(&str, &str); 22] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -565,6 +584,7 @@ const DIAGRAM_KINDS: [(&str, &str); 21] = [
     ("ER Diagram", "ERDDiagram"),
     ("C4 Diagram", "C4Diagram"),
     ("Wireframe Diagram", "WFWireframeDiagram"),
+    ("AWS Architecture Diagram", "AWSDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -828,6 +848,10 @@ impl App {
             adds.push(("Mindmap", "MMMindmap", false));
             // and a wireframe (wireframe/menus/wireframe.json, wireframe-commands.js:50-60)
             adds.push(("Wireframe", "WFWireframe", false));
+            // and the cloud models: their menus add one under any element (aws/menus/aws.json)
+            for (_, model, _, label) in crate::cloud::DIAGRAMS {
+                adds.push((label, model, false));
+            }
         }
         // Model › Add › Constraint on any model element (uml.json)
         if self.repo.kind_of(e, "UMLModelElement") {
@@ -927,7 +951,7 @@ impl App {
         if is_pkg || is_classifier || other {
             let dfd = self.repo.kind_of(e, "DFDElement");
             ui.menu_button("Add Diagram", |ui| {
-                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram") || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
+                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram") || crate::cloud::is_diagram(k) || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
                 for (l, k) in kinds {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
@@ -1208,6 +1232,8 @@ impl App {
             "WFSeparator" => return vec![("name", "text"), ("id", "text"), ("isVertical", "bool")],
             "WFSlider" => return vec![("name", "text"), ("id", "text"), ("value", "int")],
             _ if r.kind_of(e, "WFElement") => return vec![("name", "text"), ("id", "text")],
+            // the cloud elements' visible attributes (aws/metamodel.json); the icon is not shown
+            _ if crate::cloud::element_kind(t).is_some() || crate::cloud::edge_view_of(t).is_some() => return crate::cloud::fields(t),
             _ => {}
         }
         if t == "UMLAssociation" {
@@ -1854,6 +1880,7 @@ impl App {
                 Some("MMMindmapDiagram") => self.open_groups.insert("mindmap"),
                 Some("ERDDiagram") => self.open_groups.insert("erd"),
                 Some("C4Diagram") => self.open_groups.insert("c4"),
+                Some("AWSDiagram") => self.open_groups.insert("aws.elements"),
                 // both groups open on a wireframe diagram ("auto-expands")
                 Some("WFWireframeDiagram") => self.open_groups.insert("wireframe.frames") | self.open_groups.insert("wireframe.components"),
                 Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
@@ -1891,6 +1918,7 @@ impl App {
             Some("MMMindmapDiagram") => MINDMAP_GROUPS,
             Some("ERDDiagram") => ERD_GROUPS,
             Some("C4Diagram") => C4_GROUPS,
+            Some("AWSDiagram") => AWS_GROUPS,
             Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
             Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
             Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,
@@ -2976,6 +3004,7 @@ impl App {
             || self.tag_editor.is_some()
             || self.find_dialog.is_some()
             || self.element_picker.is_some()
+            || self.icon_picker.is_some()
             || self.input_dialog.is_some()
             || self.mermaid_code.is_some()
             || self.print_open
@@ -3020,6 +3049,7 @@ impl App {
         self.select_one_ui(ctx);
         self.print_dialog_ui(ctx);
         self.element_picker_ui(ctx);
+        self.icon_picker_ui(ctx);
         self.input_dialog_ui(ctx);
         self.mermaid_dialog_ui(ctx);
         self.preferences_ui(ctx);
