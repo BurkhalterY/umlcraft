@@ -46,6 +46,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLState" => "state",
         "UMLFinalState" => "final",
         "UMLPseudostate" => "initial",
+        "UMLConnectionPointReference" => "connection-point",
         "UMLTransition" => "dependency",
         // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
         "UMLAction" => match r.str(e, "kind").as_str() {
@@ -298,6 +299,10 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             for x in [4.75, 8.0, 11.25] {
                 line(&[(x, 5.5), (x, 10.5)], Y);
             }
+        }
+        "connection-point" => {
+            rect_at(1.5, 1.5, 10.0, 10.0, Y);
+            p.circle_stroke(at(11.5, 11.5), (3.5 * s) as f32, st(Y));
         }
         "edge-connector" => {
             p.circle_stroke(at(8.0, 8.0), (6.0 * s) as f32, st(Y));

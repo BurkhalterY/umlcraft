@@ -193,6 +193,8 @@ pub fn item_buttons(r: &crate::model::Repo, kind: &EditKind) -> Vec<(&'static st
                     ("+ Internal", "Add Internal Transition", "", ItemKey::InternalTransition),
                     ("+ Choice", "Add Choice", "", ItemKey::Scaffold("Choice")),
                     ("+ Fork", "Add Fork", "", ItemKey::Scaffold("Fork")),
+                    ("+ Join", "Add Join", "", ItemKey::Scaffold("Join")),
+                    ("+ CPR", "Add Connection Point Reference", "", ItemKey::AddConnectionPoint),
                 ],
                 // an action's decision, merge, fork and join scaffolds (quickedits/uml.json "uml.action")
                 "UMLAction" => vec![
@@ -261,6 +263,8 @@ pub enum ItemKey {
     Scaffold(&'static str),
     /// A state's Add Region
     AddRegion,
+    /// A state's Add Connection Point Reference
+    AddConnectionPoint,
     /// An action's Add Input Pin (true) or Add Output Pin (false)
     AddPin(bool),
     /// A composite state's Add Internal Transition
@@ -1276,7 +1280,7 @@ impl App {
                     let (mw, mh) = views::tool_min_size(tool.kind).unwrap_or((1.0, 1.0));
                     R { x: x1, y: y1, w: (x2 - x1).max(mw), h: (y2 - y1).max(mh) }
                 };
-                if matches!(tool.kind, "UMLPort" | "UMLPart" | "UMLInputPin" | "UMLOutputPin" | "UMLInputExpansionNode" | "UMLOutputExpansionNode") {
+                if matches!(tool.kind, "UMLPort" | "UMLPart" | "UMLInputPin" | "UMLOutputPin" | "UMLInputExpansionNode" | "UMLOutputExpansionNode" | "UMLConnectionPointReference") {
                     // a port is placed at the point (a "point" tool), a part takes the box; both go on the
                     // classifier box under the point (toolbox/uml.json "parasitic")
                     if !self.tool_sticky {
@@ -1694,6 +1698,17 @@ impl App {
             (ItemKey::AddRegion, _) => {
                 if let Some(rg) = self.change(|a| a.add_feature(m, "UMLRegion")) {
                     self.reveal(rg);
+                }
+            }
+            // on the state's left border, under the ones already there (the original picks a random
+            // point in the box, uml-commands.js:2947-2963)
+            (ItemKey::AddConnectionPoint, _) => {
+                let b = node_rect(&self.repo, host);
+                let d = self.diagram;
+                let n = d.map(|d| self.repo.list(d, "ownedViews").into_iter().filter(|v| self.repo.refd(*v, "containerView") == Some(host) && self.repo.ty(*v) == "UMLConnectionPointReferenceView").count()).unwrap_or(0) as f64;
+                let at = P { x: b.x, y: (b.y + 20.0 + 20.0 * n).min(b.y + b.h) };
+                if let Some(v) = self.change(|a| a.create_feature_on(host, "UMLConnectionPointReference", at, R::default()).map_err(|e| a.toast_error(&e)).ok()) {
+                    self.select(vec![v]);
                 }
             }
             (ItemKey::Activity(field), _) => self.ask_behavior_kind(m, field),

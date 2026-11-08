@@ -825,7 +825,16 @@ impl App {
         if pseudo.is_some() || matches!(kind, "UMLState" | "UMLFinalState" | "CompositeState" | "SubmachineState" | "OrthogonalState") {
             let region = self.statechart_region(d)?;
             let ty = if pseudo.is_some() { "UMLPseudostate" } else if kind == "UMLFinalState" { kind } else { "UMLState" };
-            let name = self.new_name(region, ty);
+            // pseudostates and final states are made unnamed at their smallest size, whatever box is
+            // dragged (pseudostateFn, finalStateFn, uml-factory.js:2116-2180)
+            let mark = ty != "UMLState";
+            let name = if mark { String::new() } else { self.new_name(region, ty) };
+            let rect = if mark {
+                let (w, h) = views::default_size(kind);
+                R { w, h, ..rect }
+            } else {
+                rect
+            };
             let m = self.repo.create(ty, &[("name", json!(name))], Some((region, "vertices")));
             if let Some(k) = pseudo {
                 self.repo.set(m, "kind", json!(k));
@@ -1606,7 +1615,7 @@ impl App {
             .list(d, "ownedViews")
             .into_iter()
             .rev()
-            .filter(|v| views::is_node(&self.repo, *v) && !matches!(self.repo.ty(*v), "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLExpansionNodeView") && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
+            .filter(|v| views::is_node(&self.repo, *v) && !matches!(self.repo.ty(*v), "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLExpansionNodeView" | "UMLConnectionPointReferenceView") && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
             .find(|v| {
                 let b = views::node_rect(&self.repo, *v);
                 at.x >= b.x && at.y >= b.y && at.x <= b.x + b.w && at.y <= b.y + b.h
@@ -1619,6 +1628,15 @@ impl App {
     /// action's box, in the action's inputs or outputs (uml-factory.js:3827-3834).
     pub fn create_feature_on(&mut self, host: Eid, kind: &str, at: P, rect: R) -> Result<Eid, String> {
         let d = self.diagram.ok_or_else(String::new)?;
+        // a connection point reference goes in the connections of the state under the point
+        // (connectionPointReferenceFn, uml-factory.js:2183-2214)
+        if kind == "UMLConnectionPointReference" {
+            let hm = self.repo.refd(host, "model").filter(|m| self.repo.kind_of(*m, "UMLState")).ok_or_else(|| format!("{kind} cannot be placed here."))?;
+            let m = self.repo.create(kind, &[("name", json!(""))], Some((hm, "connections")));
+            let v = views::create_connection_point_view(&mut self.repo, d, m, host, at);
+            self.apply_view_defaults(v);
+            return Ok(v);
+        }
         if matches!(kind, "UMLInputPin" | "UMLOutputPin" | "UMLInputExpansionNode" | "UMLOutputExpansionNode") {
             let refused = format!("{kind} cannot be placed here.");
             let hm = self.repo.refd(host, "model").filter(|m| self.repo.kind_of(*m, "UMLAction")).ok_or(refused)?;

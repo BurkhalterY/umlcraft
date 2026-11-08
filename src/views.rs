@@ -217,6 +217,7 @@ pub fn node_kind(model_ty: &str) -> Option<NodeKind> {
         "UMLCollaborationUse" => k("UMLCollaborationUseView", false, false, false),
         "UMLState" => k("UMLStateView", false, false, false),
         "UMLPseudostate" => k("UMLPseudostateView", false, false, false),
+        "UMLConnectionPointReference" => k("UMLConnectionPointReferenceView", false, false, false),
         "UMLFinalState" => k("UMLFinalStateView", false, false, false),
         // activities (elements.js:9903-10300)
         "UMLAction" => k("UMLActionView", false, false, false),
@@ -273,9 +274,23 @@ const KNOWN_EDGE_VIEWS: [&str; 26] = [
 ];
 
 /// Size used when the person clicks instead of dragging (estimated).
-/// Statechart marks (sizes estimated): pseudostates are 20 px circles or diamonds, a final state 26 px.
+/// Statechart marks: an initial pseudostate is at least 20 px, a final state 26 px (elements.js:131-150).
 pub const PSEUDO_SIZE: f64 = 20.0;
 pub const FINAL_SIZE: f64 = 26.0;
+/// A connection point reference: a 14 px circle on its state's border (elements.js:151-152).
+pub const CONNECTION_POINT_SIZE: f64 = 14.0;
+
+/// The smallest a pseudostate may be, by kind (elements.js:131-150): history and terminate marks
+/// 26 px, junctions and entry and exit points 15 px, a choice 23 × 19, an initial state 20 px.
+pub fn pseudostate_min(kind: &str) -> (f64, f64) {
+    match kind {
+        "shallowHistory" | "deepHistory" | "terminate" => (26.0, 26.0),
+        "junction" | "entryPoint" | "exitPoint" => (15.0, 15.0),
+        "choice" => (DECISION_W, DECISION_H),
+        "fork" | "join" => (BAR_LENGTH, BAR_THICK),
+        _ => (PSEUDO_SIZE, PSEUDO_SIZE),
+    }
+}
 
 /// An activity edge connector is a circle at least 26 across (elements.js:176); an interruptible
 /// region at least 30 × 30 (elements.js:10794-10797).
@@ -402,8 +417,8 @@ pub fn default_size(kind: &str) -> (f64, f64) {
         "CompositeState" | "OrthogonalState" => (200.0, 150.0),
         "SubmachineState" => (100.0, 40.0),
         "UMLFinalState" => (FINAL_SIZE, FINAL_SIZE),
-        "Fork" | "Join" => (8.0, 60.0),
-        _ if pseudostate_kind(kind).is_some() => (PSEUDO_SIZE, PSEUDO_SIZE),
+        _ if pseudostate_kind(kind).is_some() => pseudostate_min(pseudostate_kind(kind).unwrap_or("initial")),
+        "UMLConnectionPointReference" => (CONNECTION_POINT_SIZE, CONNECTION_POINT_SIZE),
         "UMLNaryAssociationNode" => (NARY_MIN_W, NARY_MIN_H),
         _ => (100.0, 60.0),
     }
@@ -536,7 +551,12 @@ pub fn create_node_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> Opti
     }
     // a control node is a NodeView without a name (elements.js:10288), and so are an interruptible
     // region and an edge connector (elements.js:10782-10830)
-    if matches!(kind.view, "UMLControlNodeView" | "UMLInterruptibleActivityRegionView" | "UMLActivityEdgeConnectorView") {
+    if matches!(kind.view, "UMLControlNodeView" | "UMLInterruptibleActivityRegionView" | "UMLActivityEdgeConnectorView" | "UMLFinalStateView") {
+        return Some(v);
+    }
+    // a pseudostate is a floating node whose labels stay hidden (UMLPseudostateView, elements.js:8835)
+    if kind.view == "UMLPseudostateView" {
+        floating_labels(r, v, model);
         return Some(v);
     }
     let nc = name_compartment(r, v, model);
@@ -613,7 +633,10 @@ fn layout_state(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
     let rows = state_activity_rows(r, m);
     let lh = ms.size();
     let rows_w = rows.iter().map(|t| ms.width(t, 0)).fold(0.0, f64::max) + 2.0 * PAD;
-    let rows_h = if rows.is_empty() { 0.0 } else { rows.len() as f64 * lh + 2.0 * PAD };
+    // a submachine state keeps 16 px under its compartments for the submachine mark
+    // (UMLStateView.sizeObject, elements.js:9509-9519)
+    let mark = if r.refd(m, "submachine").is_some() { 16.0 } else { 0.0 };
+    let rows_h = if rows.is_empty() { 0.0 } else { rows.len() as f64 * lh + 2.0 * PAD } + mark;
     let min_w = name_min_width(r, ms, v, m, None, false).max(rows_w.ceil()).max(40.0);
     grow(r, v, min_w, NAME_MIN_H + rows_h);
     let (x, y, w) = (r.f(v, "left"), r.f(v, "top"), r.f(v, "width"));
@@ -746,6 +769,63 @@ pub fn create_port_view(r: &mut Repo, diagram: Eid, model: Eid, host: Eid, at: P
     }
     contain(r, host, v);
     v
+}
+
+/// The name, stereotype and property labels floating around a node (UMLFloatingNodeView,
+/// elements.js:5162-5188).
+fn floating_labels(r: &mut Repo, v: Eid, model: Eid) {
+    let m = r.ref_to(model);
+    let pi = std::f64::consts::PI;
+    for (field, alpha, distance) in [("nameLabel", 3.0 * pi / 4.0, 20.0), ("stereotypeLabel", 3.0 * pi / 4.0, 35.0), ("propertyLabel", -3.0 * pi / 4.0, 20.0)] {
+        let l = r.create("NodeLabelView", &[("model", m.clone()), ("font", json!(FONT)), ("alpha", json!(alpha)), ("distance", json!(distance)), ("height", json!(LABEL_H))], Some((v, "subViews")));
+        r.set_ref(v, field, Some(l));
+    }
+}
+
+/// A connection point reference on its state's border: a 14 px circle (an exit point's with an
+/// X), labelled with the names of the entry and exit points it refers to, contained in `host`
+/// (UMLConnectionPointReferenceView, elements.js:9154-9230).
+pub fn create_connection_point_view(r: &mut Repo, diagram: Eid, model: Eid, host: Eid, at: P) -> Eid {
+    let h = CONNECTION_POINT_SIZE / 2.0;
+    let v = r.create(
+        "UMLConnectionPointReferenceView",
+        &[("model", r.ref_to(model)), ("font", json!(FONT)), ("parentStyle", json!(false)), ("left", num(at.x - h)), ("top", num(at.y - h)), ("width", num(CONNECTION_POINT_SIZE)), ("height", num(CONNECTION_POINT_SIZE))],
+        Some((diagram, "ownedViews")),
+    );
+    floating_labels(r, v, model);
+    contain(r, host, v);
+    v
+}
+
+/// The text a connection point reference shows: its entry and exit points' names, or its own name.
+pub fn connection_point_text(r: &Repo, m: Eid) -> String {
+    let names: Vec<String> = r.ref_list(m, "entry").into_iter().chain(r.ref_list(m, "exit")).map(|p| r.name(p)).filter(|n| !n.is_empty()).collect();
+    if names.is_empty() {
+        r.name(m)
+    } else {
+        names.join(", ")
+    }
+}
+
+/// Centred on its state's border where the line from the state's centre through it meets it
+/// (UMLConnectionPointReferenceView.arrange, elements.js:9192-9205).
+fn layout_connection_point(r: &mut Repo, ms: &dyn Measure, v: Eid, m: Eid) {
+    if let Some(host) = r.refd(v, "containerView").filter(|h| r.alive(*h)) {
+        let c = node_rect(r, host);
+        let p = port_junction(c, center(&node_rect(r, v)));
+        let h = CONNECTION_POINT_SIZE / 2.0;
+        r.set(v, "left", num(p.x - h));
+        r.set(v, "top", num(p.y - h));
+    }
+    r.set(v, "width", num(CONNECTION_POINT_SIZE));
+    r.set(v, "height", num(CONNECTION_POINT_SIZE));
+    let text = connection_point_text(r, m);
+    let st = stereotype_text(r, m);
+    for (field, t) in [("nameLabel", text), ("stereotypeLabel", st), ("propertyLabel", String::new())] {
+        if let Some(lv) = r.refd(v, field) {
+            place_floating_label(r, ms, v, lv, &t, true);
+        }
+    }
 }
 
 /// A pin on its action's border: an 18 × 18 square with its labels floating by it, contained in
@@ -1493,6 +1573,12 @@ fn box_name(r: &Repo, m: Eid) -> String {
             return attribute_text(r, p, Show { vis: false, mult: true, sig: true, ty: true, prop: true });
         }
     }
+    // a submachine state: "name: Machine" (UMLStateView.update, elements.js:9502-9505)
+    if r.ty(m) == "UMLState" {
+        if let Some(sm) = r.refd(m, "submachine").filter(|s| r.alive(*s)) {
+            return format!("{name}: {}", r.name(sm));
+        }
+    }
     if r.kind_of(m, "UMLObjectNode") {
         let ty = match r.refd(m, "type") {
             Some(t) => r.name(t),
@@ -2027,19 +2113,41 @@ fn layout_node(r: &mut Repo, ms: &dyn Measure, v: Eid) -> Info {
         return Info { shape: "state", ..Default::default() };
     }
     if t == "UMLPseudostateView" || t == "UMLFinalStateView" {
-        // a fixed mark, except fork and join bars, which keep the size they were drawn at
+        // freely sizable marks with a minimum size by kind; fork and join bars keep their thickness
+        // (UMLPseudostateView.sizeObject, UMLFinalStateView.sizeObject, elements.js:8842-8910, 9118-9123)
         let kind = m.map(|m| r.str(m, "kind")).unwrap_or_default();
         if t == "UMLFinalStateView" {
-            r.set(v, "width", num(FINAL_SIZE));
-            r.set(v, "height", num(FINAL_SIZE));
-        } else if kind != "fork" && kind != "join" {
-            r.set(v, "width", num(PSEUDO_SIZE));
-            r.set(v, "height", num(PSEUDO_SIZE));
+            grow(r, v, FINAL_SIZE, FINAL_SIZE);
+        } else if kind == "fork" || kind == "join" {
+            let (w, h) = (r.f(v, "width"), r.f(v, "height"));
+            if h > w {
+                r.set(v, "width", num(BAR_THICK));
+                grow(r, v, BAR_THICK, BAR_LENGTH);
+            } else {
+                r.set(v, "height", num(BAR_THICK));
+                grow(r, v, BAR_LENGTH, BAR_THICK);
+            }
+        } else {
+            let (w, h) = pseudostate_min(&kind);
+            grow(r, v, w, h);
+        }
+        // its floating labels stay hidden (UMLPseudostateView.arrange, elements.js:8912-8916); files
+        // from older UMLCraft versions have a name compartment instead
+        for f in ["nameLabel", "stereotypeLabel"] {
+            if let Some(l) = r.refd(v, f) {
+                r.set_raw(l, "visible", json!(false));
+            }
         }
         if let Some(nc) = r.refd(v, "nameCompartment") {
             r.set_raw(nc, "visible", json!(false));
         }
         return Info { shape: if t == "UMLFinalStateView" { "final" } else { "pseudostate" }, ..Default::default() };
+    }
+    if t == "UMLConnectionPointReferenceView" {
+        if let Some(m) = m {
+            layout_connection_point(r, ms, v, m);
+        }
+        return Info { shape: "connection-point", ..Default::default() };
     }
     if t == "UMLStructuredActivityNodeView" || t == "UMLExpansionRegionView" {
         if let Some(m) = m {

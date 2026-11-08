@@ -271,10 +271,24 @@ impl App {
     pub fn add_scaffold(&mut self, v: Eid, kind: &str) -> Option<Eid> {
         let b = node_rect(&self.repo, v);
         let (pw, ph) = views::default_size(kind);
-        let (pw, ph) = if kind == "Fork" { (ph, pw) } else { (pw, ph) };
-        let p = R { x: (b.x + b.w / 2.0 - pw / 2.0).round(), y: b.y + b.h + 50.0, w: pw, h: ph };
         let (sw, sh) = views::default_size("UMLState");
         let tool = Tool { label: "", kind: "UMLTransition", icon: "", line: true, init: AssocInit::Plain };
+        // Add Join: the join 40 px above the state, into it, and two new states 80 px above the join,
+        // 40 px left of it and 50 px past its right end, each into the join (handleAddJoin,
+        // uml-commands.js:3314-3378)
+        if kind == "Join" {
+            let p = R { x: b.x, y: (b.y - 40.0 - ph).max(0.0), w: pw, h: ph };
+            return self.change(|app| {
+                let pv = app.create_node(kind, p)?;
+                app.create_edge(&tool, pv, v)?;
+                for x in [p.x - 40.0, p.x + p.w + 50.0] {
+                    let s = app.create_node("UMLState", R { x: x.max(0.0), y: (p.y - 80.0).max(0.0), w: sw, h: sh })?;
+                    app.create_edge(&tool, s, pv)?;
+                }
+                Some(pv)
+            });
+        }
+        let p = R { x: (b.x + b.w / 2.0 - pw / 2.0).round(), y: b.y + b.h + 50.0, w: pw, h: ph };
         self.change(|app| {
             let pv = app.create_node(kind, p)?;
             app.create_edge(&tool, v, pv)?;

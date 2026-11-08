@@ -134,6 +134,8 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLVertex", Some("UMLModelElement"), vec![]);
     def("UMLState", Some("UMLVertex"), vec![("regions", n()), ("entryActivities", n()), ("doActivities", n()), ("exitActivities", n()), ("submachine", n()), ("connections", n())]);
     def("UMLPseudostate", Some("UMLVertex"), vec![("kind", d(json!("initial")))]);
+    // a reference to entry or exit points of a submachine state (elements.js:2900-2910)
+    def("UMLConnectionPointReference", Some("UMLVertex"), vec![("entry", n()), ("exit", n())]);
     def("UMLFinalState", Some("UMLState"), vec![]);
     def("UMLTransition", Some("UMLDirectedRelationship"), vec![("kind", d(json!("external"))), ("guard", d(json!(""))), ("triggers", n()), ("effects", n())]);
     def("UMLEvent", Some("UMLModelElement"), vec![("kind", d(json!("anyReceive"))), ("value", d(json!(""))), ("expression", d(json!(""))), ("targetOperation", n()), ("targetSignal", n())]);
@@ -242,8 +244,10 @@ fn build() -> HashMap<&'static str, Kind> {
     def("UMLCollaborationView", Some("UMLGeneralNodeView"), vec![("templateParameterCompartment", n())]);
     // statecharts: a state with its name, pseudostates and final states as small marks (estimated fields)
     def("UMLStateView", Some("UMLGeneralNodeView"), vec![]);
-    def("UMLPseudostateView", Some("UMLGeneralNodeView"), vec![]);
-    def("UMLFinalStateView", Some("UMLGeneralNodeView"), vec![]);
+    // a pseudostate is a floating node with hidden labels, a final state a plain node (elements.js:8835, 9111)
+    def("UMLPseudostateView", Some("UMLFloatingNodeView"), vec![]);
+    def("UMLFinalStateView", Some("NodeView"), vec![]);
+    def("UMLConnectionPointReferenceView", Some("UMLFloatingNodeView"), vec![]);
     // activities: actions and object nodes with their name, control nodes as marks without one
     // (elements.js:9903-10300)
     def("UMLActionView", Some("UMLGeneralNodeView"), vec![]);

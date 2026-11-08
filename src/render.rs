@@ -400,6 +400,14 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             let pts = round_rect(b, 10.0);
             c.polygon(&pts, Some(fill), Some(line));
             draw_name(c, r, v);
+            // a submachine state: two small circles joined by a line at the bottom right
+            // (UMLStateView.drawObject, elements.js:9581-9600)
+            if r.refd(v, "model").and_then(|m| r.refd(m, "submachine")).is_some() {
+                let (x2, y2) = (b.x + b.w, b.y + b.h);
+                c.ellipse(P { x: x2 - 23.0, y: y2 - 13.0 }, 3.0, 3.0, None, Some(line));
+                c.polyline(&[P { x: x2 - 20.0, y: y2 - 13.0 }, P { x: x2 - 14.0, y: y2 - 13.0 }], line, false);
+                c.ellipse(P { x: x2 - 11.0, y: y2 - 13.0 }, 3.0, 3.0, None, Some(line));
+            }
             if let Some(m) = r.refd(v, "model") {
                 let rows = views::state_activity_rows(r, m);
                 // a composite state: its regions under a line below the name and activities (estimated)
@@ -428,6 +436,23 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             }
             return;
         }
+        "connection-point" => {
+            // an entry point's circle, or an exit point's with an X when it refers to exit points
+            // (UMLConnectionPointReferenceView.drawObject, elements.js:9207-9230)
+            let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
+            c.ellipse(ctr, b.w / 2.0, b.h / 2.0, Some(fill), Some(line));
+            if r.refd(v, "model").map(|m| !r.ref_list(m, "exit").is_empty()).unwrap_or(false) {
+                let d = (std::f64::consts::SQRT_2 * b.w / 4.0).round();
+                c.polyline(&[P { x: ctr.x - d, y: ctr.y - d }, P { x: ctr.x + d, y: ctr.y + d }], line, false);
+                c.polyline(&[P { x: ctr.x + d, y: ctr.y - d }, P { x: ctr.x - d, y: ctr.y + d }], line, false);
+            }
+            for f in ["stereotypeLabel", "nameLabel", "propertyLabel"] {
+                if let Some(lv) = r.refd(v, f) {
+                    draw_label(c, r, lv, fc);
+                }
+            }
+            return;
+        }
         "final" => {
             let ctr = P { x: b.x + b.w / 2.0, y: b.y + b.h / 2.0 };
             let rad = b.w.min(b.h) / 2.0;
@@ -441,8 +466,11 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             let rad = b.w.min(b.h) / 2.0;
             match kind.as_str() {
                 "choice" => c.polygon(&[P { x: ctr.x, y: b.y }, P { x: b.x + b.w, y: ctr.y }, P { x: ctr.x, y: b.y + b.h }, P { x: b.x, y: ctr.y }], Some(fill), Some(line)),
-                "fork" | "join" => c.rect(b, Some(line), Some(line)),
-                "junction" => c.ellipse(ctr, rad / 2.0, rad / 2.0, Some(line), Some(line)),
+                "fork" | "join" => {
+                    let bar = if b.w >= b.h { R { h: views::BAR_THICK, ..b } } else { R { w: views::BAR_THICK, ..b } };
+                    c.polygon(&round_rect(bar, 3.0), Some(line), None);
+                }
+                "junction" => c.ellipse(ctr, b.w / 2.0, b.h / 2.0, Some(line), Some(line)),
                 "shallowHistory" | "deepHistory" => {
                     c.ellipse(ctr, rad, rad, Some(fill), Some(line));
                     let t = if kind == "deepHistory" { "H*" } else { "H" };

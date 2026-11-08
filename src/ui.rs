@@ -272,6 +272,7 @@ const STATECHART_GROUPS: &[Group] = &[
             node("Entry Point", "EntryPoint", "final"),
             node("Exit Point", "ExitPoint", "final"),
             node("Terminate", "Terminate", "terminate"),
+            node("Connection Point Reference", "UMLConnectionPointReference", "connection-point"),
             node("Frame", "Frame", "frame"),
         ],
     },

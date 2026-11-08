@@ -4627,7 +4627,7 @@ fn a_statechart_diagram_with_states_and_a_transition() {
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     let l = a.repo.refd(e2, "nameLabel").unwrap();
     assert_eq!(a.repo.str(l, "text"), "done [ok] / log");
-    assert_eq!((a.repo.f(ch, "width"), a.repo.f(ch, "height")), (crate::views::PSEUDO_SIZE, crate::views::PSEUDO_SIZE), "a fixed mark");
+    assert_eq!((a.repo.f(ch, "width"), a.repo.f(ch, "height")), (23.0, 19.0), "a point tool: the choice's smallest size");
     assert!(a.repo.f(s1, "height") > crate::views::NAME_MIN_H, "room for the entry activity");
     assert_eq!(a.info[&s1].shape, "state");
     Repo::parse(&a.repo.serialize()).unwrap();
@@ -5076,4 +5076,52 @@ fn activity_boxes_show_called_operations_and_states() {
     a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
     let ons = a.repo.refd(a.repo.refd(o, "nameCompartment").unwrap(), "namespaceLabel").unwrap();
     assert_eq!(a.repo.str(ons, "text"), "[Paid]");
+}
+
+#[test]
+fn connection_point_references_sit_on_their_state() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "UMLStatechartDiagram"));
+    let s = a.change(|a| a.create_node("SubmachineState", rect(100.0, 100.0, 120.0, 60.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    let sub = a.repo.refd(sm, "submachine").unwrap();
+    // the tool needs a state under the point
+    assert!(a.create_feature_box("UMLConnectionPointReference", crate::views::P { x: 10.0, y: 10.0 }, rect(0.0, 0.0, 0.0, 0.0)).is_err());
+    let cp = a.change(|a| a.create_feature_box("UMLConnectionPointReference", crate::views::P { x: 100.0, y: 130.0 }, rect(0.0, 0.0, 0.0, 0.0)).ok()).unwrap();
+    let cm = a.repo.refd(cp, "model").unwrap();
+    assert_eq!(a.repo.ty(cp), "UMLConnectionPointReferenceView");
+    assert_eq!(a.repo.list(sm, "connections"), vec![cm]);
+    // it shows the names of the exit points it refers to, with an X
+    let ex = a.repo.create("UMLPseudostate", &[("name", json!("abort")), ("kind", json!("exitPoint"))], Some((a.repo.list(sub, "regions")[0], "vertices")));
+    let er = a.repo.ref_to(ex);
+    a.repo.set(cm, "exit", json!([er]));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    let b = crate::views::node_rect(&a.repo, cp);
+    assert_eq!((b.w, b.h), (14.0, 14.0));
+    assert_eq!(b.x + 7.0, 100.0, "centred on the left border");
+    let nl = a.repo.refd(cp, "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nl, "text"), "abort");
+    // the submachine state shows "name: Machine" and keeps room for its mark
+    let nm = a.repo.refd(a.repo.refd(s, "nameCompartment").unwrap(), "nameLabel").unwrap();
+    assert_eq!(a.repo.str(nm, "text"), format!("{}: {}", a.repo.name(sm), a.repo.name(sub)));
+    // pseudostates are unnamed and take their kind's smallest size
+    let j = a.change(|a| a.create_node("Junction", rect(400.0, 100.0, 60.0, 60.0))).unwrap();
+    let h = a.change(|a| a.create_node("DeepHistory", rect(400.0, 200.0, 10.0, 10.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(j, "width"), a.repo.f(h, "width")), (15.0, 26.0));
+    assert_eq!(a.repo.name(a.repo.refd(j, "model").unwrap()), "");
+    assert!(a.repo.refd(j, "nameCompartment").is_none());
+    // Add Join: a join above the state with two states above it, all wired by transitions
+    let target = a.change(|a| a.create_node("UMLState", rect(400.0, 400.0, 100.0, 40.0))).unwrap();
+    let jv = a.add_scaffold(target, "Join").unwrap();
+    let jm = a.repo.refd(jv, "model").unwrap();
+    assert_eq!(a.repo.str(jm, "kind"), "join");
+    assert!(a.repo.f(jv, "top") < 400.0);
+    assert_eq!((a.repo.f(jv, "width"), a.repo.f(jv, "height")), (70.0, 6.0));
+    let region = a.repo.parent(jm).unwrap();
+    let into_join = a.repo.list(region, "transitions").into_iter().filter(|t| a.repo.refd(*t, "target") == Some(jm)).count();
+    assert_eq!(into_join, 2);
+    Repo::parse(&a.repo.serialize()).unwrap();
 }
