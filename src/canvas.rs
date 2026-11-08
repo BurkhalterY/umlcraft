@@ -2832,84 +2832,105 @@ impl App {
         });
     }
 
-    fn canvas_menu(&mut self, ui: &mut egui::Ui) {
+    /// The diagram's context menu, in the original's order: Add, Add Diagram, Format, Cut, Copy, Paste,
+    /// Select All, Delete, Delete From Model, Select In Explorer, Select In Diagram, Open Sub-Diagram,
+    /// Tag Editor (menus/linux.json "diagram-canvas", with uml.json's and alignment.json's Format
+    /// items); Add and Add Diagram act on the element under the pointer, or with none on the project
+    /// (default-commands.js:1357-1368). Then UMLCraft's own Edit, Copy Diagram As Image and Fit To
+    /// Window.
+    pub(crate) fn canvas_menu(&mut self, ui: &mut egui::Ui) {
         self.last_area = crate::app::Area::Canvas;
-        let Some(v) = self.ctx_target.filter(|v| self.repo.alive(*v)) else {
-            if ui.add(self.key_button("Paste", "edit:paste")).clicked() {
-                self.cmd_paste();
-                ui.close();
+        let v = self.ctx_target.filter(|v| self.repo.alive(*v));
+        let m = v.and_then(|v| self.repo.refd(v, "model")).filter(|m| self.repo.alive(*m));
+        match m {
+            Some(m) => self.add_menu(ui, m),
+            None => {
+                ui.add_enabled_ui(false, |ui| ui.menu_button("Add", |_| {}));
             }
-            if ui.add(self.key_button("Select All", "edit:select-all")).clicked() {
-                self.select_all();
-                ui.close();
-            }
-            if ui.add(self.key_button("Fit To Window", "view:fit-to-window")).clicked() {
-                self.fit();
-                ui.close();
-            }
-            return;
-        };
-        let m = self.repo.refd(v, "model");
-        self.clipboard_items(ui);
-        ui.separator();
-        if ui.button("Edit").clicked() {
-            let p = self.ctx_pos;
-            self.edit_view(v, Some(p));
-            ui.close();
         }
-        if let Some(m) = m {
-            for (label, ty) in [("Add Literal", "UMLEnumerationLiteral"), ("Add Attribute", "UMLAttribute"), ("Add Operation", "UMLOperation")] {
-                if self.can_add_feature(m, ty) && ui.button(label).clicked() {
-                    if let Some(c) = self.change(|a| a.add_feature(m, ty)) {
-                        self.focus = Some(c);
-                    }
+        let root = self.repo.root;
+        self.add_diagram_menu(ui, m.unwrap_or(root));
+        ui.separator();
+        ui.add_enabled_ui(v.is_some(), |ui| {
+            ui.menu_button("Format", |ui| {
+                if ui.add(self.key_button("Font...", "format:font")).clicked() {
+                    self.open_font_dialog();
                     ui.close();
                 }
-            }
-        }
-        if is_edge(&self.repo, v) {
-            self.line_style_menu(ui);
-        }
-        ui.menu_button("Format", |ui| {
-            if ui.add(self.key_button("Font...", "format:font")).clicked() {
-                self.open_font_dialog();
-                ui.close();
-            }
-            self.color_menus(ui);
-            self.stereotype_display_menu(ui);
-            ui.separator();
-            self.format_toggles(ui);
-            ui.separator();
-            self.alignment_menu(ui);
+                self.color_menus(ui);
+                ui.separator();
+                self.line_style_menu(ui);
+                self.format_toggles(ui);
+                ui.separator();
+                self.alignment_menu(ui);
+            });
         });
         ui.separator();
-        if let Some(m) = m {
+        let can = self.can_copy();
+        if ui.add_enabled(can, self.key_button("Cut", "edit:cut")).clicked() {
+            self.cmd_cut(Some(&ui.ctx().clone()));
+            ui.close();
+        }
+        if ui.add_enabled(can, self.key_button("Copy", "edit:copy")).clicked() {
+            self.cmd_copy(Some(&ui.ctx().clone()));
+            ui.close();
+        }
+        if ui.add(self.key_button("Paste", "edit:paste")).clicked() {
+            self.cmd_paste();
+            ui.close();
+        }
+        if ui.add(self.key_button("Select All", "edit:select-all")).clicked() {
+            self.select_all();
+            ui.close();
+        }
+        if ui.add_enabled(v.is_some(), self.key_button("Delete", "edit:delete")).clicked() {
+            self.delete_selection(false);
+            ui.close();
+        }
+        if ui.add_enabled(m.is_some(), self.key_button("Delete From Model", "edit:delete-from-model")).clicked() {
+            self.delete_selection(true);
+            ui.close();
+        }
+        ui.separator();
+        ui.add_enabled_ui(m.is_some(), |ui| {
             if ui.add(self.key_button("Select In Explorer", "edit:select-in-explorer")).clicked() {
-                self.reveal(m);
+                if let Some(m) = m {
+                    self.reveal(m);
+                }
                 ui.close();
             }
             if ui.add(self.key_button("Select In Diagram", "edit:select-in-diagram")).clicked() {
-                self.focus = Some(m);
+                self.focus = m;
                 self.select_in_diagram();
                 ui.close();
             }
             if ui.add(self.key_button("Open Sub-Diagram", "edit:open-sub-diagram")).clicked() {
-                self.focus = Some(m);
+                self.focus = m;
                 self.open_sub_diagram();
                 ui.close();
             }
+            ui.separator();
             if ui.add(self.key_button("Tag Editor...", "model:tag-editor")).clicked() {
-                self.focus = Some(m);
+                self.focus = m;
                 self.open_tag_editor();
                 ui.close();
             }
+        });
+        // UMLCraft's own items
+        ui.separator();
+        if let Some(v) = v {
+            if ui.button("Edit").clicked() {
+                let p = self.ctx_pos;
+                self.edit_view(v, Some(p));
+                ui.close();
+            }
         }
-        if ui.add(self.key_button("Delete", "edit:delete")).clicked() {
-            self.delete_selection(false);
+        if ui.add_enabled(self.diagram.is_some(), self.key_button("Copy Diagram As Image", "edit:copy-diagram-as-image")).clicked() {
+            self.cmd_copy_diagram_image(&ui.ctx().clone());
             ui.close();
         }
-        if m.is_some() && ui.add(self.key_button("Delete from Model", "edit:delete-from-model")).clicked() {
-            self.delete_selection(true);
+        if ui.add(self.key_button("Fit To Window", "view:fit-to-window")).clicked() {
+            self.fit();
             ui.close();
         }
     }

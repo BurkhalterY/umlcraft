@@ -74,7 +74,8 @@ pub struct SelectOne {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SelectPurpose {
-    /// Model › Add › Constraint on an operation: the field the constraint goes in.
+    /// Model › Add › Constraint on an operation, a behaviour or an action: the field the constraint
+    /// goes in.
     ConstraintKind(Eid),
     /// Model › Add › Entry, Do or Exit Activity on a state, or Effect on a transition: the kind of
     /// behaviour, created in that field (uml-commands.js:109-190).
@@ -86,8 +87,26 @@ pub enum SelectPurpose {
 /// The behaviour kinds of an entry, do or exit activity or an effect (uml-commands.js:111-116).
 pub const BEHAVIOR_KINDS: [(&str, &str); 4] = [("OpaqueBehavior", "UMLOpaqueBehavior"), ("Activity", "UMLActivity"), ("StateMachine", "UMLStateMachine"), ("Interaction", "UMLInteraction")];
 
-/// The constraint kinds of an operation and the field each goes in (uml-commands.js:185).
-pub const OPERATION_CONSTRAINTS: [(&str, &str); 4] = [("Typical", "ownedElements"), ("Precondition", "preconditions"), ("BodyCondition", "bodyConditions"), ("Postcondition", "postconditions")];
+/// The constraint kinds of an operation and the field each goes in (uml-commands.js:185-200).
+pub const OPERATION_CONSTRAINTS: [(&str, &str); 4] = [("Typical Constraint", "ownedElements"), ("Precondition", "preconditions"), ("BodyCondition", "bodyConditions"), ("Postcondition", "postconditions")];
+/// The constraint kinds of a behaviour (uml-commands.js:203-218).
+pub const BEHAVIOR_CONSTRAINTS: [(&str, &str); 3] = [("Typical Constraint", "ownedElements"), ("Precondition", "preconditions"), ("Postcondition", "postconditions")];
+/// The constraint kinds of an action (uml-commands.js:219-234).
+pub const ACTION_CONSTRAINTS: [(&str, &str); 3] = [("Typical Constraint", "ownedElements"), ("LocalPrecondition", "localPreconditions"), ("LocalPostcondition", "localPostconditions")];
+
+/// Model › Add › Constraint asks which kind on an operation, a behaviour or an action: the dialog's
+/// message and the kinds with their fields (handleConstraint, uml-commands.js:184-241).
+pub fn constraint_kinds(r: &crate::model::Repo, e: Eid) -> Option<(&'static str, &'static [(&'static str, &'static str)])> {
+    if r.ty(e) == "UMLOperation" {
+        Some(("Select kind of Constraint of Operation", &OPERATION_CONSTRAINTS))
+    } else if r.kind_of(e, "UMLBehavior") {
+        Some(("Select kind of Constraint of Behavior", &BEHAVIOR_CONSTRAINTS))
+    } else if r.kind_of(e, "UMLAction") {
+        Some(("Select kind of Constraint of Action", &ACTION_CONSTRAINTS))
+    } else {
+        None
+    }
+}
 
 pub mod egui_pos {
     #[derive(Clone, Copy, Debug)]
@@ -765,7 +784,7 @@ impl App {
     pub fn select_one_ok(&mut self, d: SelectOne) {
         match d.purpose {
             SelectPurpose::ConstraintKind(op) if self.repo.alive(op) => {
-                let field = OPERATION_CONSTRAINTS.get(d.selected).map(|x| x.1).unwrap_or("ownedElements");
+                let field = constraint_kinds(&self.repo, op).and_then(|(_, kinds)| kinds.get(d.selected)).map(|x| x.1).unwrap_or("ownedElements");
                 let c = self.change(|a| {
                     let name = a.new_name(op, "UMLConstraint");
                     a.repo.create("UMLConstraint", &[("name", json!(name))], Some((op, field)))

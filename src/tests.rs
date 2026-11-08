@@ -3901,6 +3901,76 @@ fn element_list_editor() {
 }
 
 #[test]
+fn context_sensitive_add_menu() {
+    use crate::ui::uml_diagram_offered;
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let pkg = a.change(|a| a.add_model(root, "UMLModel"));
+    let class = a.change(|a| a.add_model(pkg, "UMLClass"));
+    let labels = |a: &App, e| a.add_kinds(e).into_iter().map(|x| x.0).collect::<Vec<_>>();
+    // a class: its features first, then nested classifiers and behaviours, Constraint last
+    let l = labels(&a, class);
+    assert_eq!(&l[..6], ["Template Parameter", "Attribute", "Port", "Operation", "Reception", "Class"]);
+    assert!(l.contains(&"Interaction") && l.contains(&"Collaboration") && !l.contains(&"Package") && !l.contains(&"Stereotype"));
+    assert_eq!(l.last(), Some(&"Constraint"));
+    // a package takes a model; a stereotype only goes in a profile
+    let l = labels(&a, pkg);
+    assert!(l.contains(&"Model") && l.contains(&"Subsystem") && !l.contains(&"Stereotype") && !l.contains(&"Interaction"));
+    let profile = a.change(|a| a.add_model(root, "UMLProfile"));
+    assert!(labels(&a, profile).contains(&"Stereotype"));
+    // the project has no collaboration or behaviours
+    assert!(!labels(&a, root).contains(&"Collaboration"));
+    // an activity takes parameters and actions; an action a trigger
+    let act = a.change(|a| a.add_model(class, "UMLActivity"));
+    let l = labels(&a, act);
+    assert!(l.contains(&"Parameter") && l.contains(&"Action"));
+    let action = a.change(|a| a.add_feature(act, "UMLAction")).unwrap();
+    assert!(labels(&a, action).contains(&"Trigger"));
+    // Add Diagram: structural kinds under packages, interaction kinds under classifiers too, a
+    // statechart under a state machine, an activity diagram under an activity
+    assert_eq!(uml_diagram_offered(&a.repo, pkg, "UMLClassDiagram"), Some(true));
+    assert_eq!(uml_diagram_offered(&a.repo, class, "UMLClassDiagram"), Some(false));
+    assert_eq!(uml_diagram_offered(&a.repo, class, "UMLSequenceDiagram"), Some(true));
+    assert_eq!(uml_diagram_offered(&a.repo, act, "UMLActivityDiagram"), Some(true));
+    assert_eq!(uml_diagram_offered(&a.repo, act, "UMLStatechartDiagram"), Some(false));
+    let inter = a.change(|a| a.add_model(class, "UMLInteraction"));
+    assert_eq!(uml_diagram_offered(&a.repo, inter, "UMLSequenceDiagram"), Some(true));
+    a.change(|a| a.add_diagram(Some(inter), "UMLSequenceDiagram"));
+    assert_eq!(uml_diagram_offered(&a.repo, inter, "UMLCommunicationDiagram"), Some(false), "an interaction with a diagram already");
+    assert_eq!(uml_diagram_offered(&a.repo, pkg, "ERDDiagram"), None);
+    // Constraint on a behaviour or an action asks which kind (uml-commands.js:203-234)
+    let (msg, kinds) = crate::app::constraint_kinds(&a.repo, act).unwrap();
+    assert_eq!((msg, kinds.len()), ("Select kind of Constraint of Behavior", 3));
+    let (_, kinds) = crate::app::constraint_kinds(&a.repo, action).unwrap();
+    assert_eq!(kinds[1].1, "localPreconditions");
+    assert!(crate::app::constraint_kinds(&a.repo, class).is_none());
+    a.select_one = Some(crate::app::SelectOne { message: String::new(), options: vec![], selected: 2, purpose: crate::app::SelectPurpose::ConstraintKind(action) });
+    let d = a.select_one.take().unwrap();
+    a.select_one_ok(d);
+    assert_eq!(a.repo.ty(a.repo.list(action, "localPostconditions")[0]), "UMLConstraint");
+}
+
+#[test]
+fn context_menus_draw() {
+    // the canvas menu on a box and on empty canvas, and the explorer menu, in the original's order
+    let mut a = App::new(None);
+    let v = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let m = a.repo.refd(v, "model").unwrap();
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    for target in [Some(v), None] {
+        a.ctx_target = target;
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| a.canvas_menu(ui));
+        out.textures_delta.clear();
+    }
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| a.model_menu(ui, m));
+    out.textures_delta.clear();
+    let root = a.repo.root;
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| a.model_menu(ui, root));
+    out.textures_delta.clear();
+}
+
+#[test]
 fn operation_constraint_kinds() {
     use crate::app::{SelectOne, SelectPurpose};
     let mut a = App::new(None);
@@ -5127,8 +5197,25 @@ fn a_state_adds_a_choice_with_two_branches() {
     assert_eq!((count("UMLPseudostateView"), count("UMLStateView"), count("UMLTransitionView")), (1, 3, 3));
     let p = views.iter().copied().find(|v| a.repo.ty(*v) == "UMLPseudostateView").unwrap();
     assert_eq!(a.repo.str(a.repo.refd(p, "model").unwrap(), "kind"), "choice");
-    assert_eq!(a.repo.f(p, "top"), 190.0, "50 px below the state");
+    assert_eq!((a.repo.f(p, "left"), a.repo.f(p, "top")), (200.0, 180.0), "40 px below the state, level with its left side");
     assert_eq!(a.selection, vec![p]);
+    // the new states: 50 px below the choice, 70 px left of it and 35 px past its right end
+    let pr = crate::views::node_rect(&a.repo, p);
+    let mut states: Vec<_> = views.iter().copied().filter(|v| a.repo.ty(*v) == "UMLStateView" && *v != s).map(|v| crate::views::node_rect(&a.repo, v)).collect();
+    states.sort_by(|p, q| p.x.total_cmp(&q.x));
+    assert_eq!((states[0].x, states[0].y), (pr.x - 70.0, pr.y + pr.h + 50.0));
+    assert_eq!(states[1].x, pr.x + pr.w + 35.0);
+    // a fork next: 10 px right of the choice, which this state already leads to; its states
+    // 40 px below, 40 px left of it and 50 px past its right end
+    a.item_key(s, EditKind::Name(m), ItemKey::Scaffold("Fork"));
+    let f = a.selection[0];
+    let fr = crate::views::node_rect(&a.repo, f);
+    assert_eq!(a.repo.str(a.repo.refd(f, "model").unwrap(), "kind"), "fork");
+    assert_eq!((fr.x, fr.y), (pr.x + pr.w + 10.0, pr.y), "right of the choice this state already leads to");
+    let views = a.repo.list(d, "ownedViews");
+    let fork_states: Vec<_> = views.iter().copied().filter(|v| a.repo.ty(*v) == "UMLStateView").map(|v| crate::views::node_rect(&a.repo, v)).filter(|b| b.y == fr.y + fr.h + 40.0).collect();
+    assert_eq!(fork_states.len(), 2);
+    assert!(fork_states.iter().any(|b| b.x == fr.x - 40.0) && fork_states.iter().any(|b| b.x == fr.x + fr.w + 50.0));
 }
 
 #[test]
@@ -5536,7 +5623,7 @@ fn connection_point_references_sit_on_their_state() {
     let jv = a.add_scaffold(target, "Join").unwrap();
     let jm = a.repo.refd(jv, "model").unwrap();
     assert_eq!(a.repo.str(jm, "kind"), "join");
-    assert!(a.repo.f(jv, "top") < 400.0);
+    assert_eq!(a.repo.f(jv, "top"), 360.0, "40 px above the state");
     assert_eq!((a.repo.f(jv, "width"), a.repo.f(jv, "height")), (70.0, 6.0));
     let region = a.repo.parent(jm).unwrap();
     let into_join = a.repo.list(region, "transitions").into_iter().filter(|t| a.repo.refd(*t, "target") == Some(jm)).count();
