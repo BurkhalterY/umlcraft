@@ -9115,3 +9115,42 @@ fn cmd_comma_opens_preferences_on_macos() {
     assert_eq!(bound(true), vec!["application:preferences"]);
     assert!(bound(false).is_empty());
 }
+
+#[test]
+fn dropping_an_association_class_links_it_to_its_association() {
+    use crate::views::P;
+    let ms = measure();
+    let mut a = App::new(None);
+    let c1 = a.change(|a| a.create_node("UMLClass", rect(40.0, 40.0, 100.0, 60.0))).unwrap();
+    let c2 = a.change(|a| a.create_node("UMLClass", rect(340.0, 40.0, 100.0, 60.0))).unwrap();
+    let cv = a.change(|a| a.create_edge(&tool("AssociationClass", AssocInit::Plain), c1, c2)).unwrap();
+    let cm = a.repo.refd(cv, "model").unwrap();
+    let link = a.repo.all_of("UMLAssociationClassLink")[0];
+    let (m1, m2) = (a.repo.refd(c1, "model").unwrap(), a.repo.refd(c2, "model").unwrap());
+    let pkg = a.repo.parent(m1).unwrap();
+    // another diagram showing the two classes, and so their association
+    let d2 = a.change(|a| a.add_diagram(Some(pkg), "UMLClassDiagram"));
+    a.open_diagram(d2);
+    a.drop_model(m1, P { x: 40.0, y: 40.0 }).unwrap();
+    a.drop_model(m2, P { x: 340.0, y: 40.0 }).unwrap();
+    let kinds = |a: &App| a.repo.list(d2, "ownedViews").iter().map(|v| a.repo.ty(*v).to_string()).collect::<Vec<_>>();
+    assert!(kinds(&a).contains(&"UMLAssociationView".to_string()));
+    // the association class: its box, then its link to the line (uml-factory.js:2594-2640)
+    let vs = a.drop_model(cm, P { x: 200.0, y: 200.0 }).unwrap();
+    assert_eq!(vs.len(), 1);
+    assert_eq!(a.repo.ty(vs[0]), "UMLAssociationClassLinkView");
+    assert_eq!(a.repo.refd(vs[0], "model"), Some(link));
+    let class_view = a.repo.refd(vs[0], "tail").unwrap();
+    assert_eq!(a.repo.refd(class_view, "model"), Some(cm));
+    assert_eq!(a.repo.ty(a.repo.refd(vs[0], "head").unwrap()), "UMLAssociationView");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d2);
+    // once more: refused, with the original's message
+    assert_eq!(a.drop_model(cm, P { x: 200.0, y: 300.0 }).unwrap_err(), "AssociationClass View is already existed in this Diagram.");
+    // with the class box but not the link (deleted): only the link is added, to the existing box
+    a.select(vec![vs[0]]);
+    a.delete_selection(false);
+    let n = a.repo.list(d2, "ownedViews").len();
+    let again = a.drop_model(cm, P { x: 200.0, y: 300.0 }).unwrap();
+    assert_eq!(a.repo.refd(again[0], "tail"), Some(class_view));
+    assert_eq!(a.repo.list(d2, "ownedViews").len(), n + 1);
+}

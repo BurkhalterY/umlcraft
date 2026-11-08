@@ -1457,6 +1457,41 @@ impl App {
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
+        // an association class: its box (unless the diagram shows it already), then the dashed link to
+        // the association's line when that is shown (viewForClassDiagramFn, uml-factory.js:2594-2640)
+        let link = self.repo.list(m, "ownedElements").into_iter().find(|l| self.repo.ty(*l) == "UMLAssociationClassLink" && self.repo.refd(*l, "classSide") == Some(m));
+        if let (Some(link), Some(d), "UMLClass") = (link, self.diagram, self.repo.ty(m)) {
+            if !self.diagram_accepts(d, m) {
+                return Ok(vec![]);
+            }
+            if self.shown_view(d, link).is_some() {
+                return Err("AssociationClass View is already existed in this Diagram.".into());
+            }
+            let class_view = match self.shown_view(d, m) {
+                Some(v) => v,
+                None => match self.drop_model_plain(m, p)?.first() {
+                    Some(v) => *v,
+                    None => return Ok(vec![]),
+                },
+            };
+            let Some(assoc_view) = self.repo.refd(link, "associationSide").and_then(|a| self.shown_view(d, a)) else { return Ok(vec![class_view]) };
+            let lv = self.change(|a| {
+                let props = [
+                    ("model", a.repo.ref_to(link)),
+                    ("font", json!(views::FONT)),
+                    ("head", a.repo.ref_to(assoc_view)),
+                    ("tail", a.repo.ref_to(class_view)),
+                    ("lineStyle", json!(views::DEFAULT_LINE_STYLE)),
+                    ("points", json!("0:0;0:0")),
+                ];
+                Some(a.repo.create("UMLAssociationClassLinkView", &props, Some((d, "ownedViews"))))
+            });
+            return Ok(lv.into_iter().collect());
+        }
+        self.drop_model_plain(m, p)
+    }
+
+    fn drop_model_plain(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
         let Some(d) = self.diagram else { return Ok(vec![]) };
         // the drop is checked again (app-context.js:1155-1157)
         if !self.diagram_accepts(d, m) {
