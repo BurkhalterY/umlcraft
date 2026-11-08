@@ -254,6 +254,8 @@ pub struct App {
     pub show_markdown: bool,
     /// The open Mermaid dialog's code.
     pub mermaid_code: Option<String>,
+    /// The open Tools › <Language> dialog (code generation and reverse engineering).
+    pub codegen: Option<crate::codegen::Dialog>,
     /// The theme the style was last set for (true: light).
     pub theme_applied: Option<bool>,
     /// The element being renamed in the Model Explorer: its text, and whether the edit just opened.
@@ -387,6 +389,7 @@ impl App {
             show_minimap: true,
             show_markdown: false,
             mermaid_code: None,
+            codegen: None,
             theme_applied: None,
             tree_rename: None,
             user_keymap: vec![],

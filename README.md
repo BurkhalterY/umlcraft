@@ -141,6 +141,7 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 | `src/cloud.rs` | What the cloud architecture diagrams share: their boxes, the icons read from the Cloud Icon Folder preference (or placeholders), and the Icon Picker |
 | `src/bpmn.rs`, `src/bpmn_draw.rs` | BPMN diagrams: the kinds, the tools, containment and the quick edit commands; the layout, shapes, marks, line ends and icons |
 | `src/sysml.rs` | SysML requirement, block definition, internal block and parametric diagrams, the viewpoints and the Format › Suppress toggles |
+| `src/codegen/` | Tools › Java, C++, C#, C, Python, PHP, TypeScript, JavaScript, Rust, Go, Ruby, Kotlin, Dart, Swift and DDL: one dialog per language that generates source files from the model (`mod.rs`, one file per language) and reverses source folders into it with small tolerant readers (`lex.rs`) |
 | `src/html.rs` | File › Export › HTML Docs: one page per element, an SVG and image map per diagram |
 | `src/xmi.rs` | File › Export › XMI Export and File › Import › XMI Import (v2.1): the model elements as OMG XMI 2.1, without diagrams, and a small XML reader |
 | `src/markdown.rs` | View › Markdown Documentation: the editor with Markdown colours, a GitHub Flavored Markdown preview (pulldown-cmark), and the Markdown reading shared with the HTML docs |

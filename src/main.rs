@@ -16,6 +16,7 @@ mod communication;
 mod cli;
 mod dialogs;
 mod clipboard;
+mod codegen;
 mod cloud;
 mod ejs;
 mod colorvars;

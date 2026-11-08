@@ -45,6 +45,11 @@ impl App {
             self.info_box(&format!("To generate {} diagram, select a Package.", g.diagram_name().to_lowercase()));
             return None;
         };
+        Some(self.generate_diagram_in(pkg, g, ms))
+    }
+
+    /// Generate a diagram in a given package (also used after a code reverse), as one undo step.
+    pub fn generate_diagram_in(&mut self, pkg: Eid, g: Generator, ms: &dyn Measure) -> Eid {
         let undo = self.undo.len();
         let d = self.change(|a| {
             let ty = if g == Generator::PackageStructure { "UMLPackageDiagram" } else { "UMLClassDiagram" };
@@ -90,7 +95,7 @@ impl App {
         self.undo.truncate(undo + 1);
         self.info = views::layout_diagram(&mut self.repo, ms, d);
         self.focus = Some(d);
-        Some(d)
+        d
     }
 
     /// Every element under `e` (not `e` itself) that passes the test, in model order.
