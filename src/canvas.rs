@@ -2059,23 +2059,43 @@ impl App {
     }
 
     /// Add Connected Part on a port or part: a new part in the same box, away from the border the
-    /// port sits on (or under the part), joined to it by a connector (uml-commands.js:1636-1673).
+    /// port sits on (or under the part), joined to it by a connector (uml-commands.js:1636-1673). It
+    /// goes 100 px left or above, or 70 px right or below; with parts already connected to it, under
+    /// the lowest of them (left or right) or right of the right-most one (above or below), as
+    /// getLeftPosition and the like place it (quickedit-manager.js:894-1018).
     fn add_connected_part(&mut self, v: Eid) {
         let Some(container) = self.repo.refd(v, "containerView").filter(|c| self.repo.alive(*c)) else { return };
         let (b, c) = (node_rect(&self.repo, v), node_rect(&self.repo, container));
-        let (w, h, gap) = (80.0, views::NAME_MIN_H, 30.0);
-        let at = if b.x + b.w > c.x + c.w {
-            P { x: b.x - gap - w, y: b.y + b.h / 2.0 - h / 2.0 }
-        } else if b.x < c.x {
-            P { x: b.x + b.w + gap, y: b.y + b.h / 2.0 - h / 2.0 }
-        } else if b.y + b.h > c.y + c.h {
-            P { x: b.x + b.w / 2.0 - w / 2.0, y: b.y - gap - h }
-        } else {
-            P { x: b.x, y: b.y + b.h + gap }
+        let connected: Vec<R> = match self.diagram {
+            Some(d) => self
+                .repo
+                .list(d, "ownedViews")
+                .into_iter()
+                .filter(|e| self.repo.ty(*e) == "UMLConnectorView")
+                .filter_map(|e| {
+                    let (t, h) = (self.repo.refd(e, "tail")?, self.repo.refd(e, "head")?);
+                    let other = if t == v { h } else if h == v { t } else { return None };
+                    (other != v).then(|| node_rect(&self.repo, other))
+                })
+                .collect(),
+            None => vec![],
         };
+        let lowest = connected.iter().max_by(|p, q| (p.y + p.h).total_cmp(&(q.y + q.h))).map(|o| P { x: o.x, y: o.y + o.h + 10.0 });
+        let rightmost = connected.iter().max_by(|p, q| (p.x + p.w).total_cmp(&(q.x + q.w))).map(|o| P { x: o.x + o.w + 10.0, y: o.y });
+        let at = if b.x + b.w > c.x + c.w {
+            lowest.unwrap_or(P { x: b.x - 100.0, y: b.y })
+        } else if b.x < c.x {
+            lowest.unwrap_or(P { x: b.x + b.w + 70.0, y: b.y })
+        } else if b.y + b.h > c.y + c.h {
+            rightmost.unwrap_or(P { x: b.x, y: b.y - 100.0 })
+        } else {
+            rightmost.unwrap_or(P { x: b.x, y: b.y + b.h + 70.0 })
+        };
+        // kept inside the diagram (setInside)
+        let at = P { x: at.x.max(0.0), y: at.y.max(0.0) };
         let conn = crate::app::Tool { label: "", kind: "UMLConnector", icon: "", line: true, init: crate::app::AssocInit::Plain };
         let made = self.change(|a| {
-            let p = a.create_feature_on(container, "UMLPart", at, R { x: at.x, y: at.y, w, h }).map_err(|e| a.toast_error(&e)).ok()?;
+            let p = a.create_feature_on(container, "UMLPart", at, R { x: at.x, y: at.y, w: 0.0, h: 0.0 }).map_err(|e| a.toast_error(&e)).ok()?;
             a.create_edge(&conn, v, p)?;
             Some(p)
         });

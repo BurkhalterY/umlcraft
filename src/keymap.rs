@@ -94,7 +94,12 @@ fn parse_label(label: &str) -> Option<Stroke> {
 /// The built-in keymap: the platform keys, then the UML ones, as (keystroke, command id).
 pub fn defaults() -> Vec<(Stroke, &'static str)> {
     let palette = crate::palette::COMMANDS.iter().map(|c| (c.key, c.id));
-    palette.chain(EXTRA.iter().map(|(id, k)| (*k, *id))).filter(|(k, _)| !k.is_empty()).filter_map(|(k, id)| Some((parse_label(k)?, id))).collect()
+    let mut out: Vec<(Stroke, &'static str)> = palette.chain(EXTRA.iter().map(|(id, k)| (*k, *id))).filter(|(k, _)| !k.is_empty()).filter_map(|(k, id)| Some((parse_label(k)?, id))).collect();
+    // macOS only: "cmd-," opens Preferences (keymaps/darwin.json:6)
+    if cfg!(target_os = "macos") {
+        out.extend(parse_stroke("cmd-,").map(|s| (s, "application:preferences")));
+    }
+    out
 }
 
 /// A keystroke as menus show it: "Ctrl+Alt+Shift+K" in descriptor order, or on macOS the

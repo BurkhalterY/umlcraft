@@ -3075,7 +3075,7 @@ impl App {
                     self.open_color_dialog(field);
                 }
             }
-            for (key, field) in [(Key::R, "autoResize"), (Key::K, "parentStyle"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals")] {
+            for (key, field) in [(Key::R, "autoResize"), (Key::K, "parentStyle"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals"), (Key::U, "suppressColumns")] {
                 if hit(sc(cs, key)) {
                     self.toggle_flag(field);
                 }
@@ -3106,6 +3106,10 @@ impl App {
         }
         if hit(sc(Modifiers::COMMAND, Key::Q)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+        // macOS only: Cmd+, opens Preferences (keymaps/darwin.json:6)
+        if cfg!(target_os = "macos") && hit(sc(Modifiers::COMMAND, Key::Comma)) {
+            self.prefs_open = Some("General".into());
         }
         // Esc anywhere but in a field goes back to the Select tool and clears the lock (toolbox-view.js:473-479)
         if !typing && ctx.input(|i| i.key_pressed(Key::Escape)) && self.drag.is_none() {

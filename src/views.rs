@@ -497,6 +497,39 @@ pub fn parse_points(s: &str) -> Vec<P> {
         })
         .collect()
 }
+/// A slanted line made rectilinear: an elbow is put after each point, below the lower end of the
+/// segment, or level with its start when the segment goes up (Points.convObliqueToRectilinear and
+/// Coord.makeOrthoPt, graphics.js:792-801, 1195-1201). Repeated and collinear points are then
+/// dropped, as the original's reduce does (graphics.js:760-773).
+pub fn oblique_to_rectilinear(pts: &[P]) -> Vec<P> {
+    let mut out: Vec<P> = vec![];
+    for (i, p1) in pts.iter().enumerate() {
+        out.push(*p1);
+        if let Some(p2) = pts.get(i + 1) {
+            let mut q = P { x: p1.x, y: p1.y.max(p2.y) };
+            if q.y == p1.y {
+                q.x = p2.x;
+            }
+            out.push(q);
+        }
+    }
+    let mut i = 0;
+    while i + 2 < out.len() {
+        let (a, b, c) = (out[i], out[i + 1], out[i + 2]);
+        if a == b {
+            out.remove(i);
+        } else if (a.x == b.x && b.x == c.x) || (a.y == b.y && b.y == c.y) {
+            out.remove(i + 1);
+        } else {
+            i += 1;
+        }
+    }
+    if out.len() == 2 && out[0] == out[1] {
+        out.pop();
+    }
+    out
+}
+
 pub fn points_of(r: &Repo, e: Eid) -> Vec<P> {
     parse_points(&r.str(e, "points"))
 }

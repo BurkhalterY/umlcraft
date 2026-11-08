@@ -820,13 +820,16 @@ fn rounded_and_curved_line_styles() {
     a.set_line_style(2);
     a.select(vec![e, e2]);
     assert_eq!(a.line_style_state(), None, "mixed");
-    // an oblique line keeps its bend points; a slanted one made rectilinear starts from its ends
+    // an oblique line keeps its bend points; a slanted one made rectilinear has each segment squared
     a.change(|a| a.repo.set(e2, "points", json!("90:100;150:200;240:270")));
     a.select(vec![e2]);
     a.set_line_style(1);
     assert_eq!(crate::views::points_of(&a.repo, e2).len(), 3);
     a.set_line_style(0);
-    assert_eq!(crate::views::points_of(&a.repo, e2).len(), 2);
+    assert_eq!(a.repo.str(e2, "points"), "90:100;90:200;150:200;150:270;240:270");
+    // going up, the elbow is level with the segment's start
+    let up = crate::views::oblique_to_rectilinear(&[P { x: 0.0, y: 100.0 }, P { x: 50.0, y: 0.0 }]);
+    assert_eq!(up, vec![P { x: 0.0, y: 100.0 }, P { x: 50.0, y: 100.0 }, P { x: 50.0, y: 0.0 }]);
     // rounded rectilinear is routed like rectilinear
     let ms = measure();
     crate::views::layout_diagram(&mut a.repo, &ms, a.diagram.unwrap());
@@ -2192,6 +2195,12 @@ fn layout_diagram_command() {
             assert!(p.x + p.w <= q.x || q.x + q.w <= p.x || p.y + p.h <= q.y || q.y + q.h <= p.y, "{p:?} {q:?}");
         }
     }
+    // 20 px from the top-left corner, and the lines laid out become curves (core.js:62-63, 4366)
+    assert_eq!(boxes.iter().map(|b| b.x).fold(f64::INFINITY, f64::min), 20.0);
+    assert_eq!(boxes.iter().map(|b| b.y).fold(f64::INFINITY, f64::min), 20.0);
+    let lines: Vec<_> = a.repo.list(d, "ownedViews").into_iter().filter(|v| crate::views::is_edge(&a.repo, *v) && a.repo.has(*v, "tail")).collect();
+    assert!(!lines.is_empty());
+    assert!(lines.iter().all(|e| a.repo.val(*e, "lineStyle").and_then(|v| v.as_i64()) == Some(3)));
     Repo::parse(&a.repo.serialize()).unwrap();
 }
 
@@ -4724,6 +4733,11 @@ fn port_and_part_quick_edit_actions() {
     assert_eq!(a.repo.child(conn, "end1").and_then(|e| a.repo.refd(e, "reference")), Some(pm));
     let newest = *views_of(&a, "UMLPartView").last().unwrap();
     assert!(a.repo.f(newest, "left") < a.repo.f(ports[0], "left"), "inside, away from the right border");
+    assert_eq!((a.repo.f(newest, "left"), a.repo.f(newest, "top")), (a.repo.f(ports[0], "left") - 100.0, a.repo.f(ports[0], "top")), "100 px left (getLeftPosition)");
+    // a second one goes 10 px under the first
+    a.item_key(ports[0], EditKind::Name(pm), ItemKey::AddConnectedPart);
+    let second = *views_of(&a, "UMLPartView").last().unwrap();
+    assert_eq!((a.repo.f(second, "left"), a.repo.f(second, "top")), (a.repo.f(newest, "left"), a.repo.f(newest, "top") + a.repo.f(newest, "height") + 10.0));
     a.item_key(ports[0], EditKind::Name(pm), ItemKey::SelectType);
     assert!(a.element_picker.is_some());
     a.element_picker = None;

@@ -164,9 +164,11 @@ Read from `extensions/default/staruml-v1` (main.js, reader.js, uml-readers.js); 
 
 | Rule | Value | Source |
 |---|---|---|
-| Menu | Format › Layout › Auto, Top to Bottom, Bottom to Top, Left to Right, Right to Left; Auto is top to bottom (estimated) | `extensions/default/diagram-layout/main.js:30-40` |
+| Menu | Format › Layout › Auto, Top to Bottom, Bottom to Top, Left to Right, Right to Left; Auto passes no direction, which is top to bottom | `extensions/default/diagram-layout/main.js:30-40` |
 | Undo | the whole layout is one "layout diagram" step | `src/engine/engine.js:1513-1549` |
-| UMLCraft | own layered layout instead of dagre: a line's head goes one rank before its tail; node, edge and rank separations 50, 10 and 50 (estimated); rectilinear lines are left to route themselves; boxes lying inside a package or subject move with it | `src/layout.rs` |
+| Separations | node, edge and rank separations 30 by default; the layout starts 20 px from the diagram's left and top | `src/core/core.js:62-66, 4321-4351` |
+| Lines | with no line style asked for (Format › Layout, Diagram Generator, Mermaid), every laid-out line becomes a curve (3) from the tail's centre through the layout's points | `src/core/core.js:4327, 4362-4375` |
+| UMLCraft | own layered layout instead of dagre: a line's head goes one rank before its tail; a rectilinear line is left to route itself; boxes lying inside a package or subject move with it | `src/layout.rs` |
 
 ## Diagram Generator
 
