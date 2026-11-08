@@ -263,6 +263,8 @@ pub fn item_buttons(r: &crate::model::Repo, host: Option<Eid>, kind: &EditKind) 
                 _ if t.starts_with("BPMN") => crate::bpmn::buttons(r, *m).into_iter().map(|(a, b, c, q)| (a, b, c, ItemKey::Bpmn(q))).collect(),
                 // a tab list's Add Tab (wireframe/quickedits/wireframe.json "wireframe.tab-list")
                 "WFTabList" => vec![("+ Tab", "Add Tab", "", ItemKey::AddTab)],
+                // a cloud element's icon picker (quickedits/aws.json "aws.set-icon", gcp.json "gcp.set-product-icon")
+                _ if crate::cloud::icon_base(t).is_some() => vec![("Icon…", crate::cloud::icon_hint(t), "", ItemKey::CloudIcon)],
                 _ if r.kind_of(*m, "UMLInstance") => vec![("+ Slot", "Add Slot", "Ctrl+Enter", ItemKey::Add)],
                 // classes, interfaces, signals, data types, components, nodes, artifacts: Add Reception
                 // too, which has no key; stereotypes have none (actors take no attributes in UMLCraft)
@@ -328,6 +330,8 @@ pub enum ItemKey {
     AddTab,
     /// A BPMN quick edit button
     Bpmn(crate::bpmn::Quick),
+    /// A cloud element's Set Icon: the Icon Picker
+    CloudIcon,
     /// A lifeline's Select Type (false) or Create Type (true)
     LifelineType(bool),
     /// A lifeline's message buttons
@@ -1728,7 +1732,7 @@ impl App {
             }
         }
         // a box's name label, or a floating node's (an n-ary association node, quickedits/uml.json "uml.floating-node")
-        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || matches!(self.repo.ty(v), "ERDEntityView" | "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView" | "UMLCommMessageView" | "UMLTimingStateView" | "UMLTimingLifelineView") || crate::c4::is_node_view(self.repo.ty(v)) || crate::wireframe::has_name(self.repo.ty(v))));
+        let nl = self.repo.refd(v, "nameCompartment").and_then(|nc| self.repo.refd(nc, "nameLabel")).or_else(|| self.repo.refd(v, "nameLabel").filter(|_| matches!(self.repo.ty(v), "UMLNaryAssociationNodeView" | "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLSwimlaneView") || crate::flowchart::is_node_view(self.repo.ty(v)) || crate::notations::is_node_view(self.repo.ty(v)) || matches!(self.repo.ty(v), "ERDEntityView" | "UMLCombinedFragmentView" | "UMLContinuationView" | "UMLInteractionUseView" | "UMLCommMessageView" | "UMLTimingStateView" | "UMLTimingLifelineView") || crate::c4::is_node_view(self.repo.ty(v)) || crate::wireframe::has_name(self.repo.ty(v)) || crate::cloud::is_node_view(self.repo.ty(v))));
         let rect = match nl {
             Some(l) => R { x: self.repo.f(l, "left") - 2.0, y: self.repo.f(l, "top") - 3.0, w: self.repo.f(l, "width").max(80.0) + 4.0, h: 19.0 },
             None => node_rect(&self.repo, v),
@@ -1968,6 +1972,7 @@ impl App {
                 None => self.toast_error("Lifeline should represent a role. (connect 'represent' field to an Attribute of the container Collaboration)"),
             },
             (ItemKey::Bpmn(q), _) => self.bpmn_quick(host, q),
+            (ItemKey::CloudIcon, _) => self.open_icon_picker(m),
             (ItemKey::AddTab, _) => {
                 if let Some(t) = self.change(|a| a.add_tab(host)) {
                     self.select(vec![t]);
@@ -2452,6 +2457,34 @@ impl App {
                     self.change(|a| a.repo.set(x, field, serde_json::json!(val)));
                     ed.fresh = true;
                 }
+                // the cloud quick edits' dropdowns: an Azure group's Dashed and Rounded, a GCP zone's
+                // Zone Type (quickedits/azure.json, gcp.json)
+                let mut picked_cloud: Option<(Eid, &'static str, serde_json::Value)> = None;
+                if let EditKind::Name(x) = ed.kind {
+                    let menus = crate::cloud::dropdowns(&self.repo, x);
+                    if !menus.is_empty() {
+                        ui.horizontal(|ui| {
+                            for (field, hint, options) in menus {
+                                let cur = self.repo.val(x, field).unwrap_or(serde_json::Value::Null);
+                                let shown = options.iter().find(|o| o.0 == cur).map(|o| o.1).unwrap_or("—");
+                                ui.menu_button(egui::RichText::new(format!("{shown} ▾")).size(11.0).color(Color32::WHITE), |ui| {
+                                    for (value, label) in &options {
+                                        if ui.selectable_label(cur == *value, *label).clicked() {
+                                            picked_cloud = Some((x, field, value.clone()));
+                                            ui.close();
+                                        }
+                                    }
+                                })
+                                .response
+                                .on_hover_text(hint);
+                            }
+                        });
+                    }
+                }
+                if let Some((x, field, val)) = picked_cloud.clone() {
+                    self.change(|a| a.repo.set(x, field, val));
+                    ed.fresh = true;
+                }
                 // an association end: aggregation, navigability and multiplicity dropdowns
                 // (quickedits/uml.json "uml.association-end1/2")
                 let mut picked_owner: Option<Option<Eid>> = None;
@@ -2617,7 +2650,7 @@ impl App {
                     commit = Some(false);
                 } else if (!ed.multiline && enter) || (ed.multiline && (ctrl_enter || plain_enter)) {
                     commit = Some(true);
-                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() && picked_order.is_none() && picked_flag.is_none() {
+                } else if r.lost_focus() && !egui::Popup::is_any_open(ui.ctx()) && picked_vis.is_none() && picked_end.is_none() && picked_owner.is_none() && picked_order.is_none() && picked_flag.is_none() && picked_cloud.is_none() {
                     commit = Some(true);
                 }
             });

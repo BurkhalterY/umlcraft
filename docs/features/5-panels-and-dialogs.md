@@ -262,10 +262,10 @@ Taken from the extracted source under `staruml/app/src`. Paths are relative to `
 
 ## Icon Picker dialog
 
-- **Icon gallery** — "Select Icon" lists the SVG files of a bundled folder (aws, azure or gcp under resources/assets). Labels come from the file name, without `.svg` and with `-`/`_` turned into spaces. (dialogs/icon-picker-dialog.js:49-58,127-151) — **UMLCraft:** ❌ missing No Icon Picker and no bundled cloud icon sets
-- **Search filter** — Gets focus on open. On every keystroke it filters by label or file name, case-insensitive. (dialogs/icon-picker-dialog.js:73-85,154-159,203-207) — **UMLCraft:** ❌ missing No Icon Picker
-- **Infinite scroll** — Icons load 50 at a time, lazily. The next page loads when the user scrolls within 100 px of the bottom. (dialogs/icon-picker-dialog.js:37,91-108,214-253) — **UMLCraft:** ❌ missing No Icon Picker
-- **Select or double-click** — A click highlights an icon. A double-click picks it and closes with OK. (dialogs/icon-picker-dialog.js:167-193) — **UMLCraft:** ❌ missing No Icon Picker
+- **Icon gallery** — "Select Icon" lists the SVG files of a bundled folder (aws, azure or gcp under resources/assets). Labels come from the file name, without `.svg` and with `-`/`_` turned into spaces. (dialogs/icon-picker-dialog.js:49-58,127-151) — **UMLCraft:** ✅ present "Select Icon" lists the files of the element's folder under the Cloud Icon Folder preference (aws/service-icons, azure, gcp/products…) as tiles with their picture and the same labels (src/cloud.rs `icon_picker_ui`, `list_icons`, `picker_label`). The icon sets themselves are not bundled, for licensing reasons; without the folder the dialog asks for the icon's file name instead
+- **Search filter** — Gets focus on open. On every keystroke it filters by label or file name, case-insensitive. (dialogs/icon-picker-dialog.js:73-85,154-159,203-207) — **UMLCraft:** ✅ present the Search field has the focus when the dialog opens and filters by label or file name, ignoring case, as it is typed (src/cloud.rs `filter_icons`, `icon_picker_ui`)
+- **Infinite scroll** — Icons load 50 at a time, lazily. The next page loads when the user scrolls within 100 px of the bottom. (dialogs/icon-picker-dialog.js:37,91-108,214-253) — **UMLCraft:** ✅ present 50 icons are listed, and 50 more each time the list is scrolled within 100 px of its end; pictures are read and kept the first time they are shown (src/cloud.rs `icon_picker_ui`, `icon_texture`)
+- **Select or double-click** — A click highlights an icon. A double-click picks it and closes with OK. (dialogs/icon-picker-dialog.js:167-193) — **UMLCraft:** ✅ present a click highlights a tile and a double-click picks it and closes the dialog, as OK does; the pick sets `icon` and renames the element (src/cloud.rs `icon_picker_ui`, `set_icon`)
 
 ## Print to PDF dialog
 

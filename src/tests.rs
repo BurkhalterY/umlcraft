@@ -7142,3 +7142,255 @@ fn a_click_makes_boxes_at_their_smallest_size() {
         }
     }
 }
+
+#[test]
+fn aws_diagrams_have_groups_icons_callouts_and_arrows() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "AWSDiagram"));
+    let model = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(model), a.repo.name(model).as_str(), a.repo.name(d).as_str()), ("AWSModel", "AWSModel1", "AWSDiagram1"));
+    // a group, with a service drawn in it: the service belongs to the group
+    let g = a.change(|a| a.create_node("AWSGroup", rect(0.0, 0.0, 300.0, 200.0))).unwrap();
+    let gm = a.repo.refd(g, "model").unwrap();
+    assert_eq!((a.repo.name(gm).as_str(), a.repo.str(gm, "icon").as_str()), ("AWSGroup1", "AWS-Cloud.svg"));
+    let s = a.change(|a| a.create_node("AWSService", rect(50.0, 60.0, 1.0, 1.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    assert_eq!(a.repo.parent(sm), Some(gm), "an element drawn in a group goes in it");
+    assert_eq!(a.repo.refd(s, "containerView"), Some(g));
+    assert_eq!(a.repo.str(sm, "icon"), "Amazon-EC2.svg");
+    let c = a.change(|a| a.create_node("AWSCallout", rect(400.0, 0.0, 1.0, 1.0))).unwrap();
+    let cm = a.repo.refd(c, "model").unwrap();
+    assert_eq!(a.repo.name(cm), "1");
+    assert_eq!((a.repo.str(c, "fillColor").as_str(), a.repo.str(c, "fontColor").as_str()), ("#000000", "#ffffff"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    // an icon is at least 48 square, its name floating under it
+    assert_eq!((a.repo.f(s, "width"), a.repo.f(s, "height")), (48.0, 48.0));
+    let sl = a.repo.refd(s, "nameLabel").unwrap();
+    assert_eq!(a.repo.ty(sl), "NodeLabelView");
+    assert!(a.repo.f(sl, "top") > a.repo.f(s, "top") + 48.0, "the name is under the icon");
+    assert_eq!((a.repo.f(c, "width"), a.repo.f(c, "height")), (24.0, 24.0));
+    // a group's name is right of its 32 px icon; its icon sets its colour
+    let gl = a.repo.refd(g, "nameLabel").unwrap();
+    assert_eq!((a.repo.f(gl, "left"), a.repo.f(gl, "height")), (42.0, 32.0));
+    a.repo.set(gm, "icon", json!("Region.svg"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(g, "lineColor"), crate::aws::ORBIT);
+    // an arrow joins two AWS elements, in the rounded rectilinear style of the preference
+    let t = tool("AWSArrow", AssocInit::Plain);
+    assert!(a.can_connect(&t, s, c));
+    let e = a.change(|a| a.create_edge(&t, s, c)).unwrap();
+    assert_eq!(a.repo.ty(e), "AWSArrowView");
+    assert_eq!(a.repo.val(e, "lineStyle"), Some(json!(2)));
+    let em = a.repo.refd(e, "model").unwrap();
+    assert_eq!((a.repo.refd(em, "source"), a.repo.refd(em, "target")), (Some(sm), Some(cm)));
+    // Set Icon renames the element from the file name
+    a.set_icon(sm, "name", "Amazon-Simple-Storage-Service_S3.svg");
+    assert_eq!((a.repo.name(sm).as_str(), a.repo.str(sm, "icon").as_str()), ("Amazon Simple Storage Service S3", "Amazon-Simple-Storage-Service_S3.svg"));
+    // a generic group's Dashed is in the Properties panel
+    let gg = a.change(|a| a.create_node("AWSGenericGroup", rect(0.0, 300.0, 200.0, 100.0))).unwrap();
+    let ggm = a.repo.refd(gg, "model").unwrap();
+    assert!(crate::cloud::fields(a.repo.ty(ggm)).contains(&("dashed", "bool")));
+    // the saved file keeps the original's names and opens again
+    let text = a.repo.serialize();
+    assert!(text.contains("AWSServiceView"));
+    let back = Repo::parse(&text).unwrap();
+    let svc = back.all_of("AWSService");
+    assert_eq!(back.str(svc[0], "icon"), "Amazon-Simple-Storage-Service_S3.svg");
+    // Model › Add › AWS Model and the template
+    let am = a.change(|a| a.add_model(root, "AWSModel"));
+    assert_eq!(a.repo.name(am), "AWSModel2");
+    let tp = crate::templates::TEMPLATES.iter().find(|t| t.label == "AWS Architecture").unwrap();
+    let pr = crate::templates::project(tp);
+    let ms0 = pr.children(pr.root);
+    assert_eq!(ms0.len(), 1);
+    assert_eq!((pr.ty(ms0[0].1), pr.name(ms0[0].1).as_str()), ("AWSModel", "AWS Architecture"));
+    let main = pr.children(ms0[0].1)[0].1;
+    assert_eq!((pr.ty(main), pr.name(main).as_str(), pr.bool(main, "defaultDiagram")), ("AWSDiagram", "Main", true));
+}
+
+#[test]
+fn cloud_icons_come_from_the_icon_folder() {
+    use crate::cloud::*;
+    assert_eq!(picker_label("Amazon-EC2_Instance.svg"), "Amazon EC2 Instance");
+    // the picker strips only ".svg", as the original does; the name drops any extension
+    assert_eq!(picker_label("Users.png"), "Users.png");
+    assert_eq!(name_from_icon("Users.png"), "Users");
+    assert_eq!(initials("Amazon-EC2.svg"), "EC2");
+    assert_eq!(initials("App-Services.svg"), "AS");
+    let dir = std::env::temp_dir().join(format!("umlcraft-cloud-icons-{}", std::process::id()));
+    let base = dir.join("aws/service-icons");
+    std::fs::create_dir_all(&base).unwrap();
+    let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#ED7100"/></svg>"##;
+    std::fs::write(base.join("Amazon-EC2.svg"), svg).unwrap();
+    std::fs::write(base.join("AWS-Lambda.svg"), svg).unwrap();
+    let files = list_icons(&dir, "aws/service-icons");
+    assert_eq!(files, vec!["AWS-Lambda.svg".to_string(), "Amazon-EC2.svg".to_string()]);
+    assert_eq!(filter_icons(&files, "ec2"), vec!["Amazon-EC2.svg".to_string()]);
+    assert_eq!(filter_icons(&files, "aws lambda"), vec!["AWS-Lambda.svg".to_string()]);
+    let url = icon_url(&dir, "aws/service-icons", "Amazon-EC2.svg").unwrap();
+    assert!(url.starts_with("data:image/svg+xml;base64,"));
+    assert!(icon_url(&dir, "aws/service-icons", "Missing.svg").is_none());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn azure_diagrams_have_groups_services_callouts_and_connectors() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "AzureDiagram"));
+    let model = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(model), a.repo.name(model).as_str(), a.repo.name(d).as_str()), ("AzureModel", "AzureModel1", "AzureDiagram1"));
+    let g = a.change(|a| a.create_node("AzureGroup", rect(0.0, 0.0, 300.0, 200.0))).unwrap();
+    let gm = a.repo.refd(g, "model").unwrap();
+    assert_eq!(a.repo.name(gm), "AzureGroup1");
+    let s = a.change(|a| a.create_node("AzureService", rect(40.0, 60.0, 1.0, 1.0))).unwrap();
+    let sm = a.repo.refd(s, "model").unwrap();
+    assert_eq!((a.repo.parent(sm), a.repo.str(sm, "icon").as_str()), (Some(gm), "App-Services.svg"));
+    let s2 = a.change(|a| a.create_node("AzureService", rect(400.0, 60.0, 1.0, 1.0))).unwrap();
+    let c = a.change(|a| a.create_node("AzureCallout", rect(400.0, 200.0, 1.0, 1.0))).unwrap();
+    assert_eq!(a.repo.name(a.repo.refd(c, "model").unwrap()), "1");
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!((a.repo.f(s, "width"), a.repo.f(s, "height")), (48.0, 48.0));
+    // the group's quick edit has Dashed and Rounded; the choice is saved on the group
+    let menus = crate::cloud::dropdowns(&a.repo, gm);
+    assert_eq!(menus.iter().map(|m| m.1).collect::<Vec<_>>(), vec!["Dashed", "Rounded"]);
+    a.repo.set(gm, "rounded", json!(true));
+    assert!(a.repo.serialize().contains("\"rounded\": true"));
+    // a connector: a filled arrow, dotted when dashed
+    let t = tool("AzureConnector", AssocInit::Plain);
+    assert!(a.can_connect(&t, s, s2));
+    let e = a.change(|a| a.create_edge(&t, s, s2)).unwrap();
+    assert_eq!((a.repo.ty(e), a.repo.val(e, "lineStyle")), ("AzureConnectorView", Some(json!(2))));
+    let em = a.repo.refd(e, "model").unwrap();
+    assert!(!crate::cloud::edge_dotted(&a.repo, e));
+    assert_eq!(crate::cloud::dropdowns(&a.repo, em)[0].0, "dashed");
+    a.repo.set(em, "dashed", json!(true));
+    assert!(crate::cloud::edge_dotted(&a.repo, e));
+    assert_eq!(crate::cloud::icon_hint("AzureService"), "Azure Icon");
+    let back = Repo::parse(&a.repo.serialize()).unwrap();
+    assert_eq!(back.all_of("AzureConnector").len(), 1);
+    let tp = crate::templates::TEMPLATES.iter().find(|t| t.label == "Azure Architecture").unwrap();
+    let pr = crate::templates::project(tp);
+    let m0 = pr.children(pr.root)[0].1;
+    assert_eq!((pr.ty(m0), pr.name(m0).as_str()), ("AzureModel", "Azure Architecture"));
+    assert_eq!(pr.name(pr.children(m0)[0].1), "Main");
+}
+
+#[test]
+fn gcp_diagrams_have_zones_cards_products_and_paths() {
+    let ms = measure();
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    let d = a.change(|a| a.add_diagram(Some(root), "GCPDiagram"));
+    let model = a.repo.parent(d).unwrap();
+    assert_eq!((a.repo.ty(model), a.repo.name(model).as_str(), a.repo.name(d).as_str()), ("GCPModel", "GCPModel1", "GCPDiagram1"));
+    // a zone filled by its kind, holding a product drawn in it
+    let z = a.change(|a| a.create_node("GCPZone", rect(0.0, 0.0, 500.0, 300.0))).unwrap();
+    let zm = a.repo.refd(z, "model").unwrap();
+    let p = a.change(|a| a.create_node("GCPProduct", rect(40.0, 40.0, 1.0, 1.0))).unwrap();
+    let pm = a.repo.refd(p, "model").unwrap();
+    assert_eq!(a.repo.parent(pm), Some(zm));
+    assert_eq!((a.repo.str(pm, "icon").as_str(), a.repo.str(pm, "product").as_str()), ("Compute-Engine.svg", "Compute Engine"));
+    assert_eq!(a.repo.str(p, "lineColor"), crate::gcp::CARD_LINE);
+    let u = a.change(|a| a.create_node("GCPUser", rect(600.0, 0.0, 1.0, 1.0))).unwrap();
+    let um = a.repo.refd(u, "model").unwrap();
+    assert_eq!(a.repo.str(um, "icon"), "Users.png");
+    let s = a.change(|a| a.create_node("GCPService", rect(600.0, 200.0, 1.0, 1.0))).unwrap();
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(z, "fillColor"), "#F6F6F6", "a project zone");
+    a.repo.set(zm, "zoneType", json!("kubernetes-cluster"));
+    let menus = crate::cloud::dropdowns(&a.repo, zm);
+    assert_eq!((menus[0].0, menus[0].1, menus[0].2.len()), ("zoneType", "Zone Type", 20));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(z, "fillColor"), "#FCE4EC");
+    // cards: a user's icon is 48 high above its name, a service's 32 wide left of it
+    assert!(a.repo.f(u, "height") >= 48.0 + 16.0 + 13.0 - 0.01);
+    let ul = a.repo.refd(u, "nameLabel").unwrap();
+    assert_eq!(a.repo.f(ul, "top"), 48.0 + 8.0);
+    let sl = a.repo.refd(s, "nameLabel").unwrap();
+    assert_eq!(a.repo.f(sl, "left"), 600.0 + 48.0);
+    // a product: its icon, name and product line; expanded, its details under them
+    let pl = a.repo.refd(p, "productLabel").unwrap();
+    assert_eq!(a.repo.str(pl, "text"), "Compute Engine");
+    assert_eq!(a.repo.str(pl, "fontColor"), crate::gcp::PRODUCT_FONT);
+    let h0 = a.repo.f(p, "height");
+    a.repo.set(pm, "expanded", json!(true));
+    a.repo.set(pm, "expandedInfo", json!("n1-standard-4"));
+    a.repo.set(pm, "machineType", json!("standard"));
+    a.repo.set(pm, "cores", json!(4));
+    a.repo.set(pm, "ram", json!(15.0));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert!(a.repo.f(p, "height") > h0 + 24.0, "room for the details and their icons");
+    assert!(a.repo.f(p, "width") >= 48.0 + 8.0 + 32.0 * 3.0 + 8.0 - 0.01);
+    let xl = a.repo.refd(p, "expandedLabel").unwrap();
+    assert_eq!(a.repo.raw(xl, "visible"), None);
+    // a path is coloured by its kind and dotted when optional
+    let t = tool("GCPPath", AssocInit::Plain);
+    assert!(a.can_connect(&t, u, p));
+    let e = a.change(|a| a.create_edge(&t, u, p)).unwrap();
+    let em = a.repo.refd(e, "model").unwrap();
+    // the path's preference is Rectilinear (0), which the original's `||` passes over for the general one
+    assert_eq!(a.repo.val(e, "lineStyle"), Some(json!(1)));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(e, "lineColor"), crate::gcp::GOOGLE_BLUE);
+    a.repo.set(em, "pathType", json!("optional-secondary"));
+    a.info = crate::views::layout_diagram(&mut a.repo, &ms, d);
+    assert_eq!(a.repo.str(e, "lineColor"), crate::gcp::GOOGLE_GRAY);
+    assert!(crate::cloud::edge_dotted(&a.repo, e));
+    // Set Product Icon sets the product line, Set Icon the name
+    assert_eq!(crate::cloud::icon_hint("GCPProduct"), "GCP Product Icon");
+    let (_, field) = crate::cloud::icon_base("GCPProduct").unwrap();
+    a.set_icon(pm, field, "Cloud-Run.svg");
+    assert_eq!((a.repo.str(pm, "product").as_str(), a.repo.name(pm).as_str()), ("Cloud Run", "GCPProduct1"));
+    let text = a.repo.serialize();
+    assert!(text.contains("\"zoneType\": \"kubernetes-cluster\""));
+    let back = Repo::parse(&text).unwrap();
+    assert_eq!(back.all_of("GCPProductView").len(), 1);
+    let tp = crate::templates::TEMPLATES.iter().find(|t| t.label == "GCP Architecture").unwrap();
+    let pr = crate::templates::project(tp);
+    let m0 = pr.children(pr.root)[0].1;
+    assert_eq!((pr.ty(m0), pr.name(m0).as_str()), ("GCPModel", "GCP Architecture"));
+}
+
+#[test]
+fn cloud_quick_edits_open_the_icon_picker() {
+    use crate::canvas::{item_buttons, ItemKey};
+    let ctx = egui::Context::default();
+    crate::setup_fonts(&ctx);
+    let mut a = App::new(None);
+    let root = a.repo.root;
+    a.change(|a| a.add_diagram(Some(root), "GCPDiagram"));
+    let p = a.change(|a| a.create_node("GCPProduct", rect(0.0, 0.0, 1.0, 1.0))).unwrap();
+    let pm = a.repo.refd(p, "model").unwrap();
+    let z = a.change(|a| a.create_node("GCPZone", rect(300.0, 0.0, 200.0, 100.0))).unwrap();
+    // a product's name edit has the GCP Product Icon button; a zone's has none
+    a.edit_view(p, None);
+    let ed = a.editing.clone().unwrap();
+    assert!(matches!(ed.kind, crate::app::EditKind::Name(m) if m == pm));
+    let keys = item_buttons(&a.repo, ed.host, &ed.kind);
+    assert_eq!(keys.iter().map(|k| (k.1, k.3)).collect::<Vec<_>>(), vec![("GCP Product Icon", ItemKey::CloudIcon)]);
+    a.editing = None;
+    a.edit_view(z, None);
+    let ed = a.editing.clone().unwrap();
+    assert!(item_buttons(&a.repo, ed.host, &ed.kind).is_empty());
+    a.editing = None;
+    // the picker opens on the product's folder and renames its product line; without the icon
+    // folder it asks for the file name, and it draws in a frame either way
+    a.open_icon_picker(pm);
+    let ip = a.icon_picker.clone().unwrap();
+    assert_eq!((ip.base, ip.field, ip.selected.as_deref()), ("gcp/products", "product", Some("Compute-Engine.svg")));
+    let _ = ctx.run_ui(egui::RawInput::default(), |ui| a.icon_picker_ui(ui.ctx()));
+    assert!(a.icon_picker.is_some(), "it stays open until OK or Cancel");
+    let dir = std::env::temp_dir().join(format!("umlcraft-cloud-picker-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("gcp/products")).unwrap();
+    let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="12" fill="#4284F3"/></svg>"##;
+    std::fs::write(dir.join("gcp/products/Cloud-Run.svg"), svg).unwrap();
+    crate::cloud::set_icon_dir(Some(dir.clone()));
+    let _ = ctx.run_ui(egui::RawInput::default(), |ui| a.icon_picker_ui(ui.ctx()));
+    crate::cloud::set_icon_dir(None);
+    assert!(a.icon_picker.is_some());
+    let _ = std::fs::remove_dir_all(&dir);
+}

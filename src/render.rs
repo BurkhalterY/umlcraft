@@ -626,6 +626,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             crate::bpmn_draw::draw(c, r, v, fill, line, fc);
             return;
         }
+        "cloud" => {
+            crate::cloud::draw(c, r, v, fill, line, fc);
+            return;
+        }
         "erd-entity" => {
             crate::erd::draw(c, r, v, fill, line, fc);
             return;
@@ -1144,6 +1148,19 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         "C4RelationshipView" => {
             head = Some(End::SolidArrow);
             dashed = true;
+        }
+        // an AWS arrow ends in an open arrow head (AWSArrowView, aws/elements.js:650-660)
+        "AWSArrowView" => head = Some(End::Arrow),
+        // an Azure connector ends in a filled arrow head, dotted when dashed (AzureConnectorView,
+        // azure/elements.js:420-445)
+        "AzureConnectorView" => {
+            head = Some(End::SolidArrow);
+            dashed = crate::cloud::edge_dotted(r, e);
+        }
+        // a GCP path ends in a filled arrow head, dotted when optional (GCPPathView, gcp/elements.js:1000-1045)
+        "GCPPathView" => {
+            head = Some(End::SolidArrow);
+            dashed = crate::cloud::edge_dotted(r, e);
         }
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {

@@ -15,7 +15,7 @@ pub struct Template {
 
 /// The UML templates, in menu order. Diagram names are the original's where the docs give them,
 /// otherwise the model's name (estimated).
-pub const TEMPLATES: [Template; 8] = [
+pub const TEMPLATES: [Template; 11] = [
     Template { label: "UML Minimal", models: &[("Model", "UMLClassDiagram", "Main")] },
     Template {
         label: "UML Conventional",
@@ -57,6 +57,10 @@ pub const TEMPLATES: [Template; 8] = [
     // the BPMN template: a process "Business Process" with its "BPMN Diagram"
     // (bpmn/templates/BusinessProcessModel.mdj)
     Template { label: "BPMN Business Process Modeling", models: &[("Business Process", "BPMNDiagram", "BPMN Diagram")] },
+    // the cloud templates: a model with its diagram "Main" (aws/templates/AWSArchitecture.mdj)
+    Template { label: "AWS Architecture", models: &[("AWS Architecture", "AWSDiagram", "Main")] },
+    Template { label: "Azure Architecture", models: &[("Azure Architecture", "AzureDiagram", "Main")] },
+    Template { label: "GCP Architecture", models: &[("GCP Architecture", "GCPDiagram", "Main")] },
 ];
 
 /// The UML Standard Profile in its order (uml/profiles/UMLStandardProfile.mfj): the metaclasses, each
@@ -128,13 +132,14 @@ pub fn project(t: &Template) -> Repo {
     for (_, m) in r.children(root) {
         r.detach(m);
     }
-    let erd = t.models.iter().all(|m| matches!(m.1, "ERDDiagram" | "C4Diagram" | "WFWireframeDiagram" | "BPMNDiagram"));
+    let erd = t.models.iter().all(|m| matches!(m.1, "ERDDiagram" | "C4Diagram" | "WFWireframeDiagram" | "BPMNDiagram") || crate::cloud::is_diagram(m.1));
     for (i, (model, kind, diagram)) in t.models.iter().enumerate() {
         let ty = match *kind {
             "ERDDiagram" => "ERDDataModel",
             "C4Diagram" => "C4Model",
             "WFWireframeDiagram" => "WFWireframe",
             "BPMNDiagram" => "BPMNProcess",
+            k if crate::cloud::is_diagram(k) => crate::cloud::model_of(k).unwrap_or("UMLModel"),
             _ => "UMLModel",
         };
         let m = r.create(ty, &[("name", json!(model))], Some((root, "ownedElements")));

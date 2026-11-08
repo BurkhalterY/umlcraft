@@ -377,6 +377,63 @@ fn build() -> HashMap<&'static str, Kind> {
     def("FCGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
     def("FCGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
     def("FCFlowView", Some("FCGeneralEdgeView"), vec![]);
+    // AWS architecture diagrams (aws/metamodel.json)
+    def("AWSElement", Some("ExtensibleModel"), vec![("icon", d(json!("")))]);
+    def("AWSModel", Some("AWSElement"), vec![]);
+    def("AWSDiagram", Some("Diagram"), vec![]);
+    for ty in ["AWSGroup", "AWSAvailabilityZone", "AWSSecurityGroup", "AWSService", "AWSResource", "AWSGeneralResource", "AWSCallout"] {
+        def(ty, Some("AWSElement"), vec![]);
+    }
+    def("AWSGenericGroup", Some("AWSElement"), vec![("dashed", d(json!(false)))]);
+    def("AWSArrow", Some("DirectedRelationship"), vec![]);
+    def("AWSGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
+    def("AWSIconNodeView", Some("NodeView"), vec![("nameLabel", n())]);
+    def("AWSGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
+    for ty in ["AWSGroupView", "AWSGenericGroupView", "AWSAvailabilityZoneView", "AWSSecurityGroupView", "AWSCalloutView"] {
+        def(ty, Some("AWSGeneralNodeView"), vec![]);
+    }
+    for ty in ["AWSServiceView", "AWSResourceView", "AWSGeneralResourceView"] {
+        def(ty, Some("AWSIconNodeView"), vec![]);
+    }
+    def("AWSArrowView", Some("AWSGeneralEdgeView"), vec![]);
+    // Azure architecture diagrams (azure/metamodel.json)
+    def("AzureElement", Some("ExtensibleModel"), vec![("icon", d(json!("")))]);
+    def("AzureModel", Some("AzureElement"), vec![]);
+    def("AzureDiagram", Some("Diagram"), vec![]);
+    def("AzureGroup", Some("AzureElement"), vec![("dashed", d(json!(false))), ("rounded", d(json!(false)))]);
+    def("AzureService", Some("AzureElement"), vec![]);
+    def("AzureCallout", Some("AzureElement"), vec![]);
+    def("AzureConnector", Some("DirectedRelationship"), vec![("dashed", d(json!(false)))]);
+    def("AzureGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
+    def("AzureIconNodeView", Some("NodeView"), vec![("nameLabel", n())]);
+    def("AzureGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
+    def("AzureGroupView", Some("AzureGeneralNodeView"), vec![]);
+    def("AzureCalloutView", Some("AzureGeneralNodeView"), vec![]);
+    def("AzureServiceView", Some("AzureIconNodeView"), vec![]);
+    def("AzureConnectorView", Some("AzureGeneralEdgeView"), vec![]);
+    // GCP architecture diagrams (gcp/metamodel.json)
+    def("GCPElement", Some("ExtensibleModel"), vec![("icon", d(json!("")))]);
+    def("GCPModel", Some("GCPElement"), vec![]);
+    def("GCPDiagram", Some("Diagram"), vec![]);
+    def("GCPUser", Some("GCPElement"), vec![]);
+    def("GCPZone", Some("GCPElement"), vec![("zoneType", d(json!("project")))]);
+    def(
+        "GCPProduct",
+        Some("GCPElement"),
+        vec![
+            ("product", d(json!(""))), ("multiInstance", d(json!(false))), ("expanded", d(json!(false))), ("expandedInfo", d(json!(""))), ("machineType", d(json!("none"))),
+            ("cores", d(json!(0))), ("ram", d(json!(0.0))), ("diskType", d(json!("none"))), ("disks", d(json!(0))), ("additionalModifier", d(json!("none"))),
+        ],
+    );
+    def("GCPService", Some("GCPElement"), vec![]);
+    def("GCPPath", Some("DirectedRelationship"), vec![("pathType", d(json!("primary")))]);
+    def("GCPGeneralNodeView", Some("NodeView"), vec![("nameLabel", n()), ("wordWrap", d(json!(true)))]);
+    def("GCPGeneralEdgeView", Some("EdgeView"), vec![("nameLabel", n())]);
+    for ty in ["GCPUserView", "GCPZoneView", "GCPServiceView"] {
+        def(ty, Some("GCPGeneralNodeView"), vec![]);
+    }
+    def("GCPProductView", Some("GCPGeneralNodeView"), vec![("productLabel", n()), ("expandedLabel", n())]);
+    def("GCPPathView", Some("GCPGeneralEdgeView"), vec![]);
     // C4 models (c4/metamodel.json)
     def("C4Element", Some("ExtensibleModel"), vec![("technology", d(json!(""))), ("description", d(json!("")))]);
     def("C4Model", Some("C4Element"), vec![]);
@@ -531,5 +588,5 @@ pub fn static_name(ty: &str) -> &'static str {
 /// Whether an element of another notation than UML takes its name as typed, without the UML name
 /// grammar (flowcharts, data flow diagrams, mind maps: their quick edits only set the name).
 pub fn plain_named(ty: &str) -> bool {
-    ["FC", "DFD", "MM", "ERD", "C4", "WF", "BPMN"].iter().any(|p| ty.starts_with(p))
+    ["FC", "DFD", "MM", "ERD", "C4", "WF", "BPMN", "AWS", "Azure", "GCP"].iter().any(|p| ty.starts_with(p))
 }

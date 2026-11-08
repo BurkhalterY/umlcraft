@@ -53,7 +53,7 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLGate" => "gate",
         "UMLSequenceDiagram" => "diagram",
         // a flowchart element's icon is its type (the shapes are drawn by key)
-        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") || t.starts_with("WF") || t.starts_with("BPMN") => crate::meta::static_name(t),
+        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") || t.starts_with("WF") || t.starts_with("BPMN") || crate::cloud::element_kind(t).is_some() || crate::cloud::is_diagram(t) || crate::cloud::edge_view_of(t).is_some() => crate::meta::static_name(t),
         "UMLTransition" => "dependency",
         // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
         "UMLAction" => match r.str(e, "kind").as_str() {
@@ -385,6 +385,32 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             p.circle_filled(at(8.0, 8.0), 4.0 * s, Y);
         }
         "gate" => rect_at(5.0, 5.0, 6.0, 6.0, Y),
+        // cloud elements, by what they are: a cloud for a model (green for its diagram), a box for a
+        // group or zone, a rounded square for an icon, a dot for a callout, an arrow for a line
+        k if crate::cloud::element_kind(k).is_some() || crate::cloud::is_diagram(k) || crate::cloud::edge_view_of(k).is_some() => {
+            let cloud = |c: Color32| {
+                p.circle_stroke(at(5.5, 9.0), 3.0 * s, st(c));
+                p.circle_stroke(at(9.0, 7.0), 3.8 * s, st(c));
+                p.circle_stroke(at(12.0, 10.0), 2.5 * s, st(c));
+                line(&[(3.0, 12.5), (13.0, 12.5)], c);
+            };
+            if crate::cloud::is_diagram(k) {
+                cloud(G);
+            } else if crate::cloud::edge_view_of(k).is_some() {
+                line(&[(2.0, 13.0), (13.0, 3.0)], B);
+                line(&[(8.5, 3.5), (13.0, 3.0), (12.5, 7.5)], B);
+            } else if k.ends_with("Model") {
+                cloud(Y);
+            } else if k.ends_with("Callout") {
+                p.circle_filled(at(8.0, 8.0), 5.0 * s, Y);
+            } else if k.ends_with("Group") || k.ends_with("Zone") {
+                dashed(&[(1.5, 2.5), (14.5, 2.5), (14.5, 13.5), (1.5, 13.5), (1.5, 2.5)], Y);
+                rect_at(1.5, 2.5, 4.0, 4.0, Y);
+            } else {
+                p.rect_stroke(Rect::from_min_size(at(3.0, 3.0), Vec2::new(10.0 * s, 10.0 * s)), (2.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+                line(&[(5.5, 8.0), (10.5, 8.0)], Y);
+            }
+        }
         // C4 elements
         "C4Model" => {
             rect_at(1.5, 1.5, 13.0, 13.0, Y);

@@ -270,6 +270,8 @@ pub struct App {
     pub print_open: bool,
     /// The open Element Picker ("Select Element").
     pub element_picker: Option<crate::picker::ElementPicker>,
+    /// The Icon Picker of a cloud element (icon-picker-dialog.js).
+    pub icon_picker: Option<crate::cloud::IconPicker>,
     /// The open input dialog.
     pub input_dialog: Option<crate::input::InputDialog>,
 }
@@ -378,6 +380,7 @@ impl App {
             last_backup: std::time::Instant::now(),
             print_open: false,
             element_picker: None,
+            icon_picker: None,
             input_dialog: None,
         };
         a.set_project(Repo::blank(), None);
@@ -924,6 +927,25 @@ impl App {
         if let Some(v) = self.create_bpmn_node(d, kind, rect) {
             return v;
         }
+        // a cloud element goes in the element that owns the diagram, or in the group or zone it is
+        // drawn in, named after its class ("AWSGroup1"; a callout "1"), with its first icon
+        // (aws-factory.js:70-95; defaultModelAndViewFn, factory.js:520-560)
+        if crate::cloud::is_node_type(kind) {
+            let owner = self.repo.parent(d)?;
+            let vt = format!("{kind}View");
+            let holder = self.repo.list(d, "ownedViews").into_iter().rev().find(|c| crate::cloud::can_contain(self.repo.ty(*c), &vt) && { let b = views::node_rect(&self.repo, *c); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h });
+            let parent = holder.and_then(|c| self.repo.refd(c, "model")).unwrap_or(owner);
+            let name = if kind.ends_with("Callout") { "1".to_string() } else { self.new_name(parent, kind) };
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((parent, "ownedElements")));
+            crate::cloud::init_model(&mut self.repo, m);
+            let v = crate::cloud::create_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            crate::cloud::init_view(&mut self.repo, v);
+            if let Some(c) = holder {
+                self.set_container(&[v], Some(c));
+            }
+            return Some(v);
+        }
         // a C4 element goes in the element that owns the diagram, named after its class ("C4Person1"…);
         // the container tools set its kind (c4-factory.js:70-90, toolbox/c4.json)
         if let Some((ty, ckind)) = crate::c4::tool(kind) {
@@ -1138,6 +1160,17 @@ impl App {
             }
             return crate::bpmn::can_contain(ct, self.repo.ty(v));
         }
+        // a cloud group or zone holds the other boxes of its notation (canContainViewKind)
+        if crate::cloud::is_node_view(ct) || crate::cloud::is_node_view(self.repo.ty(v)) {
+            let mut c = Some(container);
+            while let Some(x) = c {
+                if x == v {
+                    return false;
+                }
+                c = self.repo.refd(x, "containerView");
+            }
+            return crate::cloud::can_contain(ct, self.repo.ty(v));
+        }
         // a wireframe frame or panel holds widgets, a tab list holds tabs (wireframe/elements.js)
         if crate::wireframe::is_node_view(ct) || crate::wireframe::is_node_view(self.repo.ty(v)) {
             let mut c = Some(container);
@@ -1337,6 +1370,8 @@ impl App {
             "C4Diagram" => vec!["Hyperlink", "Diagram", "C4Element", "C4Relationship"],
             // BPMNDiagram.canAcceptModel (bpmn/elements.js:65-80)
             "BPMNDiagram" => vec!["Hyperlink", "Diagram", "BPMNParticipant", "BPMNLane", "BPMNActivity", "BPMNEvent", "BPMNGateway", "BPMNSequenceFlow", "BPMNMessage", "BPMNMessageFlow"],
+            // AWSDiagram.canAcceptModel and the others' (aws/elements.js:105-115)
+            t if crate::cloud::is_diagram(t) => crate::cloud::accepted(t).to_vec(),
             // UMLInteractionOverviewDiagram.canAcceptModel (elements.js:13823-13834)
             "UMLInteractionOverviewDiagram" => vec!["Hyperlink", "Diagram", "UMLInteractionUse", "UMLInteraction"],
             // UMLSequenceDiagram.canAcceptModel (elements.js:10958-10985), and
@@ -1467,7 +1502,7 @@ impl App {
             }
             return Ok(v.into_iter().collect());
         }
-        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) && !crate::bpmn::is_node_type(&ty) {
+        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) && !crate::bpmn::is_node_type(&ty) && !crate::cloud::is_node_type(&ty) {
             return Ok(vec![]);
         }
         // a hidden view of it is shown again instead of a second one
@@ -1671,6 +1706,8 @@ impl App {
             _ if crate::sequence::message_sort(kind).is_some() => r.kind_of(tm, "UMLMessageEndpoint") && r.kind_of(hm, "UMLMessageEndpoint"),
             // a C4 relationship joins two C4 elements (linkPrecondition, c4-factory.js:20-25)
             "C4Relationship" => r.kind_of(tm, "C4Element") && r.kind_of(hm, "C4Element"),
+            // a cloud line joins two elements of its notation (linkPrecondition, aws-factory.js:20-27)
+            k if crate::cloud::edge_view_of(k).is_some() => crate::cloud::element_kind(k).map(|ek| r.kind_of(tm, ek) && r.kind_of(hm, ek)).unwrap_or(false),
             "ERDRelationship" | "ERDRelationshipOneToMany" | "ERDRelationshipManyToMany" => r.ty(tm) == "ERDEntity" && r.ty(hm) == "ERDEntity",
             "UMLControlFlow" | "UMLActivityInterrupt" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
             // an exception handler joins two actions (actionLinkPrecondition, uml-factory.js:129-135)
@@ -2117,6 +2154,8 @@ impl App {
         if ty == "C4Container" {
             self.repo.set(m, "kind", json!("etc"));
         }
+        // a cloud element starts with its icon (the constructors in aws, azure, gcp elements.js)
+        crate::cloud::init_model(&mut self.repo, m);
         // a state machine starts with one region (uml-factory.js:606-626)
         if ty == "UMLStateMachine" {
             self.repo.create("UMLRegion", &[], Some((m, "regions")));
@@ -2228,6 +2267,22 @@ impl App {
             let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
             let f = views::create_frame_view(&mut self.repo, d, Some(d), R { x: 8.0, y: 8.0, w: 692.0, h: 592.0 });
             self.apply_view_defaults(f);
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
+        // a cloud diagram goes in the element it is added to; right under the project, in a new
+        // "AWSModel1" (diagramFn, aws-factory.js:32-75, azure-factory.js, gcp-factory.js)
+        if let Some(model_ty) = crate::cloud::model_of(ty) {
+            let target = parent.filter(|p| self.repo.alive(*p) && !self.repo.kind_of(*p, "Diagram")).unwrap_or(self.repo.root);
+            let name = self.new_name(target, ty);
+            let holder = if self.repo.ty(target) == "Project" {
+                let mname = self.new_name(target, model_ty);
+                self.repo.create(model_ty, &[("name", json!(mname))], Some((target, "ownedElements")))
+            } else {
+                target
+            };
+            let d = self.repo.create(ty, &[("name", json!(name))], Some((holder, "ownedElements")));
             self.open_diagram(d);
             self.reveal(d);
             return d;

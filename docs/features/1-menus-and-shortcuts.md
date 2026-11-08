@@ -118,12 +118,12 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | View › Minimap | `minimap:toggle` | `ctrl-alt-m` | ✅ | check item in the View menu; the state is kept in `view.minimap.visibility`, on by default (src/ui.rs:1967; src/prefs.rs:95, 122; src/canvas.rs:579, 826) | extensions/default/minimap/menus/minimap.json |
 | View › Relationships | `relationship-view:toggle` | `ctrl-alt-r` | ✅ | check item in the View menu; the panel's visibility is kept in `view.relationships.visibility` (src/ui.rs:1970; src/prefs.rs:93, 120) | extensions/default/relationship-view/menus/relationship-view.json |
 | File › Import › StarUML 1 File (.uml)... | `staruml-v1:import` |  | ✅ | same menu place, dialog title and filters (src/ui.rs:2142, 2930); asks to save changes first, which the original does not | extensions/default/staruml-v1/menus/staruml-v1.json |
-| File › New From Template › AWS Architecture | `aws:new-from-template` |  | ❌ | no templates | extensions/essential/aws/menus/aws.json |
-| Model › Add Diagram › AWS Architecture Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/aws/menus/aws.json |
-| Model › Add › AWS Model | `factory:create-model` |  | ❌ |  | extensions/essential/aws/menus/aws.json |
-| File › New From Template › Azure Architecture | `azure:new-from-template` |  | ❌ | no templates | extensions/essential/azure/menus/azure.json |
-| Model › Add Diagram › Azure Architecture Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/azure/menus/azure.json |
-| Model › Add › Azure Model | `factory:create-model` |  | ❌ |  | extensions/essential/azure/menus/azure.json |
+| File › New From Template › AWS Architecture | `aws:new-from-template` |  | ✅ | an AWSModel "AWS Architecture" with its default diagram "Main", without the UML profile (src/templates.rs:58) | extensions/essential/aws/menus/aws.json |
+| Model › Add Diagram › AWS Architecture Diagram | `factory:create-diagram` |  | ✅ | under any element ("AWSDiagram1"); under the project, in a new "AWSModel1" (src/ui.rs:616; src/app.rs:2210) | extensions/essential/aws/menus/aws.json |
+| Model › Add › AWS Model | `factory:create-model` |  | ✅ | "AWSModel1" under any element, as the menu is not filtered (src/ui.rs:882) | extensions/essential/aws/menus/aws.json |
+| File › New From Template › Azure Architecture | `azure:new-from-template` |  | ✅ | an AzureModel "Azure Architecture" with its default diagram "Main", without the UML profile (src/templates.rs:59) | extensions/essential/azure/menus/azure.json |
+| Model › Add Diagram › Azure Architecture Diagram | `factory:create-diagram` |  | ✅ | under any element ("AzureDiagram1"); under the project, in a new "AzureModel1" (src/ui.rs:617; src/app.rs:2210) | extensions/essential/azure/menus/azure.json |
+| Model › Add › Azure Model | `factory:create-model` |  | ✅ | "AzureModel1" under any element, as the menu is not filtered (src/ui.rs:882) | extensions/essential/azure/menus/azure.json |
 | File › New From Template › BPMN Business Process Modeling | `bpmn:new-from-template` |  | ✅ | a process "Business Process" with its "BPMN Diagram", without the UML profile (src/templates.rs:56-59) | extensions/essential/bpmn/menus/bpmn.json |
 | Model › Add Diagram › BPMN Diagram | `factory:create-diagram` |  | ✅ | in the selected BPMN root element or activity, or in a new "BPMNProcess1" there (src/ui.rs:660; src/bpmn.rs:642-654) | extensions/essential/bpmn/menus/bpmn.json |
 | Model › Add › Business Process | `factory:create-model` |  | ✅ | under any element that is not a BPMN one (src/bpmn.rs:469-494) | extensions/essential/bpmn/menus/bpmn.json |
@@ -167,9 +167,9 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Model › Add › Entity | `factory:create-model` |  | ✅ | under a data model (src/ui.rs:663) | extensions/essential/erd/menus/erd.json |
 | Model › Add › Column | `factory:create-model` |  | ✅ | in an entity's columns (src/ui.rs:666) | extensions/essential/erd/menus/erd.json |
 | Model › Add Diagram › Flowchart Diagram | `factory:create-diagram` |  | ✅ | in Model › Add Diagram and the explorer and canvas menus: a flowchart diagram in the selected flowchart, or in a new "Flowchart1" (src/ui.rs:383; src/app.rs:1760-1778) | extensions/essential/flowchart/menus/flowchart.json |
-| File › New From Template › GCP Architecture | `gcp:new-from-template` |  | ❌ | no templates | extensions/essential/gcp/menus/gcp.json |
-| Model › Add Diagram › GCP Architecture Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/gcp/menus/gcp.json |
-| Model › Add › GCP Model | `factory:create-model` |  | ❌ |  | extensions/essential/gcp/menus/gcp.json |
+| File › New From Template › GCP Architecture | `gcp:new-from-template` |  | ✅ | a GCPModel "GCP Architecture" with its default diagram "Main", without the UML profile (src/templates.rs:60) | extensions/essential/gcp/menus/gcp.json |
+| Model › Add Diagram › GCP Architecture Diagram | `factory:create-diagram` |  | ✅ | under any element ("GCPDiagram1"); under the project, in a new "GCPModel1" (src/ui.rs:618; src/app.rs:2210) | extensions/essential/gcp/menus/gcp.json |
+| Model › Add › GCP Model | `factory:create-model` |  | ✅ | "GCPModel1" under any element, as the menu is not filtered (src/ui.rs:882) | extensions/essential/gcp/menus/gcp.json |
 | Model › Add Diagram › Mindmap Diagram | `factory:create-diagram` |  | ✅ | "MindmapDiagram": in the selected mind map, or in a new "Mindmap1" (src/ui.rs:404; src/app.rs:1782-1805) | extensions/essential/mindmap/menus/mindmap.json |
 | Model › Add › Mindmap | `factory:create-model` |  | ✅ | "Mindmap" under any element, named MMMindmap1… as the original names it (src/ui.rs:646) | extensions/essential/mindmap/menus/mindmap.json |
 | Model › Add Diagram › Requirement Diagram | `factory:create-diagram` |  | ❌ | diagram kind not editable | extensions/essential/sysml/menus/sysml.json |
@@ -278,7 +278,7 @@ StarUML 7.1.1 main menus, context menus and keymaps, from every `menus/*.json` a
 | Model › Add Diagram › Wireframe Diagram | `factory:create-diagram` |  | ✅ | in the selected wireframe, or in a new "Wireframe1" in the selected element (src/ui.rs:510; src/app.rs:2037) | extensions/essential/wireframe/menus/wireframe.json |
 | Model › Add › Wireframe | `factory:create-model` |  | ✅ | in any element but a diagram (src/ui.rs:773) | extensions/essential/wireframe/menus/wireframe.json |
 | File › New | `application:new` | `ctrl-n` | ✅ | File › New, Ctrl+N (src/ui.rs:1709, 2335) | resources/default/menus/linux.json |
-| File › New From Template | `application:new-from-template` |  | 🟡 | the File menu has New From Template with the four UML templates; the other notations' templates are missing (src/ui.rs:1713-1723) | resources/default/menus/linux.json |
+| File › New From Template | `application:new-from-template` |  | ✅ | the File menu has New From Template with every template: the four UML ones, Data Model, C4 Model, Wireframe Model, BPMN Business Process Modeling and AWS, Azure and GCP Architecture (src/ui.rs:2257; src/templates.rs:18-65) | resources/default/menus/linux.json |
 | File › Open... | `project:open` | `ctrl-o` | ✅ | File › Open, Ctrl+O (src/ui.rs:1724, 2338) | resources/default/menus/linux.json |
 | File › Open Recent |  |  | ✅ | the 10 most recent files, kept in the preferences file (src/ui.rs:1730; src/prefs.rs:138-150) | resources/default/menus/linux.json |
 | File › Save | `project:save` | `ctrl-s` | ✅ | Ctrl+S (src/ui.rs:1740, 2344) | resources/default/menus/linux.json |

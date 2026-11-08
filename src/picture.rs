@@ -89,16 +89,21 @@ pub fn split_data_url(url: &str) -> Option<(String, Vec<u8>)> {
     }
 }
 
-/// Decode a data URL into RGBA pixels (an SVG is drawn at its natural size).
+/// The smallest longer side an SVG is drawn at, so that small icons stay sharp when zoomed.
+const SVG_MIN_SIDE: f32 = 256.0;
+
+/// Decode a data URL into RGBA pixels (an SVG is drawn at its natural size, or larger when that is
+/// under 256 pixels).
 pub fn decode(url: &str) -> Option<image::RgbaImage> {
     let (mime, bytes) = split_data_url(url)?;
     if mime == "image/svg+xml" {
         use resvg::{tiny_skia, usvg};
         let tree = usvg::Tree::from_data(&bytes, &usvg::Options::default()).ok()?;
         let s = tree.size();
-        let (w, h) = (s.width().ceil().max(1.0) as u32, s.height().ceil().max(1.0) as u32);
+        let k = (SVG_MIN_SIDE / s.width().max(s.height()).max(1.0)).max(1.0);
+        let (w, h) = ((s.width() * k).ceil().max(1.0) as u32, (s.height() * k).ceil().max(1.0) as u32);
         let mut pixmap = tiny_skia::Pixmap::new(w, h)?;
-        resvg::render(&tree, tiny_skia::Transform::identity(), &mut pixmap.as_mut());
+        resvg::render(&tree, tiny_skia::Transform::from_scale(k, k), &mut pixmap.as_mut());
         // tiny-skia keeps premultiplied alpha
         let mut img = image::RgbaImage::new(w, h);
         for (p, c) in img.pixels_mut().zip(pixmap.pixels()) {
