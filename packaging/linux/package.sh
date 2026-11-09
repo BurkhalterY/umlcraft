@@ -3,7 +3,8 @@
 #   umlcraft-<version>-linux-<arch>.tar.gz   always
 #   umlcraft_<version>_<debarch>.deb, umlcraft-<version>.<rpmarch>.rpm   when nfpm is installed
 #   UMLCraft-<version>-<arch>.AppImage       when appimagetool is installed
-# Environment: VERSION (default: Cargo.toml), SKIP_BUILD=1 to reuse target/release/umlcraft.
+# Environment: VERSION (default: Cargo.toml), SKIP_BUILD=1 to reuse target/release/umlcraft,
+# APPIMAGE_RUNTIME=<file> to give appimagetool the runtime instead of letting it download it.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 source packaging/env.sh
@@ -59,7 +60,11 @@ if command -v appimagetool >/dev/null 2>&1; then
   cp packaging/linux/AppRun "$appdir/AppRun"
   cp "packaging/linux/$APP_ID.desktop" "$appdir/$APP_ID.desktop"
   cp packaging/icons/umlcraft-256.png "$appdir/$APP_ID.png"
-  ARCH="$ARCH" appimagetool --no-appstream "$appdir" "dist/release/UMLCraft-$VERSION-$ARCH.AppImage"
+  runtime=()
+  if [ -n "${APPIMAGE_RUNTIME:-}" ]; then
+    runtime=(--runtime-file "$APPIMAGE_RUNTIME")
+  fi
+  ARCH="$ARCH" appimagetool --no-appstream "${runtime[@]}" "$appdir""dist/release/UMLCraft-$VERSION-$ARCH.AppImage"
 else
   echo "appimagetool not found: skipping the AppImage"
 fi

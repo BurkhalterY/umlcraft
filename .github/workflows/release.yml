@@ -97,17 +97,30 @@ jobs:
             desktop-file-utils file
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      # the last appimagetool and runtime that downloaded, used when GitHub release downloads fail
+      - name: Restore the AppImage tools
+        uses: actions/cache/restore@v6
+        with:
+          path: ~/.cache/appimage-tools
+          key: appimage-tools-${{ matrix.arch }}-${{ github.run_id }}
+          restore-keys: appimage-tools-${{ matrix.arch }}-
+      - name: Install the AppImage tools
+        run: |
+          tools="$HOME/.cache/appimage-tools"
+          packaging/linux/fetch-appimage-tools.sh "${{ matrix.arch }}" "$tools"
           mkdir -p "$HOME/.local/bin"
-          curl -fsSL -o "$HOME/.local/bin/appimagetool.AppImage" \
-            "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${{ matrix.arch }}.AppImage"
-          chmod +x "$HOME/.local/bin/appimagetool.AppImage"
-          printf '#!/bin/sh\nexec "%s/.local/bin/appimagetool.AppImage" --appimage-extract-and-run "$@"\n' "$HOME" > "$HOME/.local/bin/appimagetool"
+          printf '#!/bin/sh\nexec "%s/appimagetool.AppImage" --appimage-extract-and-run "$@"\n' "$tools" > "$HOME/.local/bin/appimagetool"
           chmod +x "$HOME/.local/bin/appimagetool"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Save the AppImage tools
+        uses: actions/cache/save@v6
+        with:
+          path: ~/.cache/appimage-tools
+          key: appimage-tools-${{ matrix.arch }}-${{ github.run_id }}
       - name: Test
         run: cargo test --release
       - name: Build and package (AppImage, deb, rpm, tar.gz)
-        run: packaging/linux/package.sh
+        run: APPIMAGE_RUNTIME="$HOME/.cache/appimage-tools/runtime" packaging/linux/package.sh
       - name: Check the packages
         run: |
           desktop-file-validate packaging/linux/io.github.burkhaltery.UMLCraft.desktop
@@ -211,7 +224,22 @@ jobs:
       - uses: actions/checkout@v7
       - name: Set the version
         run: packaging/set-version.sh # before the VM step, which copies the workspace
+      # The action downloads its VM launcher from GitHub releases, which sometimes answers HTTP 504
+      # for a while: when the first attempt fails, wait and try once more.
       - name: Build and package in a FreeBSD VM (pkg, tar.gz)
+        id: vm
+        continue-on-error: true
+        uses: vmactions/freebsd-vm@v1
+        with:
+          envs: VERSION
+          usesh: true
+          prepare: pkg install -y bash rust pkgconf gtk3 libxkbcommon mesa-libs fontconfig
+          run: bash packaging/freebsd/package.sh
+      - name: Wait before the second attempt
+        if: steps.vm.outcome == 'failure'
+        run: sleep 120
+      - name: Build and package in a FreeBSD VM, second attempt
+        if: steps.vm.outcome == 'failure'
         uses: vmactions/freebsd-vm@v1
         with:
           envs: VERSION
