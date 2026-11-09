@@ -64,7 +64,7 @@ if command -v appimagetool >/dev/null 2>&1; then
   if [ -n "${APPIMAGE_RUNTIME:-}" ]; then
     runtime=(--runtime-file "$APPIMAGE_RUNTIME")
   fi
-  ARCH="$ARCH" appimagetool --no-appstream "${runtime[@]}" "$appdir""dist/release/UMLCraft-$VERSION-$ARCH.AppImage"
+  ARCH="$ARCH" appimagetool --no-appstream "${runtime[@]}" "$appdir" "dist/release/UMLCraft-$VERSION-$ARCH.AppImage"
 else
   echo "appimagetool not found: skipping the AppImage"
 fi
