@@ -4,74 +4,74 @@ Part of the [StarUML feature inventory](README.md); the legend and how to update
 
 Every toolbox item of every notation, from the `toolbox/*.json` files of StarUML 7.1.1. One row per item.
 
-UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER and C4 diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
+UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package, object, composite structure, component, deployment, use case, information flow, profile, statechart, activity, sequence, flowchart, data flow, mind map, ER, C4, BPMN, SysML (the Viewpoints group also on package diagrams), and AWS, Azure and GCP architecture diagrams; every other diagram kind gets Annotations only (src/ui.rs:1528-1541).
 
 | Group | Diagram types | Item | UMLCraft | Source |
 |---|---|---|---|---|
 | Robustness `uml.robustness` | UMLClassDiagram | Boundary | ✅ | extensions/default/robustness/toolbox/robustness.json |
 | Robustness `uml.robustness` | UMLClassDiagram | Entity | ✅ | extensions/default/robustness/toolbox/robustness.json |
 | Robustness `uml.robustness` | UMLClassDiagram | Control | ✅ | extensions/default/robustness/toolbox/robustness.json |
-| AWS `aws.elements` | AWSDiagram | AWS Group | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Generic Group | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Availability Zone | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Security Group | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Service | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Resource | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS General Resource | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Callout | ❌ | extensions/essential/aws/toolbox/aws.json |
-| AWS `aws.elements` | AWSDiagram | AWS Arrow | ❌ | extensions/essential/aws/toolbox/aws.json |
-| Azure `azure.elements` | AzureDiagram | Azure Group | ❌ | extensions/essential/azure/toolbox/azure.json |
-| Azure `azure.elements` | AzureDiagram | Azure Service | ❌ | extensions/essential/azure/toolbox/azure.json |
-| Azure `azure.elements` | AzureDiagram | Azure Callout | ❌ | extensions/essential/azure/toolbox/azure.json |
-| Azure `azure.elements` | AzureDiagram | Azure Connector | ❌ | extensions/essential/azure/toolbox/azure.json |
-| BPMN Basic `bpmn.basic` | BPMNDiagram | Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Basic `bpmn.basic` | BPMNDiagram | Gateway | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Basic `bpmn.basic` | BPMNDiagram | Start Event | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Basic `bpmn.basic` | BPMNDiagram | End Event | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Basic `bpmn.basic` | BPMNDiagram | Sequence Flow | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Artifact `bpmn.artifact` | BPMNDiagram | Text Annotation | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Artifact `bpmn.artifact` | BPMNDiagram | Group | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Artifact `bpmn.artifact` | BPMNDiagram | Association | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Pool | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Pool (Vert) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Lane | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Lane (Vert) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Send Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Receive Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Service Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | User Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Manual Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Business Rule Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Script Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Call Activity | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Sub Process | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Ad-Hoc Sub Process | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Activities `bpmn.activities` | BPMNDiagram | Transaction | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Exclusive) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Event-Based) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Inclusive) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Complex) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Parallel) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Events `bpmn.events` | BPMNDiagram | Start Event | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Events `bpmn.events` | BPMNDiagram | Intermediate Event (Throw) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Events `bpmn.events` | BPMNDiagram | Intermediate Event (Catch) | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Events `bpmn.events` | BPMNDiagram | Boundary Event | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Events `bpmn.events` | BPMNDiagram | End Event | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Data `bpmn.data` | BPMNDiagram | Data Object | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Data `bpmn.data` | BPMNDiagram | Data Store | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Data `bpmn.data` | BPMNDiagram | Data Input | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Data `bpmn.data` | BPMNDiagram | Data Output | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Data `bpmn.data` | BPMNDiagram | Data Association | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Message `bpmn.message` | BPMNDiagram | Message | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Message `bpmn.message` | BPMNDiagram | Message Flow | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Choreography `bpmn.choreography` | BPMNDiagram | Choreography Task | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Choreography `bpmn.choreography` | BPMNDiagram | Sub Choreography | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Choreography `bpmn.choreography` | BPMNDiagram | Message Link | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Conversation | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Sub Conversation | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Call Conversation | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
-| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Conversation Link | ❌ | extensions/essential/bpmn/toolbox/bpmn.json |
+| AWS `aws.elements` | AWSDiagram | AWS Group | 🟡 | an AWSGroup ("AWSGroup1") with the icon AWS-Cloud.svg at its top left, its name right of it, and the line colour and dashes its icon gives (Region, VPC, subnets, Auto Scaling group…); it holds the AWS boxes drawn or dropped in it (src/aws.rs; src/app.rs:915). The AWS icon sets are not bundled, for licensing reasons: the icon is read from the Cloud Icon Folder preference, else drawn as a placeholder with its initials (src/cloud.rs) | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Generic Group | ✅ | an unfilled #232F3E box, dashed when `dashed` is on (Properties); it holds other AWS boxes (src/aws.rs) | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Availability Zone | ✅ | a dashed (3, 3) #01A88D box with its name at the top that holds other AWS boxes (src/aws.rs) | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Security Group | ✅ | a #CB464F box with its name at the top that holds other AWS boxes (src/aws.rs) | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Service | 🟡 | an AWSService with the icon Amazon-EC2.svg, at least 48 × 48, its name 42 under its centre (src/aws.rs; src/cloud.rs). The AWS icon sets are not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Resource | 🟡 | an AWSResource with the icon Amazon-EC2_Instance.svg, drawn as a service is (src/aws.rs). The AWS icon sets are not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS General Resource | 🟡 | an AWSGeneralResource with the icon Users.svg, drawn as a service is (src/aws.rs). The AWS icon sets are not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Callout | ✅ | an AWSCallout named "1": a black circle, at least 24 × 24, with its number in white (src/aws.rs; src/cloud.rs) | extensions/essential/aws/toolbox/aws.json |
+| AWS `aws.elements` | AWSDiagram | AWS Arrow | ✅ | an AWSArrow between two AWS elements, owned by the first: an open arrow head, its name 15 px off its middle, in the `aws.arrow.lineStyle` style (src/render.rs; src/app.rs) | extensions/essential/aws/toolbox/aws.json |
+| Azure `azure.elements` | AzureDiagram | Azure Group | ✅ | an AzureGroup ("AzureGroup1"): a filled box with its name at the top, square or rounded by 10, solid or dashed (3, 3) by its `rounded` and `dashed`; it holds the Azure boxes drawn or dropped in it (src/azure.rs; src/app.rs:915) | extensions/essential/azure/toolbox/azure.json |
+| Azure `azure.elements` | AzureDiagram | Azure Service | 🟡 | an AzureService with the icon App-Services.svg, at least 48 × 48, its name 42 under its centre (src/azure.rs; src/cloud.rs). The Azure icon set is not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/azure/toolbox/azure.json |
+| Azure `azure.elements` | AzureDiagram | Azure Callout | ✅ | an AzureCallout named "1": a black circle, at least 24 × 24, with its number in white (src/azure.rs; src/cloud.rs) | extensions/essential/azure/toolbox/azure.json |
+| Azure `azure.elements` | AzureDiagram | Azure Connector | ✅ | an AzureConnector between two Azure elements: a filled arrow head, dotted when `dashed`, in the `azure.arrow.lineStyle` style. Its name is shown 15 px off its middle, which the original's update (it skips EdgeView.update) leaves out: an upstream quirk not copied (src/render.rs; src/cloud.rs `edge_dotted`) | extensions/essential/azure/toolbox/azure.json |
+| BPMN Basic `bpmn.basic` | BPMNDiagram | Task | ✅ | a BPMNTask ("BPMNTask1"…) in the diagram's process, or in the lane or pool it is drawn in; a box rounded by 10 at least its name plus 5 px around, with its marks (src/bpmn.rs:252-292, 605-633); drawn by src/bpmn_draw.rs:485-504 | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Basic `bpmn.basic` | BPMNDiagram | Gateway | ✅ | an exclusive gateway: an empty diamond at least 32 × 32, its name floating 36 px below (src/bpmn_draw.rs:828-866) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Basic `bpmn.basic` | BPMNDiagram | Start Event | ✅ | a thin circle at least 32 across, dashed in a sub-process when not interrupting, its name below (src/bpmn_draw.rs:699-735) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Basic `bpmn.basic` | BPMNDiagram | End Event | ✅ | a circle with a 3 px border (src/bpmn_draw.rs:699-735) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Basic `bpmn.basic` | BPMNDiagram | Sequence Flow | ✅ | solid with a filled arrow, a slash at the tail when it is its gateway's default, a diamond when it leaves an activity with a condition; rounded rectilinear by default (src/bpmn_draw.rs:941-962) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Artifact `bpmn.artifact` | BPMNDiagram | Text Annotation | ✅ | its text's lines from the top left, wrapped, with a bracket on the left; at least 10 × 10 (src/bpmn_draw.rs:58-76, 870-896) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Artifact `bpmn.artifact` | BPMNDiagram | Group | ✅ | a filled box with a dashed border, put behind the other views (estimated: the original makes it on top) (src/bpmn.rs:508-521) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Artifact `bpmn.artifact` | BPMNDiagram | Association | ✅ | dotted, with a stick arrow at one end or both by its direction; it may end on a line (src/bpmn.rs:363-375; src/bpmn_draw.rs:969-979) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Pool | ✅ | a BPMNParticipant: a box with its name up the left side and a line beside it, three bars when its maximum is over 1; it lines up its lanes from the top; a plain click gives 600 × 150 (estimated) (src/bpmn_draw.rs:99-118, 192-217, 899-938) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Pool (Vert) | ✅ | the same with `isVertical`: the name across the top, the lanes side by side (src/bpmn.rs:252-258) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Lane | ✅ | a BPMNLane in the pool it is drawn in (its model in the participant), or on its own; a line along its bottom (src/bpmn.rs:276-283; src/bpmn_draw.rs:899-938) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Swimlanes `bpmn.swimlanes` | BPMNDiagram | Lane (Vert) | ✅ | the same lying the other way; a lane takes its pool's direction (src/bpmn_draw.rs:87-96) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Task | ✅ | as in BPMN Basic; loop, multi-instance and compensation marks at the bottom (src/bpmn_draw.rs:328-393) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Send Task | ✅ | a filled envelope in the top left corner (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Receive Task | ✅ | an outlined envelope, in a circle when it instantiates (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Service Task | ✅ | a gear (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | User Task | ✅ | a head and shoulders (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Manual Task | ✅ | a hand (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Business Rule Task | ✅ | a table (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Script Task | ✅ | a scroll (src/bpmn_draw.rs:395-449) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Call Activity | ✅ | a 3 px border, the mark of the task it calls, the sub-process mark when it calls one (src/bpmn_draw.rs:372-393, 475-510) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Sub Process | ✅ | the plus-in-a-box mark at the bottom (src/bpmn_draw.rs:372-393) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Ad-Hoc Sub Process | ✅ | the sub-process mark and a tilde (src/bpmn_draw.rs:328-393) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Activities `bpmn.activities` | BPMNDiagram | Transaction | ✅ | a second border 3 px inside, rounded by 8, and the sub-process mark (src/bpmn_draw.rs:485-504) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Exclusive) | ✅ | an empty diamond, as in the original (src/bpmn_draw.rs:828-866) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Event-Based) | ✅ | a pentagon in two circles; one circle when it instantiates, a cross when it instantiates in parallel (src/bpmn_draw.rs:828-866) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Inclusive) | ✅ | a thick circle (src/bpmn_draw.rs:828-866) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Complex) | ✅ | a thick star (src/bpmn_draw.rs:828-866) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Gateways `bpmn.gateways` | BPMNDiagram | Gateway (Parallel) | ✅ | a thick plus (src/bpmn_draw.rs:828-866) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Events `bpmn.events` | BPMNDiagram | Start Event | ✅ | as in BPMN Basic, with the mark of its definition (src/bpmn_draw.rs:699-826) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Events `bpmn.events` | BPMNDiagram | Intermediate Event (Throw) | ✅ | a double circle; its definition's mark filled (src/bpmn_draw.rs:699-826) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Events `bpmn.events` | BPMNDiagram | Intermediate Event (Catch) | ✅ | a double circle; its definition's mark outlined (src/bpmn_draw.rs:699-826) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Events `bpmn.events` | BPMNDiagram | Boundary Event | ✅ | on the box under the point, which owns it; it sits on the activity's border, 32 × 32, double, dashed unless it cancels the activity, and does not change container (src/bpmn.rs:605-633; src/bpmn_draw.rs:134-147, 220-245) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Events `bpmn.events` | BPMNDiagram | End Event | ✅ | as in BPMN Basic; two definitions or more make a pentagon, or a cross when parallel (src/bpmn_draw.rs:699-826) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Data `bpmn.data` | BPMNDiagram | Data Object | ✅ | a page with a folded corner at least 32 × 40, three bars when it is a collection (src/bpmn_draw.rs:545-574) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Data `bpmn.data` | BPMNDiagram | Data Store | ✅ | a cylinder with its name inside (src/bpmn_draw.rs:575-583, 603-622) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Data `bpmn.data` | BPMNDiagram | Data Input | ✅ | a data object with a hollow arrow (src/bpmn_draw.rs:545-574) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Data `bpmn.data` | BPMNDiagram | Data Output | ✅ | a data object with a filled arrow (src/bpmn_draw.rs:545-574) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Data `bpmn.data` | BPMNDiagram | Data Association | ✅ | dotted with a stick arrow (src/bpmn_draw.rs:980-983) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Message `bpmn.message` | BPMNDiagram | Message | ✅ | an envelope at least 32 × 24, its name below (src/bpmn_draw.rs:520-528) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Message `bpmn.message` | BPMNDiagram | Message Flow | ✅ | dashed, a small circle at its start and a hollow arrow at its end (src/bpmn_draw.rs:963-967, 996-1018) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Choreography `bpmn.choreography` | BPMNDiagram | Choreography Task | ✅ | a rounded box with a band per upper and lower participant, the initiating one grey, and its loop marks (src/bpmn_draw.rs:625-697) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Choreography `bpmn.choreography` | BPMNDiagram | Sub Choreography | ✅ | the same with the sub-process mark (src/bpmn_draw.rs:625-697) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Choreography `bpmn.choreography` | BPMNDiagram | Message Link | ✅ | dotted, no ends (src/bpmn_draw.rs:984) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Conversation | ✅ | a hexagon at least 38 × 32, its name below (src/bpmn_draw.rs:529-544) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Sub Conversation | ✅ | the hexagon with the sub-process mark (src/bpmn_draw.rs:529-544) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Call Conversation | ✅ | a 3 px hexagon, with the sub-process mark when it calls a collaboration (src/bpmn_draw.rs:529-544) | extensions/essential/bpmn/toolbox/bpmn.json |
+| BPMN Conversation `bpmn.conversation` | BPMNDiagram | Conversation Link | ✅ | a 3 px line without ends (src/bpmn_draw.rs:968) | extensions/essential/bpmn/toolbox/bpmn.json |
 | C4 Model `c4` | C4Diagram | Person | ✅ | a C4Person ("C4Person1"…) in the element that owns the diagram: a head a third of its width over a rounded body, its bold name, "[Person]" and its description (src/app.rs:800-813; src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
 | C4 Model `c4` | C4Diagram | Software System | ✅ | a C4SoftwareSystem, a box rounded by 6 with its name, "[Software System: technology]" and description (src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
 | C4 Model `c4` | C4Diagram | Container | ✅ | a C4Container of kind etc, "[Container: technology]" (src/app.rs:800-813; src/c4.rs) | extensions/essential/c4/toolbox/c4.json |
@@ -128,53 +128,53 @@ UMLCraft shows the toolbox groups of the diagram kinds it edits: class, package,
 | Flowchart `flowchart` | FCFlowchartDiagram | Database | ✅ | an FCDatabase in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
 | Flowchart `flowchart` | FCFlowchartDiagram | Direct Access Storage | ✅ | an FCDirectAccessStorage in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
 | Flowchart `flowchart` | FCFlowchartDiagram | Internal Storage | ✅ | an FCInternalStorage in the flowchart that owns the diagram, drawn with its own outline and its word-wrapped name placed inside it as in the original (src/app.rs:795-811; src/flowchart.rs:86-210, 213-360) | extensions/essential/flowchart/toolbox/flowchart.json |
-| GCP `gcp.elements` | GCPDiagram | Zone | ❌ | extensions/essential/gcp/toolbox/gcp.json |
-| GCP `gcp.elements` | GCPDiagram | User | ❌ | extensions/essential/gcp/toolbox/gcp.json |
-| GCP `gcp.elements` | GCPDiagram | Product | ❌ | extensions/essential/gcp/toolbox/gcp.json |
-| GCP `gcp.elements` | GCPDiagram | Service | ❌ | extensions/essential/gcp/toolbox/gcp.json |
-| GCP `gcp.elements` | GCPDiagram | Path | ❌ | extensions/essential/gcp/toolbox/gcp.json |
+| GCP `gcp.elements` | GCPDiagram | Zone | ✅ | a GCPZone ("GCPZone1") of kind project: a box rounded by 2 in its kind's fill colour (20 kinds, #F6F6F6 for a project), its name at the top left, dashed (4, 4) when optional; it holds the GCP cards drawn or dropped in it (src/gcp.rs; src/app.rs:915) | extensions/essential/gcp/toolbox/gcp.json |
+| GCP `gcp.elements` | GCPDiagram | User | 🟡 | a GCPUser: a card rounded by 2 with a #E2E2E2 line and shadow, its 48 × 48 icon (Users.png) centred at the top and its name under it (src/gcp.rs). The GCP icon set is not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/gcp/toolbox/gcp.json |
+| GCP `gcp.elements` | GCPDiagram | Product | 🟡 | a GCPProduct "Compute Engine": a card with its 32 × 32 icon (Compute-Engine.svg), its name and grey product line; `expanded` shows `expandedInfo` and the machine, disk and modifier icons with the cores, ram and disks in blue pills, `multiInstance` a second card behind (src/gcp.rs). The GCP icon set is not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as placeholders with their initials | extensions/essential/gcp/toolbox/gcp.json |
+| GCP `gcp.elements` | GCPDiagram | Service | 🟡 | a GCPService: a card with its 32 × 32 icon (Application-System.png) at the left and its name centred top to bottom right of it (src/gcp.rs). The GCP icon set is not bundled, for licensing reasons: icons are read from the Cloud Icon Folder preference, else drawn as a placeholder with their initials | extensions/essential/gcp/toolbox/gcp.json |
+| GCP `gcp.elements` | GCPDiagram | Path | ✅ | a GCPPath between two GCP elements with a filled arrow head, blue, grey, green or red by its `pathType` and dotted when optional, its name 15 px off its middle (src/gcp.rs `path_style`; src/render.rs) | extensions/essential/gcp/toolbox/gcp.json |
 | Mindmap `mindmap` | MMMindmapDiagram | Node | ✅ | an MMNode ("MMNode1"…) in the mind map that owns the diagram, a box rounded by 14 with its word-wrapped name (src/app.rs:798-808; src/notations.rs:68-145) | extensions/essential/mindmap/toolbox/mindmap.json |
 | Mindmap `mindmap` | MMMindmapDiagram | Edge | ✅ | an MMEdge between two nodes, a plain line without arrows or label (src/app.rs:1389; src/views.rs) | extensions/essential/mindmap/toolbox/mindmap.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Package | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Requirement | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Frame | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Copy | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | DeriveReqt | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Verify | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Satisfy | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Refine | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Requirements `sysml.requirement` | SysMLRequirementDiagram | Containment | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Block | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Value Type | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Interface Block | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Constraint Block | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Enumeration | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Signal | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Port | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Object | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Frame | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Association | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Directed Association | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Aggregation | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Composition | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Dependency | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Generalization | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Interface Realization | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Connector | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Block `sysml.block` | SysMLBlockDefinitionDiagram | Containment | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Part | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Reference | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Value | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Port | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Frame | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Connector | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Parametric `sysml.parametric` | SysMLParametricDiagram | Constraint Property | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Parametric `sysml.parametric` | SysMLParametricDiagram | Constraint Parameter | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Stakeholder | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | View | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Viewpoint | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Conform | ❌ | extensions/essential/sysml/toolbox/sysml.json |
-| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Expose | ❌ | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Package | ✅ | a UMLPackage in the diagram's owner, as on a package diagram (src/app.rs:1068) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Requirement | ✅ | a SysMLRequirement ("Requirement1"…) in the diagram's owner: a box with «requirement» over its bold name, its id and text listed as `id = "…"` property values, attributes and operations suppressed; a click makes it at its smallest (src/app.rs:916; src/sysml.rs:423-452, 500-579, 873-898) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Frame | ✅ | asks which element the frame shows, as on the UML diagrams (src/canvas.rs:1391) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Copy | ✅ | a SysMLCopy from the tail's element to the head's, in the tail's owned elements: a dashed line with an open arrow and its «copy» keyword, unless it has a stereotype of its own (src/sysml.rs:183-226, 253-270; src/views.rs:2693; src/render.rs:1106) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | DeriveReqt | ✅ | a SysMLDeriveReqt, drawn as Copy with «deriveReqt» (src/sysml.rs:183-226) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Verify | ✅ | a SysMLVerify, drawn as Copy with «verify» (src/sysml.rs:183-226) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Satisfy | ✅ | a SysMLSatisfy, drawn as Copy with «satisfy» (src/sysml.rs:183-226) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Refine | ✅ | a SysMLRefine, drawn as Copy with «refine» (src/sysml.rs:183-226) | extensions/essential/sysml/toolbox/sysml.json |
+| Requirements `sysml.requirement` | SysMLRequirementDiagram | Containment | ✅ | on a SysML diagram between any two model elements, the head not inside the tail; the tail's element moves into the head's, and a circle with a plus marks the container (src/sysml.rs:253-270; src/app.rs:1751) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Block | ✅ | a SysMLBlock ("Block1"…) in the diagram's owner: «block» over its bold name, then the constraints, parts, ports, references, values, properties, flow properties, operations and receptions compartments, each titled in small italics and suppressed by default (the Block preferences); the tool hides attributes and operations (src/sysml.rs:300-310, 423-452, 500-579, 873-898) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Value Type | ✅ | a SysMLValueType with «valueType» (whatever its stereotype) and its unit and quantity kind as property values (src/sysml.rs:354-405) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Interface Block | ✅ | a SysMLInterfaceBlock drawn as a block with «interfaceBlock» (src/sysml.rs:338-350) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Constraint Block | ✅ | a SysMLConstraintBlock with «constraint» and its constraints and parameters compartments; Suppress Properties hides the parameters (src/sysml.rs:314-317) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Enumeration | ✅ | a UMLEnumeration, as on class diagrams (src/app.rs:1068) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Signal | ✅ | a UMLSignal, as on class diagrams (src/app.rs:1068) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Port | ✅ | a SysMLPort ("Port1"…) in the ports of the block under the point, a 14 × 14 square on its border with its name floating by it; elsewhere "Port should be placed in a block or a part" (src/sysml.rs:925-958, 1183-1194; src/canvas.rs:1372) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Object | ✅ | a UMLObject, as on object diagrams (src/app.rs:1068) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Frame | ✅ | asks which element the frame shows, as on the UML diagrams (src/canvas.rs:1391) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Association | ✅ | a UMLAssociation between two classifiers, as on class diagrams (src/app.rs:1762) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Directed Association | ✅ | end2 navigable, as on class diagrams (src/app.rs:1774) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Aggregation | ✅ | end2 shared, as on class diagrams (src/app.rs:1778) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Composition | ✅ | end2 composite, as on class diagrams (src/app.rs:1779) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Dependency | ✅ | a UMLDependency, as on class diagrams (src/app.rs:1793) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Generalization | ✅ | a UMLGeneralization between two classifiers (src/app.rs:1793) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Interface Realization | ✅ | a UMLInterfaceRealization to an interface (src/app.rs:1793) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Connector | ✅ | a SysMLConnector between two parts or ports, owned by the diagram's owner, with role, multiplicity and item flow labels; the original checks only the tail end, UMLCraft both (src/sysml.rs:253-270, 962-970; src/views.rs:1357) | extensions/essential/sysml/toolbox/sysml.json |
+| Block `sysml.block` | SysMLBlockDefinitionDiagram | Containment | ✅ | on a SysML diagram between any two model elements (src/sysml.rs:253-270) | extensions/essential/sysml/toolbox/sysml.json |
+| Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Part | ✅ | a composite SysMLProperty ("Part1"…) in the parts of the block that owns the diagram, elsewhere "SysMLProperty should be placed in a Block"; a box with "name: Type" 10 px in from every side (src/sysml.rs:128-136, 648-660, 873-898, 1169-1179) | extensions/essential/sysml/toolbox/sysml.json |
+| Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Reference | ✅ | a SysMLProperty in the block's references, its box dashed as it is not composite (src/sysml.rs:588-638, 873-898) | extensions/essential/sysml/toolbox/sysml.json |
+| Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Value | ✅ | a composite SysMLProperty in the block's values (src/sysml.rs:873-898) | extensions/essential/sysml/toolbox/sysml.json |
+| Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Port | ✅ | a SysMLPort on the border of the part under the point, in the ports of the part's block ("Port should be placed in a typed part" when it has none), or on the frame, in the ports of the diagram's block; a port typed by a block with flow properties shows arrows in, out or both ways (src/sysml.rs:702-787, 925-958) | extensions/essential/sysml/toolbox/sysml.json |
+| Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Frame | ✅ | asks which element the frame shows, as on the UML diagrams (src/canvas.rs:1391) | extensions/essential/sysml/toolbox/sysml.json |
+| Internal Block `sysml.internal-block` | SysMLInternalBlockDiagram, SysMLParametricDiagram | Connector | ✅ | a SysMLConnector between two parts or ports, owned by the diagram's block; its item flows show by its middle with a filled arrow head towards the end they flow to (src/sysml.rs:792-842, 962-970) | extensions/essential/sysml/toolbox/sysml.json |
+| Parametric `sysml.parametric` | SysMLParametricDiagram | Constraint Property | ✅ | a composite SysMLProperty ("Constraint1"…) in the constraints of the constraint block that owns the diagram, a box rounded by 8 with "name: Type" (src/sysml.rs:588-638, 873-898) | extensions/essential/sysml/toolbox/sysml.json |
+| Parametric `sysml.parametric` | SysMLParametricDiagram | Constraint Parameter | ✅ | a composite SysMLProperty ("Parameter1"…) in the parameters of the constraint block typing the constraint property under the point, or of the diagram's constraint block on the frame; a 14 × 14 square against the inside of the nearest side, its "name: Type" floating by it (src/sysml.rs:665-698, 925-958) | extensions/essential/sysml/toolbox/sysml.json |
+| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Stakeholder | ✅ | a SysMLStakeholder ("Stakeholder1"…) in the diagram's owner, on requirement, block definition and package diagrams: «stakeholder» over its name and its concern as a property value; its inline edit adds attributes and operations (src/ui.rs:542, 561-571; src/sysml.rs:354-405, 1338-1389) | extensions/essential/sysml/toolbox/sysml.json |
+| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | View | ✅ | a SysMLView with «view», listing the viewpoints it conforms to and their stakeholders as /viewpoint and /stakeholder (src/sysml.rs:354-405) | extensions/essential/sysml/toolbox/sysml.json |
+| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Viewpoint | ✅ | a SysMLViewpoint with «viewpoint», listing its stakeholders and their concerns (/stakeholder, /concern), purpose, language and presentation (src/sysml.rs:354-405) | extensions/essential/sysml/toolbox/sysml.json |
+| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Conform | ✅ | a SysMLConform between two model elements, drawn as a generalization labelled «conform» (src/sysml.rs:183-226) | extensions/essential/sysml/toolbox/sysml.json |
+| Viewpoints `sysml.viewpoint` | SysMLRequirementDiagram, SysMLBlockDefinitionDiagram, UMLPackageDiagram | Expose | ✅ | a SysMLExpose between two model elements, drawn as a dependency labelled «expose» (src/sysml.rs:183-226) | extensions/essential/sysml/toolbox/sysml.json |
 | Information Flows `uml.information-flow` | UMLInformationFlowDiagram | Information Item | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Information Flows `uml.information-flow` | UMLInformationFlowDiagram | Information Flow | ✅ | extensions/essential/uml/toolbox/uml.json |
 | Use Cases `uml.usecase` | UMLUseCaseDiagram, UMLInformationFlowDiagram | Package | ✅ | extensions/essential/uml/toolbox/uml.json |

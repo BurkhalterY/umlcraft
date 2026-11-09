@@ -86,6 +86,9 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             r("Add Provided Interface", "UMLInterface", "UMLInterfaceRealization", Plain, false, Above),
             r("Add Required Interface", "UMLInterface", "UMLDependency", Plain, false, Above),
         ],
+        // a requirement: a sub-requirement below it, joined by a containment from the new one
+        // (quickedits/sysml.json "sysml.requirement"; handleAddSubRequirement, sysml-commands.js:17-33)
+        "SysMLRequirement" => vec![r("Add Sub-Requirement", "SysMLRequirement", "Containment", Plain, true, Below)],
         // profiles (uml-commands.js:4069-4127)
         "UMLMetaClass" => vec![r("Add Stereotype", "UMLStereotype", "UMLExtension", Plain, true, Below)],
         "UMLStereotype" => vec![
@@ -148,6 +151,8 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
             ]
         }
         "ERDRelationship" => return vec![NOTE],
+        // every BPMN quick edit but a text annotation's adds a text annotation (quickedits/bpmn.json)
+        t if t.starts_with("BPMN") => return crate::bpmn::related(t),
         // C4 elements and relationships: Add Note (quickedits/c4.json)
         t if t.starts_with("C4") => return vec![NOTE],
         // a flow: only Add Note ("fc.edge")
@@ -168,6 +173,9 @@ pub fn actions(model_ty: &str) -> Vec<Related> {
         // named wireframe widgets and tab lists: Add Note (wireframe/quickedits/wireframe.json)
         "WFButton" | "WFText" | "WFRadio" | "WFCheckbox" | "WFLink" | "WFTab" | "WFInput" | "WFDropdown" | "WFTabList" => return vec![NOTE],
         t if t.starts_with("WF") => return vec![],
+        // cloud elements: Add Note, but on a callout (quickedits/aws.json, azure.json, gcp.json)
+        t if t.ends_with("Callout") && crate::cloud::element_kind(t).is_some() => return vec![],
+        t if crate::cloud::element_kind(t).is_some() => return vec![NOTE],
         "MMNode" => return vec![r("Add Node Left", "MMNode", "MMEdge", Plain, true, Left), r("Add Node Right", "MMNode", "MMEdge", Plain, true, Right)],
         _ => vec![],
     };
@@ -267,6 +275,12 @@ impl App {
             if a.kind == "Note" {
                 app.repo.set(n, "text", json!(""));
             }
+            // a BPMN text annotation says so (bpmn-commands.js:196)
+            if a.kind == "BPMNTextAnnotation" {
+                if let Some(m) = app.repo.refd(n, "model") {
+                    app.repo.set(m, "text", json!(crate::bpmn::ANNOTATION_TEXT));
+                }
+            }
             let tool = Tool { label: "", kind: a.rel, icon: "", line: true, init: a.init };
             let (tail, head) = if a.from_new { (n, v) } else { (v, n) };
             let e = app.create_edge(&tool, tail, head);
@@ -313,38 +327,50 @@ impl App {
         self.add_related(v, Related { label, kind: "UMLInterface", rel, init: AssocInit::Plain, from_new: false, place })
     }
 
-    /// Add Note on a line: a 100×50 note to the right of the line's name label, joined to the line by a
-    /// note link, as one undo step; the note's text edit opens (uml-commands.js:684).
-    /// Add Choice or Add Fork on a state: the pseudostate 50 px below it, and two new states 50 px
-    /// below that, 70 px to its left and 35 px to its right, wired by three transitions, as one
-    /// undo step (uml-commands.js:3244-3313, 3386-3455; the pseudostate's place is estimated).
+    /// Add Choice, Add Fork or Add Join on a state, as one undo step (uml-commands.js:3244-3455).
+    /// A choice or a fork goes 40 px below the state, level with its left side, or 10 px right of the
+    /// right-most state its transitions already lead to (getBottomPosition); two new states follow
+    /// it, 50 px below and 70 px left of it and 35 px past its right end for a choice, 40 px below
+    /// and 40 px left and 50 px past its right end for a fork, wired by three transitions. A join
+    /// goes 40 px above the state (or right of the right-most state whose transitions already come
+    /// into it, getTopPosition) with a transition into the state, and two new states 80 px above
+    /// it, 40 px left and 50 px past its right end, each with a transition into the join.
     pub fn add_scaffold(&mut self, v: Eid, kind: &str) -> Option<Eid> {
         let b = node_rect(&self.repo, v);
         let (pw, ph) = views::default_size(kind);
         let (sw, sh) = views::default_size("UMLState");
         let tool = Tool { label: "", kind: "UMLTransition", icon: "", line: true, init: AssocInit::Plain };
-        // Add Join: the join 40 px above the state, into it, and two new states 80 px above the join,
-        // 40 px left of it and 50 px past its right end, each into the join (handleAddJoin,
-        // uml-commands.js:3314-3378)
-        if kind == "Join" {
-            let p = R { x: b.x, y: (b.y - 40.0 - ph).max(0.0), w: pw, h: ph };
-            return self.change(|app| {
-                let pv = app.create_node(kind, p)?;
-                app.create_edge(&tool, pv, v)?;
-                for x in [p.x - 40.0, p.x + p.w + 50.0] {
-                    let s = app.create_node("UMLState", R { x: x.max(0.0), y: (p.y - 80.0).max(0.0), w: sw, h: sh })?;
-                    app.create_edge(&tool, s, pv)?;
-                }
-                Some(pv)
-            });
-        }
-        let p = R { x: (b.x + b.w / 2.0 - pw / 2.0).round(), y: b.y + b.h + 50.0, w: pw, h: ph };
+        let join = kind == "Join";
+        // the boxes this state's transitions already lead to (or come from, for a join)
+        let joined: Vec<R> = match self.diagram {
+            Some(d) => self
+                .repo
+                .list(d, "ownedViews")
+                .into_iter()
+                .filter(|e| self.repo.ty(*e) == "UMLTransitionView")
+                .filter_map(|e| {
+                    let (t, h) = (self.repo.refd(e, "tail")?, self.repo.refd(e, "head")?);
+                    let other = if join { (h == v).then_some(t)? } else { (t == v).then_some(h)? };
+                    (other != v).then(|| node_rect(&self.repo, other))
+                })
+                .collect(),
+            None => vec![],
+        };
+        let rightmost = joined.iter().max_by(|p, q| (p.x + p.w).total_cmp(&(q.x + q.w))).map(|o| (o.x + o.w + 10.0, o.y));
+        let (px, py) = rightmost.unwrap_or((b.x, if join { b.y - 40.0 } else { b.y + b.h + 40.0 }));
+        let p = R { x: px.max(0.0), y: py.max(0.0), w: pw, h: ph };
+        let (left, right, gap) = match kind {
+            "Choice" => (70.0, 35.0, 50.0),
+            "Fork" => (40.0, 50.0, 40.0),
+            _ => (40.0, 50.0, 80.0),
+        };
+        let sy = if join { (p.y - gap).max(0.0) } else { p.y + p.h + gap };
         self.change(|app| {
             let pv = app.create_node(kind, p)?;
-            app.create_edge(&tool, v, pv)?;
-            for x in [p.x - 70.0, p.x + 35.0] {
-                let s = app.create_node("UMLState", R { x: x.max(0.0), y: p.y + p.h + 50.0, w: sw, h: sh })?;
-                app.create_edge(&tool, pv, s)?;
+            if join { app.create_edge(&tool, pv, v)? } else { app.create_edge(&tool, v, pv)? };
+            for x in [p.x - left, p.x + p.w + right] {
+                let s = app.create_node("UMLState", R { x: x.max(0.0), y: sy, w: sw, h: sh })?;
+                if join { app.create_edge(&tool, s, pv)? } else { app.create_edge(&tool, pv, s)? };
             }
             Some(pv)
         })
@@ -388,6 +414,8 @@ impl App {
         }
     }
 
+    /// Add Note on a line: a 100×50 note to the right of the line's name label, joined to the line by a
+    /// note link, as one undo step; the note's text edit opens (uml-commands.js:684).
     pub fn add_note_to_edge(&mut self, e: Eid) -> Option<Eid> {
         let anchor = self.edge_anchor(e);
         let rect = R { x: (anchor.x + anchor.w + 20.0).round(), y: (anchor.y - 20.0).max(0.0).round(), w: 100.0, h: 50.0 };

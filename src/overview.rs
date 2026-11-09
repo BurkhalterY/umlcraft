@@ -60,6 +60,9 @@ impl Measure for Shrunk<'_> {
     fn face(&self) -> String {
         self.c.face()
     }
+    fn width_face(&self, text: &str, style: u8, face: &str) -> f64 {
+        self.c.width_face(text, style, face)
+    }
 }
 
 impl Canvas for Shrunk<'_> {
@@ -86,6 +89,9 @@ impl Canvas for Shrunk<'_> {
     fn image(&mut self, b: R, data_url: &str) {
         let b = self.r(b);
         self.c.image(b, data_url);
+    }
+    fn set_face(&mut self, face: &str) {
+        self.c.set_face(face);
     }
 }
 

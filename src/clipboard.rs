@@ -1,8 +1,8 @@
 //! Edit > Cut, Copy and Paste of views and models, through the system clipboard.
 //!
 //! As in StarUML (src/engine/clipboard-manager.js, default-commands.js:614-774), the clipboard holds
-//! JSON text, so a copy can be pasted in another window. The JSON layout is UMLCraft's own: StarUML's
-//! exact layout could not be checked, so the two programs do not paste into each other.
+//! JSON text in the original's layout (`{kind, type, data, context}`), so a copy can be pasted in
+//! another window, or between StarUML and UMLCraft.
 //!
 //! - Views copied from the canvas paste as new views of the same models, centred on the screen.
 //! - A model copied from the explorer pastes as a deep copy with new ids, into the selected element.
@@ -21,19 +21,60 @@ pub enum Clip {
     Model { field: String, model: Value },
 }
 
+/// Read the clipboard text: StarUML's layout `{kind, type, data, context}` (clipboard-manager.js:
+/// 60-130), which UMLCraft writes too, or UMLCraft's earlier `{format, kind, …}` layout.
 pub fn parse(text: &str) -> Option<Clip> {
     let v: Value = serde_json::from_str(text).ok()?;
-    if v.get("format")?.as_str()? != MARK {
-        return None;
+    if v.get("format").and_then(|f| f.as_str()) == Some(MARK) {
+        return match v.get("kind")?.as_str()? {
+            "views" => Some(Clip::Views {
+                diagram_type: v.get("diagramType")?.as_str()?.to_string(),
+                views: v.get("views")?.as_array()?.clone(),
+                models: v.get("models")?.as_array()?.iter().filter_map(|m| m.as_str().map(String::from)).collect(),
+            }),
+            "model" => Some(Clip::Model { field: v.get("field")?.as_str()?.to_string(), model: v.get("model")?.clone() }),
+            _ => None,
+        };
     }
+    let ctx = v.get("context");
     match v.get("kind")?.as_str()? {
         "views" => Some(Clip::Views {
-            diagram_type: v.get("diagramType")?.as_str()?.to_string(),
-            views: v.get("views")?.as_array()?.clone(),
-            models: v.get("models")?.as_array()?.iter().filter_map(|m| m.as_str().map(String::from)).collect(),
+            diagram_type: ctx.and_then(|c| c.get("type")).and_then(|t| t.as_str()).unwrap_or_default().to_string(),
+            views: v.get("data")?.as_array()?.clone(),
+            models: ctx.and_then(|c| c.get("refs")).and_then(|r| r.as_array()).map(|a| a.iter().filter_map(|m| m.as_str().map(String::from)).collect()).unwrap_or_default(),
         }),
-        "model" => Some(Clip::Model { field: v.get("field")?.as_str()?.to_string(), model: v.get("model")?.clone() }),
+        "model" => Some(Clip::Model { field: ctx.and_then(|c| c.get("field")).and_then(|f| f.as_str()).unwrap_or("ownedElements").to_string(), model: v.get("data")?.clone() }),
         _ => None,
+    }
+}
+
+/// Every `{"$ref": id}` in a JSON value.
+fn refs_of(v: &Value, out: &mut Vec<String>) {
+    match v {
+        Value::Object(m) => {
+            if let Some(id) = m.get("$ref").and_then(|x| x.as_str()) {
+                if !out.iter().any(|x| x == id) {
+                    out.push(id.to_string());
+                }
+            }
+            m.values().for_each(|x| refs_of(x, out));
+        }
+        Value::Array(a) => a.iter().for_each(|x| refs_of(x, out)),
+        _ => {}
+    }
+}
+
+/// Every `_id` in a JSON value.
+fn ids_of(v: &Value, out: &mut HashSet<String>) {
+    match v {
+        Value::Object(m) => {
+            if let Some(id) = m.get("_id").and_then(|x| x.as_str()) {
+                out.insert(id.to_string());
+            }
+            m.values().for_each(|x| ids_of(x, out));
+        }
+        Value::Array(a) => a.iter().for_each(|x| ids_of(x, out)),
+        _ => {}
     }
 }
 
@@ -90,7 +131,7 @@ impl App {
     /// The selected views that can be copied: boxes, and lines whose two ends are copied too.
     fn copyable_views(&self) -> Vec<Eid> {
         let Some(d) = self.diagram else { return vec![] };
-        let top: Vec<Eid> = self.repo.list(d, "ownedViews").into_iter().filter(|v| self.selection.contains(v)).collect();
+        let top: Vec<Eid> = self.repo.list(d, "ownedViews").into_iter().filter(|v| self.selection.contains(v) && views::can_copy(&self.repo, *v)).collect();
         let nodes: HashSet<Eid> = top.iter().copied().filter(|v| !is_edge(&self.repo, *v)).collect();
         top.into_iter()
             .filter(|v| {
@@ -108,35 +149,47 @@ impl App {
     pub fn copy_text(&mut self) -> Option<String> {
         if let Some(m) = self.model_target() {
             let field = self.repo.field_of(m)?;
-            return Some(json!({ "format": MARK, "kind": "model", "field": field, "model": self.repo.export(m) }).to_string());
+            let p = self.repo.parent(m)?;
+            return Some(json!({ "kind": "model", "type": self.repo.ty(m), "data": self.repo.export(m), "context": { "id": self.repo.id(p), "type": self.repo.ty(p), "field": field } }).to_string());
+        }
+        // the views that cannot be copied are deselected first (default-commands.js:647-655)
+        let had = !self.selection.is_empty();
+        let before = self.selection.len();
+        self.selection.retain(|v| views::can_copy(&self.repo, *v));
+        if self.selection.len() != before {
+            let s = self.selection.clone();
+            self.select(s);
         }
         let vs = self.copyable_views();
         if vs.is_empty() {
-            if !self.selection.is_empty() {
-                self.message = Some(("Copy".into(), "No views to copy or some of selected views cannot be copied.".into()));
+            if had {
+                let seq = self.diagram.map(|d| matches!(self.repo.ty(d), "UMLSequenceDiagram" | "UMLCommunicationDiagram")).unwrap_or(false);
+                let text = if seq {
+                    "Copying view elements in Sequence or Communication Diagram is not supported.\n To copy the entire Sequence or Communication Diagram, copy 'Interaction' or 'Collaboration (or Classifier)' containing the Diagram in Explorer."
+                } else {
+                    "No views to copy or some of selected views cannot be copied."
+                };
+                self.message = Some(("Copy".into(), text.into()));
             }
             return None;
         }
         let d = self.diagram?;
         let keep: HashSet<String> = vs.iter().map(|v| self.repo.id(*v)).collect();
-        let mut models = vec![];
         let mut out = vec![];
         for v in &vs {
-            let mut all = vec![];
-            self.repo.descendants(*v, &mut all);
-            for x in all {
-                if let Some(m) = self.repo.refd(x, "model") {
-                    let id = self.repo.id(m);
-                    if !models.contains(&id) {
-                        models.push(id);
-                    }
-                }
-            }
             let mut e = self.repo.export(*v);
             trim_view_refs(&mut e, &keep);
             out.push(e);
         }
-        Some(json!({ "format": MARK, "kind": "views", "diagramType": self.repo.ty(d), "views": out, "models": models }).to_string())
+        // the references to elements outside the copy: the models, which must still exist to paste
+        // (setViews, clipboard-manager.js:85-130)
+        let mut inside = HashSet::new();
+        ids_of(&Value::Array(out.clone()), &mut inside);
+        inside.insert(self.repo.id(d));
+        let mut refs = vec![];
+        refs_of(&Value::Array(out.clone()), &mut refs);
+        refs.retain(|r| !inside.contains(r));
+        Some(json!({ "kind": "views", "type": null, "data": out, "context": { "id": self.repo.id(d), "type": self.repo.ty(d), "refs": refs } }).to_string())
     }
 
     /// Put text on the system clipboard (and keep it for a paste from the menu).

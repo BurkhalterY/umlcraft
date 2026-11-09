@@ -45,6 +45,8 @@ pub fn parse_stroke(desc: &str) -> Option<Stroke> {
         "right" => Key::ArrowRight,
         "enter" | "return" => Key::Enter,
         "escape" | "esc" => Key::Escape,
+        // macOS calls the Backspace key Delete (keymap-manager.js:183-185)
+        "delete" if cfg!(target_os = "macos") => Key::Backspace,
         "delete" => Key::Delete,
         "backspace" => Key::Backspace,
         "tab" => Key::Tab,
@@ -69,6 +71,89 @@ pub fn parse_stroke(desc: &str) -> Option<Stroke> {
     Some((m, k))
 }
 
+/// Built-in bindings of commands the Command Palette does not list (keymaps/linux.json,
+/// uml/keymaps/uml.json), in the palette's "Ctrl+Shift+X" form.
+const EXTRA: [(&str, &str); 9] = [
+    ("find:find", "Ctrl+F"),
+    ("application:quit", "Ctrl+Q"),
+    ("view:command-palette", "Ctrl+Shift+P"),
+    ("format:stereotype-none", "Ctrl+Shift+0"),
+    ("format:stereotype-label", "Ctrl+Shift+1"),
+    ("format:stereotype-decoration", "Ctrl+Shift+2"),
+    ("format:stereotype-decoration-label", "Ctrl+Shift+3"),
+    ("format:stereotype-icon", "Ctrl+Shift+4"),
+    ("format:stereotype-icon-label", "Ctrl+Shift+5"),
+];
+
+/// A key as the palette writes it ("Ctrl+Shift+S", "F4", "Ctrl+-"), where Ctrl is the command key.
+fn parse_label(label: &str) -> Option<Stroke> {
+    let d = label.replace("Ctrl+", "cmdctrl+").replace('+', "-").replace("--", "-minus").replace("-=", "-plus");
+    parse_stroke(if d == "-" { "minus" } else { &d })
+}
+
+/// Built-in bindings only macOS has (keymaps/darwin.json:6): Cmd+, opens Preferences.
+const MAC_EXTRA: [(&str, &str); 1] = [("application:preferences", "Ctrl+,")];
+
+/// The built-in keymap: the platform keys, then the UML ones, as (keystroke, command id).
+pub fn defaults() -> Vec<(Stroke, &'static str)> {
+    defaults_for(cfg!(target_os = "macos"))
+}
+
+/// The built-in keymap of macOS (`mac`) or of the other platforms.
+pub fn defaults_for(mac: bool) -> Vec<(Stroke, &'static str)> {
+    let palette = crate::palette::COMMANDS.iter().map(|c| (c.key, c.id));
+    let mac_extra = MAC_EXTRA.iter().filter(|_| mac);
+    palette.chain(EXTRA.iter().chain(mac_extra).map(|(id, k)| (*k, *id))).filter(|(k, _)| !k.is_empty()).filter_map(|(k, id)| Some((parse_label(k)?, id))).collect()
+}
+
+/// A keystroke as menus show it: "Ctrl+Alt+Shift+K" in descriptor order, or on macOS the
+/// symbols run together ("⌘⌥⇧K") (keymap-manager.js:75-152; menu-helpers.js:128-150).
+pub fn stroke_label((m, k): Stroke, mac: bool) -> String {
+    let key = match k {
+        Key::ArrowUp => "↑".to_string(),
+        Key::ArrowDown => "↓".to_string(),
+        Key::ArrowLeft => "←".to_string(),
+        Key::ArrowRight => "→".to_string(),
+        Key::Backspace if mac => "⌫".to_string(),
+        Key::Equals | Key::Plus => "=".to_string(),
+        Key::Minus => "-".to_string(),
+        k => k.symbol_or_name().to_string(),
+    };
+    let mut parts: Vec<&str> = vec![];
+    if mac {
+        if m.mac_cmd || m.command {
+            parts.push("⌘");
+        }
+        if m.ctrl && !m.command {
+            parts.push("⌃");
+        }
+        if m.alt {
+            parts.push("⌥");
+        }
+        if m.shift {
+            parts.push("⇧");
+        }
+        return parts.concat() + &key;
+    }
+    if m.command || m.ctrl {
+        parts.push("Ctrl");
+    }
+    if m.alt {
+        parts.push("Alt");
+    }
+    if m.shift {
+        parts.push("Shift");
+    }
+    parts.push(&key);
+    parts.join("+")
+}
+
+/// The keys a text field keeps for itself: Ctrl+C, X, V, Z, Y and A, Delete and Backspace,
+/// whatever else is held (keymap-manager.js:305-316). Ctrl is the command key.
+pub fn is_edit_key(m: Modifiers, k: Key) -> bool {
+    (m.command && matches!(k, Key::C | Key::X | Key::V | Key::Z | Key::Y | Key::A)) || matches!(k, Key::Delete | Key::Backspace)
+}
+
 /// Read a keymap file: keystroke descriptors to command ids. Bad entries are skipped.
 pub fn load(path: &Path) -> Result<Vec<(Stroke, String)>, String> {
     let text = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
@@ -78,6 +163,38 @@ pub fn load(path: &Path) -> Result<Vec<(Stroke, String)>, String> {
 }
 
 impl App {
+    /// The final keymap: the built-in bindings, then the user's, each replacing what an earlier
+    /// source bound to the same keystroke (keymap-manager.js:49-54; app-context.js:760-764).
+    pub fn keymap(&self) -> Vec<(Stroke, String)> {
+        let mut out: Vec<(Stroke, String)> = defaults().into_iter().map(|(s, id)| (s, id.to_string())).collect();
+        for (s, id) in &self.user_keymap {
+            out.retain(|(o, _)| !(o.0.matches_exact(s.0) && o.1 == s.1));
+            out.push((*s, id.clone()));
+        }
+        out
+    }
+
+    /// The keystroke a menu shows for a command: the last one bound to it in the final keymap, or
+    /// nothing (menu-manager.js:55-62; menu-helpers.js:111-150).
+    pub fn accel(&self, id: &str) -> String {
+        self.keymap().into_iter().rev().find(|(_, c)| c == id).map(|(s, _)| stroke_label(s, cfg!(target_os = "macos"))).unwrap_or_default()
+    }
+
+    /// A menu button with the command's keystroke on its right.
+    pub fn key_button(&self, name: &str, id: &str) -> egui::Button<'static> {
+        egui::Button::new(name.to_string()).shortcut_text(self.accel(id))
+    }
+
+    /// A check item's text: the name, then the command's keystroke.
+    pub fn key_text(&self, name: &str, id: &str) -> String {
+        let a = self.accel(id);
+        if a.is_empty() {
+            name.to_string()
+        } else {
+            format!("{name}    {a}")
+        }
+    }
+
     /// Load `keymap.json` next to the preferences, when there is one.
     pub fn load_user_keymap(&mut self, dir: &Path) {
         let path = dir.join("keymap.json");
@@ -90,13 +207,17 @@ impl App {
         }
     }
 
-    /// Run the user's bindings first, consuming the keys they use (exact modifiers only).
-    pub fn user_shortcuts(&mut self, ctx: &egui::Context) {
+    /// Run the user's bindings first, consuming the keys they use (exact modifiers only). While a
+    /// text field has the keys, its edit keys are left to it.
+    pub fn user_shortcuts(&mut self, ctx: &egui::Context, typing: bool) {
         if self.user_keymap.is_empty() {
             return;
         }
         let bindings = self.user_keymap.clone();
         for ((mods, key), cmd) in bindings {
+            if typing && is_edit_key(mods, key) {
+                continue;
+            }
             let hit = ctx.input_mut(|i| {
                 let n = i.events.len();
                 i.events.retain(|e| !matches!(e, egui::Event::Key { key: k, pressed: true, modifiers, .. } if *k == key && modifiers.matches_exact(mods)));

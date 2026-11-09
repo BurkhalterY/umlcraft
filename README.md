@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>UML modeling; an open-source, clean-room reimplementation of StarUML, rebuilt in pure Rust.</b><br>
-  Class and use case diagrams, a model explorer, a property editor and real <code>.mdj</code> files,<br>
+  UML, SysML, BPMN, ER, C4 and cloud diagrams, a model explorer, a property editor and real <code>.mdj</code> files,<br>
   in a native app written entirely in Rust. Open source, offline, and yours.
 </p>
 
@@ -91,7 +91,7 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
       <h3>Use case diagrams</h3>
       Actors, use cases, use case subjects and packages, with associations, generalizations, dependencies, includes and extends. Boundaries stay behind what they contain and carry it along when you move them.
       <br><br>
-      Sequence diagrams (lifelines, every kind of message, activations), composite structure diagrams (ports, parts, connectors), statechart diagrams (states, pseudostates, transitions), activity diagrams (actions, control and object nodes, regions, flows), ER diagrams (entities, columns and crow's-foot relationships), communication diagrams (lifelines, connectors, messages), timing diagrams, interaction overview diagrams, flowcharts (all 27 symbols and flows), data flow diagrams, mind maps, C4 diagrams and wireframes (frames and every widget) are editable too. Every other diagram kind in a StarUML file (BPMN, SysML, cloud architecture and more) opens, is drawn from its saved shapes, and is saved back exactly as it was.
+      Sequence diagrams (lifelines, every kind of message, activations), composite structure diagrams (ports, parts, connectors), statechart diagrams (states, pseudostates, transitions), activity diagrams (actions, control and object nodes, regions, flows), ER diagrams (entities, columns and crow's-foot relationships), communication diagrams (lifelines, connectors, messages), timing diagrams, interaction overview diagrams, flowcharts (all 27 symbols and flows), data flow diagrams, mind maps, C4 diagrams, wireframes (frames and every widget), BPMN diagrams (pools and lanes, every activity, event, gateway and data element, messages, choreographies and conversations), SysML requirement, block definition, internal block and parametric diagrams (requirements and their traces, blocks with their compartments, parts, ports, connectors and item flows, constraint properties and parameters) and AWS, Azure and GCP architecture diagrams (with the icons read from a folder you choose, as they are not bundled) are editable too. Any diagram kind UMLCraft does not know opens, is drawn from its saved shapes, and is saved back exactly as it was.
     </td>
   </tr>
 </table>
@@ -109,8 +109,8 @@ Every screenshot here is the real app, rendered with its <code>--screenshot</cod
 | **Find and check** | Quick Find (Ctrl+P), Model › Find (Ctrl+F), a Command Palette (Ctrl+Shift+P), Select In Diagram (Ctrl+D), and StarUML's UML and core validation rules with a results panel |
 | **Views** | Working Diagrams remembered per file, Next/Previous Diagram, zoom from 10% to 300% around the screen centre, fit to window, a live mini-map, diagram thumbnails, every panel on Ctrl+1 to Ctrl+6 and resizable by dragging its edge, dark and light themes, your own shortcuts in `keymap.json`, Preferences for the grid and the style of new views |
 | **History** | Undo and redo for every change, the last 100 kept (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) |
-| **Export** | PNG, JPEG and SVG of one diagram or of every diagram into a folder, drawn off-screen with the original's 10-pixel margin; Print to PDF, one diagram per page, in any of 50 page sizes; HTML docs of the whole model; XMI 2.1 and model fragments (`.mfj`) in and out; new projects from the UML templates, with the UML Standard Profile |
-| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj`, `umlcraft image model.mdj -f png\|jpeg\|svg -s <selector> -o <file>` , `umlcraft pdf model.mdj -z A4 -l landscape -o out.pdf` and `umlcraft html model.mdj -o docs` to export without a window |
+| **Export** | PNG, JPEG and SVG of one diagram or of every diagram into a folder, drawn off-screen with the original's 10-pixel margin; Print to PDF, one diagram per page in vector shapes with embedded fonts, in any of 50 page sizes; HTML docs of the whole model; XMI 2.1 and model fragments (`.mfj`) in and out; new projects from the UML templates, with the UML Standard Profile |
+| **Command line** | `umlcraft model.mdj`, `--diagram <name>`, `--select <name>`, `--screenshot out.png`, `--resave in.mdj out.mdj`, `umlcraft image model.mdj -f png\|jpeg\|svg -s <selector> -o <file>` , `umlcraft pdf model.mdj -z A4 -l landscape -o out.pdf` and `umlcraft html model.mdj -o docs` to export without a window; `umlcraft ejs model.mdj -t template.ejs -s <selector> -o <file>` to generate code or text from EJS templates; `umlcraft exec model.mdj -c <command> -a <arg>` to run commands (including the factory commands that create diagrams, elements and views) and save; `umlcraft mcp [model.mdj]` to let AI tools such as Claude Desktop draw and read diagrams over the Model Context Protocol |
 
 ## .mdj without compromise
 
@@ -126,34 +126,46 @@ UMLCraft keeps a project as the very JSON objects the file contains, so it under
 |---|---|
 | Window, widgets and drawing | [egui](https://github.com/emilk/egui) through eframe, rendered with OpenGL (glow) |
 | `.mdj` reading and writing | [serde_json](https://github.com/serde-rs/json) with preserved key order |
+| StarUML 1 `.uml` import | [roxmltree](https://github.com/RazrFalcon/roxmltree) |
 | File dialogs | [rfd](https://github.com/PolyMeilex/rfd) (GTK on Linux and FreeBSD, native elsewhere) |
 | PNG pictures | [image](https://github.com/image-rs/image) |
 | Diagram text | the system's Arial, or Liberation Sans, which has the same metrics |
 
 | File | What it does |
 |---|---|
-| `src/model.rs`, `src/meta.rs` | The project and the `.mdj` element kinds, fields and defaults |
+| `src/model.rs`, `src/meta.rs` | The project and the `.mdj` element kinds, fields and defaults, and the attributes the Properties editor shows for each kind |
 | `src/views.rs`, `src/render.rs`, `src/export.rs` | Laying out and drawing boxes, labels and lines, on screen and into PNG, JPEG and SVG |
 | `src/layout.rs`, `src/generate.rs` | Format › Layout (the layered automatic layout) and Tools › Diagram Generator |
-| `src/mermaid.rs`, `src/mermaid_kinds.rs` | Tools › Generate Diagram by Mermaid: class diagrams, flowcharts, ER diagrams, mind maps and state diagrams from Mermaid code |
-| `src/sequence.rs`, `src/communication.rs`, `src/timing.rs`, `src/overview.rs`, `src/flowchart.rs`, `src/notations.rs`, `src/erd.rs`, `src/c4.rs`, `src/wireframe.rs` | Sequence, communication and timing diagrams, interaction overview diagrams, flowcharts, data flow diagrams and mind maps, ER diagrams, C4 diagrams and wireframes: their views, layout and drawing |
+| `src/mermaid.rs`, `src/mermaid_kinds.rs`, `src/mermaid_sequence.rs` | Tools › Generate Diagram by Mermaid: class, sequence, state, ER, requirement and mind map diagrams and flowcharts from Mermaid code |
+| `src/sequence.rs`, `src/communication.rs`, `src/timing.rs`, `src/overview.rs`, `src/flowchart.rs`, `src/notations.rs`, `src/erd.rs`, `src/c4.rs`, `src/wireframe.rs`, `src/aws.rs`, `src/azure.rs`, `src/gcp.rs` | Sequence, communication and timing diagrams, interaction overview diagrams, flowcharts, data flow diagrams and mind maps, ER diagrams, C4 diagrams, wireframes and AWS, Azure and GCP architecture diagrams: their views, layout and drawing |
+| `src/cloud.rs` | What the cloud architecture diagrams share: their boxes, the icons read from the Cloud Icon Folder preference (or placeholders), and the Icon Picker |
+| `src/bpmn.rs`, `src/bpmn_draw.rs` | BPMN diagrams: the kinds, the tools, containment and the quick edit commands; the layout, shapes, marks, line ends and icons |
+| `src/sysml.rs` | SysML requirement, block definition, internal block and parametric diagrams, the viewpoints and the Format › Suppress toggles |
+| `src/codegen/` | Tools › Java, C++, C#, C, Python, PHP, TypeScript, JavaScript, Rust, Go, Ruby, Kotlin, Dart, Swift and DDL: one dialog per language that generates source files from the model (`mod.rs`, one file per language) and reverses source folders into it with small tolerant readers (`lex.rs`) |
 | `src/html.rs` | File › Export › HTML Docs: one page per element, an SVG and image map per diagram |
 | `src/xmi.rs` | File › Export › XMI Export and File › Import › XMI Import (v2.1): the model elements as OMG XMI 2.1, without diagrams, and a small XML reader |
-| `src/markdown.rs` | View › Markdown Documentation: the editor and a small Markdown preview |
+| `src/markdown.rs` | View › Markdown Documentation: the editor with Markdown colours, a GitHub Flavored Markdown preview (pulldown-cmark), and the Markdown reading shared with the HTML docs |
 | `src/thumbs.rs` | View › Diagram Thumbnails |
 | `src/relview.rs` | View › Relationships: the relationships of the selected element |
 | `src/input.rs` | The input dialog (Working Diagrams › Rename) |
+| `src/dialogs.rs` | Modal dialogs, the native Information, Alert, Confirmation and error boxes, and the Element List Picker |
 | `src/api.rs` | The local HTTP API on port 58321 (diagram list, images, Mermaid generation) |
+| `src/mcp.rs` | `umlcraft mcp`: a Model Context Protocol server on stdio for AI tools, through the HTTP API or on a file |
+| `src/ejs.rs`, `src/js.rs`, `src/jsregex.rs` | `umlcraft ejs`: EJS templates, the JavaScript subset their code runs in, and its regular expressions |
+| `src/exec.rs` | `umlcraft exec`: the commands it runs, with the scriptable factory and engine commands |
 | `src/keymap.rs` | The user's `keymap.json`: keystrokes bound to command ids |
 | `src/fragment.rs` | File › Import / Export › Fragment: `.mfj` files |
 | `src/templates.rs` | File › New From Template: the UML templates |
 | `src/picker.rs` | The Element Picker ("Select Element") and the name lookup of type and stereotype fields |
 | `src/picture.rs` | Pictures of Image views: files read into data URLs with their natural size, and decoded for drawing |
-| `src/pdf.rs` | Print to PDF: the dialog, its remembered options and a small PDF writer |
-| `src/canvas.rs`, `src/parse.rs`, `src/align.rs`, `src/clipboard.rs`, `src/style.rs`, `src/related.rs` | The diagram canvas, the typed attribute and operation lines, Format › Alignment, cut, copy and paste, view colours, and the inline edit's "add related element" buttons |
+| `src/pdf.rs`, `src/pdf_font.rs` | Print to PDF: the dialog, its remembered options, and a small PDF writer that draws diagrams as vector shapes with embedded font subsets |
+| `src/canvas.rs`, `src/parse.rs`, `src/align.rs`, `src/clipboard.rs`, `src/style.rs`, `src/related.rs`, `src/quickedit.rs` | The diagram canvas, the typed attribute and operation lines, Format › Alignment, cut, copy and paste, view colours, the inline edit's "add related element" buttons, and where its dropdowns and buttons sit around the field |
+| `src/colorvars.rs` | StarUML 8's colour variables (`$background`, `$blue9`…) drawn in theme colours, the Convert / Keep Colors question and File › Export › StarUML V7 |
 | `src/splitter.rs` | Panel splitters: drag a panel's edge to resize it, or below 10 px to hide it |
-| `src/main.rs`, `src/cli.rs`, `src/selector.rs` | Start-up, the window, and the command line (`umlcraft image`, `pdf`, `html`, `--help`) with the element selector language |
+| `src/main.rs`, `src/cli.rs`, `src/selector.rs` | Start-up, the window, and the command line (`umlcraft ejs`, `image`, `pdf`, `html`, `exec`, `--help`) with the element selector language |
+| `src/window.rs`, `src/fonts.rs` | The application shell (one window per project, start-up order, splash screen, macOS title bar, close prompt) and the diagram font faces (system and user fonts, CJK fallbacks) |
 | `src/app.rs`, `src/ui.rs`, `src/icons.rs`, `src/prefs.rs`, `src/tags.rs`, `src/palette.rs`, `src/find.rs`, `src/validate.rs` | Project state, undo, open and save, and the panels, menus and icons |
+| `src/staruml_v1.rs` | File › Import › StarUML 1 File: reading old `.uml` projects into the current model |
 | `src/tests.rs` | Round-trips of StarUML files, editing, saving and keyboard shortcuts |
 | `packaging/`, `.github/workflows/release.yml` | Installers for every system and the workflow that builds them |
 
@@ -171,7 +183,7 @@ cargo test --release
 On Linux, install the GTK 3, xkbcommon and OpenGL development packages first (on Debian and Ubuntu: `libgtk-3-dev libxkbcommon-dev libgl1-mesa-dev`).
 
 > [!IMPORTANT]
-> **Status:** UMLCraft is in early alpha. Class, package, object, use case, information flow, profile, component and deployment diagrams are editable; other diagram kinds open, show and save but cannot be edited yet. On macOS, double-clicking a `.mdj` file starts UMLCraft but does not open the file yet; use File › Open. Please file issues with your system and a screenshot.
+> **Status:** UMLCraft is in early alpha. Every StarUML diagram kind is editable: UML, ER, flowchart, data flow, mind map, C4, SysML, BPMN, wireframe and AWS, Azure and GCP architecture diagrams. On macOS, double-clicking a `.mdj` file starts UMLCraft but does not open the file yet; use File › Open. Please file issues with your system and a screenshot.
 
 ## Downloads
 

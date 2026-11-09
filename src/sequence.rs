@@ -356,6 +356,21 @@ pub fn layout(r: &mut Repo, ms: &dyn Measure, d: Eid) {
 /// (UMLSeqLifelineView.sizeAsCanonicalForm and arrangeAsCanonicalForm, elements.js:11230-11270).
 pub fn layout_lifeline(r: &mut Repo, ms: &dyn Measure, v: Eid) {
     let Some(m) = r.refd(v, "model").filter(|m| r.alive(*m)) else { return };
+    if actor_icon(r, v) {
+        // the iconic form: the actor in the top 40 px, the name under it, then the line
+        // (sizeAsIconicForm and arrangeAsIconicForm, elements.js:11247-11251, 11293-11311)
+        let min_w = views::name_min_width(r, ms, v, m, None, false).max(ICON_MIN);
+        let w = r.f(v, "width").max(min_w);
+        r.set(v, "width", json!(w));
+        let (x, y) = (r.f(v, "left"), r.f(v, "top"));
+        let nh = views::layout_name(r, ms, v, m, x, y + HEAD_H, w, None, false);
+        if let Some(nm) = r.refd(v, "nameCompartment").and_then(|nc| r.refd(nc, "nameLabel")) {
+            r.set(nm, "underline", json!(false));
+        }
+        let h = r.f(v, "height").max(HEAD_H + nh + LINE_MIN_H);
+        r.set(v, "height", json!(h));
+        return;
+    }
     let min_w = views::name_min_width(r, ms, v, m, None, false).max(HEAD_MIN_W);
     let w = r.f(v, "width").max(min_w);
     r.set(v, "width", json!(w));
@@ -378,6 +393,67 @@ pub fn layout_lifeline(r: &mut Repo, ms: &dyn Measure, v: Eid) {
     r.set(v, "height", json!(h));
 }
 
+const ICON_MIN: f64 = 24.0; // ICONICVIEW_ICONMINWIDTH (elements.js:73-74)
+
+/// What a lifeline in icon display draws above its name.
+#[derive(Clone, Debug, PartialEq)]
+pub enum LifelineIcon {
+    /// The actor's stick figure.
+    Actor,
+    /// An icon script or picture with its natural size.
+    Icon(views::StereotypeIcon, f64, f64),
+}
+
+/// The node icon: a box with depth, in the node's 45 × 45 (UMLNodeViewMixin.drawIcon, elements.js:8032-8070).
+const NODE_ICON: &str = "!icon 45 45\nfp 0 10 34 10 34 44 0 44\nfp 0 10 10 0 44 0 34 10\nfp 44 0 34 10 34 44 44 34\npg 0 10 34 10 34 44 0 44\npg 0 10 10 0 44 0 34 10\npg 44 0 34 10 34 44 44 34";
+/// The use case ellipse, 70 × 32 (USECASE_ICON_MINWIDTH/HEIGHT, elements.js:96-99).
+const USECASE_ICON: &str = "!icon 70 32\nfe 0 0 70 32\ne 0 0 70 32";
+/// The interface ball (drawBallNotation, elements.js:6060-6063).
+const BALL_ICON: &str = "!icon 100 100\nfe 0 0 100 100\ne 0 0 100 100";
+
+/// The icon of a lifeline in icon display (Icon or Icon with Label): its own stereotype's icon, else
+/// the icon of its role's type: an actor, a use case, an interface's ball, an artifact, a component,
+/// a node, or the type's stereotype icon. Other types keep the box (UMLSeqLifelineView.drawIcon,
+/// elements.js:11112-11206).
+pub fn lifeline_icon(r: &Repo, v: Eid) -> Option<LifelineIcon> {
+    if !matches!(r.str(v, "stereotypeDisplay").as_str(), "icon" | "icon-label") {
+        return None;
+    }
+    let m = r.refd(v, "model")?;
+    if let Some((i, w, h)) = views::stereotype_icon(r, m) {
+        return Some(LifelineIcon::Icon(i, w, h));
+    }
+    let t = r.refd(m, "represent").and_then(|a| r.refd(a, "type"))?;
+    let script = |s: &str, w: f64, h: f64| Some(LifelineIcon::Icon(views::StereotypeIcon::Script(s.to_string()), w, h));
+    if r.kind_of(t, "UMLActor") {
+        Some(LifelineIcon::Actor)
+    } else if r.kind_of(t, "UMLUseCase") {
+        script(USECASE_ICON, 70.0, 32.0)
+    } else if r.kind_of(t, "UMLInterface") {
+        script(BALL_ICON, 100.0, 100.0)
+    } else if r.kind_of(t, "UMLArtifact") {
+        views::kind_icon("UMLArtifactView", "icon").map(|(i, w, h)| LifelineIcon::Icon(i, w, h))
+    } else if r.kind_of(t, "UMLComponent") {
+        views::kind_icon("UMLComponentView", "icon").map(|(i, w, h)| LifelineIcon::Icon(i, w, h))
+    } else if r.kind_of(t, "UMLNode") {
+        script(NODE_ICON, 45.0, 45.0)
+    } else {
+        views::stereotype_icon(r, t).map(|(i, w, h)| LifelineIcon::Icon(i, w, h))
+    }
+}
+
+/// Whether a lifeline shows as an icon rather than a box.
+pub fn actor_icon(r: &Repo, v: Eid) -> bool {
+    lifeline_icon(r, v).is_some()
+}
+
+/// Whether a classifier dropped on a sequence diagram gets a lifeline in icon display: an actor, a use
+/// case, an interface, an artifact, a component, a node, or anything with a stereotype icon
+/// (viewForSequenceDiagramFn, uml-factory.js:2788-2799).
+pub fn shown_as_icon(r: &Repo, m: Eid) -> bool {
+    ["UMLActor", "UMLUseCase", "UMLInterface", "UMLArtifact", "UMLComponent", "UMLNode"].iter().any(|k| r.kind_of(m, k)) || views::stereotype_icon(r, m).is_some()
+}
+
 /// Draw a lifeline: its head (a second one behind for a multi-instance lifeline, a bar each side for
 /// an active class), its name and its dashed line (drawAsCanonicalForm and UMLLinePartView.drawObject,
 /// elements.js:11085-11092, 11310-11360).
@@ -386,6 +462,20 @@ pub fn draw_lifeline(c: &mut dyn Canvas, r: &Repo, v: Eid, fill: Rgba, line: Rgb
     let hb = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "top") + r.f(nc, "height")).unwrap_or(b.y + HEAD_H);
     let head = R { x: b.x, y: b.y, w: b.w, h: hb - b.y };
     let m = r.refd(v, "model");
+    if let Some(icon) = lifeline_icon(r, v) {
+        // the icon, as wide as its ratio allows in the top 40 px (computeIconRect)
+        let area = R { x: b.x, y: b.y, w: b.w, h: HEAD_H };
+        match icon {
+            LifelineIcon::Actor => crate::render::draw_stick_figure(c, crate::render::fit_ratio(area, views::ACTOR_ICON_W, views::ACTOR_ICON_H), fill, line),
+            LifelineIcon::Icon(i, w, h) => crate::render::draw_stereotype_icon(c, crate::render::fit_ratio(area, w.max(1.0), h.max(1.0)), &i, line, fill),
+        }
+        if let Some(lp) = r.refd(v, "linePart") {
+            let lb = rect(r, lp);
+            let cx = lb.x + lb.w / 2.0;
+            crate::render::dashes(c, &[P { x: cx, y: lb.y }, P { x: cx, y: lb.y + lb.h }], line, 3.0, 3.0);
+        }
+        return;
+    }
     let pts = |b: R| vec![P { x: b.x, y: b.y }, P { x: b.x + b.w, y: b.y }, P { x: b.x + b.w, y: b.y + b.h }, P { x: b.x, y: b.y + b.h }];
     if r.bool(v, "showShadow") {
         let s = Rgba(crate::render::SHADOW_COLOR.0, crate::render::SHADOW_COLOR.1, crate::render::SHADOW_COLOR.2, (255.0 * crate::render::SHADOW_ALPHA) as u8);
@@ -449,6 +539,14 @@ pub fn create_fragment_view(r: &mut Repo, diagram: Eid, model: Eid, rect: R) -> 
     let oc = r.create("UMLInteractionOperandCompartmentView", &[("model", r.ref_to(model)), ("font", json!(views::FONT)), ("parentStyle", json!(true))], Some((v, "subViews")));
     r.set_ref(v, "operandCompartment", Some(oc));
     v
+}
+
+/// An operand's view in a fragment's operand compartment, `h` high, with its guard label.
+pub fn create_operand_view(r: &mut Repo, compartment: Eid, operand: Eid, h: f64) -> Eid {
+    let ov = r.create("UMLInteractionOperandView", &[("model", r.ref_to(operand)), ("font", json!(views::FONT)), ("parentStyle", json!(true)), ("height", json!(h))], Some((compartment, "subViews")));
+    let gl = label(r, ov, operand);
+    r.set_ref(ov, "guardLabel", Some(gl));
+    ov
 }
 
 /// A continuation's or an interaction use's view (UMLContinuationView, UMLInteractionUseView,
@@ -567,12 +665,7 @@ pub fn layout_fragment(r: &mut Repo, ms: &dyn Measure, v: Eid) {
                 for &o in &operands {
                     let ov = match old.iter().copied().find(|x| r.refd(*x, "model") == Some(o)) {
                         Some(ov) => ov,
-                        None => {
-                            let ov = r.create("UMLInteractionOperandView", &[("model", r.ref_to(o)), ("font", json!(views::FONT)), ("parentStyle", json!(true)), ("height", json!(OPERAND_MIN_H))], Some((oc, "subViews")));
-                            let gl = label(r, ov, o);
-                            r.set_ref(ov, "guardLabel", Some(gl));
-                            ov
-                        }
+                        None => create_operand_view(r, oc, o, OPERAND_MIN_H),
                     };
                     views_.push(ov);
                 }

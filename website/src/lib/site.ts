@@ -13,7 +13,7 @@ export const APP = {
   /** [before, accent, after]: the accent word is set in the serif italic, in the app colour. */
   headline: ["The UML modeler you already ", "know", " how to use."] as const,
   pitch: "The open-source UML modeler you already know how to use.",
-  lede: "Class and use case diagrams, a model explorer, a property editor and real .mdj files, in a native app written entirely in Rust. Open source, offline, and yours.",
+  lede: "UML, SysML, BPMN, ER, C4 and cloud diagrams, a model explorer, a property editor and real .mdj files, in a native app written entirely in Rust. Open source, offline, and yours.",
   platforms: ["macOS", "Windows", "Linux", "FreeBSD"] as const,
 };
 

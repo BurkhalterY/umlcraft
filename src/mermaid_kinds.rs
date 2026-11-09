@@ -61,7 +61,7 @@ pub const STATE_SAMPLE: &str = "stateDiagram-v2
 /// Mermaid's direction, read the way StarUML lays it out: its layout puts the head of a line above
 /// its tail, so the directions of flowcharts, ER and state diagrams are reversed (utils.js
 /// reverseDirection), while class diagrams and mind maps keep theirs.
-fn dir(d: &str, reverse: bool) -> Dir {
+pub(crate) fn dir(d: &str, reverse: bool) -> Dir {
     let d = match (d, reverse) {
         ("TB" | "TD", true) => "BT",
         ("BT", true) => "TB",
@@ -77,11 +77,11 @@ fn dir(d: &str, reverse: bool) -> Dir {
     }
 }
 
-fn lines(code: &str) -> Vec<String> {
+pub(crate) fn lines(code: &str) -> Vec<String> {
     code.lines().map(|l| l.split("%%").next().unwrap_or("").trim_end().to_string()).collect()
 }
 
-fn unquote(s: &str) -> String {
+pub(crate) fn unquote(s: &str) -> String {
     let s = s.trim();
     s.strip_prefix('"').and_then(|x| x.strip_suffix('"')).unwrap_or(s).to_string()
 }
@@ -582,12 +582,18 @@ pub fn parse_state(code: &str) -> Result<StateDiagram, String> {
 impl App {
     /// The element the generated diagram goes in: the focused element when `ok` accepts it, else the
     /// project.
-    fn mermaid_base(&self, ok: impl Fn(&App, Eid) -> bool) -> Eid {
-        self.focus.filter(|f| self.repo.alive(*f) && !self.is_diagram(*f) && ok(self, *f)).unwrap_or(self.repo.root)
+    /// The element a generated diagram goes in: the project when no base is given, else the base if
+    /// the kind accepts it (the factories' "prepare base model" steps).
+    pub(crate) fn mermaid_base(&self, base: Option<Eid>, ty: &str) -> Result<Eid, String> {
+        match base {
+            None => Ok(self.repo.root),
+            Some(b) if crate::mermaid::base_ok(self, ty, b) => Ok(b),
+            Some(_) => Err(crate::mermaid::base_error(ty).into()),
+        }
     }
 
     /// Lay the new diagram out with Mermaid's separations (50 each) and keep it as one undo step.
-    fn finish_mermaid(&mut self, d: Eid, undo: usize, direction: Dir, ms: &dyn Measure) -> Eid {
+    pub(crate) fn finish_mermaid(&mut self, d: Eid, undo: usize, direction: Dir, ms: &dyn Measure) -> Eid {
         self.open_diagram(d);
         self.info = views::layout_diagram(&mut self.repo, ms, d);
         self.layout_diagram_with(direction, Seps { node: 50.0, edge: 50.0, rank: 50.0 });
@@ -599,9 +605,9 @@ impl App {
 
     /// A Mermaid flowchart: an FCFlowchart "Flowchart by Mermaid" with its diagram, a node per vertex
     /// and a flow per link, owned by its source (createFlowchart, flowchart-factory.js:16-75).
-    pub fn generate_flowchart(&mut self, code: &str, ms: &dyn Measure) -> Result<Eid, String> {
+    pub fn generate_flowchart(&mut self, code: &str, base: Option<Eid>, ms: &dyn Measure) -> Result<Eid, String> {
         let fc = parse_flowchart(code)?;
-        let base = self.mermaid_base(|a, f| a.repo.kind_of(f, "ExtensibleModel"));
+        let base = self.mermaid_base(base, "flowchart")?;
         let undo = self.undo.len();
         let d = self.change(|a| {
             let model = a.repo.create("FCFlowchart", &[("name", json!("Flowchart by Mermaid"))], Some((base, "ownedElements")));
@@ -633,9 +639,9 @@ impl App {
     /// and relationships owned by their first entity (createErDiagram, er-factory.js:15-160).
     /// UMLCraft reads "--" as identifying and ".." as not; the original compares an object with a
     /// string there and so makes every relationship non-identifying (er-factory.js:46).
-    pub fn generate_er(&mut self, code: &str, ms: &dyn Measure) -> Result<Eid, String> {
+    pub fn generate_er(&mut self, code: &str, base: Option<Eid>, ms: &dyn Measure) -> Result<Eid, String> {
         let er = parse_er(code)?;
-        let base = self.mermaid_base(|a, f| a.repo.kind_of(f, "UMLPackage"));
+        let base = self.mermaid_base(base, "er")?;
         let undo = self.undo.len();
         let d = self.change(|a| {
             let model = a.repo.create("ERDDataModel", &[("name", json!("Data Model by Mermaid"))], Some((base, "ownedElements")));
@@ -682,9 +688,9 @@ impl App {
 
     /// A Mermaid mind map: an MMMindmap "Mindmap by Mermaid", a node per line and an edge from each
     /// child to its parent (createMindmap, mindmap-factory.js:20-110).
-    pub fn generate_mindmap(&mut self, code: &str, ms: &dyn Measure) -> Result<Eid, String> {
+    pub fn generate_mindmap(&mut self, code: &str, base: Option<Eid>, ms: &dyn Measure) -> Result<Eid, String> {
         let root = parse_mindmap(code)?;
-        let base = self.mermaid_base(|a, f| a.repo.kind_of(f, "ExtensibleModel"));
+        let base = self.mermaid_base(base, "mindmap")?;
         let undo = self.undo.len();
         let d = self.change(|a| {
             let model = a.repo.create("MMMindmap", &[("name", json!("Mindmap by Mermaid"))], Some((base, "ownedElements")));
@@ -715,9 +721,9 @@ impl App {
     /// A Mermaid state diagram: a UMLStateMachine "Statemachine by Mermaid" with a region and its
     /// statechart, states and pseudostates, transitions in the region, and notes linked to their
     /// states (createStateDiagram, state-factory.js:15-130).
-    pub fn generate_state(&mut self, code: &str, ms: &dyn Measure) -> Result<Eid, String> {
+    pub fn generate_state(&mut self, code: &str, base: Option<Eid>, ms: &dyn Measure) -> Result<Eid, String> {
         let sd = parse_state(code)?;
-        let base = self.mermaid_base(|a, f| a.repo.kind_of(f, "UMLPackage") || a.repo.kind_of(f, "UMLClassifier") || a.repo.ty(f) == "UMLOperation");
+        let base = self.mermaid_base(base, "state")?;
         let undo = self.undo.len();
         let d = self.change(|a| {
             let sm = a.repo.create("UMLStateMachine", &[("name", json!("Statemachine by Mermaid"))], Some((base, "ownedElements")));

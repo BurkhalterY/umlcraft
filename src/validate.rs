@@ -401,11 +401,41 @@ fn behaviour_rules(r: &Repo, all: &[Eid]) -> Vec<Problem> {
 }
 
 impl App {
-    /// Validate now, when the preference is on (after open and save, validation-panel.js:43-47).
+    /// Validate, when the preference is on (after open and save, validation-panel.js:43-47). With a
+    /// window it runs on a thread over a copy of the model, as the original sends the file to its main
+    /// process (application.js:316-320), and the results arrive through `poll_validation`; without
+    /// one (command line, tests) it runs at once.
     pub fn auto_validate(&mut self) {
-        if self.pref("validation.validateModel").as_bool().unwrap_or(true) {
+        if !self.pref("validation.validateModel").as_bool().unwrap_or(true) {
+            return;
+        }
+        let Some(ctx) = self.validate_in_background.clone() else {
             self.problems = validate(&self.repo);
             self.validated = true;
+            return;
+        };
+        let repo = self.repo.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            if tx.send(validate(&repo)).is_ok() {
+                ctx.request_repaint();
+            }
+        });
+        // a newer validation replaces one still running
+        self.validation_rx = Some(rx);
+    }
+
+    /// Take the results of the background validation when they are ready.
+    pub fn poll_validation(&mut self) {
+        let Some(rx) = &self.validation_rx else { return };
+        match rx.try_recv() {
+            Ok(problems) => {
+                self.problems = problems;
+                self.validated = true;
+                self.validation_rx = None;
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.validation_rx = None,
         }
     }
 

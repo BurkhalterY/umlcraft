@@ -24,9 +24,13 @@ pub const BLACK: Rgba = Rgba(0, 0, 0, 255);
 pub const WHITE: Rgba = Rgba(255, 255, 255, 255);
 
 /// A colour as StarUML writes it: `#rrggbb`, `#rrggbbaa` (the Color dialog's opacity), `#rgb`, or
-/// CSS `rgb(r, g, b)` / `rgba(r, g, b, a)` with `a` from 0 to 1.
+/// CSS `rgb(r, g, b)` / `rgba(r, g, b, a)` with `a` from 0 to 1; or a StarUML 8 colour variable
+/// (`$background`, `$blue9`…) in the colours of the current theme (colorvars.rs).
 pub fn parse_color(s: &str, def: Rgba) -> Rgba {
     let t = s.trim();
+    if t.starts_with('$') {
+        return crate::colorvars::resolve(t, crate::colorvars::dark()).unwrap_or(def);
+    }
     if let Some(h) = t.strip_prefix('#') {
         let n = |i: usize, w: usize| h.get(i..i + w).and_then(|x| u8::from_str_radix(x, 16).ok());
         return match h.len() {
@@ -62,13 +66,25 @@ pub trait Canvas: Measure {
     }
     /// A picture given as a data URL, stretched over the box; surfaces that cannot show one skip it.
     fn image(&mut self, _b: R, _data_url: &str) {}
+    /// A polyline `width` units wide (the original's lineWidth 3 borders); surfaces that cannot set
+    /// a width draw it as lines side by side.
+    fn thick_polyline(&mut self, pts: &[P], color: Rgba, width: f64) {
+        let k = ((width - 1.0) / 2.0).max(0.0);
+        for (dx, dy) in [(0.0, 0.0), (-k, 0.0), (k, 0.0), (0.0, -k), (0.0, k)] {
+            let s: Vec<P> = pts.iter().map(|p| P { x: p.x + dx, y: p.y + dy }).collect();
+            self.polyline(&s, color, false);
+        }
+    }
     fn rect(&mut self, r: R, fill: Option<Rgba>, stroke: Option<Rgba>) {
         let pts = [P { x: r.x, y: r.y }, P { x: r.x + r.w, y: r.y }, P { x: r.x + r.w, y: r.y + r.h }, P { x: r.x, y: r.y + r.h }];
         self.polygon(&pts, fill, stroke);
     }
+    /// The font face of the texts that follow (a view's font face, core.js:1475); surfaces that
+    /// know only one face keep it, and `face()` tells the current one.
+    fn set_face(&mut self, _face: &str) {}
 }
 
-fn color(r: &Repo, v: Eid, key: &str, def: Rgba) -> Rgba {
+pub(crate) fn color(r: &Repo, v: Eid, key: &str, def: Rgba) -> Rgba {
     parse_color(&r.str(v, key), def)
 }
 
@@ -83,7 +99,17 @@ fn shown(r: &Repo, v: Eid) -> bool {
     !matches!(r.raw(v, "visible"), Some(serde_json::Value::Bool(false)) | Some(serde_json::Value::Null))
 }
 
-fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
+/// A compartment item's text colour: the box's while it inherits the box's style, otherwise its
+/// own fontColor (View.setup, core.js:1658-1666).
+pub(crate) fn item_color(r: &Repo, iv: Eid, fc: Rgba) -> Rgba {
+    if views::inherits(r, iv) {
+        fc
+    } else {
+        color(r, iv, "fontColor", BLACK)
+    }
+}
+
+pub(crate) fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
     if !shown(r, lv) {
         return;
     }
@@ -91,23 +117,37 @@ fn draw_label(c: &mut dyn Canvas, r: &Repo, lv: Eid, fc: Rgba) {
     if t.is_empty() {
         return;
     }
+    // a compartment item that does not inherit its box's style keeps its own text colour
+    // (View.setup, core.js:1659-1666)
+    let fc = if views::own_font(r, lv).is_some() { color(r, lv, "fontColor", fc) } else { fc };
     let font = r.str(lv, "font");
+    // a floating label (a line's name, role or multiplicity, a port's name…) first fills its box
+    // with its fill colour, hiding what lies under its text (NodeLabelView.draw and EdgeLabelView.draw,
+    // core.js:3742-3746, 3802-3806)
+    if matches!(r.ty(lv), "EdgeLabelView" | "NodeLabelView") {
+        let lb = R { x: r.f(lv, "left"), y: r.f(lv, "top"), w: r.f(lv, "width"), h: r.f(lv, "height") };
+        c.rect(lb, Some(color(r, lv, "fillColor", WHITE)), None);
+    }
     let b = R { x: r.f(lv, "left"), y: r.f(lv, "top"), w: r.f(lv, "width"), h: r.f(lv, "height").max(13.0) };
     let align = r.val(lv, "horizontalAlignment").and_then(|v| v.as_i64()).unwrap_or(2);
     let (style, size) = (font_style(&font), font_size(&font));
+    // the label's own face, then the host's again
+    let face = font.split(';').next().filter(|f| !f.is_empty()).unwrap_or("Arial").to_string();
+    let host_face = c.face();
+    c.set_face(&face);
     if r.bool(lv, "wordWrap") {
         // one line per row of the label, broken where the layout broke it
-        let face = font.split(';').next().filter(|f| !f.is_empty()).unwrap_or("Arial").to_string();
         let lines = views::wrap_text(&views::Scaled { ms: &*c, face, size }, &t, b.w, style);
         for (i, l) in lines.iter().enumerate() {
             c.text(l, R { y: b.y + i as f64 * size, h: size, ..b }, align, style, size, fc, r.bool(lv, "underline"));
         }
-        return;
+    } else {
+        c.text(&t, b, align, style, size, fc, r.bool(lv, "underline"));
     }
-    c.text(&t, b, align, style, size, fc, r.bool(lv, "underline"));
+    c.set_face(&host_face);
 }
 
-fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid) {
+pub(crate) fn draw_name(c: &mut dyn Canvas, r: &Repo, v: Eid) {
     let Some(nc) = r.refd(v, "nameCompartment") else { return };
     let fc = color(r, v, "fontColor", BLACK);
     for f in ["stereotypeLabel", "nameLabel", "namespaceLabel", "propertyLabel"] {
@@ -147,8 +187,19 @@ pub fn fit_ratio(b: R, w: f64, h: f64) -> R {
 /// Draw an icon script into `b`: `!icon w h` sets its coordinate space, fitted and centred; then
 /// l, r, rr, e, pl, pg and a draw lines, rectangles, rounded rectangles, ellipses, polylines,
 /// polygons and arcs, fr, frr, fe, fp and fa fill them, and %l, %f, %a and %p set the line colour,
-/// the fill colour, the opacity and a dash pattern (graphics.js:2384-2654). %w (line width) is read
-/// but UMLCraft draws one-pixel lines.
+/// the fill colour, the opacity and a dash pattern, and %w the line width in diagram units, not
+/// scaled with the icon (graphics.js:2384-2654).
+/// The actor's stick figure in the box `b`: head, body, arms and legs.
+pub fn draw_stick_figure(c: &mut dyn Canvas, b: R, fill: Rgba, line: Rgba) {
+    let (ix, iy, iw, ih) = (b.x, b.y, b.w, b.h);
+    let head_h = ih * 0.34 - 1.0;
+    c.ellipse(P { x: ix + iw / 2.0, y: iy + 1.0 + head_h / 2.0 }, iw * 0.34, head_h / 2.0, Some(fill), Some(line));
+    let p = |fx: f64, fy: f64| P { x: ix + iw * fx, y: iy + ih * fy };
+    c.polyline(&[p(0.5, 0.34), p(0.5, 0.66)], line, false);
+    c.polyline(&[p(0.14, 0.46), p(0.86, 0.46)], line, false);
+    c.polyline(&[p(0.0, 1.0), p(0.5, 0.66), p(1.0, 1.0)], line, false);
+}
+
 pub fn draw_icon_script(c: &mut dyn Canvas, b: R, script: &str, line0: Rgba, fill0: Rgba) {
     let (mut sw, mut sh) = (100.0, 100.0);
     let mut cmds: Vec<Vec<String>> = vec![];
@@ -173,6 +224,7 @@ pub fn draw_icon_script(c: &mut dyn Canvas, b: R, script: &str, line0: Rgba, fil
     }
     let (ox, oy, s) = (b.x + ((b.w - w) / 2.0).round(), b.y + ((b.h - h) / 2.0).round(), w / sw);
     let (mut line, mut fill, mut alpha, mut pattern): (Rgba, Rgba, f64, Option<(f64, f64)>) = (line0, fill0, 1.0, None);
+    let mut width = 1.0_f64;
     let num = |t: &[String], i: usize| t.get(i).and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0);
     let pt = |x: f64, y: f64| P { x: ox + x * s, y: oy + y * s };
     let with_alpha = |c: Rgba, a: f64| Rgba(c.0, c.1, c.2, (c.3 as f64 * a.clamp(0.0, 1.0)).round() as u8);
@@ -190,7 +242,16 @@ pub fn draw_icon_script(c: &mut dyn Canvas, b: R, script: &str, line0: Rgba, fil
         };
         let ellipse = |rr: R| -> Vec<P> { (0..=48).map(|i| { let a = std::f64::consts::TAU * i as f64 / 48.0; P { x: rr.x + rr.w / 2.0 * (1.0 + a.cos()), y: rr.y + rr.h / 2.0 * (1.0 + a.sin()) } }).collect() };
         let stroke = |c: &mut dyn Canvas, p: &[P]| match pattern {
-            Some((on, off)) => dashes(c, p, l, on, off),
+            Some((on, off)) => {
+                // a wide dashed line: the dashes side by side, as thick_polyline does
+                let k = ((width - 1.0) / 2.0).max(0.0);
+                let offsets: &[(f64, f64)] = if k > 0.0 { &[(0.0, 0.0), (-k, 0.0), (k, 0.0), (0.0, -k), (0.0, k)] } else { &[(0.0, 0.0)] };
+                for (dx, dy) in offsets {
+                    let s: Vec<P> = p.iter().map(|q| P { x: q.x + dx, y: q.y + dy }).collect();
+                    dashes(c, &s, l, on, off);
+                }
+            }
+            None if width > 1.0 => c.thick_polyline(p, l, width),
             None => c.polyline(p, l, false),
         };
         let closed = |p: Vec<P>| -> Vec<P> { let mut p = p; if let Some(&f0) = p.first() { p.push(f0); } p };
@@ -211,6 +272,8 @@ pub fn draw_icon_script(c: &mut dyn Canvas, b: R, script: &str, line0: Rgba, fil
             "%l" => line = t.get(1).map(|x| parse_color(x, line0)).unwrap_or(line0),
             "%f" => fill = t.get(1).map(|x| parse_color(x, BLACK)).unwrap_or(fill0),
             "%a" => alpha = t.get(1).and_then(|x| x.parse().ok()).unwrap_or(1.0),
+            // `cmd.w || 1.0`: no argument, or 0, is one unit (graphics.js:2639-2641)
+            "%w" => width = t.get(1).and_then(|x| x.parse::<f64>().ok()).filter(|w| *w > 0.0).unwrap_or(1.0),
             "%p" => pattern = (t.len() > 1).then(|| (num(&t, 1), if t.len() > 2 { num(&t, 2) } else { num(&t, 1) })),
             _ => {}
         }
@@ -218,7 +281,7 @@ pub fn draw_icon_script(c: &mut dyn Canvas, b: R, script: &str, line0: Rgba, fil
 }
 
 /// A rectangle with corners rounded to radius `rad`, as a polygon (8 steps per corner).
-fn round_rect(b: R, rad: f64) -> Vec<P> {
+pub(crate) fn round_rect(b: R, rad: f64) -> Vec<P> {
     let mut pts = vec![];
     let corners = [(b.x + b.w - rad, b.y + rad, -90.0), (b.x + b.w - rad, b.y + b.h - rad, 0.0), (b.x + rad, b.y + b.h - rad, 90.0), (b.x + rad, b.y + rad, 180.0)];
     for (cx, cy, start) in corners {
@@ -230,7 +293,7 @@ fn round_rect(b: R, rad: f64) -> Vec<P> {
     pts
 }
 
-fn shadow_rect(c: &mut dyn Canvas, r: &Repo, v: Eid, b: R) {
+pub(crate) fn shadow_rect(c: &mut dyn Canvas, r: &Repo, v: Eid, b: R) {
     if r.bool(v, "showShadow") {
         let s = Rgba(SHADOW_COLOR.0, SHADOW_COLOR.1, SHADOW_COLOR.2, (255.0 * SHADOW_ALPHA) as u8);
         c.rect(R { x: b.x + SHADOW_OFFSET, y: b.y + SHADOW_OFFSET, ..b }, Some(s), None);
@@ -292,21 +355,30 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             return;
         }
         "actor" => {
-            let ih = b.h - views::NAME_MIN_H;
+            // the figure above the name; attributes and operations may follow under it
+            let ih = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "top") - b.y).filter(|h| *h > 0.0).unwrap_or(b.h - views::NAME_MIN_H);
             let iw = b.w.min(ih * views::ACTOR_ICON_W / views::ACTOR_ICON_H);
-            let (ix, iy) = (b.x + (b.w - iw) / 2.0, b.y);
-            let head_h = ih * 0.34 - 1.0;
-            c.ellipse(P { x: ix + iw / 2.0, y: iy + 1.0 + head_h / 2.0 }, iw * 0.34, head_h / 2.0, Some(fill), Some(line));
-            let p = |fx: f64, fy: f64| P { x: ix + iw * fx, y: iy + ih * fy };
-            c.polyline(&[p(0.5, 0.34), p(0.5, 0.66)], line, false);
-            c.polyline(&[p(0.14, 0.46), p(0.86, 0.46)], line, false);
-            c.polyline(&[p(0.0, 1.0), p(0.5, 0.66), p(1.0, 1.0)], line, false);
+            draw_stick_figure(c, R { x: b.x + (b.w - iw) / 2.0, y: b.y, w: iw, h: ih }, fill, line);
+            draw_name(c, r, v);
+            for row in info.iter().flat_map(|i| i.compartments.iter()).flat_map(|comp| comp.rows.iter()) {
+                draw_label(c, r, row.iv, item_color(r, row.iv, fc));
+            }
+            return;
+        }
+        "component" => {
+            // the component icon above the name (drawAsIconicForm, elements.js:5107-5120)
+            let ih = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "top") - b.y).filter(|h| *h > 0.0).unwrap_or(b.h - views::NAME_MIN_H);
+            let iw = (ih * views::COMPONENT_ICON_W / views::COMPONENT_ICON_H).min(b.w);
+            let ir = R { x: b.x + (b.w - iw) / 2.0, y: b.y, w: iw, h: ih };
+            if let Some((icon, _, _)) = views::kind_icon("UMLComponentView", "icon") {
+                draw_stereotype_icon(c, ir, &icon, line, fill);
+            }
             draw_name(c, r, v);
             return;
         }
         "artifact" => {
             // a page with a folded corner above the name
-            let ih = b.h - views::NAME_MIN_H;
+            let ih = r.refd(v, "nameCompartment").map(|nc| r.f(nc, "top") - b.y).filter(|h| *h > 0.0).unwrap_or(b.h - views::NAME_MIN_H);
             let pw = (ih * views::ARTIFACT_ICON_W / views::ARTIFACT_ICON_H).min(b.w);
             let (px, py, f) = (b.x + (b.w - pw) / 2.0, b.y, pw * 0.3);
             let page = [P { x: px, y: py }, P { x: px + pw - f, y: py }, P { x: px + pw, y: py + f }, P { x: px + pw, y: py + ih }, P { x: px, y: py + ih }];
@@ -356,7 +428,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
                     let dx = rx * (1.0 - k * k).sqrt();
                     c.polyline(&[P { x: ctr.x - dx, y: comp.y }, P { x: ctr.x + dx, y: comp.y }], line, false);
                     for row in &comp.rows {
-                        draw_label(c, r, row.iv, fc);
+                        draw_label(c, r, row.iv, item_color(r, row.iv, fc));
                     }
                 }
             }
@@ -389,7 +461,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             if let Some(i) = info {
                 for comp in &i.compartments {
                     for row in &comp.rows {
-                        draw_label(c, r, row.iv, fc);
+                        draw_label(c, r, row.iv, item_color(r, row.iv, fc));
                     }
                 }
             }
@@ -611,6 +683,18 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         }
         "c4" => {
             crate::c4::draw(c, r, v, fill, line, fc);
+            return;
+        }
+        "bpmn" => {
+            crate::bpmn_draw::draw(c, r, v, fill, line, fc);
+            return;
+        }
+        "cloud" => {
+            crate::cloud::draw(c, r, v, fill, line, fc);
+            return;
+        }
+        "sysml" => {
+            crate::sysml::draw(c, r, v, fill, line, fc);
             return;
         }
         "erd-entity" => {
@@ -869,7 +953,20 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         return;
     }
     // a box: classifier, subject, or any kind UMLCraft does not draw itself
-    shadow_rect(c, r, v, b);
+    // a component's box form: the box indented by 10 behind two tabs on its left side, and the
+    // compartments right of the tabs (drawAsCanonicalForm, drawShadowAsCanonicalForm, elements.js:7706-7779)
+    let tabs = views::component_box_form(r, v);
+    let b_line = if tabs { R { x: b.x + views::COMPONENT_MARGIN, w: b.w - views::COMPONENT_MARGIN, ..b } } else { b };
+    if tabs {
+        let body = R { x: b.x + views::COMPONENT_INDENT, w: b.w - views::COMPONENT_INDENT, ..b };
+        shadow_rect(c, r, v, body);
+        c.rect(body, Some(fill), Some(line));
+        for ty0 in [7.0, 27.0] {
+            c.rect(R { x: b.x, y: b.y + ty0, w: 20.0, h: 10.0 }, Some(fill), Some(line));
+        }
+    } else {
+        shadow_rect(c, r, v, b);
+    }
     if ty == "UMLNodeView" || ty == "UMLNodeInstanceView" {
         // a node is a box with depth: top and right faces behind the front one (estimated depth)
         let d = NODE_DEPTH;
@@ -878,8 +975,10 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         c.polygon(&top, Some(fill), Some(line));
         c.polygon(&right, Some(fill), Some(line));
     }
-    c.rect(b, Some(fill), Some(line));
-    if ty == "UMLComponentView" || ty == "UMLComponentInstanceView" {
+    if !tabs {
+        c.rect(b, Some(fill), Some(line));
+    }
+    if ty == "UMLComponentInstanceView" {
         // the component icon at the top right: a box with two tabs on its left side
         let (ix, iy) = (b.x + b.w - 22.0, b.y + 6.0);
         c.rect(R { x: ix, y: iy, w: 14.0, h: 16.0 }, Some(fill), Some(line));
@@ -889,7 +988,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
     // stereotype display Decoration (with or without the label): a small icon at the top right, for
     // the stereotypes UMLCraft has icons for (interfaces and the robustness stereotypes)
     let display = r.str(v, "stereotypeDisplay");
-    let profile_icon = r.refd(v, "model").and_then(|m| views::stereotype_icon(r, m)).filter(|_| r.refd(v, "model").map(|m| r.ty(m) != "UMLInterface").unwrap_or(false));
+    let profile_icon = r.refd(v, "model").and_then(|m| views::view_icon(r, v, m)).filter(|_| r.refd(v, "model").map(|m| r.ty(m) != "UMLInterface").unwrap_or(false));
     if let (Some((icon, iw, ih)), true) = (&profile_icon, display == "decoration" || display == "decoration-label") {
         // a profile stereotype's icon in the 24 × 24 box at the top right (drawAsDecorationForm, elements.js:5086-5105)
         let bx = R { x: b.x + b.w - views::PAD - views::DECORATION_ICON, y: b.y + views::PAD, w: views::DECORATION_ICON, h: views::DECORATION_ICON };
@@ -919,7 +1018,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
             }
         }
     }
-    if ty == "UMLArtifactView" || ty == "UMLArtifactInstanceView" {
+    if ty == "UMLArtifactInstanceView" {
         // the artifact icon at the top right: a page with a folded corner
         let (ix, iy, f) = (b.x + b.w - 20.0, b.y + 6.0, 4.0);
         let page = [P { x: ix, y: iy }, P { x: ix + 12.0 - f, y: iy }, P { x: ix + 12.0, y: iy + f }, P { x: ix + 12.0, y: iy + 15.0 }, P { x: ix, y: iy + 15.0 }];
@@ -928,11 +1027,11 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
     }
     if let Some(i) = info {
         for comp in &i.compartments {
-            c.polyline(&[P { x: b.x, y: comp.y }, P { x: b.x + b.w, y: comp.y }], line, false);
+            c.polyline(&[P { x: b_line.x, y: comp.y }, P { x: b_line.x + b_line.w, y: comp.y }], line, false);
         }
         for comp in &i.compartments {
             for row in &comp.rows {
-                draw_label(c, r, row.iv, fc);
+                draw_label(c, r, row.iv, item_color(r, row.iv, fc));
             }
         }
         if i.is_active {
@@ -947,7 +1046,7 @@ fn draw_node(c: &mut dyn Canvas, r: &Repo, v: Eid, info: Option<&Info>) {
         c.polygon(&pts[..4], Some(fill), None);
         c.polyline(&pts, line, true);
         for row in &i.templ.as_ref().unwrap().rows {
-            draw_label(c, r, row.iv, fc);
+            draw_label(c, r, row.iv, item_color(r, row.iv, fc));
         }
     }
     if r.has(v, "nameCompartment") {
@@ -1097,8 +1196,13 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
     if views::is_freeline(r, e) {
         return draw_freeline(c, r, e, &pts);
     }
+    // BPMN lines draw their own patterns and ends (bpmn/elements.js)
+    if crate::bpmn::is_edge_view(r.ty(e)) {
+        return crate::bpmn_draw::draw_edge(c, r, e, &pts);
+    }
     let line = color(r, e, "lineColor", BLACK);
-    let ty = r.ty(e).to_string();
+    // a SysML line is drawn as the UML line it extends
+    let ty = crate::sysml::uml_edge(r.ty(e)).unwrap_or(r.ty(e)).to_string();
     let mut dashed = matches!(
         ty.as_str(),
         "UMLDependencyView" | "UMLRealizationView" | "UMLInterfaceRealizationView" | "UMLIncludeView" | "UMLExtendView" | "UMLNoteLinkView" | "UMLComponentRealizationView" | "UMLDeploymentView" | "UMLAssociationClassLinkView" | "UMLTemplateBindingView" | "UMLConstraintLinkView" | "UMLInformationFlowView" | "UMLLinkObjectLinkView" | "UMLRoleBindingView"
@@ -1127,6 +1231,19 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
         "C4RelationshipView" => {
             head = Some(End::SolidArrow);
             dashed = true;
+        }
+        // an AWS arrow ends in an open arrow head (AWSArrowView, aws/elements.js:650-660)
+        "AWSArrowView" => head = Some(End::Arrow),
+        // an Azure connector ends in a filled arrow head, dotted when dashed (AzureConnectorView,
+        // azure/elements.js:420-445)
+        "AzureConnectorView" => {
+            head = Some(End::SolidArrow);
+            dashed = crate::cloud::edge_dotted(r, e);
+        }
+        // a GCP path ends in a filled arrow head, dotted when optional (GCPPathView, gcp/elements.js:1000-1045)
+        "GCPPathView" => {
+            head = Some(End::SolidArrow);
+            dashed = crate::cloud::edge_dotted(r, e);
         }
         "UMLContainmentView" => head = Some(End::CirclePlus),
         "UMLAssociationView" | "UMLCommunicationPathView" | "UMLLinkView" => {
@@ -1214,6 +1331,7 @@ fn draw_edge(c: &mut dyn Canvas, r: &Repo, e: Eid, info: &HashMap<Eid, Info>) {
             }
         }
     }
+    crate::sysml::draw_item_flows(c, r, e, &pts, line);
     let fc = color(r, e, "fontColor", BLACK);
     for sv in r.list(e, "subViews") {
         if r.kind_of(sv, "LabelView") || r.ty(sv) == "EdgeLabelView" {
@@ -1251,6 +1369,8 @@ pub fn draw_diagram(c: &mut dyn Canvas, r: &Repo, d: Eid, info: &HashMap<Eid, In
         if !r.alive(v) || matches!(r.raw(v, "visible"), Some(serde_json::Value::Bool(false))) {
             continue;
         }
+        // each view's texts in its own font face
+        c.set_face(&views::view_font(r, v).0);
         if is_edge(r, v) {
             draw_edge(c, r, v, info);
         } else if is_node(r, v) {
@@ -1270,46 +1390,41 @@ pub fn handle_points(b: &R) -> [P; 8] {
     ]
 }
 
+/// The box around every shown view of a diagram and all their shown sub-views, at any depth
+/// (Diagram.getBoundingBoxWithChildren, core.js:1842-1854, 4145-4155; the export crops to it,
+/// diagram-export.js:106-128). A label without text is left out, as the original hides those, and
+/// so is a sub-view without a size. An edge counts its points.
 pub fn bounds(r: &Repo, d: Eid) -> Option<R> {
-    let (mut x1, mut y1, mut x2, mut y2) = (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
-    for v in r.list(d, "ownedViews") {
-        if !r.alive(v) {
-            continue;
-        }
-        if !shown(r, v) {
-            continue;
+    let mut acc = (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
+    fn grow(acc: &mut (f64, f64, f64, f64), x1: f64, y1: f64, x2: f64, y2: f64) {
+        acc.0 = acc.0.min(x1);
+        acc.1 = acc.1.min(y1);
+        acc.2 = acc.2.max(x2);
+        acc.3 = acc.3.max(y2);
+    }
+    fn view(r: &Repo, v: Eid, top: bool, acc: &mut (f64, f64, f64, f64)) {
+        if !r.alive(v) || !shown(r, v) {
+            return;
         }
         if is_edge(r, v) {
             for p in points_of(r, v) {
-                x1 = x1.min(p.x);
-                y1 = y1.min(p.y);
-                x2 = x2.max(p.x);
-                y2 = y2.max(p.y);
+                grow(acc, p.x, p.y, p.x, p.y);
             }
-            // its labels, which can sit away from the line (the original counts children too)
-            for l in r.list(v, "subViews") {
-                if shown(r, l) && !r.str(l, "text").is_empty() && r.has(l, "width") {
-                    let b = node_rect(r, l);
-                    x1 = x1.min(b.x);
-                    y1 = y1.min(b.y);
-                    x2 = x2.max(b.x + b.w);
-                    y2 = y2.max(b.y + b.h);
-                }
-            }
-        } else if is_node(r, v) {
-            let mut boxes = vec![node_rect(r, v)];
-            // a template parameter box sticks out of its class
-            if let Some(tc) = r.refd(v, "templateParameterCompartment").filter(|tc| shown(r, *tc) && !r.list(*tc, "subViews").is_empty()) {
-                boxes.push(node_rect(r, tc));
-            }
-            for b in boxes {
-                x1 = x1.min(b.x);
-                y1 = y1.min(b.y);
-                x2 = x2.max(b.x + b.w);
-                y2 = y2.max(b.y + b.h);
+        } else if r.has(v, "width") || r.has(v, "left") {
+            let b = node_rect(r, v);
+            let label = r.ty(v).ends_with("LabelView");
+            if !(label && r.str(v, "text").is_empty()) && (top || b.w > 0.0 || b.h > 0.0) {
+                grow(acc, b.x, b.y, b.x + b.w, b.y + b.h);
             }
         }
+        for sv in r.list(v, "subViews") {
+            view(r, sv, false, acc);
+        }
     }
+    for v in r.list(d, "ownedViews") {
+        view(r, v, true, &mut acc);
+    }
+    let (x1, y1, x2, y2) = acc;
     if x1.is_finite() { Some(R { x: x1, y: y1, w: x2 - x1, h: y2 - y1 }) } else { None }
 }
 
@@ -1317,6 +1432,20 @@ pub fn bounds(r: &Repo, d: Eid) -> Option<R> {
 pub struct Svg<'a> {
     pub out: String,
     pub measure: &'a dyn Measure,
+    /// the font face of the texts being written
+    pub face: String,
+}
+
+impl Svg<'_> {
+    /// The font-family of a text: the view's face first, then the Arial-compatible ones.
+    fn family(&self) -> String {
+        let base = "Arial, Liberation Sans, Arimo, sans-serif";
+        if crate::fonts::is_default(&self.face) {
+            base.into()
+        } else {
+            format!("'{}', {base}", esc(&self.face.replace('\'', "")))
+        }
+    }
 }
 
 fn hex(c: Rgba) -> String {
@@ -1338,11 +1467,20 @@ fn pts_attr(pts: &[P]) -> String {
 
 impl Measure for Svg<'_> {
     fn width(&self, text: &str, style: u8) -> f64 {
-        self.measure.width(text, style)
+        self.measure.width_face(text, style, &self.face)
+    }
+    fn width_face(&self, text: &str, style: u8, face: &str) -> f64 {
+        self.measure.width_face(text, style, face)
+    }
+    fn face(&self) -> String {
+        self.face.clone()
     }
 }
 
 impl Canvas for Svg<'_> {
+    fn set_face(&mut self, face: &str) {
+        self.face = face.to_string();
+    }
     fn image(&mut self, b: R, data_url: &str) {
         self.out += &format!(
             "<image x=\"{:.2}\" y=\"{:.2}\" width=\"{:.2}\" height=\"{:.2}\" preserveAspectRatio=\"none\" href=\"{}\"/>\n",
@@ -1352,6 +1490,9 @@ impl Canvas for Svg<'_> {
     fn polyline(&mut self, pts: &[P], color: Rgba, dashed: bool) {
         let dash = if dashed { format!(" stroke-dasharray=\"{DASH}\"") } else { String::new() };
         self.out += &format!("<polyline points=\"{}\" fill=\"none\"{}{dash}/>\n", pts_attr(pts), paint("stroke", Some(color)));
+    }
+    fn thick_polyline(&mut self, pts: &[P], color: Rgba, width: f64) {
+        self.out += &format!("<polyline points=\"{}\" fill=\"none\" stroke-width=\"{width}\"{}/>\n", pts_attr(pts), paint("stroke", Some(color)));
     }
     fn polygon(&mut self, pts: &[P], fill: Option<Rgba>, stroke: Option<Rgba>) {
         self.out += &format!("<polygon points=\"{}\"{}{}/>\n", pts_attr(pts), paint("fill", fill), paint("stroke", stroke));
@@ -1363,7 +1504,8 @@ impl Canvas for Svg<'_> {
         let (x, y) = (b.x + b.w / 2.0, b.y + b.h / 2.0);
         let weight = if style & 1 != 0 { " font-weight=\"bold\"" } else { "" };
         self.out += &format!(
-            "<text x=\"{x:.2}\" y=\"{y:.2}\" transform=\"rotate(-90 {x:.2} {y:.2})\" font-family=\"Arial, Liberation Sans, Arimo, sans-serif\" font-size=\"{size}\" text-anchor=\"middle\" dominant-baseline=\"central\"{weight}{}>{}</text>\n",
+            "<text x=\"{x:.2}\" y=\"{y:.2}\" transform=\"rotate(-90 {x:.2} {y:.2})\" font-family=\"{}\" font-size=\"{size}\" text-anchor=\"middle\" dominant-baseline=\"central\"{weight}{}>{}</text>\n",
+            self.family(),
             paint("fill", Some(color)),
             esc(t)
         );
@@ -1378,8 +1520,9 @@ impl Canvas for Svg<'_> {
         let italic = if style & 2 != 0 { " font-style=\"italic\"" } else { "" };
         let deco = if underline { " text-decoration=\"underline\"" } else { "" };
         self.out += &format!(
-            "<text x=\"{x:.2}\" y=\"{:.2}\" font-family=\"Arial, Liberation Sans, Arimo, sans-serif\" font-size=\"{size}\" text-anchor=\"{anchor}\" dominant-baseline=\"central\"{weight}{italic}{deco}{}>{}</text>\n",
+            "<text x=\"{x:.2}\" y=\"{:.2}\" font-family=\"{}\" font-size=\"{size}\" text-anchor=\"{anchor}\" dominant-baseline=\"central\"{weight}{italic}{deco}{}>{}</text>\n",
             b.y + b.h / 2.0,
+            self.family(),
             paint("fill", Some(color)),
             esc(t)
         );
@@ -1394,11 +1537,20 @@ pub const PNG_EXTRA: f64 = 30.0;
 /// The diagram as SVG: its bounds grown by BOUNDING_BOX_EXPAND on every side, no background, at
 /// zoom 1, with `extra` more width and height (0 for SVG export, PNG_EXTRA for PNG; diagram-export.js:178).
 pub fn to_svg_sized(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure, extra: f64) -> Option<String> {
+    to_svg_framed(r, d, info, measure, BOUNDING_BOX_EXPAND, extra, None)
+}
+
+/// The diagram as SVG: its bounds grown by `margin` on every side, `extra` more width and height, and
+/// a background rectangle when one is given (the Export Image dialog's Margin and Fill background).
+pub fn to_svg_framed(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure, margin: f64, extra: f64, background: Option<Rgba>) -> Option<String> {
     let b = bounds(r, d)?;
-    let m = BOUNDING_BOX_EXPAND;
+    let m = margin;
     let (x, y) = (b.x - m, b.y - m);
     let (w, h) = (b.w + 2.0 * m + extra, b.h + 2.0 * m + extra);
-    let mut svg = Svg { out: String::new(), measure };
+    let mut svg = Svg { out: String::new(), measure, face: "Arial".into() };
+    if let Some(bg) = background {
+        svg.out += &format!("<rect x=\"{x:.2}\" y=\"{y:.2}\" width=\"{w:.2}\" height=\"{h:.2}\"{}/>\n", paint("fill", Some(bg)));
+    }
     draw_diagram(&mut svg, r, d, info);
     Some(format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{w:.0}\" height=\"{h:.0}\" viewBox=\"{x:.2} {y:.2} {w:.2} {h:.2}\">\n{}</svg>\n",
@@ -1414,11 +1566,20 @@ pub fn to_svg(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure
 /// scales by the screen's devicePixelRatio; diagram-export.js:120-127). Drawn off-screen, so the
 /// grid and whatever is scrolled out of view do not matter.
 pub fn to_png(r: &Repo, d: Eid, info: &HashMap<Eid, Info>, measure: &dyn Measure, scale: f32) -> Result<Vec<u8>, String> {
-    use resvg::{tiny_skia, usvg};
     let svg = to_svg_sized(r, d, info, measure, PNG_EXTRA).ok_or("The diagram is empty.")?;
+    svg_to_png(&svg, scale)
+}
+
+/// Draw an SVG picture into a PNG, `scale` pixels per unit.
+pub fn svg_to_png(svg: &str, scale: f32) -> Result<Vec<u8>, String> {
+    use resvg::{tiny_skia, usvg};
     let mut opt = usvg::Options::default();
     opt.fontdb_mut().load_system_fonts();
-    let tree = usvg::Tree::from_str(&svg, &opt).map_err(|e| e.to_string())?;
+    // the user fonts draw the faces they name (font-manager.js:132-140)
+    for f in crate::fonts::user_font_files() {
+        let _ = opt.fontdb_mut().load_font_file(f);
+    }
+    let tree = usvg::Tree::from_str(svg, &opt).map_err(|e| e.to_string())?;
     let size = tree.size();
     let (w, h) = ((size.width() * scale).ceil() as u32, (size.height() * scale).ceil() as u32);
     let mut pixmap = tiny_skia::Pixmap::new(w.max(1), h.max(1)).ok_or("The picture is too large.")?;

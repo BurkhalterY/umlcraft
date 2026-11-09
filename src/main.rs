@@ -7,14 +7,26 @@
 mod align;
 mod api;
 mod app;
+mod bpmn;
+mod bpmn_draw;
+mod aws;
+mod azure;
 mod c4;
 mod communication;
 mod cli;
+mod dialogs;
 mod clipboard;
+mod codegen;
+mod cloud;
+mod ejs;
+mod colorvars;
 mod erd;
+mod exec;
 mod export;
 mod find;
 mod flowchart;
+mod fonts;
+mod gcp;
 mod fragment;
 mod generate;
 mod html;
@@ -22,9 +34,13 @@ mod layout;
 mod markdown;
 mod mermaid;
 mod mermaid_kinds;
+mod mermaid_sequence;
+mod mcp;
 mod canvas;
 mod icons;
 mod input;
+mod js;
+mod jsregex;
 mod keymap;
 mod meta;
 mod model;
@@ -33,16 +49,20 @@ mod overview;
 mod palette;
 mod parse;
 mod pdf;
+mod pdf_font;
 mod picture;
 mod picker;
 mod prefs;
+mod quickedit;
 mod related;
 mod relview;
 mod render;
 mod selector;
 mod sequence;
 mod splitter;
+mod staruml_v1;
 mod style;
+mod sysml;
 mod tags;
 mod templates;
 mod thumbs;
@@ -50,6 +70,7 @@ mod timing;
 mod ui;
 mod validate;
 mod views;
+mod window;
 mod wireframe;
 mod xmi;
 #[cfg(test)]
@@ -70,14 +91,15 @@ fn first_existing(paths: &[&str]) -> Option<Vec<u8>> {
 /// the panels use a Source-Sans-like UI face when one is installed.
 /// The face the system gives for a font request, the way the original's engine resolves the
 /// diagram font "Arial" on Linux (through fontconfig; MECHANICS.md "Runtime"). `None` without fontconfig.
-fn system_font(pattern: &str) -> Option<String> {
+pub(crate) fn system_font(pattern: &str) -> Option<String> {
     let out = std::process::Command::new("fc-match").args(["-f", "%{file}", pattern]).output().ok()?;
     let file = String::from_utf8(out.stdout).ok()?;
     std::path::Path::new(&file).exists().then_some(file)
 }
 
-pub(crate) fn setup_fonts(ctx: &egui::Context) {
-    let mut fonts = FontDefinitions::default();
+/// The diagram faces (regular, bold, italic, bold italic) with the files to try for each, the
+/// system's answer first. The screen and the PDF export use the same files.
+pub(crate) fn diagram_face_paths() -> Vec<(&'static str, Vec<String>)> {
     let lib = "/usr/share/fonts/truetype/liberation";
     // where Arial (or a metric-compatible face) lives on Linux/FreeBSD, Windows and macOS
     let win = "C:\\Windows\\Fonts";
@@ -88,10 +110,15 @@ pub(crate) fn setup_fonts(ctx: &egui::Context) {
         ("arial-i", "Arial:italic", vec![format!("{lib}/LiberationSans-Italic.ttf"), "/usr/local/share/fonts/Liberation/LiberationSans-Italic.ttf".into(), format!("{win}\\ariali.ttf"), format!("{mac}/Arial Italic.ttf"), "/Library/Fonts/Arial Italic.ttf".into()]),
         ("arial-bi", "Arial:bold:italic", vec![format!("{lib}/LiberationSans-BoldItalic.ttf"), "/usr/local/share/fonts/Liberation/LiberationSans-BoldItalic.ttf".into(), format!("{win}\\arialbi.ttf"), format!("{mac}/Arial Bold Italic.ttf"), "/Library/Fonts/Arial Bold Italic.ttf".into()]),
     ];
-    let faces: Vec<(&str, Vec<String>)> = faces
+    faces
         .into_iter()
         .map(|(name, pattern, known)| (name, system_font(pattern).into_iter().chain(known).collect()))
-        .collect();
+        .collect()
+}
+
+pub(crate) fn setup_fonts(ctx: &egui::Context) {
+    let mut fonts = FontDefinitions::default();
+    let faces = diagram_face_paths();
     let fallback: Vec<String> = fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
     for (name, paths) in faces {
         let refs: Vec<&str> = paths.iter().map(|s| s.as_str()).collect();
@@ -113,7 +140,8 @@ pub(crate) fn setup_fonts(ctx: &egui::Context) {
         fonts.font_data.insert("ui".into(), Arc::new(FontData::from_owned(bytes)));
         fonts.families.entry(FontFamily::Proportional).or_default().insert(0, "ui".into());
     }
-    ctx.set_fonts(fonts);
+    // the other faces and the CJK fallbacks are added when a view needs them (fonts.rs)
+    fonts::install(ctx, fonts);
 }
 
 /// The app icon shown by the window manager (packaging/icons, drawn for UMLCraft).
@@ -178,24 +206,11 @@ fn main() -> eframe::Result {
         std::process::exit(if ok { 0 } else { 1 });
     }
     let mut screenshot: Option<PathBuf> = None;
-    let mut file: Option<PathBuf> = None;
-    let mut diagram: Option<String> = None;
-    let mut select: Option<String> = None;
-    let mut i = 0;
-    while i < args.len() {
-        if args[i] == "--diagram" || args[i] == "--select" {
-            // `--diagram <name>` opens that diagram, `--select <name>` selects that element in it
-            let v = args.get(i + 1).cloned();
-            if args[i] == "--diagram" { diagram = v } else { select = v }
-            i += 1;
-        } else if args[i] == "--screenshot" {
-            screenshot = Some(PathBuf::from(args.get(i + 1).cloned().unwrap_or_else(|| "screenshot.png".into())));
-            i += 1;
-        } else if args[i].ends_with(".mdj") && std::path::Path::new(&args[i]).exists() {
-            file = Some(PathBuf::from(&args[i]));
-        }
-        i += 1;
+    if let Some(i) = args.iter().position(|a| a == "--screenshot") {
+        screenshot = Some(PathBuf::from(args.get(i + 1).cloned().unwrap_or_else(|| "screenshot.png".into())));
     }
+    // the file, template, diagram and element to open (window.rs)
+    let startup = window::Startup::from_args(&args);
     if let Some(p) = &screenshot {
         if p.is_relative() {
             screenshot = std::env::current_dir().ok().map(|d| d.join(p));
@@ -219,6 +234,7 @@ fn main() -> eframe::Result {
                 }
             }
             if let (Some(x), Some(y)) = (f("x"), f("y")) {
+                let (x, y) = window::clamp_saved_position(x, y);
                 viewport = viewport.with_position([x, y]);
             }
             if ws.get("isMaximized").and_then(|v| v.as_bool()) == Some(true) {
@@ -226,8 +242,9 @@ fn main() -> eframe::Result {
             }
         }
     }
+    let viewport = window::title_bar_options(viewport);
     let options = eframe::NativeOptions { viewport, ..Default::default() };
-    eframe::run_native(
+    let result = eframe::run_native(
         "UMLCraft",
         options,
         Box::new(move |cc| {
@@ -247,21 +264,18 @@ fn main() -> eframe::Result {
                         a.api_rx = api::start(port, cc.egui_ctx.clone());
                     }
                 }
+                a.validate_in_background = Some(cc.egui_ctx.clone());
             }
-            match file {
-                Some(f) => {
-                    a.open_path(f);
-                }
-                // with no file given: the backup after a crash, else the last file when asked to
-                None if !shot => {
-                    if !a.recover_backup() {
-                        a.auto_load_working_file();
-                    }
-                }
-                None => {}
+            // a screenshot opens its file at once; a window shows its splash screen first
+            if shot {
+                a.start(startup);
+            } else {
+                a.shell.startup = Some(startup);
             }
-            a.show_by_name(diagram.as_deref(), select.as_deref());
             Ok(Box::new(a))
         }),
-    )
+    );
+    // application:reload starts the app again once its window has closed
+    window::relaunch_if_requested(&args);
+    result
 }

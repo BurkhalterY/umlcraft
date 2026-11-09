@@ -8,17 +8,17 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 
 | Section | Key | Label | Default | UMLCraft | Source |
 |---|---|---|---|---|---|
-| AWS | `aws.arrow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/aws/preferences/aws.json |
-| Azure | `azure.arrow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/azure/preferences/azure.json |
-| BPMN | `bpmn.activity.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.event.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.message.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.gateway.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.dataobject.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.conversation.fillColor` | Fill Color | "#ffffff" | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.sequence-flow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.message-flow.lineStyle` | Line Style | 2 | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
-| BPMN | `bpmn.conversation-link.lineStyle` | Line Style | 2 | ❌ | extensions/essential/bpmn/preferences/bpmn.json |
+| AWS | `aws.arrow.lineStyle` | Line Style | 2 | ✅ | in Preferences › AWS; a new arrow takes it, or the general one when it is Rectilinear (0) (src/prefs.rs:241, 448) | extensions/essential/aws/preferences/aws.json |
+| Azure | `azure.arrow.lineStyle` | Line Style | 2 | ✅ | in Preferences › Azure; a new connector takes it, or the general one when it is Rectilinear (0) (src/prefs.rs:243, 449) | extensions/essential/azure/preferences/azure.json |
+| BPMN | `bpmn.activity.fillColor` | Fill Color | "#ffffff" | ✅ | in Preferences › BPMN; a new box of that kind takes it as its fill colour (src/prefs.rs:284-289, 418-419; src/bpmn.rs:147-158) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.event.fillColor` | Fill Color | "#ffffff" | ✅ | in Preferences › BPMN; a new box of that kind takes it as its fill colour (src/prefs.rs:284-289, 418-419; src/bpmn.rs:147-158) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.message.fillColor` | Fill Color | "#ffffff" | ✅ | in Preferences › BPMN; a new box of that kind takes it as its fill colour (src/prefs.rs:284-289, 418-419; src/bpmn.rs:147-158) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.gateway.fillColor` | Fill Color | "#ffffff" | ✅ | in Preferences › BPMN; a new box of that kind takes it as its fill colour (src/prefs.rs:284-289, 418-419; src/bpmn.rs:147-158) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.dataobject.fillColor` | Fill Color | "#ffffff" | ✅ | in Preferences › BPMN; a new box of that kind takes it as its fill colour (src/prefs.rs:284-289, 418-419; src/bpmn.rs:147-158) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.conversation.fillColor` | Fill Color | "#ffffff" | ✅ | in Preferences › BPMN; a new box of that kind takes it as its fill colour (src/prefs.rs:284-289, 418-419; src/bpmn.rs:147-158) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.sequence-flow.lineStyle` | Line Style | 2 | ✅ | in Preferences › BPMN; a new line of that kind takes it, or the general line style when it is rectilinear, as the original's `||` does (src/prefs.rs:290-294, 447-449) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.message-flow.lineStyle` | Line Style | 2 | ✅ | in Preferences › BPMN; a new line of that kind takes it, or the general line style when it is rectilinear, as the original's `||` does (src/prefs.rs:290-294, 447-449) | extensions/essential/bpmn/preferences/bpmn.json |
+| BPMN | `bpmn.conversation-link.lineStyle` | Line Style | 2 | ✅ | in Preferences › BPMN; a new line of that kind takes it, or the general line style when it is rectilinear, as the original's `||` does (src/prefs.rs:290-294, 447-449) | extensions/essential/bpmn/preferences/bpmn.json |
 | C4 Model | `c4.person.fillColor` | Fill Color | "#38bcff" | ✅ | in Preferences › C4 Model; a new element of that kind takes it as its fill colour (src/prefs.rs:272-277, 396-399) | extensions/essential/c4/preferences/c4.json |
 | C4 Model | `c4.software-system.fillColor` | Fill Color | "#6dceff" | ✅ | in Preferences › C4 Model; a new element of that kind takes it as its fill colour (src/prefs.rs:272-277, 396-399) | extensions/essential/c4/preferences/c4.json |
 | C4 Model | `c4.container.fillColor` | Fill Color | "#a3e0ff" | ✅ | in Preferences › C4 Model; a new element of that kind takes it as its fill colour (src/prefs.rs:272-277, 396-399) | extensions/essential/c4/preferences/c4.json |
@@ -58,25 +58,25 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | Flowchart | `flowchart.database.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
 | Flowchart | `flowchart.direct-access-storage.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
 | Flowchart | `flowchart.internal-storage.fillColor` | Fill Color | null | ✅ | in Preferences › Flowchart; a new node of that kind takes it as its fill colour, else the general one (src/prefs.rs:264-272, 355-361) | extensions/essential/flowchart/preferences/flowchart.json |
-| GCP | `gcp.path.lineStyle` | Line Style | 0 | ❌ | extensions/essential/gcp/preferences/gcp.json |
+| GCP | `gcp.path.lineStyle` | Line Style | 0 | ✅ | in Preferences › GCP; a new path takes it, or the general one when it is Rectilinear (0), its default, as the original's `||` does (src/prefs.rs:245, 450) | extensions/essential/gcp/preferences/gcp.json |
 | Mindmap | `mindmap.edge.lineStyle` | Line Style | 1 | ✅ | in Preferences › Mindmap; a new line takes it, or the general line style when it is Rectilinear (0) (src/prefs.rs:274, 403-410) | extensions/essential/mindmap/preferences/mindmap.json |
 | Mindmap | `mindmap.node.fillColor` | Fill Color | null | ✅ | in Preferences › Mindmap; a new node of that kind takes it as its fill colour (src/prefs.rs:274-284, 376-386) | extensions/essential/mindmap/preferences/mindmap.json |
 | Mindmap | `mindmap.node.lineColor` | Line Color | null | ✅ | in Preferences › Mindmap; a new node takes it as its line colour (src/prefs.rs:284, 388-393) | extensions/essential/mindmap/preferences/mindmap.json |
-| SysML | `sysml.requirement.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.suppressConstraints` | Suppress Constraints | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.suppressParts` | Suppress Parts | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.suppressPorts` | Suppress Ports | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.suppressReferences` | Suppress References | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.suppressValues` | Suppress Values | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.block.suppressFlowProperties` | Suppress FlowProperties | true | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.interface-block.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.constraint-block.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.value-type.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.part.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.port.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.constraint-property.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
-| SysML | `sysml.constraint-parameter.fillColor` | Fill Color | null | ❌ | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.requirement.fillColor` | Fill Color | null | ✅ | in Preferences › SysML; a new requirement takes it as its fill colour, else the general one (src/sysml.rs:1425-1468; src/prefs.rs:284, 408) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.fillColor` | Fill Color | null | ✅ | in Preferences › SysML; a new block takes it as its fill colour (src/sysml.rs:1425-1468; src/prefs.rs:408) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.suppressConstraints` | Suppress Constraints | true | ✅ | a new block, interface block or constraint block starts with its constraints suppressed or not (src/sysml.rs:1473-1482; src/prefs.rs:449) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.suppressParts` | Suppress Parts | true | ✅ | a new block or interface block starts with its parts suppressed or not (src/sysml.rs:1473-1482; src/prefs.rs:449) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.suppressPorts` | Suppress Ports | true | ✅ | the same for ports (src/sysml.rs:1473-1482) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.suppressReferences` | Suppress References | true | ✅ | the same for references (src/sysml.rs:1473-1482) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.suppressValues` | Suppress Values | true | ✅ | the same for values (src/sysml.rs:1473-1482) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.block.suppressFlowProperties` | Suppress FlowProperties | true | ✅ | the same for flow properties (src/sysml.rs:1473-1482) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.interface-block.fillColor` | Fill Color | null | ✅ | a new interface block's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.constraint-block.fillColor` | Fill Color | null | ✅ | a new constraint block's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.value-type.fillColor` | Fill Color | null | ✅ | a new value type's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.part.fillColor` | Fill Color | null | ✅ | a new part, reference or value view's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.port.fillColor` | Fill Color | null | ✅ | a new SysML port's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.constraint-property.fillColor` | Fill Color | null | ✅ | a new constraint property's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
+| SysML | `sysml.constraint-parameter.fillColor` | Fill Color | null | ✅ | a new constraint parameter's fill colour (src/sysml.rs:1455-1468) | extensions/essential/sysml/preferences/sysml.json |
 | UML | `uml.package.fillColor` | Fill Color | null | ✅ in Preferences › UML › package; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.model.fillColor` | Fill Color | null | ✅ in Preferences › UML › model; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
 | UML | `uml.subsystem.fillColor` | Fill Color | null | ✅ in Preferences › UML › subsystem; new views of that kind take it (src/prefs.rs:209-319, 330-367) | extensions/essential/uml/preferences/uml.json |
@@ -134,8 +134,8 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | General | `general.working-file` | Auto load working file | false | ✅ in Preferences › General: with no file given and no backup to recover, the working file (the last project opened; New forgets it) opens at launch (src/prefs.rs:554-563; src/main.rs:246-249) | resources/default/preferences/default.json |
 | General | `general.auto-backup` | Auto backup | true | ✅ in Preferences › General, on by default (src/prefs.rs:499) | resources/default/preferences/default.json |
 | General | `theme.default` | Default Theme | "dark" | ✅ Dark or Light in Preferences › General, dark by default; the change applies at once (src/prefs.rs:79, 214, 477-485; src/ui.rs:3076-3083) | resources/default/preferences/default.json |
-| General | `view.font` | Font Face | "Arial" | ✅ Font Face in Preferences › General; new views take it (src/prefs.rs:330-367) | resources/default/preferences/default.json |
-| General | `view.fontSize` | Font Size | 13 | ✅ Font Size in Preferences › General; new views take it (src/prefs.rs:330-367) | resources/default/preferences/default.json |
+| General | `view.font` | Font Face | "Arial" | ✅ Font Face in Preferences › General, typed or picked from the faces the original loads; new views take it (src/prefs.rs:267, 438-470, 601-613) | resources/default/preferences/default.json |
+| General | `view.fontSize` | Font Size | 13 | ✅ Font Size in Preferences › General, typed or picked from 8–32 and kept as an integer; new views take it (src/prefs.rs:210-216, 268, 438-470, 614-633) | resources/default/preferences/default.json |
 | General | `view.fillColor` | Fill Color | "#ffffff" | ✅ Fill Color in Preferences › General; new views take it unless their kind has one (src/prefs.rs:330-367) | resources/default/preferences/default.json |
 | General | `view.lineColor` | Line Color | "#000000" | ✅ Line Color in Preferences › General; new views take it (src/prefs.rs:330-367) | resources/default/preferences/default.json |
 | General | `view.fontColor` | Font Color | "#000000" | ✅ Font Color in Preferences › General; new views take it (src/prefs.rs:330-367) | resources/default/preferences/default.json |
@@ -143,8 +143,8 @@ UMLCraft has no Preferences dialog; where it follows the default value, the row 
 | General | `view.showShadow` | Show Shadow | true | ✅ Show Shadow in Preferences › General; new views take it (src/prefs.rs:330-367) | resources/default/preferences/default.json |
 | General | `diagramEditor.showGrid` | Show Grid | true | ✅ on by default; toggled from the View menu and Ctrl+G and kept in the preferences file (src/prefs.rs:80, 107) | resources/default/preferences/default.json |
 | General | `diagramEditor.snapToGrid` | Snap to Grid | true | ✅ on by default; toggled from the View menu and Ctrl+Shift+G and kept in the preferences file (src/prefs.rs:81, 108) | resources/default/preferences/default.json |
-| General | `diagramEditor.gridSize` | Grid Size | 8 | ✅ Grid Size in Preferences › General; snapping, Shift+arrow and the grid lines follow it at once (src/prefs.rs:324-327; src/canvas.rs:343, 454) | resources/default/preferences/default.json |
+| General | `diagramEditor.gridSize` | Grid Size | 8 | ✅ Grid Size in Preferences › General, typed or picked from 2–20; snapping, Shift+arrow and the grid lines follow it at once (src/prefs.rs:324-327; src/canvas.rs:343, 454) | resources/default/preferences/default.json |
 | General | `diagramEditor.backgroundColor` | Background Color | "#ffffff" | ✅ Background Color in Preferences › General, used for the canvas at once (src/canvas.rs:447-449) | resources/default/preferences/default.json |
 | General | `diagramEditor.gridColor` | Grid Color | "#e0e0e0" | ✅ Grid Color in Preferences › General, used for the grid lines at once (src/canvas.rs:447-454) | resources/default/preferences/default.json |
-| General | `validation.validateModel` | Validate Model | true | ✅ in Preferences › General, on by default; validates after load and save (src/prefs.rs:230; src/validate.rs:384) | resources/default/preferences/default.json |
+| General | `validation.validateModel` | Validate Model | true | ✅ in Preferences › General, on by default; validates after load and save (src/prefs.rs:230; src/validate.rs:408) | resources/default/preferences/default.json |
 | General | `checkUpdate.checkUpdateOnStart` | Check Updates on Start | true | ➖ StarUML update server | resources/default/preferences/default.json |

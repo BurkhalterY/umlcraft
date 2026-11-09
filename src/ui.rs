@@ -3,6 +3,7 @@
 
 use crate::app::{App, Area, AssocInit, Tool};
 use crate::canvas::EguiMeasure;
+use crate::dialogs::dialog;
 use crate::icons;
 use crate::model::Eid;
 use crate::render;
@@ -23,6 +24,8 @@ pub const SCREENSHOT_FRAMES: u32 = 120;
 /// Help › Documentation and Release Notes open these pages.
 pub const DOCS_URL: &str = "https://github.com/BurkhalterY/umlcraft#readme";
 pub const RELEASES_URL: &str = "https://github.com/BurkhalterY/umlcraft/releases";
+/// Help > Forum: UMLCraft has no forum, so its issues on GitHub (help:forum, default-commands.js:1164-1166).
+pub const FORUM_URL: &str = "https://github.com/BurkhalterY/umlcraft/issues";
 /// The grab handle a hidden sidebar or navigator leaves at the window edge (resizer.js:238-258).
 const GRIP_HIDDEN: f32 = 4.0;
 
@@ -312,6 +315,146 @@ const OVERVIEW_GROUPS: &[Group] = &[
     },
     ANNOTATIONS,
 ];
+// a BPMN diagram (bpmn/toolbox/bpmn.json); the node tools take the model type as icon
+const BPMN_GROUPS: &[Group] = &[
+    Group {
+        id: "bpmn.basic",
+        label: "BPMN Basic",
+        items: &[
+            node("Task", "BPMNTask", "BPMNTask"),
+            node("Gateway", "BPMNExclusiveGateway", "BPMNExclusiveGateway"),
+            node("Start Event", "BPMNStartEvent", "BPMNStartEvent"),
+            node("End Event", "BPMNEndEvent", "BPMNEndEvent"),
+            line("Sequence Flow", "BPMNSequenceFlow", "BPMNSequenceFlow", AssocInit::Plain),
+        ],
+    },
+    Group {
+        id: "bpmn.artifact",
+        label: "BPMN Artifact",
+        items: &[node("Text Annotation", "BPMNTextAnnotation", "BPMNTextAnnotation"), node("Group", "BPMNGroup", "BPMNGroup"), line("Association", "BPMNAssociation", "BPMNAssociation", AssocInit::Plain)],
+    },
+    Group {
+        id: "bpmn.swimlanes",
+        label: "BPMN Swimlanes",
+        items: &[node("Pool", "BPMNParticipant", "BPMNParticipant"), node("Pool (Vert)", "BPMNParticipantVert", "BPMNParticipantVert"), node("Lane", "BPMNLane", "BPMNLane"), node("Lane (Vert)", "BPMNLaneVert", "BPMNLaneVert")],
+    },
+    Group {
+        id: "bpmn.activities",
+        label: "BPMN Activities",
+        items: &[
+            node("Task", "BPMNTask", "BPMNTask"),
+            node("Send Task", "BPMNSendTask", "BPMNSendTask"),
+            node("Receive Task", "BPMNReceiveTask", "BPMNReceiveTask"),
+            node("Service Task", "BPMNServiceTask", "BPMNServiceTask"),
+            node("User Task", "BPMNUserTask", "BPMNUserTask"),
+            node("Manual Task", "BPMNManualTask", "BPMNManualTask"),
+            node("Business Rule Task", "BPMNBusinessRuleTask", "BPMNBusinessRuleTask"),
+            node("Script Task", "BPMNScriptTask", "BPMNScriptTask"),
+            node("Call Activity", "BPMNCallActivity", "BPMNCallActivity"),
+            node("Sub Process", "BPMNSubProcess", "BPMNSubProcess"),
+            node("Ad-Hoc Sub Process", "BPMNAdHocSubProcess", "BPMNAdHocSubProcess"),
+            node("Transaction", "BPMNTransaction", "BPMNTransaction"),
+        ],
+    },
+    Group {
+        id: "bpmn.gateways",
+        label: "BPMN Gateways",
+        items: &[
+            node("Gateway (Exclusive)", "BPMNExclusiveGateway", "BPMNExclusiveGateway"),
+            node("Gateway (Event-Based)", "BPMNEventBasedGateway", "BPMNEventBasedGateway"),
+            node("Gateway (Inclusive)", "BPMNInclusiveGateway", "BPMNInclusiveGateway"),
+            node("Gateway (Complex)", "BPMNComplexGateway", "BPMNComplexGateway"),
+            node("Gateway (Parallel)", "BPMNParallelGateway", "BPMNParallelGateway"),
+        ],
+    },
+    Group {
+        id: "bpmn.events",
+        label: "BPMN Events",
+        items: &[
+            node("Start Event", "BPMNStartEvent", "BPMNStartEvent"),
+            node("Intermediate Event (Throw)", "BPMNIntermediateThrowEvent", "BPMNIntermediateEvent"),
+            node("Intermediate Event (Catch)", "BPMNIntermediateCatchEvent", "BPMNIntermediateEvent"),
+            node("Boundary Event", "BPMNBoundaryEvent", "BPMNBoundaryEvent"),
+            node("End Event", "BPMNEndEvent", "BPMNEndEvent"),
+        ],
+    },
+    Group {
+        id: "bpmn.data",
+        label: "BPMN Data",
+        items: &[
+            node("Data Object", "BPMNDataObject", "BPMNDataObject"),
+            node("Data Store", "BPMNDataStore", "BPMNDataStore"),
+            node("Data Input", "BPMNDataInput", "BPMNDataInput"),
+            node("Data Output", "BPMNDataOutput", "BPMNDataOutput"),
+            line("Data Association", "BPMNDataAssociation", "BPMNDataAssociation", AssocInit::Plain),
+        ],
+    },
+    Group { id: "bpmn.message", label: "BPMN Message", items: &[node("Message", "BPMNMessage", "BPMNMessage"), line("Message Flow", "BPMNMessageFlow", "BPMNMessageFlow", AssocInit::Plain)] },
+    Group {
+        id: "bpmn.choreography",
+        label: "BPMN Choreography",
+        items: &[node("Choreography Task", "BPMNChoreographyTask", "BPMNChoreographyTask"), node("Sub Choreography", "BPMNSubChoreography", "BPMNSubChoreography"), line("Message Link", "BPMNMessageLink", "BPMNMessageLink", AssocInit::Plain)],
+    },
+    Group {
+        id: "bpmn.conversation",
+        label: "BPMN Conversation",
+        items: &[
+            node("Conversation", "BPMNConversation", "BPMNConversation"),
+            node("Sub Conversation", "BPMNSubConversation", "BPMNSubConversation"),
+            node("Call Conversation", "BPMNCallConversation", "BPMNCallConversation"),
+            line("Conversation Link", "BPMNConversationLink", "BPMNConversationLink", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
+// an AWS architecture diagram (aws/toolbox/aws.json)
+const AWS_GROUPS: &[Group] = &[
+    Group {
+        id: "aws.elements",
+        label: "AWS",
+        items: &[
+            node("AWS Group", "AWSGroup", "AWSGroup"),
+            node("AWS Generic Group", "AWSGenericGroup", "AWSGenericGroup"),
+            node("AWS Availability Zone", "AWSAvailabilityZone", "AWSAvailabilityZone"),
+            node("AWS Security Group", "AWSSecurityGroup", "AWSSecurityGroup"),
+            node("AWS Service", "AWSService", "AWSService"),
+            node("AWS Resource", "AWSResource", "AWSResource"),
+            node("AWS General Resource", "AWSGeneralResource", "AWSGeneralResource"),
+            node("AWS Callout", "AWSCallout", "AWSCallout"),
+            line("AWS Arrow", "AWSArrow", "AWSArrow", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
+// an Azure architecture diagram (azure/toolbox/azure.json)
+const AZURE_GROUPS: &[Group] = &[
+    Group {
+        id: "azure.elements",
+        label: "Azure",
+        items: &[
+            node("Azure Group", "AzureGroup", "AzureGroup"),
+            node("Azure Service", "AzureService", "AzureService"),
+            node("Azure Callout", "AzureCallout", "AzureCallout"),
+            line("Azure Connector", "AzureConnector", "AzureConnector", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
+// a GCP architecture diagram (gcp/toolbox/gcp.json)
+const GCP_GROUPS: &[Group] = &[
+    Group {
+        id: "gcp.elements",
+        label: "GCP",
+        items: &[
+            node("Zone", "GCPZone", "GCPZone"),
+            node("User", "GCPUser", "GCPUser"),
+            node("Product", "GCPProduct", "GCPProduct"),
+            node("Service", "GCPService", "GCPService"),
+            line("Path", "GCPPath", "GCPPath", AssocInit::Plain),
+        ],
+    },
+    ANNOTATIONS,
+];
 // a C4 diagram (c4/toolbox/c4.json)
 const C4_GROUPS: &[Group] = &[
     Group {
@@ -539,10 +682,165 @@ const ACTIVITY_GROUPS: &[Group] = &[
 // a composite structure diagram: the two class groups and Composite Structure (uml.json)
 const COMPOSITE_GROUPS: &[Group] = &[CLASS_GROUPS[0], CLASS_GROUPS[1], COMPOSITE, ANNOTATIONS];
 // a package diagram has the Packages group (uml.json "uml.package": UMLClassDiagram, UMLPackageDiagram)
-const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], ANNOTATIONS];
+const PACKAGE_GROUPS: &[Group] = &[CLASS_GROUPS[2], SYSML_VIEWPOINTS, ANNOTATIONS];
+
+// SysML diagrams (sysml/toolbox/sysml.json)
+const SYSML_REQUIREMENTS: Group = Group {
+    id: "sysml.requirement",
+    label: "Requirements",
+    items: &[
+        node("Package", "UMLPackage", "package"),
+        node("Requirement", "SysMLRequirement", "SysMLRequirement"),
+        node("Frame", "Frame", "frame"),
+        line("Copy", "SysMLCopy", "dependency", AssocInit::Plain),
+        line("DeriveReqt", "SysMLDeriveReqt", "dependency", AssocInit::Plain),
+        line("Verify", "SysMLVerify", "dependency", AssocInit::Plain),
+        line("Satisfy", "SysMLSatisfy", "dependency", AssocInit::Plain),
+        line("Refine", "SysMLRefine", "dependency", AssocInit::Plain),
+        line("Containment", "Containment", "containment", AssocInit::Plain),
+    ],
+};
+// the Viewpoints group, on requirement, block definition and package diagrams
+const SYSML_VIEWPOINTS: Group = Group {
+    id: "sysml.viewpoint",
+    label: "Viewpoints",
+    items: &[
+        node("Stakeholder", "SysMLStakeholder", "class"),
+        node("View", "SysMLView", "class"),
+        node("Viewpoint", "SysMLViewpoint", "class"),
+        line("Conform", "SysMLConform", "generalization", AssocInit::Plain),
+        line("Expose", "SysMLExpose", "dependency", AssocInit::Plain),
+    ],
+};
+const SYSML_REQUIREMENT_GROUPS: &[Group] = &[SYSML_REQUIREMENTS, SYSML_VIEWPOINTS, ANNOTATIONS];
+const SYSML_BLOCK: Group = Group {
+    id: "sysml.block",
+    label: "Block",
+    items: &[
+        node("Block", "SysMLBlock", "SysMLBlock"),
+        node("Value Type", "SysMLValueType", "datatype"),
+        node("Interface Block", "SysMLInterfaceBlock", "SysMLBlock"),
+        node("Constraint Block", "SysMLConstraintBlock", "SysMLConstraintBlock"),
+        node("Enumeration", "UMLEnumeration", "enumeration"),
+        node("Signal", "UMLSignal", "datatype"),
+        node("Port", "SysMLPort", "port"),
+        node("Object", "UMLObject", "object"),
+        node("Frame", "Frame", "frame"),
+        line("Association", "UMLAssociation", "association", AssocInit::Plain),
+        line("Directed Association", "UMLAssociation", "directed", AssocInit::Directed),
+        line("Aggregation", "UMLAssociation", "aggregation", AssocInit::Shared),
+        line("Composition", "UMLAssociation", "composition", AssocInit::Composite),
+        line("Dependency", "UMLDependency", "dependency", AssocInit::Plain),
+        line("Generalization", "UMLGeneralization", "generalization", AssocInit::Plain),
+        line("Interface Realization", "UMLInterfaceRealization", "realization", AssocInit::Plain),
+        line("Connector", "SysMLConnector", "association", AssocInit::Plain),
+        line("Containment", "Containment", "containment", AssocInit::Plain),
+    ],
+};
+const SYSML_BLOCK_GROUPS: &[Group] = &[SYSML_BLOCK, SYSML_VIEWPOINTS, ANNOTATIONS];
+const SYSML_INTERNAL_BLOCK: Group = Group {
+    id: "sysml.internal-block",
+    label: "Internal Block",
+    items: &[
+        node("Part", "SysMLPart", "part"),
+        node("Reference", "SysMLReference", "part"),
+        node("Value", "SysMLValue", "part"),
+        node("Port", "SysMLPort", "port"),
+        node("Frame", "Frame", "frame"),
+        line("Connector", "SysMLConnector", "association", AssocInit::Plain),
+    ],
+};
+const SYSML_PARAMETRIC: Group = Group {
+    id: "sysml.parametric",
+    label: "Parametric",
+    items: &[node("Constraint Property", "SysMLConstraintProperty", "SysMLConstraintProperty"), node("Constraint Parameter", "SysMLConstraintParameter", "SysMLConstraintParameter")],
+};
+const SYSML_INTERNAL_BLOCK_GROUPS: &[Group] = &[SYSML_INTERNAL_BLOCK, ANNOTATIONS];
+const SYSML_PARAMETRIC_GROUPS: &[Group] = &[SYSML_INTERNAL_BLOCK, SYSML_PARAMETRIC, ANNOTATIONS];
+
+/// The toolbox groups of a diagram kind (the "diagram-types" of each group in toolbox/*.json).
+pub(crate) fn tool_groups(diagram_type: Option<&str>) -> &'static [Group] {
+    match diagram_type {
+        Some("UMLClassDiagram") => CLASS_GROUPS,
+        Some("UMLUseCaseDiagram") => USECASE_GROUPS,
+        Some("UMLPackageDiagram") => PACKAGE_GROUPS,
+        Some("UMLObjectDiagram") => OBJECT_GROUPS,
+        Some("UMLInformationFlowDiagram") => INFO_FLOW_GROUPS,
+        Some("UMLProfileDiagram") => PROFILE_GROUPS,
+        Some("UMLCompositeStructureDiagram") => COMPOSITE_GROUPS,
+        Some("UMLStatechartDiagram") => STATECHART_GROUPS,
+        Some("UMLActivityDiagram") => ACTIVITY_GROUPS,
+        Some("FCFlowchartDiagram") => FLOWCHART_GROUPS,
+        Some("DFDDiagram") => DFD_GROUPS,
+        Some("MMMindmapDiagram") => MINDMAP_GROUPS,
+        Some("ERDDiagram") => ERD_GROUPS,
+        Some("C4Diagram") => C4_GROUPS,
+        Some("BPMNDiagram") => BPMN_GROUPS,
+        Some("AWSDiagram") => AWS_GROUPS,
+        Some("AzureDiagram") => AZURE_GROUPS,
+        Some("GCPDiagram") => GCP_GROUPS,
+        Some("SysMLRequirementDiagram") => SYSML_REQUIREMENT_GROUPS,
+        Some("SysMLBlockDefinitionDiagram") => SYSML_BLOCK_GROUPS,
+        Some("SysMLInternalBlockDiagram") => SYSML_INTERNAL_BLOCK_GROUPS,
+        Some("SysMLParametricDiagram") => SYSML_PARAMETRIC_GROUPS,
+        Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
+        Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
+        Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,
+        Some("UMLInteractionOverviewDiagram") => OVERVIEW_GROUPS,
+        Some("UMLTimingDiagram") => TIMING_GROUPS,
+        Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
+        Some(_) => OTHER_GROUPS,
+        None => &[],
+    }
+}
+
+/// A toolbox tool by its factory id (the kind it creates), as the scriptable factory commands name
+/// it: first among the tools of the diagram kind, the plain one when several tools share the kind.
+pub(crate) fn tool_for(diagram_type: &str, id: &str) -> Option<Tool> {
+    let find = |groups: &[Group]| {
+        let all = || groups.iter().flat_map(|g| g.items.iter());
+        all().find(|t| t.kind == id && matches!(t.init, AssocInit::Plain)).or_else(|| all().find(|t| t.kind == id)).copied()
+    };
+    find(tool_groups(Some(diagram_type))).or_else(|| DIAGRAM_KINDS.iter().find_map(|(_, k)| find(tool_groups(Some(k)))))
+}
+
+/// Whether Add Diagram offers a UML diagram kind under an element: structural diagrams under the
+/// project or a package; interaction diagrams also under a classifier, an operation or an
+/// interaction that has none yet; information flow also under a classifier; statecharts also under
+/// a classifier, an operation or a state machine; activity diagrams under a classifier, an operation
+/// or an activity (updateMenus, uml-commands.js:4155-4250). None for the other notations' kinds.
+pub(crate) fn uml_diagram_offered(r: &crate::model::Repo, e: Eid, kind: &str) -> Option<bool> {
+    let t = r.ty(e);
+    let base = t == "Project" || r.kind_of(e, "UMLPackage") || r.kind_of(e, "UMLSubsystem");
+    let classifier = r.kind_of(e, "UMLClassifier");
+    let operation = t == "UMLOperation";
+    let interaction_diagram = |d: Eid| matches!(r.ty(d), "UMLSequenceDiagram" | "UMLCommunicationDiagram" | "UMLTimingDiagram" | "UMLInteractionOverviewDiagram");
+    Some(match kind {
+        "UMLClassDiagram" | "UMLPackageDiagram" | "UMLObjectDiagram" | "UMLCompositeStructureDiagram" | "UMLComponentDiagram" | "UMLDeploymentDiagram" | "UMLUseCaseDiagram" | "UMLProfileDiagram" => base,
+        "UMLSequenceDiagram" | "UMLCommunicationDiagram" | "UMLTimingDiagram" | "UMLInteractionOverviewDiagram" => {
+            base || classifier || operation || (t == "UMLInteraction" && !r.list(e, "ownedElements").into_iter().any(interaction_diagram))
+        }
+        "UMLInformationFlowDiagram" => base || classifier,
+        "UMLStatechartDiagram" => base || classifier || operation || r.kind_of(e, "UMLStateMachine"),
+        "UMLActivityDiagram" => base || classifier || operation || r.kind_of(e, "UMLActivity"),
+        _ => return None,
+    })
+}
+
+/// A field path made at run time ("end1.name"), kept once for the program's life.
+fn intern(s: String) -> &'static str {
+    static SEEN: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<String, &'static str>>> = std::sync::OnceLock::new();
+    let mut m = SEEN.get_or_init(Default::default).lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(x) = m.get(&s) {
+        return x;
+    }
+    let x: &'static str = Box::leak(s.clone().into_boxed_str());
+    m.insert(s, x);
+    x
+}
 
 /// Model › Add Diagram, for the diagram kinds UMLCraft edits.
-const DIAGRAM_KINDS: [(&str, &str); 21] = [
+const DIAGRAM_KINDS: [(&str, &str); 29] = [
     ("Class Diagram", "UMLClassDiagram"),
     ("Package Diagram", "UMLPackageDiagram"),
     ("Object Diagram", "UMLObjectDiagram"),
@@ -565,6 +863,15 @@ const DIAGRAM_KINDS: [(&str, &str); 21] = [
     ("ER Diagram", "ERDDiagram"),
     ("C4 Diagram", "C4Diagram"),
     ("Wireframe Diagram", "WFWireframeDiagram"),
+    ("BPMN Diagram", "BPMNDiagram"),
+    ("AWS Architecture Diagram", "AWSDiagram"),
+    ("Azure Architecture Diagram", "AzureDiagram"),
+    ("GCP Architecture Diagram", "GCPDiagram"),
+    // the SysML kinds (sysml/menus/sysml.json)
+    ("Requirement Diagram", "SysMLRequirementDiagram"),
+    ("Block Definition Diagram", "SysMLBlockDefinitionDiagram"),
+    ("Internal Block Diagram", "SysMLInternalBlockDiagram"),
+    ("Parametric Diagram", "SysMLParametricDiagram"),
 ];
 
 /// Explorer order: kind priority, then the order they were added (core.js:311 getOrdering;
@@ -580,7 +887,7 @@ pub(crate) fn order_rank(t: &str) -> u32 {
         "UMLAssociationEnd" => 1801, "UMLAssociation" => 1802, "UMLDependency" => 1806, "UMLGeneralization" => 1807, "UMLRealization" => 1808,
         "UMLInterfaceRealization" => 1809, "UMLComponentRealization" => 1810, "UMLAbstraction" => 1811, "UMLInclude" => 1816, "UMLExtend" => 1817,
         "UMLTransition" => 1819, "UMLMessage" => 1822, "UMLProfile" => 1901, "UMLStereotype" => 1903,
-        _ => 0,
+        t => crate::sysml::order_rank(t),
     }
 }
 
@@ -628,6 +935,13 @@ impl App {
         if t == "Tag" {
             return format!("{name} = {}", r.str(e, "value"));
         }
+        // a lifeline: `name: Type`, the type of the role it represents (UMLLifeline.getNodeText and
+        // getTypeString, elements.js:3787-3800, 3840-3855)
+        if t == "UMLLifeline" {
+            let ty = r.refd(e, "represent").map(|a| views::type_name(r, a, "type")).unwrap_or_default();
+            let text = if ty.is_empty() { name } else { format!("{name}: {ty}") };
+            return if text.is_empty() { "(Lifeline)".into() } else { text };
+        }
         // a hyperlink: its name with showName, else what it links to (core.js:1322-1333)
         if t == "Hyperlink" {
             let url = r.str(e, "url");
@@ -641,7 +955,7 @@ impl App {
                 "(none)".to_string()
             };
         }
-        if name.is_empty() { format!("({})", t.trim_start_matches("UML")) } else { name }
+        if name.is_empty() { format!("({})", crate::sysml::display_name(t.trim_start_matches("UML"))) } else { name }
     }
 
     fn tree_row(&mut self, ui: &mut egui::Ui, e: Eid, depth: usize, has_kids: bool, open: bool, search_parent: Option<String>) {
@@ -659,10 +973,11 @@ impl App {
             p.add(egui::Shape::convex_polygon(tri, TEXT(), Stroke::NONE));
         }
         let ir = Rect::from_min_size(Pos2::new(x0 + 16.0, rect.center().y - 8.0), Vec2::splat(16.0));
-        icons::draw(p, ir, icons::key_for(&self.repo, e));
+        icons::draw_for(p, ir, &self.repo, e);
         let mut label = self.label_of(e);
         if self.show_stereotype {
-            let st = views::stereotype_text(&self.repo, e);
+            // a SysML relationship shows its keyword (getNodeText, sysml/elements.js:259-375)
+            let st = Some(views::stereotype_text(&self.repo, e)).filter(|s| !s.is_empty()).or_else(|| crate::sysml::keyword(self.repo.ty(e)).map(String::from)).unwrap_or_default();
             if !st.is_empty() {
                 label = format!("{st} {label}");
             }
@@ -699,7 +1014,7 @@ impl App {
             }
             return;
         }
-        if self.focus == Some(e) {
+        if self.focus == Some(e) && !self.tree_cleared {
             let lr = Rect::from_min_size(Pos2::new(tx - 3.0, rect.top() + 1.0), Vec2::new(tw + 6.0, 20.0));
             p.rect_filled(lr, 0.0, SELECTED_ROW());
             p.rect_stroke(lr, 0.0, Stroke::new(1.0, Color32::from_rgb(0x4f, 0x99, 0xff)), egui::StrokeKind::Inside);
@@ -731,6 +1046,7 @@ impl App {
         }
         if resp.clicked() || resp.secondary_clicked() {
             self.last_area = Area::Explorer;
+            self.tree_cleared = false;
             let on_toggle = resp.interact_pointer_pos().map(|q| q.x < x0 + 16.0).unwrap_or(false);
             if on_toggle && has_kids && resp.clicked() {
                 if !self.expanded.remove(&e) {
@@ -771,28 +1087,55 @@ impl App {
     pub(crate) fn add_kinds(&self, e: Eid) -> Vec<(&'static str, &'static str, bool)> {
         let t = self.repo.ty(e);
         let mut adds = vec![];
-        if self.repo.kind_of(e, "UMLPackage") || t == "Project" {
-            if t == "Project" {
-                adds.push(("Model", "UMLModel", false));
-            }
-            for (l, k) in [
-                ("Package", "UMLPackage"), ("Profile", "UMLProfile"), ("Class", "UMLClass"), ("Interface", "UMLInterface"), ("Signal", "UMLSignal"),
-                ("DataType", "UMLDataType"), ("PrimitiveType", "UMLPrimitiveType"), ("Enumeration", "UMLEnumeration"), ("Stereotype", "UMLStereotype"),
-                ("Actor", "UMLActor"), ("Use Case", "UMLUseCase"), ("Subsystem", "UMLSubsystem"), ("Component", "UMLComponent"), ("Artifact", "UMLArtifact"), ("Node", "UMLNode"),
-                ("Object", "UMLObject"), ("Information Item", "UMLInformationItem"),
-            ] {
-                adds.push((l, k, false));
-            }
-        }
-        // a metaclass goes in a profile
-        if t == "UMLProfile" {
-            adds.push(("MetaClass", "UMLMetaClass", false));
-        }
-        // behaviours: an interaction and an opaque behaviour in a classifier, a state machine and an
-        // activity in a classifier or a package (uml-commands.js:4272-4275)
+        // the UML items in the order of the original's Add menu, each shown for the selections its
+        // updateMenus allows (uml/menus/uml.json "model.add"; uml-commands.js:4155-4290)
         let classifier = self.repo.kind_of(e, "UMLClassifier");
-        let package = self.repo.kind_of(e, "UMLPackage");
-        for (l, k, ok) in [("Interaction", "UMLInteraction", classifier), ("State Machine", "UMLStateMachine", classifier || package), ("Activity", "UMLActivity", classifier || package), ("Opaque Behavior", "UMLOpaqueBehavior", classifier)] {
+        let package = self.repo.kind_of(e, "UMLPackage") || self.repo.kind_of(e, "UMLSubsystem");
+        let project = t == "Project";
+        for (l, k, ok) in [
+            ("Template Parameter", "UMLTemplateParameter", classifier || t == "UMLOperation"),
+            ("Template Parameter Substitution", "UMLTemplateParameterSubstitution", t == "UMLTemplateBinding"),
+            ("Parameter", "UMLParameter", t == "UMLOperation" || self.repo.kind_of(e, "UMLActivity")),
+            ("Enumeration Literal", "UMLEnumerationLiteral", t == "UMLEnumeration"),
+            ("Attribute", "UMLAttribute", classifier),
+            ("Port", "UMLPort", classifier),
+            ("Operation", "UMLOperation", classifier),
+            ("Reception", "UMLReception", classifier),
+            ("Extension Point", "UMLExtensionPoint", t == "UMLUseCase"),
+            ("Slot", "UMLSlot", self.repo.kind_of(e, "UMLInstance")),
+            ("Interaction Operand", "UMLInteractionOperand", t == "UMLCombinedFragment"),
+        ] {
+            if ok {
+                adds.push((l, k, true));
+            }
+        }
+        for (l, k, ok) in [
+            ("Model", "UMLModel", project || package),
+            ("Subsystem", "UMLSubsystem", project || package),
+            ("Package", "UMLPackage", project || package),
+            ("Profile", "UMLProfile", project || package),
+            ("Class", "UMLClass", project || package || classifier),
+            ("Interface", "UMLInterface", project || package || classifier),
+            ("Signal", "UMLSignal", project || package || classifier),
+            ("DataType", "UMLDataType", project || package || classifier),
+            ("PrimitiveType", "UMLPrimitiveType", project || package || classifier),
+            ("Enumeration", "UMLEnumeration", project || package || classifier),
+            ("Artifact", "UMLArtifact", project || package || classifier),
+            ("Component", "UMLComponent", project || package || classifier),
+            ("Node", "UMLNode", project || package || classifier),
+            ("UseCase", "UMLUseCase", project || package || classifier),
+            ("Actor", "UMLActor", project || package || classifier),
+            ("Stereotype", "UMLStereotype", t == "UMLProfile"),
+            ("Information Item", "UMLInformationItem", project || package || classifier),
+            // UMLCraft's own additions: an object in a package, a metaclass in a profile
+            ("Object", "UMLObject", project || package),
+            ("MetaClass", "UMLMetaClass", t == "UMLProfile"),
+            ("Collaboration", "UMLCollaboration", classifier || package),
+            ("Interaction", "UMLInteraction", classifier),
+            ("State Machine", "UMLStateMachine", classifier || package),
+            ("Activity", "UMLActivity", classifier || package),
+            ("Opaque Behavior", "UMLOpaqueBehavior", classifier),
+        ] {
             if ok {
                 adds.push((l, k, false));
             }
@@ -821,6 +1164,8 @@ impl App {
         if t == "ERDEntity" {
             adds.push(("Column", "ERDColumn", true));
         }
+        // BPMN processes, their elements, events and event definitions (bpmn/menus/bpmn.json)
+        adds.extend(crate::bpmn::add_kinds(&self.repo, e));
         if self.repo.kind_of(e, "DFDElement") {
             adds.extend([("ExternalEntity", "DFDExternalEntity", false), ("Process", "DFDProcess", false), ("DataStore", "DFDDataStore", false)]);
         }
@@ -828,26 +1173,36 @@ impl App {
             adds.push(("Mindmap", "MMMindmap", false));
             // and a wireframe (wireframe/menus/wireframe.json, wireframe-commands.js:50-60)
             adds.push(("Wireframe", "WFWireframe", false));
-        }
-        // Model › Add › Constraint on any model element (uml.json)
-        if self.repo.kind_of(e, "UMLModelElement") {
-            adds.push(("Constraint", "UMLConstraint", false));
-        }
-        for (l, k) in [
-            ("Attribute", "UMLAttribute"), ("Operation", "UMLOperation"), ("Reception", "UMLReception"), ("Extension Point", "UMLExtensionPoint"), ("Slot", "UMLSlot"), ("Literal", "UMLEnumerationLiteral"),
-            ("Parameter", "UMLParameter"), ("Template Parameter", "UMLTemplateParameter"), ("Template Parameter Substitution", "UMLTemplateParameterSubstitution"),
-            ("State", "UMLState"), ("Region", "UMLRegion"), ("Trigger", "UMLEvent"), ("Action", "UMLAction"), ("Interaction Operand", "UMLInteractionOperand"),
-        ] {
-            if self.can_add_feature(e, k) {
-                adds.push((l, k, true));
+            // and the cloud models: their menus add one under any element (aws/menus/aws.json)
+            for (_, model, _, label) in crate::cloud::DIAGRAMS {
+                adds.push((label, model, false));
             }
         }
-        // a state's activities and a transition's effect ask which kind of behaviour (uml.json)
+        // SysML elements (sysml/menus/sysml.json)
+        adds.extend(crate::sysml::add_kinds(&self.repo, e));
+        // the state machine and activity items, then Constraint on any model element; a state's
+        // activities and a transition's effect ask which kind of behaviour (uml.json)
+        if t == "UMLRegion" {
+            adds.push(("State", "UMLState", true));
+        }
         if t == "UMLState" {
-            adds.extend([("Entry Activity", "entryActivities", false), ("Do Activity", "doActivities", false), ("Exit Activity", "exitActivities", false)]);
+            adds.extend([("Region", "UMLRegion", true), ("Entry Activity", "entryActivities", false), ("Do Activity", "doActivities", false), ("Exit Activity", "exitActivities", false)]);
+        }
+        if self.repo.kind_of(e, "UMLAction") || t == "UMLTransition" {
+            adds.push(("Trigger", "UMLEvent", true));
         }
         if t == "UMLTransition" {
             adds.push(("Effect", "effects", false));
+        }
+        if self.repo.kind_of(e, "UMLActivity") {
+            adds.push(("Action", "UMLAction", true));
+        }
+        if self.repo.kind_of(e, "UMLModelElement") {
+            adds.push(("Constraint", "UMLConstraint", false));
+        }
+        // a block takes no plain attributes (updateMenus, sysml-commands.js:308-309)
+        if self.repo.kind_of(e, "SysMLBlock") {
+            adds.retain(|a| a.1 != "UMLAttribute");
         }
         adds
     }
@@ -888,12 +1243,13 @@ impl App {
                 }
                 continue;
             }
-            // a constraint on an operation: which kind, in a Select One dialog (uml-commands.js:185)
-            if k == "UMLConstraint" && self.repo.ty(e) == "UMLOperation" {
+            // a constraint on an operation, a behaviour or an action: which kind, in a Select One
+            // dialog (uml-commands.js:184-241)
+            if let (true, Some((message, kinds))) = (k == "UMLConstraint", crate::app::constraint_kinds(&self.repo, e)) {
                 if ui.button(l).clicked() {
                     self.select_one = Some(crate::app::SelectOne {
-                        message: "Select the kind of constraint".into(),
-                        options: crate::app::OPERATION_CONSTRAINTS.iter().map(|x| x.0).collect(),
+                        message: message.into(),
+                        options: kinds.iter().map(|x| x.0).collect(),
                         selected: 0,
                         purpose: crate::app::SelectPurpose::ConstraintKind(e),
                     });
@@ -913,21 +1269,26 @@ impl App {
         }
     }
 
-    fn model_menu(&mut self, ui: &mut egui::Ui, e: Eid) {
+    /// The Add submenu for an element, when it offers anything.
+    pub(crate) fn add_menu(&mut self, ui: &mut egui::Ui, e: Eid) {
+        let adds = self.add_kinds(e);
+        ui.add_enabled_ui(!adds.is_empty() || self.repo.kind_of(e, "ExtensibleModel"), |ui| {
+            ui.menu_button("Add", |ui| self.add_items(ui, e));
+        });
+    }
+
+    /// The Add Diagram submenu for an element: the diagram kinds that can go under it.
+    pub(crate) fn add_diagram_menu(&mut self, ui: &mut egui::Ui, e: Eid) {
         let t = self.repo.ty(e).to_string();
         let is_pkg = self.repo.kind_of(e, "UMLPackage") || t == "Project";
         let is_classifier = self.repo.kind_of(e, "UMLClassifier");
-        let adds = self.add_kinds(e);
-        if !adds.is_empty() || self.repo.kind_of(e, "ExtensibleModel") {
-            ui.menu_button("Add", |ui| self.add_items(ui, e));
-        }
         // a flowchart or a mind map can be added under any element, a data flow diagram under a DFD
         // element too (flowchart-commands.js:136, mindmap-commands.js:62-74, dfd-commands.js:119-134)
         let other = self.repo.kind_of(e, "ExtensibleModel") && !self.repo.kind_of(e, "Diagram");
-        if is_pkg || is_classifier || other {
-            let dfd = self.repo.kind_of(e, "DFDElement");
+        let dfd = self.repo.kind_of(e, "DFDElement");
+        let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, Some(e), k).unwrap_or(true)).filter(|(_, k)| uml_diagram_offered(&self.repo, e, k).unwrap_or(true)).filter(|(_, k)| crate::sysml::is_diagram(k) || uml_diagram_offered(&self.repo, e, k).is_some() || is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram" | "BPMNDiagram") || crate::cloud::is_diagram(k) || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && t == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || t == "Project"))).collect();
+        ui.add_enabled_ui((is_pkg || is_classifier || other) && !kinds.is_empty(), |ui| {
             ui.menu_button("Add Diagram", |ui| {
-                let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| is_pkg || is_classifier || matches!(*k, "FCFlowchartDiagram" | "MMMindmapDiagram" | "WFWireframeDiagram") || (dfd && *k == "DFDDiagram") || (*k == "ERDDiagram" && self.repo.ty(e) == "ERDDataModel") || (*k == "C4Diagram" && (self.repo.kind_of(e, "C4Element") || self.repo.ty(e) == "Project"))).collect();
                 for (l, k) in kinds {
                     if ui.button(l).clicked() {
                         self.change(|a| a.add_diagram(Some(e), k));
@@ -936,27 +1297,55 @@ impl App {
                     }
                 }
             });
-        }
-        if self.is_diagram(e) && ui.button("Open Diagram").clicked() {
-            self.open_diagram(e);
+        });
+    }
+
+    /// The Model Explorer's context menu, in the original's order: Add Diagram, Add, Cut, Copy, Paste,
+    /// Delete From Model, Move Up, Move Down, Select In Diagram (menus/linux.json "model-explorer"),
+    /// then UMLCraft's own Open Diagram and Tag Editor.
+    pub(crate) fn model_menu(&mut self, ui: &mut egui::Ui, e: Eid) {
+        let t = self.repo.ty(e).to_string();
+        self.last_area = Area::Explorer;
+        self.add_diagram_menu(ui, e);
+        self.add_menu(ui, e);
+        ui.separator();
+        let can = self.can_copy();
+        if ui.add_enabled(can, self.key_button("Cut", "edit:cut")).clicked() {
+            self.cmd_cut(Some(&ui.ctx().clone()));
             ui.close();
         }
-        if self.repo.kind_of(e, "ExtensibleModel") && ui.button("Tag Editor...").clicked() {
-            self.focus = Some(e);
-            self.open_tag_editor();
+        if ui.add_enabled(can, self.key_button("Copy", "edit:copy")).clicked() {
+            self.cmd_copy(Some(&ui.ctx().clone()));
             ui.close();
         }
-        if !self.is_diagram(e) && t != "Project" && ui.button("Select In Diagram").clicked() {
+        if ui.add(self.key_button("Paste", "edit:paste")).clicked() {
+            self.cmd_paste();
+            ui.close();
+        }
+        if ui.add_enabled(t != "Project", self.key_button("Delete From Model", "edit:delete-from-model")).clicked() {
+            self.change(|a| a.delete_models(&[e]));
+            ui.close();
+        }
+        ui.separator();
+        self.move_items(ui);
+        ui.separator();
+        if ui.add_enabled(!self.is_diagram(e) && t != "Project", self.key_button("Select In Diagram", "edit:select-in-diagram")).clicked() {
             self.focus = Some(e);
             self.select_in_diagram();
             ui.close();
         }
-        ui.separator();
-        self.last_area = Area::Explorer;
-        self.clipboard_items(ui);
-        self.move_items(ui);
-        if ui.add_enabled(t != "Project", egui::Button::new("Delete from Model")).clicked() {
-            self.change(|a| a.delete_models(&[e]));
+        let diagram = self.is_diagram(e);
+        let taggable = self.repo.kind_of(e, "ExtensibleModel");
+        if diagram || taggable {
+            ui.separator();
+        }
+        if diagram && ui.button("Open Diagram").clicked() {
+            self.open_diagram(e);
+            ui.close();
+        }
+        if taggable && ui.add(self.key_button("Tag Editor...", "model:tag-editor")).clicked() {
+            self.focus = Some(e);
+            self.open_tag_editor();
             ui.close();
         }
     }
@@ -1010,7 +1399,7 @@ impl App {
                         for e in hits {
                             ui.horizontal(|ui| {
                                 let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                                icons::draw(ui.painter(), ir, icons::key_for(&self.repo, e));
+                                icons::draw_for(ui.painter(), ir, &self.repo, e);
                                 let parent = self.repo.parent(e).map(|p| self.repo.name(p)).filter(|n| !n.is_empty());
                                 let text = match parent {
                                     Some(p) => format!("{} — {p}", self.label_of(e)),
@@ -1158,34 +1547,42 @@ impl App {
     }
 
     // ------------------------------------------------------------ editors
+    /// The Properties rows of an element: (field path, editor kind), "-" for a separator. UML and core
+    /// kinds take the visible attributes of the metamodel, their parents' first, then each expanded
+    /// part (an association's ends, a stereotype's icon) under its prefix (PropertyEditorView.show,
+    /// property-editor-view.js:699-810); the other notations keep their own lists.
     pub(crate) fn fields_for(&self, e: Eid) -> Vec<(&'static str, &'static str)> {
         let r = &self.repo;
         let t = r.ty(e);
-        let end = |p: &str| -> Vec<(&'static str, &'static str)> {
-            let names: [(&'static str, &'static str); 14] = [
-                ("name", "text"), ("reference", "ref"), ("stereotype", "text"), ("visibility", "enum"), ("navigable", "enum"), ("aggregation", "enum"), ("multiplicity", "text"),
-                ("defaultValue", "text"), ("isReadOnly", "bool"), ("isOrdered", "bool"), ("isUnique", "bool"), ("isDerived", "bool"), ("isID", "bool"), ("ownerAttribute", "owner"),
-            ];
-            names
-                .iter()
-                .map(|(n, k)| {
-                    let full: &'static str = match p {
-                        "end1" => Box::leak(format!("end1.{n}").into_boxed_str()),
-                        "end2" => Box::leak(format!("end2.{n}").into_boxed_str()),
-                        _ => n,
-                    };
-                    (full, *k)
-                })
-                .collect()
-        };
-        if t == "Project" {
-            return vec![("name", "text"), ("author", "text"), ("company", "text"), ("copyright", "text"), ("version", "text")];
+        if t == "Hyperlink" {
+            return vec![("name", "text"), ("reference", "link"), ("url", "text"), ("showName", "bool")];
+        }
+        if let Some(f) = crate::sysml::fields(r, e) {
+            return f;
+        }
+        if crate::meta::has_visible(t) {
+            let mut f = vec![];
+            let mut parts = vec![];
+            for (name, kind) in crate::meta::visible_attrs(t) {
+                if kind == "expand" {
+                    parts.push(name);
+                } else {
+                    f.push((name, kind));
+                }
+            }
+            for p in parts {
+                let Some(c) = r.child(e, p) else { continue };
+                f.push(("-", ""));
+                for (name, kind) in crate::meta::visible_attrs(r.ty(c)) {
+                    if kind != "expand" {
+                        f.push((intern(format!("{p}.{name}")), kind));
+                    }
+                }
+            }
+            return f;
         }
         if self.is_diagram(e) {
             return vec![("name", "text"), ("defaultDiagram", "bool")];
-        }
-        if t == "Hyperlink" {
-            return vec![("name", "text"), ("reference", "link"), ("url", "text"), ("showName", "bool")];
         }
         // the other notations' visible attributes (their metamodel.json files)
         match t {
@@ -1200,6 +1597,7 @@ impl App {
                 ];
             }
             "C4Container" => return vec![("name", "text"), ("technology", "text"), ("description", "multiline"), ("kind", "enum")],
+            _ if t.starts_with("BPMN") && !self.is_diagram(e) => return crate::bpmn::fields(r, e),
             _ if r.kind_of(e, "C4Element") => return vec![("name", "text"), ("technology", "text"), ("description", "multiline")],
             _ if r.kind_of(e, "DFDElement") => return vec![("name", "text"), ("id", "text")],
             "WFMobileFrame" => return vec![("name", "text"), ("id", "text"), ("orientation", "enum")],
@@ -1208,87 +1606,14 @@ impl App {
             "WFSeparator" => return vec![("name", "text"), ("id", "text"), ("isVertical", "bool")],
             "WFSlider" => return vec![("name", "text"), ("id", "text"), ("value", "int")],
             _ if r.kind_of(e, "WFElement") => return vec![("name", "text"), ("id", "text")],
+            // the cloud elements' visible attributes (aws/metamodel.json); the icon is not shown
+            _ if crate::cloud::element_kind(t).is_some() || crate::cloud::edge_view_of(t).is_some() => return crate::cloud::fields(t),
             _ => {}
         }
-        if t == "UMLAssociation" {
-            let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isDerived", "bool"), ("-", "")];
-            f.extend(end("end1"));
-            f.push(("-", ""));
-            f.extend(end("end2"));
-            return f;
-        }
-        // a link: its two ends, without the association-only owner attribute
-        if t == "UMLLink" {
-            let link_end = |p: &str| end(p).into_iter().filter(|x| !x.0.ends_with("ownerAttribute")).collect::<Vec<_>>();
-            let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("-", "")];
-            f.extend(link_end("end1"));
-            f.push(("-", ""));
-            f.extend(link_end("end2"));
-            return f;
-        }
-        if r.has(e, "source") && r.has(e, "target") {
-            let mut f = vec![("name", "text"), ("source", "ref"), ("target", "ref"), ("stereotype", "text"), ("visibility", "enum")];
-            if t == "UMLGeneralization" {
-                f.push(("discriminator", "text"));
-            }
-            if t == "UMLExtend" {
-                f.push(("condition", "text"));
-            }
-            if t == "UMLRoleBinding" {
-                f.push(("roleName", "text"));
-            }
-            if t == "UMLTransition" {
-                f.push(("kind", "enum"));
-                f.push(("guard", "text"));
-            }
-            // the items an information flow conveys, edited in the Element List Editor
-            if t == "UMLInformationFlow" {
-                f.push(("conveyed", "reflist"));
-            }
-            return f;
-        }
-        match t {
-            "UMLAttribute" => vec![
-                ("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("type", "type"), ("multiplicity", "text"),
-                ("isReadOnly", "bool"), ("isOrdered", "bool"), ("isUnique", "bool"), ("defaultValue", "text"), ("isDerived", "bool"), ("aggregation", "enum"), ("isID", "bool"),
-            ],
-            "UMLOperation" => vec![
-                ("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("concurrency", "enum"), ("isQuery", "bool"),
-                ("isAbstract", "bool"), ("specification", "multiline"),
-            ],
-            // behaviours (uml/metamodel.json: the visible attributes of UMLBehavior and UMLActivity)
-            "UMLOpaqueBehavior" | "UMLInteraction" | "UMLStateMachine" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isReentrant", "bool")],
-            "UMLActivity" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isReentrant", "bool"), ("isReadOnly", "bool"), ("isSingleExecution", "bool")],
-            "UMLTemplateParameterSubstitution" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("formal", "ref"), ("actual", "type")],
-            "UMLParameter" => vec![("name", "text"), ("stereotype", "text"), ("type", "type"), ("multiplicity", "text"), ("defaultValue", "text"), ("direction", "enum")],
-            "UMLEnumerationLiteral" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
-            "UMLExtensionPoint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("location", "text")],
-            "UMLObject" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("classifier", "type")],
-            // a stereotype's icon: its minimum size and its icon script (uml/metamodel.json UMLImage)
-            "UMLImage" => vec![("width", "int"), ("height", "int"), ("image", "image"), ("content", "multiline")],
-            "UMLCollaborationUse" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type")],
-            // the visible attributes of states, events and actions (uml/metamodel.json)
-            "UMLState" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("submachine", "ref")],
-            "UMLInteractionOperand" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("guard", "text")],
-            "UMLEvent" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("value", "text"), ("expression", "text"), ("targetOperation", "ref"), ("targetSignal", "ref")],
-            "UMLAction" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("kind", "enum"), ("isLocallyReentrant", "bool"), ("isSynchronous", "bool"), ("language", "text")],
-            "UMLTimeConstraint" | "UMLDurationConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist"), ("min", "text"), ("max", "text")],
-            "UMLConstraint" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("specification", "multiline"), ("constrainedElements", "reflist")],
-            "UMLSlot" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("type", "type"), ("value", "text")],
-            // a reception names the signal it receives (uml-commands.js:1484)
-            "UMLReception" => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isStatic", "bool"), ("isLeaf", "bool"), ("signal", "type")],
-            "UMLAssociationEnd" => end(""),
-            "UMLLinkEnd" => end("").into_iter().filter(|x| x.0 != "ownerAttribute").collect(),
-            _ if r.kind_of(e, "UMLClassifier") => {
-                let mut f = vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum"), ("isAbstract", "bool"), ("isFinalSpecialization", "bool"), ("isLeaf", "bool")];
-                if t == "UMLClass" {
-                    f.push(("isActive", "bool"));
-                }
-                f
-            }
-            _ if r.kind_of(e, "UMLModelElement") => vec![("name", "text"), ("stereotype", "text"), ("visibility", "enum")],
-            _ if r.has(e, "name") || r.kind_of(e, "Model") => vec![("name", "text")],
-            _ => vec![],
+        if r.has(e, "name") || r.kind_of(e, "Model") {
+            vec![("name", "text")]
+        } else {
+            vec![]
         }
     }
 
@@ -1338,13 +1663,27 @@ impl App {
         });
     }
 
-    fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
+    pub(crate) fn enum_options(ty: &str, field: &str) -> &'static [&'static str] {
+        if let Some(o) = crate::sysml::enum_options(ty, field) {
+            return o;
+        }
         match (ty, field) {
             ("UMLTransition", "kind") => return &["external", "internal", "local"],
+            // UMLConnectorKind (uml/metamodel.json)
+            ("UMLConnector", "kind") => return &["assembly", "delegation"],
+            // UMLMessageSort (uml/metamodel.json)
+            ("UMLMessage", "messageSort") => return &["synchCall", "asynchCall", "asynchSignal", "createMessage", "deleteMessage", "reply"],
+            (t, f) if t.starts_with("BPMN") && crate::bpmn::enum_options(f).is_some() => return crate::bpmn::enum_options(f).unwrap_or(&[]),
             ("ERDRelationshipEnd", "cardinality") => return &["0..1", "1", "0..*", "1..*"],
             // WFOrientationKind, WFPositionKind (wireframe/metamodel.json)
             ("WFMobileFrame", "orientation") => return &["portrait", "landscape"],
             ("WFTab" | "WFTabList", "position") => return &["top", "bottom", "left", "right"],
+            // GCPZoneKind, GCPPathKind, GCPMachineType, GCPDiskType, GCPAdditionalModifierType (gcp/metamodel.json)
+            ("GCPZone", "zoneType") => return &crate::gcp::ZONE_TYPES,
+            ("GCPPath", "pathType") => return &crate::gcp::PATH_KINDS,
+            ("GCPProduct", "machineType") => return &crate::gcp::MACHINE_TYPES,
+            ("GCPProduct", "diskType") => return &crate::gcp::DISK_TYPES,
+            ("GCPProduct", "additionalModifier") => return &crate::gcp::MODIFIERS,
             ("C4Container", "kind") => {
                 return &["server-webapp", "client-webapp", "desktop-app", "mobile-app", "console-app", "serverless-function", "database", "blob-store", "filesystem", "shell-script", "etc"]
             }
@@ -1353,6 +1692,9 @@ impl App {
                 return &["opaque", "create", "destroy", "read", "write", "insert", "delete", "sendSignal", "acceptSignal", "triggerEvent", "acceptEvent", "structured", "timeEvent", "callBehavior", "callOperation"]
             }
             _ => {}
+        }
+        if let Some(l) = crate::meta::enum_literals(ty, field) {
+            return l;
         }
         match field {
             "visibility" => &["public", "protected", "private", "package"],
@@ -1405,7 +1747,7 @@ impl App {
                     let mut fw = w;
                     if let Some(t) = linked {
                         let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                        icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
+                        icons::draw_for(ui.painter(), ir, &self.repo, t);
                         fw -= 16.0 + ui.spacing().item_spacing.x;
                     }
                     let combo = field == "multiplicity";
@@ -1419,8 +1761,21 @@ impl App {
                     let cur = merged.clone().unwrap_or_default();
                     let buf = self.prop_buf.entry(path.to_string()).or_insert(cur.clone());
                     let r = ui.add_sized(Vec2::new(fw, 23.0), egui::TextEdit::singleline(buf).hint_text("—").font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
-                    if r.lost_focus() {
-                        let text = buf.clone();
+                    let typed = buf.clone();
+                    // type and stereotype names autocomplete while typed (property-editor-view.js:575-653)
+                    let over_list = egui::Id::new(("autocomplete-over", path));
+                    let was_over = ui.ctx().data(|d| d.get_temp::<bool>(over_list)).unwrap_or(false);
+                    if var && (ui.memory(|m| m.has_focus(r.id)) || was_over) && !typed.trim().is_empty() && typed != cur {
+                        if let Some(e) = self.autocomplete_list(ui, &r, over_list, &field, &typed) {
+                            self.apply_picked(obj, &field, Some(e));
+                            r.surrender_focus();
+                        }
+                    } else {
+                        ui.ctx().data_mut(|d| d.insert_temp(over_list, false));
+                    }
+                    // a click in the list is a pick, not the end of typing
+                    if r.lost_focus() && !(var && was_over) {
+                        let text = typed.clone();
                         if single {
                             self.commit_text(obj, &field, kind, text);
                         } else if text != cur {
@@ -1490,7 +1845,7 @@ impl App {
                             for x in &items {
                                 ui.horizontal(|ui| {
                                     let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                                    icons::draw(ui.painter(), ir, icons::key_for(&self.repo, *x));
+                                    icons::draw_for(ui.painter(), ir, &self.repo, *x);
                                     ui.label(egui::RichText::new(self.repo.name(*x)).size(12.0).color(TEXT()));
                                 });
                             }
@@ -1546,22 +1901,25 @@ impl App {
                         }
                     }
                     if set && single && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("×")).on_hover_text("Delete the image").clicked() {
-                        let ok = rfd::MessageDialog::new().set_description("Do you want to delete this image?").set_buttons(rfd::MessageButtons::OkCancel).show();
-                        if ok == rfd::MessageDialogResult::Ok {
+                        // a confirmation box (property-editor-view.js:365)
+                        if self.confirm("Do you want to delete this image?") {
                             let f = field.clone();
                             self.change(|a| a.repo.remove(obj, &f));
                         }
                     }
                 }
                 // an integer: a typed value that is not a whole number is ignored (property-editor-view.js:274-330)
-                "int" => {
+                // a number read as parseInt or parseFloat would: the number the text starts with
+                // ("12px" is 12); text with no number keeps the old value (property-editor-view.js:274-330)
+                "int" | "real" => {
                     let cur = merged.clone().unwrap_or_default();
                     let buf = self.prop_buf.entry(path.to_string()).or_insert(cur.clone());
                     let r = ui.add_sized(Vec2::new(w, 23.0), egui::TextEdit::singleline(buf).hint_text("—").font(FontId::proportional(12.0)).margin(Margin::symmetric(9, 3)));
                     if r.lost_focus() && *buf != cur {
-                        match buf.trim().parse::<i64>() {
-                            Ok(n) => self.change_all(&targets, |a, o, f| a.repo.set(o, f, json!(n))),
-                            Err(_) => *buf = cur,
+                        let v = if kind == "int" { parse_int(buf).map(|n| json!(n)) } else { parse_real(buf).map(|n| json!(n)) };
+                        match v {
+                            Some(v) => self.change_all(&targets, |a, o, f| a.repo.set(o, f, v.clone())),
+                            None => *buf = cur,
                         }
                     }
                 }
@@ -1569,7 +1927,7 @@ impl App {
                 "link" => {
                     if let Some(t) = self.repo.refd(obj, &field).filter(|t| self.repo.alive(*t)) {
                         let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                        icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
+                        icons::draw_for(ui.painter(), ir, &self.repo, t);
                         ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT()));
                     } else {
                         ui.label(egui::RichText::new("—").size(12.0).color(DIM()));
@@ -1578,17 +1936,29 @@ impl App {
                         self.open_element_picker(obj, &field);
                     }
                 }
+                // a reference: the element's icon and name, or "—"; a search button opens the Element
+                // Picker on the attribute's type, except for the read-only source, target and end
+                // reference (property-editor-view.js:490-539)
                 "ref" => {
                     let shared = targets.iter().map(|(o, f)| self.repo.refd(*o, f)).collect::<Vec<_>>();
-                    match shared[0].filter(|_| shared.iter().all(|x| *x == shared[0])) {
-                        Some(t) => {
-                            let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                            icons::draw(ui.painter(), ir, icons::key_for(&self.repo, t));
-                            ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT()));
+                    let read_only = matches!(field.as_str(), "source" | "target" | "reference");
+                    let bw = if read_only || !single { 0.0 } else { 28.0 };
+                    ui.allocate_ui_with_layout(Vec2::new(w - bw, 23.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                        ui.set_min_width(w - bw);
+                        match shared[0].filter(|_| shared.iter().all(|x| *x == shared[0])) {
+                            Some(t) => {
+                                let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                                icons::draw_for(ui.painter(), ir, &self.repo, t);
+                                ui.label(egui::RichText::new(self.repo.name(t)).size(12.0).color(TEXT()));
+                            }
+                            None => {
+                                ui.label(egui::RichText::new("—").size(12.0).color(DIM()));
+                            }
                         }
-                        None => {
-                            ui.label(egui::RichText::new("—").size(12.0).color(DIM()));
-                        }
+                    });
+                    if bw > 0.0 && ui.add_sized(Vec2::new(24.0, 23.0), egui::Button::new("…")).on_hover_text("Select Element").clicked() {
+                        let ty = crate::picker::field_type(&field);
+                        self.open_typed_picker(obj, &field, ty);
                     }
                 }
                 _ => {}
@@ -1854,6 +2224,15 @@ impl App {
                 Some("MMMindmapDiagram") => self.open_groups.insert("mindmap"),
                 Some("ERDDiagram") => self.open_groups.insert("erd"),
                 Some("C4Diagram") => self.open_groups.insert("c4"),
+                // Basic, Artifact and Swimlanes open on a BPMN diagram ("auto-expands")
+                Some("BPMNDiagram") => self.open_groups.insert("bpmn.basic") | self.open_groups.insert("bpmn.artifact") | self.open_groups.insert("bpmn.swimlanes"),
+                Some("AWSDiagram") => self.open_groups.insert("aws.elements"),
+                Some("AzureDiagram") => self.open_groups.insert("azure.elements"),
+                Some("GCPDiagram") => self.open_groups.insert("gcp.elements"),
+                Some("SysMLRequirementDiagram") => self.open_groups.insert("sysml.requirement"),
+                Some("SysMLBlockDefinitionDiagram") => self.open_groups.insert("sysml.block"),
+                Some("SysMLInternalBlockDiagram") => self.open_groups.insert("sysml.internal-block"),
+                Some("SysMLParametricDiagram") => self.open_groups.insert("sysml.parametric"),
                 // both groups open on a wireframe diagram ("auto-expands")
                 Some("WFWireframeDiagram") => self.open_groups.insert("wireframe.frames") | self.open_groups.insert("wireframe.components"),
                 Some("UMLSequenceDiagram") => self.open_groups.insert("sequence"),
@@ -1876,30 +2255,7 @@ impl App {
             }
         });
         ui.add_space(5.0);
-        let groups: &[Group] = match self.diagram.map(|d| self.repo.ty(d).to_string()).as_deref() {
-            Some("UMLClassDiagram") => CLASS_GROUPS,
-            Some("UMLUseCaseDiagram") => USECASE_GROUPS,
-            Some("UMLPackageDiagram") => PACKAGE_GROUPS,
-            Some("UMLObjectDiagram") => OBJECT_GROUPS,
-            Some("UMLInformationFlowDiagram") => INFO_FLOW_GROUPS,
-            Some("UMLProfileDiagram") => PROFILE_GROUPS,
-            Some("UMLCompositeStructureDiagram") => COMPOSITE_GROUPS,
-            Some("UMLStatechartDiagram") => STATECHART_GROUPS,
-            Some("UMLActivityDiagram") => ACTIVITY_GROUPS,
-            Some("FCFlowchartDiagram") => FLOWCHART_GROUPS,
-            Some("DFDDiagram") => DFD_GROUPS,
-            Some("MMMindmapDiagram") => MINDMAP_GROUPS,
-            Some("ERDDiagram") => ERD_GROUPS,
-            Some("C4Diagram") => C4_GROUPS,
-            Some("WFWireframeDiagram") => WIREFRAME_GROUPS,
-            Some("UMLSequenceDiagram") => SEQUENCE_GROUPS,
-            Some("UMLCommunicationDiagram") => COMMUNICATION_GROUPS,
-            Some("UMLInteractionOverviewDiagram") => OVERVIEW_GROUPS,
-            Some("UMLTimingDiagram") => TIMING_GROUPS,
-            Some("UMLComponentDiagram") | Some("UMLDeploymentDiagram") => COMPONENT_GROUPS,
-            Some(_) => OTHER_GROUPS,
-            None => &[],
-        };
+        let groups: &[Group] = tool_groups(self.diagram.map(|d| self.repo.ty(d)));
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
             for g in groups {
@@ -1968,9 +2324,21 @@ impl App {
         ui.add_space(4.0);
         ui.vertical_centered(|ui| {
             ui.spacing_mut().item_spacing.y = 3.0;
-            for (key, tip) in [("zoomIn", "Zoom In"), ("zoomOut", "Zoom Out"), ("fit", "Fit To Window"), ("grid", "Show Grid"), ("image", "Export Diagram as PNG")] {
+            // the panel buttons in the order their extensions load (diagram-thumbnails, markdown,
+            // minimap, relationship-view: diagram-thumbnails/main.js:44-46, markdown/main.js:42-44,
+            // minimap/main.js:35, relationship-view/main.js:34)
+            for (key, tip) in [("zoomIn", "Zoom In"), ("zoomOut", "Zoom Out"), ("fit", "Fit To Window"), ("grid", "Show Grid"), ("image", "Export Diagram as PNG"), ("thumbnails", "Diagram Thumbnails"), ("markdown", "Markdown Documentation"), ("minimap", "Minimap"), ("relationships", "Relationship View")] {
                 let (r, resp) = ui.allocate_exact_size(Vec2::splat(24.0), Sense::click());
-                if resp.hovered() {
+                // a panel's button stays selected while its panel shows (markdown/main.js:66-80,
+                // minimap/main.js:47, 60)
+                let selected = match key {
+                    "markdown" => self.show_markdown,
+                    "thumbnails" => self.show_thumbnails,
+                    "minimap" => self.show_minimap,
+                    "relationships" => self.show_relationships,
+                    _ => false,
+                };
+                if resp.hovered() || selected {
                     ui.painter().rect_filled(r, CornerRadius::same(2), TOOL_HOVER());
                 }
                 icons::draw(ui.painter(), r.shrink(3.0), key);
@@ -1980,6 +2348,10 @@ impl App {
                         "zoomOut" => self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP),
                         "fit" => self.fit(),
                         "grid" => self.show_grid = !self.show_grid,
+                        "markdown" => self.show_markdown = !self.show_markdown,
+                        "thumbnails" => self.show_thumbnails = !self.show_thumbnails,
+                        "minimap" => self.show_minimap = !self.show_minimap,
+                        "relationships" => self.show_relationships = !self.show_relationships,
                         _ => self.export_current(&ui.ctx().clone(), crate::export::Format::Png),
                     }
                 }
@@ -1995,6 +2367,8 @@ impl App {
         let zr = Rect::from_min_max(Pos2::new(rect.right() - 57.0, rect.top()), rect.right_bottom());
         p.vline(zr.left(), rect.y_range(), Stroke::new(1.0, BORDER()));
         p.text(zr.center(), Align2::CENTER_CENTER, format!("{}%", (self.zoom * 100.0).round()), FontId::proportional(13.0), TEXT());
+        // display only, with the tooltip "Zoom Level" (statusbar.html:7)
+        ui.interact(zr, egui::Id::new("zoom-level"), Sense::hover()).on_hover_text("Zoom Level");
         let vr = Rect::from_min_max(Pos2::new(zr.left() - 33.0, rect.top()), Pos2::new(zr.left(), rect.bottom()));
         p.vline(vr.left(), rect.y_range(), Stroke::new(1.0, BORDER()));
         // validation indicator: green OK, or red when the last validation found errors; a click toggles
@@ -2010,8 +2384,8 @@ impl App {
             p.circle_filled(c, 7.5, OK_GREEN);
             p.add(egui::Shape::line(vec![c + Vec2::new(-3.5, 0.0), c + Vec2::new(-1.0, 2.5), c + Vec2::new(3.5, -2.5)], Stroke::new(2.0, LAYER0())));
         }
-        let tip = if errors { "Validation errors" } else { "Validation OK" };
-        if ui.interact(vr, egui::Id::new("validation-indicator"), Sense::click()).on_hover_text(tip).clicked() {
+        // the tooltip is the item's title, whatever the result (statusbar.html:6)
+        if ui.interact(vr, egui::Id::new("validation-indicator"), Sense::click()).on_hover_text("Validation Results").clicked() {
             self.show_validation = !self.show_validation;
         }
         // theme button: a moon in the dark theme, a sun in the light one; a click switches theme.default
@@ -2069,22 +2443,20 @@ impl App {
         let measure = EguiMeasure { ctx: ui.ctx().clone() };
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button("File", |ui| {
-                if ui.button(&menu_label("New                     Ctrl+N")).clicked() {
+                if ui.add(self.key_button("New", "application:new")).clicked() {
                     self.cmd_new(&measure);
                     ui.close();
                 }
                 ui.menu_button("New From Template", |ui| {
                     for t in &crate::templates::TEMPLATES {
                         if ui.button(t.label).clicked() {
-                            if self.confirm_discard(&measure) {
-                                self.save_working_diagrams();
-                                self.set_project(crate::templates::project(t), None);
-                            }
+                            // a new window with the template (application.js:249-253)
+                            self.new_window_from_template(t.label);
                             ui.close();
                         }
                     }
                 });
-                if ui.button(&menu_label("Open...                 Ctrl+O")).clicked() {
+                if ui.add(self.key_button("Open...", "project:open")).clicked() {
                     self.cmd_open(&measure);
                     ui.close();
                 }
@@ -2100,20 +2472,25 @@ impl App {
                     });
                 });
                 ui.separator();
-                if ui.button(&menu_label("Save                    Ctrl+S")).clicked() {
+                if ui.add(self.key_button("Save", "project:save")).clicked() {
                     self.save(&measure);
                     ui.close();
                 }
-                if ui.button(&menu_label("Save As...      Ctrl+Shift+S")).clicked() {
+                if ui.add(self.key_button("Save As...", "project:save-as")).clicked() {
                     self.save_as(&measure);
                     ui.close();
                 }
                 ui.separator();
+                // project:close closes the window, after the save prompt (default-commands.js:345-347)
                 if ui.button("Close").clicked() {
-                    self.cmd_new(&measure);
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     ui.close();
                 }
                 ui.separator();
+                if ui.add(self.key_button("Export Image...", "project:export-image")).clicked() {
+                    self.open_export_image();
+                    ui.close();
+                }
                 ui.menu_button("Export Diagram As", |ui| {
                     use crate::export::Format;
                     for f in [Format::Png, Format::Jpeg, Format::Svg] {
@@ -2139,6 +2516,10 @@ impl App {
                         self.import_xmi_dialog();
                         ui.close();
                     }
+                    if ui.button("StarUML 1 File (.uml)...").clicked() {
+                        self.cmd_import_staruml_v1(&measure);
+                        ui.close();
+                    }
                 });
                 ui.menu_button("Export", |ui| {
                     if ui.button("Fragment...").clicked() {
@@ -2153,57 +2534,64 @@ impl App {
                         self.export_xmi_dialog();
                         ui.close();
                     }
+                    if ui.button("StarUML V7...").clicked() {
+                        self.export_v7_dialog(&measure);
+                        ui.close();
+                    }
                 });
-                if ui.button("Print to PDF...").clicked() {
+                if ui.add(self.key_button("Print to PDF...", "file:print-to-pdf")).clicked() {
                     self.print_open = true;
                     ui.close();
                 }
                 ui.separator();
-                if ui.button("Preferences...").clicked() {
+                if ui.add(self.key_button("Preferences...", "application:preferences")).clicked() {
                     self.prefs_open = Some("General".into());
                     ui.close();
                 }
                 ui.separator();
-                if ui.button(&menu_label("Exit                    Ctrl+Q")).clicked() {
+                if ui.add(self.key_button("Exit", "application:quit")).clicked() {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     ui.close();
                 }
             });
             ui.menu_button("Edit", |ui| {
-                if ui.add_enabled(!self.undo.is_empty(), egui::Button::new(&menu_label("Undo                Ctrl+Z"))).clicked() {
+                if ui.add_enabled(!self.undo.is_empty(), self.key_button("Undo", "edit:undo")).clicked() {
                     self.do_undo();
                     ui.close();
                 }
-                if ui.add_enabled(!self.redo.is_empty(), egui::Button::new(&menu_label("Redo                Ctrl+Y"))).clicked() {
+                if ui.add_enabled(!self.redo.is_empty(), self.key_button("Redo", "edit:redo")).clicked() {
                     self.do_redo();
                     ui.close();
                 }
                 ui.separator();
                 self.clipboard_items(ui);
-                if ui.button(&menu_label("Delete              Delete")).clicked() {
+                if ui.add(self.key_button("Delete", "edit:delete")).clicked() {
                     self.delete_selection(false);
                     ui.close();
                 }
-                if ui.button(&menu_label("Delete From Model   Ctrl+Delete")).clicked() {
+                // enabled when the selected model can be deleted (default-commands.js:1319-1324)
+                let sel: Vec<Eid> = self.selection.iter().copied().filter(|v| self.repo.alive(*v)).collect();
+                let can = if sel.is_empty() { self.focus.is_some_and(|f| self.repo.alive(f) && self.repo.ty(f) != "Project") } else { sel.iter().any(|v| self.repo.refd(*v, "model").is_some()) };
+                if ui.add_enabled(can, self.key_button("Delete From Model", "edit:delete-from-model")).clicked() {
                     self.delete_selection(true);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button(&menu_label("Select All          Ctrl+A")).clicked() {
+                if ui.add(self.key_button("Select All", "edit:select-all")).clicked() {
                     self.select_all();
                     ui.close();
                 }
-                if ui.button(&menu_label("Select In Explorer  Ctrl+E")).clicked() {
+                if ui.add(self.key_button("Select In Explorer", "edit:select-in-explorer")).clicked() {
                     if let Some(f) = self.focus {
                         self.reveal(f);
                     }
                     ui.close();
                 }
-                if ui.add_enabled(self.focus.is_some(), egui::Button::new(&menu_label("Select In Diagram   Ctrl+D"))).clicked() {
+                if ui.add_enabled(self.focus.is_some(), self.key_button("Select In Diagram", "edit:select-in-diagram")).clicked() {
                     self.select_in_diagram();
                     ui.close();
                 }
-                if ui.add_enabled(self.focus.is_some(), egui::Button::new(&menu_label("Open Sub-Diagram    Ctrl+Shift+D"))).clicked() {
+                if ui.add_enabled(self.focus.is_some(), self.key_button("Open Sub-Diagram", "edit:open-sub-diagram")).clicked() {
                     self.open_sub_diagram();
                     ui.close();
                 }
@@ -2211,13 +2599,13 @@ impl App {
                 self.move_items(ui);
             });
             ui.menu_button("Format", |ui| {
-                if ui.add_enabled(!self.selection.is_empty(), egui::Button::new(&menu_label("Font...                         Ctrl+Shift+F"))).clicked() {
+                if ui.add_enabled(!self.selection.is_empty(), self.key_button("Font...", "format:font")).clicked() {
                     self.open_font_dialog();
                     ui.close();
                 }
                 self.color_menus(ui);
+                ui.separator();
                 self.line_style_menu(ui);
-                self.stereotype_display_menu(ui);
                 self.format_toggles(ui);
                 ui.separator();
                 self.alignment_menu(ui);
@@ -2239,7 +2627,9 @@ impl App {
                     ui.menu_button("Add", |ui| self.add_items(ui, target));
                 });
                 ui.menu_button("Add Diagram", |ui| {
-                    for (l, k) in DIAGRAM_KINDS {
+                    let sel = self.focus.filter(|f| self.repo.alive(*f) && !self.is_view(*f));
+                    let kinds: Vec<(&str, &str)> = DIAGRAM_KINDS.into_iter().filter(|(_, k)| crate::sysml::diagram_offered(&self.repo, sel, k).unwrap_or(true)).filter(|(_, k)| sel.and_then(|e| uml_diagram_offered(&self.repo, e, k)).unwrap_or(true)).collect();
+                    for (l, k) in kinds {
                         if ui.button(l).clicked() {
                             let f = self.focus;
                             self.change(|a| a.add_diagram(f, k));
@@ -2247,7 +2637,7 @@ impl App {
                         }
                     }
                 });
-                if ui.button(&menu_label("Find...                   Ctrl+F")).clicked() {
+                if ui.add(self.key_button("Find...", "find:find")).clicked() {
                     self.open_find();
                     ui.close();
                 }
@@ -2258,7 +2648,7 @@ impl App {
                     }
                 });
                 let taggable = self.focus.map(|f| self.repo.alive(f) && self.repo.kind_of(f, "ExtensibleModel")).unwrap_or(false);
-                if ui.add_enabled(taggable, egui::Button::new(&menu_label("Tag Editor...       Ctrl+T"))).clicked() {
+                if ui.add_enabled(taggable, self.key_button("Tag Editor...", "model:tag-editor")).clicked() {
                     self.open_tag_editor();
                     ui.close();
                 }
@@ -2275,6 +2665,14 @@ impl App {
                 }
             });
             ui.menu_button("Tools", |ui| {
+                // a dialog per language with Generate and Reverse tabs (docs.staruml.io language-support)
+                for l in crate::codegen::Lang::ALL {
+                    if ui.button(format!("{}...", l.label())).clicked() {
+                        self.open_codegen(l);
+                        ui.close();
+                    }
+                }
+                ui.separator();
                 if ui.button("Generate Diagram by Mermaid...").clicked() {
                     self.mermaid_code = Some(crate::mermaid::SAMPLE.to_string());
                     ui.close();
@@ -2289,11 +2687,11 @@ impl App {
                 });
             });
             ui.menu_button("View", |ui| {
-                if ui.button(&menu_label("Quick Find...        Ctrl+P")).clicked() {
+                if ui.add(self.key_button("Quick Find...", "view:quick-find")).clicked() {
                     self.open_palette(crate::palette::Mode::Find);
                     ui.close();
                 }
-                if ui.button("Command Palette... Ctrl+Shift+P").clicked() {
+                if ui.add(self.key_button("Command Palette...", "view:command-palette")).clicked() {
                     self.open_palette(crate::palette::Mode::Commands);
                     ui.close();
                 }
@@ -2301,40 +2699,47 @@ impl App {
                 self.diagram_close_items(ui);
                 ui.separator();
                 let many = self.open.len() > 1;
-                if ui.add_enabled(many, egui::Button::new(&menu_label("Next Diagram        Ctrl+Shift+]"))).clicked() {
+                if ui.add_enabled(many, self.key_button("Next Diagram", "view:next-diagram")).clicked() {
                     self.cycle_diagram(1);
                     ui.close();
                 }
-                if ui.add_enabled(many, egui::Button::new(&menu_label("Previous Diagram    Ctrl+Shift+["))).clicked() {
+                if ui.add_enabled(many, self.key_button("Previous Diagram", "view:previous-diagram")).clicked() {
                     self.cycle_diagram(-1);
                     ui.close();
                 }
                 ui.separator();
-                if ui.button(&menu_label("Zoom In             Ctrl+=")).clicked() {
+                if ui.add(self.key_button("Zoom In", "view:zoom-in")).clicked() {
                     self.zoom_keep_centre(self.zoom + crate::app::ZOOM_STEP);
                 }
-                if ui.button(&menu_label("Zoom Out            Ctrl+-")).clicked() {
+                if ui.add(self.key_button("Zoom Out", "view:zoom-out")).clicked() {
                     self.zoom_keep_centre(self.zoom - crate::app::ZOOM_STEP);
                 }
-                if ui.button(&menu_label("Actual Size         Ctrl+0")).clicked() {
+                if ui.add(self.key_button("Actual Size", "view:actual-size")).clicked() {
                     self.zoom_keep_centre(1.0);
                 }
-                if ui.button(&menu_label("Fit To Window       Ctrl+9")).clicked() {
+                if ui.add(self.key_button("Fit To Window", "view:fit-to-window")).clicked() {
                     self.fit();
                     ui.close();
                 }
                 ui.separator();
-                ui.checkbox(&mut self.show_grid, "Show Grid");
-                ui.checkbox(&mut self.snap, "Snap to Grid");
+                let t = self.key_text("Show Grid", "view:show-grid");
+                ui.checkbox(&mut self.show_grid, t);
+                let t = self.key_text("Snap to Grid", "view:snap-to-grid");
+                ui.checkbox(&mut self.snap, t);
                 ui.separator();
-                ui.checkbox(&mut self.show_minimap, &menu_label("Minimap               Ctrl+Alt+M"));
-                ui.checkbox(&mut self.show_markdown, &menu_label("Markdown Documentation  Ctrl+Alt+D"));
-                ui.checkbox(&mut self.show_thumbnails, &menu_label("Diagram Thumbnails  Ctrl+Alt+T"));
-                ui.checkbox(&mut self.show_relationships, &menu_label("Relationships     Ctrl+Alt+R"));
+                let t = self.key_text("Minimap", "minimap:toggle");
+                ui.checkbox(&mut self.show_minimap, t);
+                let t = self.key_text("Markdown Documentation", "markdown-doc:toggle");
+                ui.checkbox(&mut self.show_markdown, t);
+                let t = self.key_text("Diagram Thumbnails", "diagram-thumbnails:toggle");
+                ui.checkbox(&mut self.show_thumbnails, t);
+                let t = self.key_text("Relationships", "relationship-view:toggle");
+                ui.checkbox(&mut self.show_relationships, t);
                 ui.separator();
                 for (i, label) in PANELS.iter().enumerate() {
                     let mut on = *self.panel_flag(i);
-                    if ui.checkbox(&mut on, format!("{label:<14}Ctrl+{}", i + 1)).clicked() {
+                    let t = self.key_text(label, &format!("view:{}", label.to_lowercase()));
+                    if ui.checkbox(&mut on, t).clicked() {
                         *self.panel_flag(i) = on;
                     }
                 }
@@ -2361,6 +2766,11 @@ impl App {
                     ui.ctx().open_url(egui::OpenUrl::new_tab(DOCS_URL));
                     ui.close();
                 }
+                // the place to ask questions: the project's issues, as there is no forum
+                if ui.button("Forum...").clicked() {
+                    ui.ctx().open_url(egui::OpenUrl::new_tab(FORUM_URL));
+                    ui.close();
+                }
                 if ui.button("Release Notes...").clicked() {
                     ui.ctx().open_url(egui::OpenUrl::new_tab(RELEASES_URL));
                     ui.close();
@@ -2381,12 +2791,16 @@ impl App {
         let (face, size) = self.font_state();
         // while the selection inherits its parent's style, font and colours are disabled (style-editor-view.js:741-764)
         let inherit = self.flag_state("parentStyle") == Some(true);
-        ui.add_enabled_ui(!inherit, |ui| {
+        let disabled = ui.add_enabled_ui(!inherit, |ui| {
             ui.horizontal(|ui| {
                 let mut f = face.clone().unwrap_or_default();
-                let r = ui.add(egui::TextEdit::singleline(&mut f).hint_text("—").desired_width(110.0).font(FontId::proportional(12.0)));
+                let r = ui.add(egui::TextEdit::singleline(&mut f).hint_text("—").desired_width(90.0).font(FontId::proportional(12.0)));
                 if r.lost_focus() && !f.trim().is_empty() && Some(f.trim().to_string()) != face {
                     self.set_font(Some(f.trim()), None);
+                }
+                // the list of faces: a pick is copied into the field and applied (style-editor-view.js:180-201)
+                if let Some(f) = crate::style::font_face_menu(ui, "style-face") {
+                    self.set_font(Some(&f), None);
                 }
                 let label = size.map(|s| format!("{s}")).unwrap_or_else(|| "—".into());
                 egui::ComboBox::from_id_salt("style-size").selected_text(label).width(60.0).show_ui(ui, |ui| {
@@ -2398,6 +2812,10 @@ impl App {
                 });
             });
             ui.horizontal(|ui| {
+                // inheriting, the colour icons are drawn at 30% (egui's disabled 50%, times 0.6)
+                if inherit {
+                    ui.multiply_opacity(0.6);
+                }
                 for (field, label) in crate::style::COLORS {
                     if self.color_views(field).is_empty() {
                         continue;
@@ -2408,6 +2826,10 @@ impl App {
                 }
             });
         });
+        // and the pointer over them is "not allowed" (style-editor-view.js:741-764)
+        if inherit && ui.rect_contains_pointer(disabled.response.rect) {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::NotAllowed);
+        }
         if !self.flag_views("stereotypeDisplay").is_empty() {
             // the stereotype display dropdown, empty when mixed (style-editor-view.js)
             let cur = self.stereotype_display_state();
@@ -2458,13 +2880,12 @@ impl App {
                 }
             });
         }
-        for (field, label) in FORMAT_TOGGLES {
-            if self.flag_views(field).is_empty() {
+        for (field, label, _) in FORMAT_TOGGLES {
+            if self.flag_views(field).is_empty() || crate::sysml::SUPPRESS_FLAGS.contains(&field) {
                 continue;
             }
             let mut on = self.flag_state(field) == Some(true);
-            let short = label.split("  ").next().unwrap_or(label).trim();
-            if ui.checkbox(&mut on, egui::RichText::new(short).size(12.0)).clicked() {
+            if ui.checkbox(&mut on, egui::RichText::new(label).size(12.0)).clicked() {
                 self.toggle_flag(field);
             }
         }
@@ -2541,7 +2962,7 @@ impl App {
         ui.add_enabled_ui(has, |ui| {
             ui.menu_button("Line Style", |ui| {
                 let cur = self.line_style_state();
-                for (style, label) in [(0, &menu_label("Rectilinear              Ctrl+L")), (1, &menu_label("Oblique                    Ctrl+B")), (2, &menu_label("Rounded Rectilinear  Ctrl+Alt+L")), (3, &menu_label("Curve                        Ctrl+Alt+B"))] {
+                for (style, label) in [(0, self.key_text("Rectilinear", "format:linestyle-rectilinear")), (1, self.key_text("Oblique", "format:linestyle-oblique")), (2, self.key_text("Rounded Rectilinear", "format:linestyle-roundrect")), (3, self.key_text("Curve", "format:linestyle-curve"))] {
                     let mut on = cur == Some(style);
                     if ui.checkbox(&mut on, label).clicked() {
                         self.set_line_style(style);
@@ -2555,11 +2976,11 @@ impl App {
     /// Move Up and Move Down (Edit menu and explorer menu).
     pub(crate) fn move_items(&mut self, ui: &mut egui::Ui) {
         let e = self.focus.filter(|f| self.repo.alive(*f) && self.repo.ty(*f) != "Project" && !self.is_view(*f));
-        if ui.add_enabled(e.is_some(), egui::Button::new(&menu_label("Move Up             Ctrl+Shift+Up"))).clicked() {
+        if ui.add_enabled(e.is_some(), self.key_button("Move Up", "edit:move-up")).clicked() {
             self.move_element(e.unwrap(), true);
             ui.close();
         }
-        if ui.add_enabled(e.is_some(), egui::Button::new(&menu_label("Move Down           Ctrl+Shift+Down"))).clicked() {
+        if ui.add_enabled(e.is_some(), self.key_button("Move Down", "edit:move-down")).clicked() {
             self.move_element(e.unwrap(), false);
             ui.close();
         }
@@ -2568,19 +2989,19 @@ impl App {
     /// Cut, Copy and Paste (Edit menu, canvas menu and explorer menu).
     pub(crate) fn clipboard_items(&mut self, ui: &mut egui::Ui) {
         let can = self.can_copy();
-        if ui.add_enabled(can, egui::Button::new(&menu_label("Cut                 Ctrl+X"))).clicked() {
+        if ui.add_enabled(can, self.key_button("Cut", "edit:cut")).clicked() {
             self.cmd_cut(Some(&ui.ctx().clone()));
             ui.close();
         }
-        if ui.add_enabled(can, egui::Button::new(&menu_label("Copy                Ctrl+C"))).clicked() {
+        if ui.add_enabled(can, self.key_button("Copy", "edit:copy")).clicked() {
             self.cmd_copy(Some(&ui.ctx().clone()));
             ui.close();
         }
-        if ui.add_enabled(self.diagram.is_some(), egui::Button::new(&menu_label("Copy Diagram As Image  Ctrl+Shift+C"))).clicked() {
+        if ui.add_enabled(self.diagram.is_some(), self.key_button("Copy Diagram As Image", "edit:copy-diagram-as-image")).clicked() {
             self.cmd_copy_diagram_image(&ui.ctx().clone());
             ui.close();
         }
-        if ui.button(&menu_label("Paste               Ctrl+V")).clicked() {
+        if ui.add(self.key_button("Paste", "edit:paste")).clicked() {
             self.cmd_paste();
             ui.close();
         }
@@ -2589,15 +3010,15 @@ impl App {
     /// Close Diagram, Close Other Diagrams and Close All Diagrams (View menu and Working Diagrams menu).
     fn diagram_close_items(&mut self, ui: &mut egui::Ui) {
         let has = self.diagram.is_some();
-        if ui.add_enabled(has, egui::Button::new(&menu_label("Close Diagram       F4"))).clicked() {
+        if ui.add_enabled(has, self.key_button("Close Diagram", "view:close-diagram")).clicked() {
             self.close_diagram(None);
             ui.close();
         }
-        if ui.add_enabled(has, egui::Button::new(&menu_label("Close Other Diagrams  Ctrl+F4"))).clicked() {
+        if ui.add_enabled(has, self.key_button("Close Other Diagrams", "view:close-other-diagrams")).clicked() {
             self.close_other_diagrams();
             ui.close();
         }
-        if ui.add_enabled(!self.open.is_empty(), egui::Button::new(&menu_label("Close All Diagrams  Shift+F4"))).clicked() {
+        if ui.add_enabled(!self.open.is_empty(), self.key_button("Close All Diagrams", "view:close-all-diagrams")).clicked() {
             self.close_all_diagrams();
             ui.close();
         }
@@ -2610,9 +3031,9 @@ impl App {
         ui.add_enabled_ui(!self.flag_views("stereotypeDisplay").is_empty(), |ui| {
             ui.menu_button("Stereotype Display", |ui| {
                 let cur = self.stereotype_display_state();
-                for (i, (value, label)) in crate::style::STEREOTYPE_DISPLAYS.into_iter().enumerate() {
+                for (value, label) in crate::style::STEREOTYPE_DISPLAYS {
                     let mut on = cur.as_deref() == Some(value);
-                    if ui.checkbox(&mut on, format!("{label:<24}Ctrl+Shift+{i}")).clicked() {
+                    if ui.checkbox(&mut on, self.key_text(label, &format!("format:stereotype-{value}"))).clicked() {
                         self.set_stereotype_display(value);
                         ui.close();
                     }
@@ -2622,14 +3043,18 @@ impl App {
     }
 
     pub(crate) fn format_toggles(&mut self, ui: &mut egui::Ui) {
-        for (i, (field, label)) in FORMAT_TOGGLES.into_iter().enumerate() {
+        for (i, (field, label, id)) in FORMAT_TOGGLES.into_iter().enumerate() {
             // UML display toggles after Auto Resize, Show Shadow and Inherit Style, then the Suppress ones
-            if i == 3 || field == "suppressAttributes" {
+            if i == 3 || field == "suppressAttributes" || field == "suppressPropertyValues" {
                 ui.separator();
+            }
+            // Stereotype Display opens the UML items (uml/menus/uml.json "format")
+            if i == 3 {
+                self.stereotype_display_menu(ui);
             }
             let has = !self.flag_views(field).is_empty();
             let mut on = self.flag_state(field) == Some(true);
-            if ui.add_enabled(has, egui::Checkbox::new(&mut on, menu_label(label))).clicked() {
+            if ui.add_enabled(has, egui::Checkbox::new(&mut on, self.key_text(label, id))).clicked() {
                 self.toggle_flag(field);
                 ui.close();
             }
@@ -2667,17 +3092,18 @@ impl App {
         if self.modal_open() {
             return;
         }
+        // while a text field has the keys, the edit keys (Ctrl+C/X/V/Z/Y, Ctrl+A, Delete and
+        // Backspace, with any other modifier) are the field's; every other shortcut still runs
+        // (keymap-manager.js:294-347)
         let typing = self.editing.is_some() || text_field_focused(ctx);
         let measure = EguiMeasure { ctx: ctx.clone() };
         let sc = |m: Modifiers, k: Key| KeyboardShortcut::new(m, k);
         let cs = Modifiers::COMMAND | Modifiers::SHIFT;
-        let hit = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
+        let hit = |s: KeyboardShortcut| !(typing && crate::keymap::is_edit_key(s.modifiers, s.logical_key)) && ctx.input_mut(|i| i.consume_shortcut(&s));
         // the user's keymap.json wins over the built-in shortcuts
-        if !typing {
-            self.user_shortcuts(ctx);
-        }
+        self.user_shortcuts(ctx, typing);
         // Ctrl+Shift toggles first: a Ctrl shortcut also matches when Shift is held (Ctrl+N, Ctrl+A…)
-        if !typing {
+        {
             if hit(sc(cs, Key::F)) {
                 self.open_font_dialog();
             }
@@ -2695,13 +3121,13 @@ impl App {
                     self.open_color_dialog(field);
                 }
             }
-            for (key, field) in [(Key::R, "autoResize"), (Key::K, "parentStyle"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals")] {
+            for (key, field) in [(Key::R, "autoResize"), (Key::K, "parentStyle"), (Key::W, "wordWrap"), (Key::V, "showVisibility"), (Key::N, "showNamespace"), (Key::B, "showProperty"), (Key::Y, "showType"), (Key::M, "showMultiplicity"), (Key::J, "showOperationSignature"), (Key::A, "suppressAttributes"), (Key::O, "suppressOperations"), (Key::E, "suppressReceptions"), (Key::T, "suppressLiterals"), (Key::U, "suppressColumns")] {
                 if hit(sc(cs, key)) {
                     self.toggle_flag(field);
                 }
             }
             // Ctrl+Shift+V reaches egui as a paste (when the clipboard holds text), not as a key
-            let shift_paste = ctx.input_mut(|i| {
+            let shift_paste = !typing && ctx.input_mut(|i| {
                 let n = i.events.len();
                 if i.modifiers.command && i.modifiers.shift {
                     i.events.retain(|e| !matches!(e, egui::Event::Paste(_)));
@@ -2727,11 +3153,12 @@ impl App {
         if hit(sc(Modifiers::COMMAND, Key::Q)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
-        if typing {
-            return;
+        // macOS only: Cmd+, opens Preferences (keymaps/darwin.json:6)
+        if cfg!(target_os = "macos") && hit(sc(Modifiers::COMMAND, Key::Comma)) {
+            self.prefs_open = Some("General".into());
         }
-        // Esc anywhere goes back to the Select tool and clears the lock (toolbox-view.js:473-479)
-        if ctx.input(|i| i.key_pressed(Key::Escape)) && self.drag.is_none() {
+        // Esc anywhere but in a field goes back to the Select tool and clears the lock (toolbox-view.js:473-479)
+        if !typing && ctx.input(|i| i.key_pressed(Key::Escape)) && self.drag.is_none() {
             self.tool = None;
             self.tool_sticky = false;
         }
@@ -2742,7 +3169,7 @@ impl App {
             self.do_undo();
         }
         // Ctrl+C, Ctrl+X and Ctrl+V reach egui as Copy, Cut and Paste events, not as keys
-        let clip = ctx.input_mut(|i| {
+        let clip = if typing { None } else { ctx.input_mut(|i| {
             let mut out = None;
             i.events.retain(|e| match e {
                 egui::Event::Copy | egui::Event::Cut | egui::Event::Paste(_) if out.is_none() => {
@@ -2752,11 +3179,13 @@ impl App {
                 _ => true,
             });
             out
-        });
+        }) };
         let shift = ctx.input(|i| i.modifiers.shift);
         match clip {
             // Ctrl+Shift+C also arrives as a Copy event
             Some(egui::Event::Copy) if shift => self.cmd_copy_diagram_image(ctx),
+            // Ctrl+Shift+X (Suppress Receptions, StarUML 8's keymap) arrives as a Cut event
+            Some(egui::Event::Cut) if shift && ctx.input(|i| i.modifiers.command) => self.toggle_flag("suppressReceptions"),
             Some(egui::Event::Copy) => self.cmd_copy(Some(ctx)),
             Some(egui::Event::Cut) => self.cmd_cut(Some(ctx)),
             Some(egui::Event::Paste(t)) => self.paste_text(&t),
@@ -2877,18 +3306,14 @@ impl App {
         }
     }
 
-    /// File > New: a blank project, after the unsaved-changes prompt; the working file is forgotten.
-    pub(crate) fn cmd_new(&mut self, ms: &EguiMeasure) {
-        if self.confirm_discard(ms) {
-            self.save_working_diagrams();
-            self.set_project(crate::model::Repo::blank(), None);
-            self.set_working_file(None);
-        }
+    /// File > New: a new window with a blank project (application:new, application.js:246-248).
+    pub(crate) fn cmd_new(&mut self, _ms: &EguiMeasure) {
+        self.new_window();
     }
 
     /// Open a recent file; a file that is gone is dropped from the list with the toast
     /// "File not found: <path>" (open-recent/main.js:59).
-    fn open_recent(&mut self, ms: &EguiMeasure, p: std::path::PathBuf) {
+    fn open_recent(&mut self, _ms: &EguiMeasure, p: std::path::PathBuf) {
         if !p.exists() {
             self.toast_error(&format!("File not found: {}", p.display()));
             let mut list = self.recent_files();
@@ -2896,36 +3321,54 @@ impl App {
             self.set_recent(list);
             return;
         }
-        if self.confirm_discard(ms) {
-            self.open_path(p);
-        }
+        self.open_file(p);
     }
 
-    /// A .mdj file dropped on the window is opened (app-context.js:546-565); other files are ignored.
+    /// Each .mdj file dropped on the window is opened, here or in a new window (app-context.js:546-565);
+    /// other files are ignored.
     fn dropped_files(&mut self, ctx: &egui::Context) {
         let files: Vec<std::path::PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect());
-        if let Some(p) = files.into_iter().find(|p| p.extension().map(|e| e.eq_ignore_ascii_case("mdj")).unwrap_or(false)) {
-            let ms = EguiMeasure { ctx: ctx.clone() };
-            if self.confirm_discard(&ms) {
-                self.open_path(p);
-            }
+        for p in files.into_iter().filter(|p| p.extension().map(|e| e.eq_ignore_ascii_case("mdj")).unwrap_or(false)) {
+            self.open_file(p);
         }
     }
 
-    fn cmd_open(&mut self, ms: &EguiMeasure) {
+    /// File › Export › StarUML V7...: a copy of the project for StarUML 7, colour variables replaced by
+    /// their light-theme colours (https://docs.staruml.io/user-guide/managing-project/).
+    fn export_v7_dialog(&mut self, ms: &EguiMeasure) {
+        let stem = self.filename.as_ref().and_then(|p| p.file_stem()).map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| self.repo.name(self.repo.root));
+        let Some(mut p) = rfd::FileDialog::new().set_title("Export StarUML V7").set_file_name(format!("{stem}-v7.mdj")).add_filter("Models", &["mdj"]).save_file() else { return };
+        if p.extension().map(|e| e != "mdj").unwrap_or(true) {
+            p.set_extension("mdj");
+        }
+        let text = self.v7_json(ms);
+        if let Err(e) = std::fs::write(&p, text) {
+            self.message = Some(("Failed to export the file.".into(), e.to_string()));
+        }
+    }
+
+    /// File > Open: the dialog, then the file here or in a new window (default-commands.js:221-234).
+    fn cmd_open(&mut self, _ms: &EguiMeasure) {
+        self.open_dialog();
+    }
+
+    /// The original replaces the project without asking; UMLCraft asks to save changes first.
+    /// Dialog title and filters of extensions/default/staruml-v1/main.js:29, 101.
+    fn cmd_import_staruml_v1(&mut self, ms: &EguiMeasure) {
         if !self.confirm_discard(ms) {
             return;
         }
-        if let Some(p) = rfd::FileDialog::new().set_title("Open Model").add_filter("Models", &["mdj"]).add_filter("All Files", &["*"]).pick_file() {
-            self.open_path(p);
+        let dialog = rfd::FileDialog::new().set_title("Select a StarUML 1 file (.uml)").add_filter("UML model (StarUML V1)", &["uml"]).add_filter("All Files", &["*"]);
+        if let Some(p) = dialog.pick_file() {
+            self.import_staruml_v1(p);
         }
     }
 
     /// Export the current diagram as PNG, JPEG or SVG. The selection is cleared first; with no diagram
-    /// open the toast "No diagram to export." appears (default-commands.js:360-445).
+    /// open the alert "No diagram to export." appears (default-commands.js:360-445).
     pub(crate) fn export_current(&mut self, ctx: &egui::Context, f: crate::export::Format) {
         let Some(d) = self.diagram else {
-            self.toast("No diagram to export.");
+            self.alert("No diagram to export.");
             return;
         };
         self.select(vec![]);
@@ -2943,7 +3386,7 @@ impl App {
     /// Export every diagram into a folder the person picks (default-commands.js:452-535).
     pub(crate) fn export_all_cmd(&mut self, ctx: &egui::Context, f: crate::export::Format) {
         if self.repo.all_of("Diagram").is_empty() {
-            self.toast("No diagram to export.");
+            self.alert("No diagram to export.");
             return;
         }
         let Some(folder) = rfd::FileDialog::new().set_title("Select a folder where all diagrams to be exported").pick_folder() else { return };
@@ -2967,18 +3410,24 @@ impl App {
     pub fn modal_open(&self) -> bool {
         self.about_open
             || self.message.is_some()
-            || self.diagram_picker.is_some()
+            || self.list_picker.is_some()
+            || !self.boxes.is_empty()
             || self.color_dialog.is_some()
             || self.list_editor.is_some()
             || self.select_one.is_some()
+            || self.delete_prompt
             || self.font_dialog.is_some()
             || self.prefs_open.is_some()
             || self.tag_editor.is_some()
             || self.find_dialog.is_some()
             || self.element_picker.is_some()
+            || self.icon_picker.is_some()
             || self.input_dialog.is_some()
             || self.mermaid_code.is_some()
+            || self.codegen.is_some()
             || self.print_open
+            || self.color_prompt
+            || self.export_image_open
     }
 
     pub(crate) fn dialogs(&mut self, ctx: &egui::Context) {
@@ -2986,9 +3435,7 @@ impl App {
             // the app icon, name and version, and a link to the third-party software (about-dialog.js:31-47)
             let icon = app_icon(ctx);
             // a modal window: a backdrop keeps the rest of the window out of reach (dialog-manager.js:242-313)
-            egui::Modal::new(egui::Id::new("about-dialog")).show(ctx, |ui| {
-                ui.label(egui::RichText::new("About UMLCraft").strong());
-                ui.add_space(4.0);
+            dialog(ctx, "about", "About UMLCraft", |ui| {
                 ui.horizontal(|ui| {
                     if let Some(t) = &icon {
                         ui.add(egui::Image::new((t.id(), Vec2::splat(64.0))));
@@ -3014,86 +3461,25 @@ impl App {
                 }
             });
         }
-        self.diagram_picker_ui(ctx);
+        self.list_picker_ui(ctx);
         self.color_dialog_ui(ctx);
         self.list_editor_ui(ctx);
         self.select_one_ui(ctx);
+        self.delete_prompt_ui(ctx);
         self.print_dialog_ui(ctx);
+        self.color_prompt_ui(ctx);
+        self.export_image_ui(ctx);
         self.element_picker_ui(ctx);
+        self.icon_picker_ui(ctx);
         self.input_dialog_ui(ctx);
         self.mermaid_dialog_ui(ctx);
+        self.codegen_ui(ctx);
         self.preferences_ui(ctx);
         self.tag_editor_ui(ctx);
         self.palette_ui(ctx);
         self.find_dialog_ui(ctx);
         self.font_dialog_ui(ctx);
-        if let Some((title, detail)) = self.message.clone() {
-            egui::Modal::new(egui::Id::new("message-dialog")).show(ctx, |ui| {
-                ui.set_max_width(420.0);
-                ui.label(egui::RichText::new(title).strong());
-                ui.add_space(4.0);
-                ui.label(detail);
-                ui.add_space(6.0);
-                let ok = ui.button("OK");
-                focus_primary(ui, &ok);
-                if ok.clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Escape)) {
-                    self.message = None;
-                }
-            });
-        }
-    }
-
-    /// The Element List Picker as Select In Diagram uses it: "Select Diagram to show", one row per
-    /// diagram with its icon, name and (path); "Do not specify" until a row is picked; double-click is OK
-    /// (element-list-picker-dialog.js:73-131).
-    fn diagram_picker_ui(&mut self, ctx: &egui::Context) {
-        let Some((views, mut chosen)) = self.diagram_picker.clone() else { return };
-        let mut close = false;
-        let mut ok = false;
-        egui::Window::new("Select Diagram to show").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
-            ui.set_min_width(320.0);
-            for (i, v) in views.iter().enumerate() {
-                let Some(d) = self.repo.parent(*v).filter(|d| self.repo.alive(*d)) else { continue };
-                let mut owners = self.repo.path(d);
-                owners.pop();
-                let path: Vec<String> = owners.into_iter().map(|p| self.repo.name(p)).filter(|n| !n.is_empty()).collect();
-                let text = format!("{}  ({})", self.repo.name(d), path.join("::"));
-                ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
-                    icons::draw(ui.painter(), r, icons::key_for(&self.repo, d));
-                    let resp = ui.selectable_label(chosen == Some(i), text);
-                    if resp.clicked() {
-                        chosen = Some(i);
-                    }
-                    if resp.double_clicked() {
-                        chosen = Some(i);
-                        ok = true;
-                    }
-                });
-            }
-            let mut none = chosen.is_none();
-            if ui.checkbox(&mut none, "Do not specify").changed() && none {
-                chosen = None;
-            }
-            ui.horizontal(|ui| {
-                if ui.button("OK").clicked() {
-                    ok = true;
-                }
-                if ui.button("Cancel").clicked() {
-                    close = true;
-                }
-            });
-        });
-        if ok {
-            self.diagram_picker = None;
-            if let Some(v) = chosen.and_then(|i| views.get(i)).copied().filter(|v| self.repo.alive(*v)) {
-                self.show_view(v);
-            }
-        } else if close {
-            self.diagram_picker = None;
-        } else {
-            self.diagram_picker = Some((views, chosen));
-        }
+        self.message_boxes_ui(ctx);
     }
 
     pub(crate) fn open_font_dialog(&mut self) {
@@ -3111,16 +3497,30 @@ impl App {
     fn font_dialog_ui(&mut self, ctx: &egui::Context) {
         let Some((mut face, mut size, mut color)) = self.font_dialog.clone() else { return };
         let (mut ok, mut cancel) = (false, false);
-        egui::Window::new("Font").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        dialog(ctx, "font", "Font", |ui| {
             egui::Grid::new("font-grid").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| {
                 ui.label("Face");
-                ui.add(egui::TextEdit::singleline(&mut face).hint_text("—").desired_width(160.0));
+                ui.horizontal(|ui| {
+                    ui.add(egui::TextEdit::singleline(&mut face).hint_text("—").desired_width(160.0));
+                    // the loaded fonts (dialog-manager.js:538); a face that is not installed draws as Arial
+                    egui::ComboBox::from_id_salt("font-faces").selected_text("").width(20.0).show_ui(ui, |ui| {
+                        for f in crate::fonts::face_names() {
+                            let ok = crate::fonts::available(&f);
+                            let r = ui.add_enabled(true, egui::Button::selectable(face == f, egui::RichText::new(&f).color(if ok { TEXT() } else { DIM() })));
+                            let r = if ok { r } else { r.on_hover_text("Not installed: drawn with the Arial-compatible font") };
+                            if r.clicked() {
+                                face = f.clone();
+                            }
+                        }
+                    });
+                });
                 ui.end_row();
                 ui.label("Size");
                 ui.horizontal(|ui| {
                     ui.add(egui::TextEdit::singleline(&mut size).hint_text("—").desired_width(60.0));
+                    // the dialog's own sizes (dialog-manager.js:541)
                     egui::ComboBox::from_id_salt("font-sizes").selected_text("").width(20.0).show_ui(ui, |ui| {
-                        for s in crate::style::SIZES {
+                        for s in [8, 9, 10, 11, 12, 13, 15, 16, 18, 20, 22, 24, 26, 28, 32, 36, 42] {
                             if ui.selectable_label(false, format!("{s}")).clicked() {
                                 size = format!("{s}");
                             }
@@ -3155,7 +3555,8 @@ impl App {
             ui.add_space(4.0);
             let (rect, _) = ui.allocate_exact_size(Vec2::new(ui.available_width(), 60.0), egui::Sense::hover());
             ui.painter().rect(rect, 0.0, Color32::WHITE, Stroke::new(1.0, BORDER()), egui::StrokeKind::Inside);
-            ui.painter().text(rect.center(), Align2::CENTER_CENTER, "AaBb123", egui::FontId::proportional(px), fg);
+            let family = crate::fonts::family(ui.ctx(), if face.trim().is_empty() { "Arial" } else { face.trim() }, 0);
+            ui.painter().text(rect.center(), Align2::CENTER_CENTER, "AaBb123", egui::FontId::new(px, family), fg);
             ui.add_space(4.0);
             ui.horizontal(|ui| {
                 ok = ui.button("OK").clicked();
@@ -3189,7 +3590,7 @@ impl App {
     fn color_dialog_ui(&mut self, ctx: &egui::Context) {
         let Some(mut d) = self.color_dialog.clone() else { return };
         let (mut ok, mut cancel) = (false, false);
-        egui::Window::new("Color").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        dialog(ctx, "color", "Color", |ui| {
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| {
                     let mut c = Color32::from_rgba_unmultiplied(d.color.0, d.color.1, d.color.2, d.color.3);
@@ -3197,12 +3598,33 @@ impl App {
                         let [r, g, b, a] = c.to_srgba_unmultiplied();
                         d.color = crate::render::Rgba(r, g, b, a);
                         d.text = crate::style::hex(d.color);
+                        d.var = None;
                     }
-                    let r = ui.add(egui::TextEdit::singleline(&mut d.text).desired_width(120.0).font(egui::TextStyle::Monospace));
+                    let r = ui.add(egui::TextEdit::singleline(&mut d.text).desired_width(120.0).font(egui::TextStyle::Monospace)).on_hover_text("#rrggbb, #rrggbbaa or a color variable ($blue9)");
                     if r.changed() {
-                        if let Some(c) = crate::style::parse_hex(&d.text) {
-                            d.color = c;
-                        }
+                        d.take_text();
+                    }
+                });
+                // StarUML 8's palette: background, foreground and transparent, then 12 steps of each
+                // hue, in the current theme's colours; hovering shows the variable's name
+                // (https://docs.staruml.io/user-guide/formatting-diagram/)
+                ui.vertical(|ui| {
+                    ui.spacing_mut().item_spacing = Vec2::splat(2.0);
+                    let names = crate::colorvars::names();
+                    let (first, hues) = names.split_at(3);
+                    for row in std::iter::once(first).chain(hues.chunks(12)) {
+                        ui.horizontal(|ui| {
+                            for n in row {
+                                let c = crate::render::parse_color(n, crate::render::WHITE);
+                                let r = swatch(ui, Color32::from_rgba_unmultiplied(c.0, c.1, c.2, c.3), Vec2::splat(14.0));
+                                if d.var.as_deref() == Some(n.as_str()) {
+                                    ui.painter().rect_stroke(r.rect.expand(1.0), 0.0, Stroke::new(1.5, ACCENT()), egui::StrokeKind::Outside);
+                                }
+                                if r.on_hover_text(n.as_str()).clicked() {
+                                    d.pick_var(n, self.color_vars);
+                                }
+                            }
+                        });
                     }
                 });
                 ui.vertical(|ui| {
@@ -3213,6 +3635,7 @@ impl App {
                                 if swatch(ui, Color32::from_rgb(c.0, c.1, c.2), Vec2::splat(14.0)).on_hover_text(crate::style::hex(*c)).clicked() {
                                     d.color = *c;
                                     d.text = crate::style::hex(*c);
+                                    d.var = None;
                                 }
                             }
                         });
@@ -3222,6 +3645,7 @@ impl App {
                         if swatch(ui, Color32::TRANSPARENT, Vec2::splat(14.0)).on_hover_text("rgba(255, 255, 255, 0)").clicked() {
                             d.color = crate::render::Rgba(255, 255, 255, 0);
                             d.text = crate::style::hex(d.color);
+                            d.var = None;
                         }
                         ui.label("Transparent");
                     });
@@ -3237,10 +3661,7 @@ impl App {
         });
         if ok {
             self.style_edit = None;
-            if Some(d.color) != self.color_state(d.field) {
-                self.set_color(d.field, d.color);
-            }
-            self.style_edit = None;
+            self.apply_color_dialog(&d);
             self.color_dialog = None;
         } else if cancel || self.color_views(d.field).is_empty() {
             self.color_dialog = None;
@@ -3254,7 +3675,7 @@ impl App {
     fn select_one_ui(&mut self, ctx: &egui::Context) {
         let Some(mut d) = self.select_one.clone() else { return };
         let (mut ok, mut cancel) = (false, false);
-        egui::Window::new("Select One").collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        dialog(ctx, "select-one", "Select One", |ui| {
             ui.label(&d.message);
             ui.add_space(4.0);
             for (i, o) in d.options.iter().enumerate() {
@@ -3275,6 +3696,34 @@ impl App {
             self.select_one = None;
         } else {
             self.select_one = Some(d);
+        }
+    }
+
+    /// "Delete Views Only": Delete on views that ask to go with their models (lifelines, messages,
+    /// labels…) offers to delete the views only or the models too (default-commands.js:786-822).
+    fn delete_prompt_ui(&mut self, ctx: &egui::Context) {
+        if !self.delete_prompt {
+            return;
+        }
+        let (mut views, mut models, mut cancel) = (false, false, false);
+        dialog(ctx, "delete-views", "Delete Views Only", |ui| {
+            ui.label("Do you want to delete views only?");
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                views = ui.button("Delete Views Only").clicked();
+                models = ui.button("Delete from Model").clicked();
+                cancel = ui.button("Cancel").clicked();
+            });
+            models |= ui.input(|i| i.key_pressed(egui::Key::Enter));
+            cancel |= ui.input(|i| i.key_pressed(egui::Key::Escape));
+        });
+        if views || models || cancel {
+            self.delete_prompt = false;
+        }
+        if views {
+            self.delete_views_only();
+        } else if models {
+            self.delete_selection(true);
         }
     }
 
@@ -3320,23 +3769,6 @@ impl App {
             }
         }
     }
-
-    fn handle_close(&mut self, ctx: &egui::Context) {
-        if ctx.input(|i| i.viewport().close_requested()) {
-            self.save_working_diagrams();
-        }
-        if ctx.input(|i| i.viewport().close_requested()) && self.modified && self.screenshot.is_none() && !self.quit_after_save {
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            let ms = EguiMeasure { ctx: ctx.clone() };
-            if self.confirm_discard(&ms) {
-                self.quit_after_save = true;
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            }
-        } else if ctx.input(|i| i.viewport().close_requested()) && self.screenshot.is_none() {
-            // a clean exit: no backup to recover at the next launch (app-context.js:809-811)
-            self.clear_backup();
-        }
-    }
 }
 
 /// View menu panels, in the order of their Ctrl+1…6 shortcuts.
@@ -3363,23 +3795,34 @@ pub struct WorkingRow(pub Eid);
 pub(crate) const MULTIPLICITIES: [&str; 5] = ["0..1", "1", "0..*", "1..*", "*"];
 
 /// Format menu toggles, in the original's order, with their shortcuts (keymaps/uml.json, linux.json).
-const FORMAT_TOGGLES: [(&str, &str); 16] = [
-    ("autoResize", "Auto Resize                       Ctrl+Shift+R"),
-    ("showShadow", "Show Shadow                     Ctrl+Shift+H"),
-    ("parentStyle", "Inherit Style                     Ctrl+Shift+K"),
-    ("wordWrap", "Word Wrap                         Ctrl+Shift+W"),
-    ("showVisibility", "Show Visibility                 Ctrl+Shift+V"),
-    ("showNamespace", "Show Namespace                  Ctrl+Shift+N"),
-    ("showProperty", "Show Property                    Ctrl+Shift+B"),
-    ("showType", "Show Type                          Ctrl+Shift+Y"),
-    ("showMultiplicity", "Show Multiplicity               Ctrl+Shift+M"),
-    ("showOperationSignature", "Show Operation Signature    Ctrl+Shift+J"),
-    ("showDiagramName", "Show Diagram Name            Ctrl+Shift+D"),
-    ("suppressAttributes", "Suppress Attributes             Ctrl+Shift+A"),
-    ("suppressOperations", "Suppress Operations            Ctrl+Shift+O"),
-    ("suppressReceptions", "Suppress Receptions            Ctrl+Shift+E"),
-    ("suppressLiterals", "Suppress Literals                 Ctrl+Shift+T"),
-    ("suppressColumns", "Suppress Columns               Ctrl+Shift+U"),
+/// The Format menu's on/off items: the view field, the name and the command (whose keystroke the
+/// menu shows).
+const FORMAT_TOGGLES: [(&str, &str, &str); 24] = [
+    ("autoResize", "Auto Resize", "format:auto-resize"),
+    ("showShadow", "Show Shadow", "format:show-shadow"),
+    ("parentStyle", "Inherit Style", "format:inherit-style"),
+    ("wordWrap", "Word Wrap", "format:word-wrap"),
+    ("showVisibility", "Show Visibility", "format:show-visibility"),
+    ("showNamespace", "Show Namespace", "format:show-namespace"),
+    ("showProperty", "Show Property", "format:show-property"),
+    ("showType", "Show Type", "format:show-type"),
+    ("showMultiplicity", "Show Multiplicity", "format:show-multiplicity"),
+    ("showOperationSignature", "Show Operation Signature", "format:show-operation-signature"),
+    ("showDiagramName", "Show Diagram Name", "format:show-diagram-name"),
+    ("suppressAttributes", "Suppress Attributes", "format:suppress-attributes"),
+    ("suppressOperations", "Suppress Operations", "format:suppress-operations"),
+    ("suppressReceptions", "Suppress Receptions", "format:suppress-receptions"),
+    ("suppressLiterals", "Suppress Literals", "format:suppress-literals"),
+    ("suppressColumns", "Suppress Columns", "erd:suppress-columns"),
+    // SysML (sysml/menus/sysml.json), between separators
+    ("suppressPropertyValues", "Suppress Property Values", "format:suppress-property-values"),
+    ("suppressConstraints", "Suppress Constraints", "format:suppress-constraints"),
+    ("suppressParts", "Suppress Parts", "format:suppress-parts"),
+    ("suppressPorts", "Suppress Ports", "format:suppress-ports"),
+    ("suppressReferences", "Suppress References", "format:suppress-references"),
+    ("suppressValues", "Suppress Values", "format:suppress-values"),
+    ("suppressProperties", "Suppress Properties", "format:suppress-properties"),
+    ("suppressFlowProperties", "Suppress Flow Properties", "format:suppress-flow-properties"),
 ];
 
 /// The small padlock shown on a locked toolbox item.
@@ -3446,7 +3889,12 @@ impl App {
             self.theme_applied = Some(light);
         }
         self.handle_close(&ctx);
+        // the macOS title bar, and the splash screen until the start-up file is open (window.rs)
+        if self.shell_ui(ui) {
+            return;
+        }
         self.api_poll(&ctx);
+        self.poll_validation();
         // remember the window's bounds and maximized state (window.js:26-94); they are written with
         // the other preferences when they change
         if self.screenshot.is_none() {
@@ -3629,20 +4077,82 @@ fn swatch(ui: &mut egui::Ui, c: Color32, size: Vec2) -> egui::Response {
     r
 }
 
-/// A menu label "Name      Ctrl+X": on macOS its shortcut is shown as symbols, "Name  ⌘X"
-/// (keymap-manager.js:75-152); elsewhere it is left as written.
-pub(crate) fn menu_label(label: &str) -> String {
-    menu_label_for(label, cfg!(target_os = "macos"))
+
+impl App {
+    /// The elements a type or stereotype field suggests for a text: those of the field's type whose
+    /// name contains it, case-insensitive (repository.js:2336-2344).
+    pub fn autocomplete_hits(&self, field: &str, text: &str) -> Vec<Eid> {
+        let ty = if field == "stereotype" { "UMLStereotype" } else { crate::picker::field_type(field) };
+        let q = text.trim().to_lowercase();
+        self.repo.all().filter(|e| !self.is_view(*e) && self.repo.kind_of(*e, ty) && self.repo.name(*e).to_lowercase().contains(&q)).collect()
+    }
+
+    /// The suggestions under a type or stereotype field: elements of the field's type whose name
+    /// contains the text, case-insensitive, with icon and " — namespace" (repository.js:2336-2344;
+    /// property-editor-view.js:149-158, 589-640). Returns the one clicked. Whether the pointer is over
+    /// the list is kept under `over`, so the field's loss of focus to a click is not taken as typing.
+    fn autocomplete_list(&self, ui: &egui::Ui, field_resp: &egui::Response, over: egui::Id, field: &str, text: &str) -> Option<Eid> {
+        let hits = self.autocomplete_hits(field, text);
+        if hits.is_empty() {
+            ui.ctx().data_mut(|d| d.insert_temp(over, false));
+            return None;
+        }
+        let mut picked = None;
+        let area = egui::Area::new(over.with("list")).order(egui::Order::Tooltip).fixed_pos(field_resp.rect.left_bottom()).show(ui.ctx(), |ui| {
+            Frame::popup(ui.style()).show(ui, |ui| {
+                ui.set_min_width(field_resp.rect.width());
+                egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
+                    for e in hits {
+                        let ns = self.repo.parent(e).map(|p| self.repo.name(p)).unwrap_or_default();
+                        let row = ui.horizontal(|ui| {
+                            let (ir, _) = ui.allocate_exact_size(Vec2::splat(16.0), Sense::hover());
+                            icons::draw(ui.painter(), ir, icons::key_for(&self.repo, e));
+                            let mut job = egui::text::LayoutJob::default();
+                            job.append(&self.label_of(e), 0.0, egui::TextFormat { font_id: FontId::proportional(12.0), color: TEXT(), ..Default::default() });
+                            if !ns.is_empty() {
+                                job.append(&format!(" — {ns}"), 5.0, egui::TextFormat { font_id: FontId::proportional(11.0), color: DIM(), ..Default::default() });
+                            }
+                            ui.add(egui::Label::new(job).sense(Sense::click()).wrap_mode(egui::TextWrapMode::Extend))
+                        });
+                        if row.inner.clicked() {
+                            picked = Some(e);
+                        }
+                    }
+                });
+            });
+        });
+        let hovered = area.response.contains_pointer();
+        ui.ctx().data_mut(|d| d.insert_temp(over, hovered));
+        picked
+    }
 }
 
-pub(crate) fn menu_label_for(label: &str, mac: bool) -> String {
-    if !mac {
-        return label.to_string();
-    }
-    match label.trim_end().rsplit_once("  ") {
-        Some((name, key)) if !key.trim().is_empty() => format!("{}  {}", name.trim_end(), crate::palette::shortcut_label(key.trim(), true)),
-        _ => label.to_string(),
-    }
+/// The whole number a text starts with, as JavaScript's parseInt reads it: blanks, a sign, digits
+/// ("12.7" and "12px" are 12); None without digits.
+pub fn parse_int(s: &str) -> Option<i64> {
+    let t = s.trim_start();
+    let (sign, rest) = match t.strip_prefix('-') {
+        Some(r) => (-1, r),
+        None => (1, t.strip_prefix('+').unwrap_or(t)),
+    };
+    let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    digits.parse::<i64>().ok().map(|n| sign * n)
+}
+
+/// The number a text starts with, as JavaScript's parseFloat reads it ("2.5e3x" is 2500); None
+/// without one.
+pub fn parse_real(s: &str) -> Option<f64> {
+    let t = s.trim_start();
+    // the longest prefix that parses (sign, digits, point, exponent)
+    let ends: Vec<usize> = t.char_indices().map(|(i, c)| i + c.len_utf8()).collect();
+    ends.into_iter().rev().find_map(|e| {
+        let p = &t[..e];
+        if p.chars().all(|c| c.is_ascii_digit() || matches!(c, '+' | '-' | '.' | 'e' | 'E')) {
+            p.parse::<f64>().ok().filter(|v| v.is_finite())
+        } else {
+            None
+        }
+    })
 }
 
 /// A soft shadow under the top edge of a scrolled list.
@@ -3656,7 +4166,7 @@ fn scroll_shadow(p: &egui::Painter, r: Rect) {
 
 /// Give a dialog's primary button the keyboard when nothing else has it, as the original does when a
 /// dialog opens (dialog-manager.js:242-313).
-fn focus_primary(ui: &egui::Ui, button: &egui::Response) {
+pub(crate) fn focus_primary(ui: &egui::Ui, button: &egui::Response) {
     if ui.memory(|m| m.focused().is_none()) {
         button.request_focus();
     }

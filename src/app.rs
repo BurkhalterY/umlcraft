@@ -14,6 +14,8 @@ pub const UNDO_LIMIT: usize = 100; // repository.js:37
 pub const DOCUMENT_VERSION: i64 = 1; // core.js:57
 /// The space between a box and a constraint added to its left (estimated).
 pub const CONSTRAINT_GAP: f64 = 30.0;
+/// The view kinds a node box can hold (UMLNodeView.canContainViewKind, elements.js:8170-8179).
+const NODE_HOLDS: [&str; 6] = ["UMLClassifierView", "UMLPackageView", "UMLObjectView", "UMLArtifactInstanceView", "UMLComponentInstanceView", "UMLNodeInstanceView"];
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum AssocInit {
@@ -21,6 +23,8 @@ pub enum AssocInit {
     Directed,
     Shared,
     Composite,
+    /// composite at the tail (end1): SysML's Add Composited Block (sysml-commands.js:39-62)
+    CompositeTail,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -72,18 +76,68 @@ pub struct SelectOne {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SelectPurpose {
-    /// Model › Add › Constraint on an operation: the field the constraint goes in.
+    /// Model › Add › Constraint on an operation, a behaviour or an action: the field the constraint
+    /// goes in.
     ConstraintKind(Eid),
     /// Model › Add › Entry, Do or Exit Activity on a state, or Effect on a transition: the kind of
     /// behaviour, created in that field (uml-commands.js:109-190).
     BehaviorKind(Eid, &'static str),
+    /// A SysML connector's Create Item Flow: the direction (sysml-commands.js:175-215).
+    ItemFlow(Eid),
 }
 
 /// The behaviour kinds of an entry, do or exit activity or an effect (uml-commands.js:111-116).
 pub const BEHAVIOR_KINDS: [(&str, &str); 4] = [("OpaqueBehavior", "UMLOpaqueBehavior"), ("Activity", "UMLActivity"), ("StateMachine", "UMLStateMachine"), ("Interaction", "UMLInteraction")];
 
-/// The constraint kinds of an operation and the field each goes in (uml-commands.js:185).
-pub const OPERATION_CONSTRAINTS: [(&str, &str); 4] = [("Typical", "ownedElements"), ("Precondition", "preconditions"), ("BodyCondition", "bodyConditions"), ("Postcondition", "postconditions")];
+/// The constraint kinds of an operation and the field each goes in (uml-commands.js:185-200).
+pub const OPERATION_CONSTRAINTS: [(&str, &str); 4] = [("Typical Constraint", "ownedElements"), ("Precondition", "preconditions"), ("BodyCondition", "bodyConditions"), ("Postcondition", "postconditions")];
+/// The element type named in a placement error, and the kind the diagram's owner must be, for the
+/// toolbox kinds the original checks (uml-factory.js:91-105, 3721-3880).
+pub fn placement_precondition(kind: &str) -> Option<(&'static str, &'static str)> {
+    Some(match kind {
+        "UMLEndpoint" => ("UMLEndpoint", "UMLInteraction"),
+        "UMLGate" => ("UMLGate", "UMLInteraction"),
+        "UMLContinuation" => ("UMLContinuation", "UMLInteraction"),
+        "UMLInteractionUse" => ("UMLInteractionUse", "UMLInteraction"),
+        "UMLAction" | "SendSignal" | "AcceptSignal" | "AcceptTimeEvent" => ("UMLAction", "UMLActivity"),
+        "SwimlaneVert" | "SwimlaneHorz" => ("UMLActivityPartition", "UMLActivity"),
+        "UMLObjectNode" => ("UMLObjectNode", "UMLActivity"),
+        "UMLCentralBufferNode" => ("UMLCentralBufferNode", "UMLActivity"),
+        "UMLDataStoreNode" => ("UMLDataStoreNode", "UMLActivity"),
+        "UMLActivityParameterNode" => ("UMLActivityParameterNode", "UMLActivity"),
+        "UMLInitialNode" => ("UMLInitialNode", "UMLActivity"),
+        "UMLActivityFinalNode" => ("UMLActivityFinalNode", "UMLActivity"),
+        "UMLFlowFinalNode" => ("UMLFlowFinalNode", "UMLActivity"),
+        "UMLForkNode" => ("UMLForkNode", "UMLActivity"),
+        "UMLJoinNode" => ("UMLJoinNode", "UMLActivity"),
+        "UMLMergeNode" => ("UMLMergeNode", "UMLActivity"),
+        "UMLDecisionNode" => ("UMLDecisionNode", "UMLActivity"),
+        "UMLInterruptibleActivityRegion" => ("UMLInterruptibleActivityRegion", "UMLActivity"),
+        "UMLStructuredActivityNode" => ("UMLStructuredActivityNode", "UMLActivity"),
+        "UMLExpansionRegion" => ("UMLExpansionRegion", "UMLActivity"),
+        "UMLActivityEdgeConnector" => ("UMLActivityEdgeConnector", "UMLActivity"),
+        _ => return None,
+    })
+}
+
+/// The constraint kinds of a behaviour (uml-commands.js:203-218).
+pub const BEHAVIOR_CONSTRAINTS: [(&str, &str); 3] = [("Typical Constraint", "ownedElements"), ("Precondition", "preconditions"), ("Postcondition", "postconditions")];
+/// The constraint kinds of an action (uml-commands.js:219-234).
+pub const ACTION_CONSTRAINTS: [(&str, &str); 3] = [("Typical Constraint", "ownedElements"), ("LocalPrecondition", "localPreconditions"), ("LocalPostcondition", "localPostconditions")];
+
+/// Model › Add › Constraint asks which kind on an operation, a behaviour or an action: the dialog's
+/// message and the kinds with their fields (handleConstraint, uml-commands.js:184-241).
+pub fn constraint_kinds(r: &crate::model::Repo, e: Eid) -> Option<(&'static str, &'static [(&'static str, &'static str)])> {
+    if r.ty(e) == "UMLOperation" {
+        Some(("Select kind of Constraint of Operation", &OPERATION_CONSTRAINTS))
+    } else if r.kind_of(e, "UMLBehavior") {
+        Some(("Select kind of Constraint of Behavior", &BEHAVIOR_CONSTRAINTS))
+    } else if r.kind_of(e, "UMLAction") {
+        Some(("Select kind of Constraint of Action", &ACTION_CONSTRAINTS))
+    } else {
+        None
+    }
+}
 
 pub mod egui_pos {
     #[derive(Clone, Copy, Debug)]
@@ -146,6 +200,8 @@ pub struct App {
     pub editing: Option<Editing>,
     /// When a rejected inline edit started shaking (it cannot close for 400 ms, quickedit-manager.js:407-427).
     pub edit_shake: Option<std::time::Instant>,
+    /// The multiplicity typed in the open association end edit's combo, not yet applied.
+    pub edit_combo: Option<(Eid, String)>,
     pub info: HashMap<Eid, Info>,
     pub expanded: HashSet<Eid>,
     pub search: String,
@@ -193,8 +249,10 @@ pub struct App {
     /// Short notices shown at the bottom of the diagram area, with the time they appeared.
     /// Toasts: text, when shown, and whether it is an error (red) rather than information.
     pub toasts: Vec<(String, std::time::Instant, bool)>,
-    /// Select In Diagram with several diagrams: the views to choose from and the chosen row.
-    pub diagram_picker: Option<(Vec<Eid>, Option<usize>)>,
+    /// The Element List Picker (Select In Diagram with several diagrams, Select Operation…).
+    pub list_picker: Option<crate::dialogs::ListPicker>,
+    /// Information and alert boxes waiting to be shown (dialog-manager.js:675-703).
+    pub boxes: Vec<(crate::dialogs::BoxKind, String)>,
     /// The last text UMLCraft put on the clipboard, used when the system clipboard cannot be read.
     pub clipboard: Option<String>,
     /// The system clipboard, kept open: on Linux an image copied to it is served while it lives.
@@ -206,6 +264,8 @@ pub struct App {
     pub open_order: Vec<Eid>,
     /// A "Select One" dialog waiting for an answer (dialog-manager.js:433-476).
     pub select_one: Option<SelectOne>,
+    /// The "Delete Views Only" question, for views that can neither be deleted alone nor hidden.
+    pub delete_prompt: bool,
     /// The Element List Editor: the element, the reference-list field and the selected row.
     pub list_editor: Option<(Eid, &'static str, Option<usize>)>,
     /// The Color dialog, opened by Ctrl+Shift+I, Ctrl+Shift+L and the Style editor's swatches.
@@ -229,6 +289,11 @@ pub struct App {
     /// Validation: the problems found, whether the model was validated, and the results panel.
     pub problems: Vec<crate::validate::Problem>,
     pub validated: bool,
+    /// With a window: validation after open and save runs on a thread of its own, which wakes this
+    /// context when done (the main process's `validate`, application.js:316-320).
+    pub validate_in_background: Option<egui::Context>,
+    /// The results of the validation running in the background.
+    pub validation_rx: Option<std::sync::mpsc::Receiver<Vec<crate::validate::Problem>>>,
     pub show_validation: bool,
     /// Panel sizes changed by dragging a splitter (see splitter.rs).
     pub panel_sizes: std::collections::HashMap<String, f32>,
@@ -244,16 +309,23 @@ pub struct App {
     pub show_markdown: bool,
     /// The open Mermaid dialog's code.
     pub mermaid_code: Option<String>,
+    /// The open Tools › <Language> dialog (code generation and reverse engineering).
+    pub codegen: Option<crate::codegen::Dialog>,
     /// The theme the style was last set for (true: light).
     pub theme_applied: Option<bool>,
     /// The element being renamed in the Model Explorer: its text, and whether the edit just opened.
     pub tree_rename: Option<(Eid, String, bool)>,
     /// The user's keymap.json bindings.
     pub user_keymap: Vec<(crate::keymap::Stroke, String)>,
+    /// A press in the diagram deselects the Model Explorer: its row is no longer highlighted, though
+    /// the model stays the focus the editors show, until the tree is used again (app-context.js:1325-1337).
+    pub tree_cleared: bool,
     /// Requests from the local HTTP API, answered each frame.
     pub api_rx: Option<std::sync::mpsc::Receiver<crate::api::ApiRequest>>,
     /// The window's bounds and maximized state, kept as windowState.main.
     pub window_state: Option<serde_json::Value>,
+    /// The window itself: what it opens at start-up, its splash screen and title bar (window.rs).
+    pub shell: crate::window::Shell,
     pub md_preview: bool,
     pub md_buf: String,
     pub md_for: Option<Eid>,
@@ -266,8 +338,18 @@ pub struct App {
     pub last_backup: std::time::Instant,
     /// The Print to PDF dialog is open.
     pub print_open: bool,
+    /// The project draws with colour variables (it held some when opened, or was converted): new views
+    /// get variables too (colorvars.rs).
+    pub color_vars: bool,
+    /// The Convert / Keep Colors question, asked when a file of StarUML 7 or earlier is opened.
+    pub color_prompt: bool,
+    /// The Export Image dialog (Ctrl+Shift+E) is open, with the outcome of its last action.
+    pub export_image_open: bool,
+    pub export_image_result: Option<String>,
     /// The open Element Picker ("Select Element").
     pub element_picker: Option<crate::picker::ElementPicker>,
+    /// The Icon Picker of a cloud element (icon-picker-dialog.js).
+    pub icon_picker: Option<crate::cloud::IconPicker>,
     /// The open input dialog.
     pub input_dialog: Option<crate::input::InputDialog>,
 }
@@ -294,6 +376,7 @@ impl App {
             hover: None,
             editing: None,
             edit_shake: None,
+            edit_combo: None,
             info: HashMap::new(),
             expanded: HashSet::new(),
             search: String::new(),
@@ -332,13 +415,15 @@ impl App {
             scrolls: HashMap::new(),
             centre_pending: None,
             toasts: vec![],
-            diagram_picker: None,
+            list_picker: None,
+            boxes: vec![],
             clipboard: None,
             sys_clipboard: None,
             style_edit: None,
             color_dialog: None,
             list_editor: None,
             select_one: None,
+            delete_prompt: false,
             open_order: vec![],
             font_dialog: None,
             prefs: crate::prefs::Prefs::default(),
@@ -353,6 +438,8 @@ impl App {
             find_results: None,
             problems: vec![],
             validated: false,
+            validate_in_background: None,
+            validation_rx: None,
             show_validation: false,
             panel_sizes: Default::default(),
             split_drag: None,
@@ -361,11 +448,14 @@ impl App {
             show_minimap: true,
             show_markdown: false,
             mermaid_code: None,
+            codegen: None,
             theme_applied: None,
             tree_rename: None,
             user_keymap: vec![],
+            tree_cleared: false,
             api_rx: None,
             window_state: None,
+            shell: Default::default(),
             md_preview: false,
             md_buf: String::new(),
             md_for: None,
@@ -374,7 +464,12 @@ impl App {
             last_selection: vec![],
             last_backup: std::time::Instant::now(),
             print_open: false,
+            color_vars: false,
+            color_prompt: false,
+            export_image_open: false,
+            export_image_result: None,
             element_picker: None,
+            icon_picker: None,
             input_dialog: None,
         };
         a.set_project(Repo::blank(), None);
@@ -385,6 +480,8 @@ impl App {
     pub fn set_project(&mut self, repo: Repo, filename: Option<PathBuf>) {
         self.repo = repo;
         self.migrate();
+        self.color_vars = crate::colorvars::uses_vars(&self.repo);
+        self.color_prompt = false;
         self.filename = filename;
         self.modified = false;
         self.undo.clear();
@@ -408,8 +505,10 @@ impl App {
         // closing a project clears the validation errors (validation-panel.js:136-142)
         self.problems.clear();
         self.validated = false;
+        // the results of the previous project's validation are dropped
+        self.validation_rx = None;
         self.centre_pending = None;
-        self.diagram_picker = None;
+        self.list_picker = None;
         self.expanded.clear();
         let root = self.repo.root;
         self.expanded.insert(root);
@@ -451,8 +550,24 @@ impl App {
                 self.set_project(repo, Some(p));
                 self.restore_working_diagrams();
                 self.auto_validate();
+                // a file without colour variables comes from StarUML 7 or earlier: ask whether to
+                // convert its colours (https://docs.staruml.io/user-guide/managing-project/)
+                self.color_prompt = !self.color_vars && crate::colorvars::has_fixed_colors(&self.repo);
             }
             Err(e) => self.message = Some(("Failed to open the file.".into(), e)),
+        }
+    }
+
+    /// File › Import › StarUML 1 File (.uml): the file becomes the new, unsaved project
+    /// (extensions/default/staruml-v1/main.js:34 loadFile, project-manager.js:204 loadFromJson).
+    pub fn import_staruml_v1(&mut self, p: PathBuf) {
+        let text = std::fs::read(&p).map(|b| String::from_utf8_lossy(&b).into_owned()).map_err(|e| e.to_string());
+        match text.and_then(|t| crate::staruml_v1::import(&t).map(|r| (r, crate::staruml_v1::profiles(&t)))) {
+            Ok((mut repo, profiles)) => {
+                crate::staruml_v1::link_standard_profile(&mut repo, &profiles);
+                self.set_project(repo, None)
+            }
+            Err(e) => self.message = Some(("Failed to import the file.".into(), e)),
         }
     }
 
@@ -496,20 +611,13 @@ impl App {
         }
     }
 
+    /// The "Save Project As" dialog, starting at "Untitled.mdj"; `.mdj` is added to a name without
+    /// an extension (default-commands.js:148-175).
     pub fn save_as(&mut self, ms: &dyn Measure) -> bool {
-        let name = self
-            .filename
-            .as_ref()
-            .and_then(|p| p.file_name())
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_else(|| format!("{}.mdj", self.repo.name(self.repo.root)));
-        let Some(mut p) = rfd::FileDialog::new().set_title("Save As").set_file_name(&name).add_filter("Models", &["mdj"]).add_filter("All Files", &["*"]).save_file() else {
+        let Some(p) = rfd::FileDialog::new().set_title("Save Project As").set_file_name("Untitled.mdj").add_filter("Models", &["mdj"]).add_filter("All Files", &["*"]).save_file() else {
             return false;
         };
-        if p.extension().map(|e| e != "mdj").unwrap_or(true) {
-            p.set_extension("mdj");
-        }
-        self.save_to(p, ms)
+        self.save_to(crate::window::with_model_extension(p), ms)
     }
 
     /// Ask before throwing away changes. Returns false when the person cancels.
@@ -616,6 +724,8 @@ impl App {
             other if other.starts_with("ERD") && other != "ERDDiagram" => &other[3..],
             // and a wireframe element "WF" (WFElement.getDisplayClassName, wireframe/elements.js:42-45)
             other if other.starts_with("WF") && other != "WFWireframeDiagram" => &other[2..],
+            // and a SysML element "SysML" (SysMLElementMixin.getDisplayClassName, sysml/elements.js:40-50)
+            other if other.starts_with("SysML") => crate::sysml::display_name(other),
             other => other.trim_start_matches("UML"),
         };
         let names: HashSet<String> = self.repo.children(parent).into_iter().map(|(_, c)| self.repo.name(c)).collect();
@@ -693,13 +803,8 @@ impl App {
         if self.repo.all().any(|x| self.repo.ty(x) == "UMLStereotype" && self.repo.name(x) == st) {
             return true;
         }
-        let ok = self.screenshot.is_none()
-            && rfd::MessageDialog::new()
-                .set_title("UMLCraft")
-                .set_description(format!("{kind} requires UML Standard Profile. Do you want to apply?"))
-                .set_buttons(rfd::MessageButtons::OkCancel)
-                .show()
-                == rfd::MessageDialogResult::Ok;
+        // a confirmation box (robustness/main.js:41-67); screenshots do not ask
+        let ok = self.screenshot.is_none() && self.confirm(&format!("{kind} requires UML Standard Profile. Do you want to apply?"));
         if ok {
             self.apply_standard_profile();
         }
@@ -710,7 +815,7 @@ impl App {
     pub fn select_one_ok(&mut self, d: SelectOne) {
         match d.purpose {
             SelectPurpose::ConstraintKind(op) if self.repo.alive(op) => {
-                let field = OPERATION_CONSTRAINTS.get(d.selected).map(|x| x.1).unwrap_or("ownedElements");
+                let field = constraint_kinds(&self.repo, op).and_then(|(_, kinds)| kinds.get(d.selected)).map(|x| x.1).unwrap_or("ownedElements");
                 let c = self.change(|a| {
                     let name = a.new_name(op, "UMLConstraint");
                     a.repo.create("UMLConstraint", &[("name", json!(name))], Some((op, field)))
@@ -732,6 +837,7 @@ impl App {
                 self.expanded.insert(owner);
                 self.reveal(b);
             }
+            SelectPurpose::ItemFlow(c) if self.repo.alive(c) => self.add_item_flow(c, d.selected == 1),
             _ => {}
         }
     }
@@ -778,6 +884,16 @@ impl App {
 
     pub fn create_node(&mut self, kind: &str, rect: R) -> Option<Eid> {
         let d = self.diagram?;
+        // an interaction's endpoints, gates, continuations and interaction uses need a diagram owned by
+        // an interaction, an activity's nodes and groups one owned by an activity; elsewhere the error
+        // "X cannot be placed here." (interactionPrecondition, activityPrecondition, uml-factory.js:19,
+        // 91-105, 3721-3880)
+        if let Some((model_type, owner)) = placement_precondition(kind) {
+            if !self.repo.parent(d).map(|p| self.repo.kind_of(p, owner)).unwrap_or(false) {
+                self.toast_error(&format!("{model_type} cannot be placed here."));
+                return None;
+            }
+        }
         if matches!(kind, "Note" | "Text" | "TextBox" | "Rect" | "RoundRect" | "Ellipse" | "Image") {
             let ty = match kind {
                 "Note" => "UMLNoteView",
@@ -905,6 +1021,33 @@ impl App {
             };
             self.apply_view_defaults(v);
             return Some(v);
+        }
+        // a BPMN element goes in the diagram's owner, or in the lane or pool it is drawn in; a boundary
+        // event on the box under the point (bpmn-factory.js:98-145, toolbox/bpmn.json)
+        if let Some(v) = self.create_bpmn_node(d, kind, rect) {
+            return v;
+        }
+        // a cloud element goes in the element that owns the diagram, or in the group or zone it is
+        // drawn in, named after its class ("AWSGroup1"; a callout "1"), with its first icon
+        // (aws-factory.js:70-95; defaultModelAndViewFn, factory.js:520-560)
+        if crate::cloud::is_node_type(kind) {
+            let owner = self.repo.parent(d)?;
+            let vt = format!("{kind}View");
+            let holder = self.repo.list(d, "ownedViews").into_iter().rev().find(|c| crate::cloud::can_contain(self.repo.ty(*c), &vt) && { let b = views::node_rect(&self.repo, *c); rect.x >= b.x && rect.x <= b.x + b.w && rect.y >= b.y && rect.y <= b.y + b.h });
+            let parent = holder.and_then(|c| self.repo.refd(c, "model")).unwrap_or(owner);
+            let name = if kind.ends_with("Callout") { "1".to_string() } else { self.new_name(parent, kind) };
+            let m = self.repo.create(kind, &[("name", json!(name))], Some((parent, "ownedElements")));
+            crate::cloud::init_model(&mut self.repo, m);
+            let v = crate::cloud::create_view(&mut self.repo, d, m, rect);
+            self.apply_view_defaults(v);
+            crate::cloud::init_view(&mut self.repo, v);
+            if let Some(c) = holder {
+                self.set_container(&[v], Some(c));
+            }
+            return Some(v);
+        }
+        if let Some(v) = self.create_sysml_node(d, kind, rect) {
+            return v;
         }
         // a C4 element goes in the element that owns the diagram, named after its class ("C4Person1"…);
         // the container tools set its kind (c4-factory.js:70-90, toolbox/c4.json)
@@ -1109,6 +1252,28 @@ impl App {
         if let Some(ok) = crate::timing::can_contain(ct, self.repo.ty(v)) {
             return ok && container != v;
         }
+        // a BPMN pool holds lanes and flow elements, a lane flow elements (bpmn/elements.js:2898-2910, 3007-3016)
+        if crate::bpmn::is_node_view(ct) || crate::bpmn::is_node_view(self.repo.ty(v)) {
+            let mut c = Some(container);
+            while let Some(x) = c {
+                if x == v {
+                    return false;
+                }
+                c = self.repo.refd(x, "containerView");
+            }
+            return crate::bpmn::can_contain(ct, self.repo.ty(v));
+        }
+        // a cloud group or zone holds the other boxes of its notation (canContainViewKind)
+        if crate::cloud::is_node_view(ct) || crate::cloud::is_node_view(self.repo.ty(v)) {
+            let mut c = Some(container);
+            while let Some(x) = c {
+                if x == v {
+                    return false;
+                }
+                c = self.repo.refd(x, "containerView");
+            }
+            return crate::cloud::can_contain(ct, self.repo.ty(v));
+        }
         // a wireframe frame or panel holds widgets, a tab list holds tabs (wireframe/elements.js)
         if crate::wireframe::is_node_view(ct) || crate::wireframe::is_node_view(self.repo.ty(v)) {
             let mut c = Some(container);
@@ -1145,7 +1310,12 @@ impl App {
             }
             return structured || matches!(vt, "UMLActionView" | "UMLControlNodeView" | "UMLObjectNodeView" | "UMLCentralBufferNodeView" | "UMLDataStoreNodeView" | "UMLActivityParameterNodeView" | "UMLActivityEdgeConnectorView" | "UMLFinalStateView");
         }
-        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView" || ct == "UMLStateView") || !views::is_node(&self.repo, v) {
+        // a node holds classifiers, packages, objects and instances (UMLNodeView.canContainViewKind,
+        // elements.js:8170-8179)
+        if ct == "UMLNodeView" && !NODE_HOLDS.iter().any(|k| self.repo.kind_of(v, k)) {
+            return false;
+        }
+        if !(ct == "UMLPackageView" || ct == "UMLModelView" || ct == "UMLSubsystemView" || ct == "UMLUseCaseSubjectView" || ct == "UMLStateView" || ct == "UMLNodeView") || !views::is_node(&self.repo, v) {
             return false;
         }
         // not the view itself or anything inside it
@@ -1248,6 +1418,10 @@ impl App {
         list.retain(|x| !vs.contains(x));
         list.extend(vs.iter().copied());
         self.repo.set_list(d, "ownedViews", list);
+        // BPMN pools and lanes stay behind what they hold
+        if self.repo.ty(d) == "BPMNDiagram" {
+            crate::bpmn::restack(&mut self.repo, d);
+        }
     }
 
     /// The two ends of a relationship model: (tail, head) = (source, target) or (end1, end2) references.
@@ -1291,7 +1465,8 @@ impl App {
             ],
             "UMLObjectDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLClassifier", "UMLInstance", "UMLSlot", "UMLDependency", "UMLLink"],
             "UMLStatechartDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLVertex", "UMLTransition", "UMLStateMachine"],
-            "UMLActivityDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLActivityNode", "UMLActivityEdge", "UMLActivity"],
+            // UMLActivityDiagram.canAcceptModel takes pins too (elements.js:9638-9649)
+            "UMLActivityDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLActivityNode", "UMLActivityEdge", "UMLActivity", "UMLPin"],
             // FCFlowchartDiagram.canAcceptModel (flowchart/elements.js:68-75)
             "FCFlowchartDiagram" => vec!["Hyperlink", "Diagram", "FCModelElement", "FCFlow"],
             "DFDDiagram" => vec!["Hyperlink", "Diagram", "DFDExternalEntity", "DFDProcess", "DFDDataStore", "DFDDataFlow"],
@@ -1302,11 +1477,19 @@ impl App {
             "ERDDiagram" => vec!["Hyperlink", "Diagram", "ERDEntity", "ERDColumn", "ERDRelationship"],
             // C4Diagram.canAcceptModel (c4/elements.js:75-80)
             "C4Diagram" => vec!["Hyperlink", "Diagram", "C4Element", "C4Relationship"],
+            // BPMNDiagram.canAcceptModel (bpmn/elements.js:65-80)
+            "BPMNDiagram" => vec!["Hyperlink", "Diagram", "BPMNParticipant", "BPMNLane", "BPMNActivity", "BPMNEvent", "BPMNGateway", "BPMNSequenceFlow", "BPMNMessage", "BPMNMessageFlow"],
+            // AWSDiagram.canAcceptModel and the others' (aws/elements.js:105-115)
+            t if crate::cloud::is_diagram(t) => crate::cloud::accepted(t).to_vec(),
             // UMLInteractionOverviewDiagram.canAcceptModel (elements.js:13823-13834)
             "UMLInteractionOverviewDiagram" => vec!["Hyperlink", "Diagram", "UMLInteractionUse", "UMLInteraction"],
             // UMLSequenceDiagram.canAcceptModel (elements.js:10958-10985), and
             // UMLCommunicationDiagram's and UMLTimingDiagram's (elements.js:12914-12946, 13374-13389)
             "UMLSequenceDiagram" | "UMLCommunicationDiagram" | "UMLTimingDiagram" => {
+                // an interaction, which a sequence diagram shows as an interaction use
+                if self.repo.ty(d) == "UMLSequenceDiagram" && self.repo.ty(m) == "UMLInteraction" {
+                    return true;
+                }
                 // a role of the collaboration that owns the interaction
                 if self.repo.ty(m) == "UMLAttribute" {
                     return self.repo.parent(m) == self.repo.parent(d).and_then(|i| self.repo.parent(i));
@@ -1318,6 +1501,7 @@ impl App {
                 "UMLOperation", "UMLReception", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation", "UMLLink", "UMLConnector",
             ],
             "UMLProfileDiagram" => vec!["Hyperlink", "Diagram", "UMLConstraint", "UMLMetaClass", "UMLStereotype", "UMLEnumeration", "UMLGeneralization", "UMLDependency", "UMLInterfaceRealization", "UMLComponentRealization", "UMLAssociation"],
+            t if crate::sysml::accepts(t).is_some() => crate::sysml::accepts(t).unwrap_or_default(),
             _ => return true,
         };
         kinds.iter().any(|k| self.repo.kind_of(m, k))
@@ -1329,7 +1513,9 @@ impl App {
         }
         let ty = self.repo.ty(m);
         // the open diagram dropped onto itself makes a frame of it (factory.js:1174-1185)
-        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || views::node_kind(ty).is_some() || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
+        // ports, parts, pins and connection point references go onto their parent's box (drop_feature)
+        let feature = matches!(ty, "UMLPort" | "UMLAttribute" | "UMLInputPin" | "UMLOutputPin" | "UMLConnectionPointReference");
+        self.diagram.is_some() && self.repo.alive(m) && (self.is_diagram(m) || feature || views::node_kind(ty).is_some() || crate::bpmn::is_node_type(ty) || crate::sysml::droppable(ty) || ty == "UMLStateMachine" || ty == "UMLActivity" || ty == "UMLInteraction" || ty == "UMLConstraint" || (views::edge_view_of(ty).is_some() && self.rel_ends(m).is_some()))
     }
 
     pub fn drop_model(&mut self, m: Eid, p: P) -> Result<Vec<Eid>, String> {
@@ -1339,6 +1525,18 @@ impl App {
             return Ok(vec![]);
         }
         let ty = self.repo.ty(m).to_string();
+        // a hidden view of it inside the box under the drop point, such as an attribute hidden by
+        // Delete, is shown again (app-context.js:1158-1183)
+        if let Some(c) = self.hit_view(p, true) {
+            let mut stack = self.repo.list(c, "subViews");
+            while let Some(s) = stack.pop() {
+                if self.repo.refd(s, "model") == Some(m) && self.repo.raw(s, "visible") == Some(&json!(false)) {
+                    self.change(|a| a.repo.set(s, "visible", json!(true)));
+                    return Ok(vec![s]);
+                }
+                stack.extend(self.repo.list(s, "subViews"));
+            }
+        }
         if m == d {
             // a 700×600 frame of the diagram, its top left at the drop point (factory.js:1174-1185)
             return Ok(self.create_frame(d, Some(d), views::R { x: p.x, y: p.y, w: 700.0, h: 600.0 }).into_iter().collect());
@@ -1356,8 +1554,14 @@ impl App {
             }
             return Ok(v.into_iter().collect());
         }
+        if let Some(res) = self.drop_feature(d, m, p) {
+            return res;
+        }
         if views::edge_view_of(&ty).is_some() && self.rel_ends(m).is_some() {
             return self.drop_relationship(d, m, p);
+        }
+        if let Some(res) = self.drop_sysml(d, m, p) {
+            return res;
         }
         // a classifier dropped on a sequence diagram becomes a lifeline representing a new role of that
         // type; a role of the collaboration a lifeline representing it (viewForSequenceDiagramFn,
@@ -1366,6 +1570,17 @@ impl App {
         // becomes an action calling it
         if self.repo.ty(d) == "UMLInteractionOverviewDiagram" && (matches!(self.repo.ty(m), "UMLInteractionUse" | "UMLInteraction" | "UMLSequenceDiagram")) {
             let v = self.change(|a| a.drop_on_overview(d, m, p));
+            return Ok(v.into_iter().collect());
+        }
+        // an interaction dropped on a sequence diagram becomes an interaction use referring to it, at
+        // its smallest (viewForSequenceDiagramFn, uml-factory.js:2860-2870)
+        if self.repo.ty(d) == "UMLSequenceDiagram" && self.repo.ty(m) == "UMLInteraction" {
+            let v = self.change(|a| {
+                let v = a.create_node("UMLInteractionUse", views::R { x: p.x, y: p.y, w: 0.0, h: 0.0 })?;
+                let u = a.repo.refd(v, "model")?;
+                a.repo.set_ref(u, "refersTo", Some(m));
+                Some(v)
+            });
             return Ok(v.into_iter().collect());
         }
         let comm = self.repo.ty(d) == "UMLCommunicationDiagram";
@@ -1382,6 +1597,13 @@ impl App {
                     a.repo.detach(role);
                 } else {
                     a.repo.set_ref(role, "type", Some(m));
+                }
+                // on a sequence diagram, an actor, a use case, an interface, an artifact, a
+                // component, a node or anything with a stereotype icon shows as an icon
+                // (uml-factory.js:2788-2799, 2829-2840)
+                let icon = if a.repo.ty(m) == "UMLAttribute" { views::stereotype_icon(&a.repo, m).is_some() } else { crate::sequence::shown_as_icon(&a.repo, m) };
+                if !comm && !timing && icon {
+                    a.repo.set(v, "stereotypeDisplay", json!("icon"));
                 }
                 Some(v)
             });
@@ -1420,8 +1642,46 @@ impl App {
             }
             return Ok(v.into_iter().collect());
         }
-        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) {
+        if views::node_kind(&ty).is_none() && !crate::flowchart::is_node_type(&ty) && !crate::notations::is_node_type(&ty) && ty != "ERDEntity" && !crate::c4::is_node_type(&ty) && !crate::wireframe::is_node_type(&ty) && !crate::bpmn::is_node_type(&ty) && !crate::cloud::is_node_type(&ty) && crate::sysml::view_of(&ty).is_none() {
             return Ok(vec![]);
+        }
+        // the class of an association class: when its link is shown already, that line, the class and
+        // the association are selected with an alert; when the association is shown, the link is added,
+        // with a box of the class unless one is shown (uml-factory.js:2595-2640)
+        if ty == "UMLClass" {
+            let link = self.repo.list(m, "ownedElements").into_iter().filter(|e| self.repo.ty(*e) == "UMLAssociationClassLink" && self.repo.refd(*e, "classSide") == Some(m)).last();
+            if let Some(link) = link {
+                let cv = self.shown_view(d, m);
+                let av = self.repo.refd(link, "associationSide").and_then(|a| self.shown_view(d, a));
+                if let Some(lv) = self.shown_view(d, link) {
+                    self.select([Some(lv), cv, av].into_iter().flatten().collect());
+                    return Err("AssociationClass View is already existed in this Diagram.".into());
+                }
+                if let Some(av) = av {
+                    let e = self.change(|a| {
+                        let cv = match cv {
+                            Some(cv) => cv,
+                            None => {
+                                let v = a.place_node(d, m, p)?;
+                                a.add_relationship_views(d, m, v);
+                                v
+                            }
+                        };
+                        let props = [
+                            ("model", a.repo.ref_to(link)),
+                            ("font", json!(views::FONT)),
+                            ("head", a.repo.ref_to(av)),
+                            ("tail", a.repo.ref_to(cv)),
+                            ("lineStyle", json!(views::DEFAULT_LINE_STYLE)),
+                            ("points", json!("0:0;0:0")),
+                        ];
+                        let e = a.repo.create("UMLAssociationClassLinkView", &props, Some((d, "ownedViews")));
+                        a.apply_view_defaults(e);
+                        Some(e)
+                    });
+                    return Ok(e.into_iter().collect());
+                }
+            }
         }
         // a hidden view of it is shown again instead of a second one
         let hidden = self.repo.list(d, "ownedViews").into_iter().find(|v| self.repo.refd(*v, "model") == Some(m) && matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))));
@@ -1493,13 +1753,51 @@ impl App {
         }
     }
 
+    /// A port, part, pin or connection point reference dragged from the explorer goes onto its
+    /// parent's box under the point; elsewhere it is refused with the original's alert: a port on
+    /// its classifier or on a part of that type, a part (any attribute) on its classifier, a pin on
+    /// its action, a connection point reference on its state (viewForGeneralDiagramFn,
+    /// viewForStatechartDiagramFn, viewForActivityDiagramFn, uml-factory.js:2466-2510, 3412-3478).
+    fn drop_feature(&mut self, d: Eid, m: Eid, p: P) -> Option<Result<Vec<Eid>, String>> {
+        let ty = self.repo.ty(m).to_string();
+        let dt = self.repo.ty(d).to_string();
+        let general = matches!(dt.as_str(), "UMLClassDiagram" | "UMLPackageDiagram" | "UMLObjectDiagram" | "UMLComponentDiagram" | "UMLDeploymentDiagram" | "UMLProfileDiagram" | "UMLUseCaseDiagram");
+        let parent = self.repo.parent(m);
+        let host = self.hit_view(p, true);
+        let hm = host.and_then(|h| self.repo.refd(h, "model"));
+        let hty = host.map(|h| self.repo.ty(h).to_string()).unwrap_or_default();
+        let on_parent = hm.is_some() && hm == parent;
+        let classifier_box = on_parent && hm.map(|x| self.repo.kind_of(x, "UMLClassifier")).unwrap_or(false) && views::node_kind(self.repo.ty(hm.unwrap())).map(|k| k.view == hty).unwrap_or(false);
+        let (ok, refused) = match ty.as_str() {
+            "UMLPort" if general => (classifier_box || (hty == "UMLPartView" && hm.and_then(|x| self.repo.refd(x, "type")) == parent), "Port should be dropped on it's parent Classifier or Part"),
+            "UMLAttribute" if general => (classifier_box, "Part (Attribute) should be dropped on it's parent Classifier"),
+            "UMLInputPin" | "UMLOutputPin" if dt == "UMLActivityDiagram" => (on_parent && hty == "UMLActionView", "Pin should be dropped on it's parent Action"),
+            "UMLConnectionPointReference" if dt == "UMLStatechartDiagram" => (on_parent && hty == "UMLStateView", "ConnectionPointReference should be dropped on it's parent State"),
+            _ => return None,
+        };
+        let Some(h) = host.filter(|_| ok) else { return Some(Err(refused.into())) };
+        let v = self.change(|a| {
+            let v = match ty.as_str() {
+                "UMLPort" => views::create_port_view(&mut a.repo, d, m, h, p),
+                "UMLAttribute" => views::create_part_view(&mut a.repo, d, m, h, R { x: p.x, y: p.y, w: 0.0, h: 0.0 }),
+                "UMLConnectionPointReference" => views::create_connection_point_view(&mut a.repo, d, m, h, p),
+                _ => views::create_pin_view(&mut a.repo, d, m, h, p),
+            };
+            a.apply_view_defaults(v);
+            v
+        });
+        Some(Ok(vec![v]))
+    }
+
     fn drop_relationship(&mut self, d: Eid, m: Eid, p: P) -> Result<Vec<Eid>, String> {
         let (t, h) = self.rel_ends(m).unwrap();
         if let Some(e) = self.shown_view(d, m) {
             let mut sel = vec![e];
             sel.extend([self.repo.refd(e, "tail"), self.repo.refd(e, "head")].into_iter().flatten());
             self.select(sel);
-            return Err("Relationship View is already existed in this Diagram.".into());
+            // a connector's own words (uml-factory.js:2525, 2657)
+            let what = if self.repo.ty(m) == "UMLConnector" { "Connector" } else { "Relationship" };
+            return Err(format!("{what} View is already existed in this Diagram."));
         }
         let e = self.change(|a| {
             let tv = match a.shown_view(d, t) {
@@ -1574,10 +1872,17 @@ impl App {
         if let Some(ok) = crate::communication::can_link(r, kind, tail, head) {
             return ok;
         }
+        // BPMN lines (bpmn-factory.js:20-25)
+        if let Some(ok) = crate::bpmn::can_link(r, kind, tail, head) {
+            return ok;
+        }
         if views::is_edge(r, tail) || views::is_edge(r, head) {
             return false;
         }
         let (Some(tm), Some(hm)) = (r.refd(tail, "model"), r.refd(head, "model")) else { return false };
+        if let Some(ok) = crate::sysml::can_link(self, kind, tm, hm) {
+            return ok;
+        }
         if kind == "Containment" {
             // the tail's element goes into the head's package (shown in the explorer)
             return r.kind_of(hm, "UMLPackage") && tm != hm && (r.parent(tm) == Some(hm) || self.can_relocate(tm, hm));
@@ -1593,10 +1898,13 @@ impl App {
             "UMLLink" => r.kind_of(tm, "UMLInstance") && r.kind_of(hm, "UMLInstance"),
             // deployment diagrams: a path joins two nodes, a deployment puts a classifier on a node and a
             // component realization realizes a component (uml-factory.js:19-146)
-            "UMLCommunicationPath" => r.ty(tm) == "UMLNode" && r.ty(hm) == "UMLNode",
-            "UMLDeployment" => classifier(tm) && r.ty(hm) == "UMLNode" && tm != hm,
-            "UMLComponentRealization" => classifier(tm) && r.ty(hm) == "UMLComponent" && tm != hm,
-            "UMLInformationFlow" => tm != hm,
+            "UMLCommunicationPath" => r.kind_of(tm, "UMLNode") && r.kind_of(hm, "UMLNode"),
+            // a classifier on a node, or an instance on a node instance (deploymentPrecondition)
+            "UMLDeployment" => ((classifier(tm) && r.kind_of(hm, "UMLNode")) || (r.kind_of(tm, "UMLInstance") && r.ty(hm) == "UMLNodeInstance")) && tm != hm,
+            "UMLComponentRealization" => classifier(tm) && r.kind_of(hm, "UMLComponent") && tm != hm,
+            // a dependency or a realization joins two UML elements (modelElementLinkPrecondition)
+            "UMLDependency" | "UMLRealization" | "UMLAbstraction" => r.kind_of(tm, "UMLModelElement") && r.kind_of(hm, "UMLModelElement"),
+            "UMLInformationFlow" => r.kind_of(tm, "UMLModelElement") && r.kind_of(hm, "UMLModelElement") && tm != hm,
             // a stereotype extends a metaclass
             "UMLExtension" => r.ty(tm) == "UMLStereotype" && r.ty(hm) == "UMLMetaClass",
             // the bound classifier points at its template
@@ -1620,6 +1928,8 @@ impl App {
             _ if crate::sequence::message_sort(kind).is_some() => r.kind_of(tm, "UMLMessageEndpoint") && r.kind_of(hm, "UMLMessageEndpoint"),
             // a C4 relationship joins two C4 elements (linkPrecondition, c4-factory.js:20-25)
             "C4Relationship" => r.kind_of(tm, "C4Element") && r.kind_of(hm, "C4Element"),
+            // a cloud line joins two elements of its notation (linkPrecondition, aws-factory.js:20-27)
+            k if crate::cloud::edge_view_of(k).is_some() => crate::cloud::element_kind(k).map(|ek| r.kind_of(tm, ek) && r.kind_of(hm, ek)).unwrap_or(false),
             "ERDRelationship" | "ERDRelationshipOneToMany" | "ERDRelationshipManyToMany" => r.ty(tm) == "ERDEntity" && r.ty(hm) == "ERDEntity",
             "UMLControlFlow" | "UMLActivityInterrupt" => r.kind_of(tm, "UMLActivityNode") && r.kind_of(hm, "UMLActivityNode"),
             // an exception handler joins two actions (actionLinkPrecondition, uml-factory.js:129-135)
@@ -1725,6 +2035,9 @@ impl App {
         if tool.kind == "AssociationClass" {
             return self.create_association_class(d, tail, head);
         }
+        if tool.kind == "SysMLConnector" {
+            return self.create_sysml_connector(d, tail, head);
+        }
         if tool.kind == "LinkObject" {
             return self.create_class_link(d, tail, head, true);
         }
@@ -1757,6 +2070,7 @@ impl App {
                 }
                 AssocInit::Shared => self.repo.set(e2, "aggregation", json!("shared")),
                 AssocInit::Composite => self.repo.set(e2, "aggregation", json!("composite")),
+                AssocInit::CompositeTail => self.repo.set(e1, "aggregation", json!("composite")),
                 AssocInit::Plain => {}
             }
             m
@@ -1834,6 +2148,8 @@ impl App {
     /// the refusal message when the kinds do not fit (uml/main.js:44-82).
     pub fn reconnect(&mut self, e: Eid, tail: bool, to: Eid) -> Result<(), String> {
         let (Some(t), Some(h)) = (self.repo.refd(e, "tail"), self.repo.refd(e, "head")) else { return Ok(()) };
+        // a sequence message goes onto the lifeline's line part (uml/main.js:45-47)
+        let to = if self.repo.ty(e) == "UMLSeqMessageView" && self.repo.ty(to) == "UMLSeqLifelineView" { self.repo.refd(to, "linePart").unwrap_or(to) } else { to };
         if (tail && to == t) || (!tail && to == h) {
             return Ok(());
         }
@@ -1882,8 +2198,11 @@ impl App {
     }
 
     pub fn add_feature(&mut self, owner: Eid, ty: &str) -> Option<Eid> {
+        if let Some(x) = self.add_sysml_feature(owner, ty) {
+            return x;
+        }
         let field = match ty {
-            "UMLAttribute" => "attributes",
+            "UMLAttribute" | "UMLPort" => "attributes",
             "UMLOperation" => "operations",
             "UMLReception" => "receptions",
             "UMLExtensionPoint" => "extensionPoints",
@@ -1939,6 +2258,8 @@ impl App {
             "UMLSlot" => self.repo.kind_of(owner, "UMLInstance"),
             // template parameters on classes, interfaces and the other boxes with compartments
             "UMLTemplateParameter" => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase" && t != "UMLEnumeration",
+            // an actor takes attributes and operations (quickedits/uml.json "uml.actor"), not receptions
+            "UMLAttribute" | "UMLOperation" if t == "UMLActor" => true,
             _ => self.repo.kind_of(owner, "UMLClassifier") && t != "UMLActor" && t != "UMLUseCase",
         }
     }
@@ -1948,13 +2269,18 @@ impl App {
     /// they go to the part's type. Elsewhere they are refused (uml-factory.js:996-1100).
     pub fn create_feature_box(&mut self, kind: &str, at: P, rect: R) -> Result<Eid, String> {
         let d = self.diagram.ok_or_else(String::new)?;
-        let refused = format!("{} cannot be placed here.", if kind == "UMLPort" { "UMLPort" } else { "UMLAttribute" });
+        let refused = match kind {
+            // portFn and parameterFn (sysml-factory.js:116-228)
+            "SysMLPort" => "Port should be placed in a block or a part".to_string(),
+            "SysMLConstraintParameter" => "Constraint Parameter should be placed in a block or a part".to_string(),
+            _ => format!("{} cannot be placed here.", if kind == "UMLPort" { "UMLPort" } else { "UMLAttribute" }),
+        };
         let host = self
             .repo
             .list(d, "ownedViews")
             .into_iter()
             .rev()
-            .filter(|v| views::is_node(&self.repo, *v) && !matches!(self.repo.ty(*v), "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLExpansionNodeView" | "UMLConnectionPointReferenceView") && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
+            .filter(|v| views::is_node(&self.repo, *v) && !matches!(self.repo.ty(*v), "UMLPortView" | "UMLInputPinView" | "UMLOutputPinView" | "UMLExpansionNodeView" | "UMLConnectionPointReferenceView") && !crate::sysml::floating(self.repo.ty(*v)) && !matches!(self.repo.raw(*v, "visible"), Some(serde_json::Value::Bool(false))))
             .find(|v| {
                 let b = views::node_rect(&self.repo, *v);
                 at.x >= b.x && at.y >= b.y && at.x <= b.x + b.w && at.y <= b.y + b.h
@@ -1967,6 +2293,9 @@ impl App {
     /// action's box, in the action's inputs or outputs (uml-factory.js:3827-3834).
     pub fn create_feature_on(&mut self, host: Eid, kind: &str, at: P, rect: R) -> Result<Eid, String> {
         let d = self.diagram.ok_or_else(String::new)?;
+        if crate::sysml::parasitic(kind) {
+            return self.create_sysml_feature(d, host, kind, at);
+        }
         // a connection point reference goes in the connections of the state under the point
         // (connectionPointReferenceFn, uml-factory.js:2183-2214)
         if kind == "UMLConnectionPointReference" {
@@ -2053,6 +2382,10 @@ impl App {
     }
 
     pub fn add_model(&mut self, parent: Eid, ty: &str) -> Eid {
+        // a BPMN element: an event definition in its event's definitions, a gateway with its direction
+        if ty.starts_with("BPMN") {
+            return self.add_bpmn_model(parent, ty);
+        }
         let name = self.new_name(parent, ty);
         let m = self.repo.create(ty, &[("name", json!(name))], Some((parent, "ownedElements")));
         add_stereotype_icon(&mut self.repo, m);
@@ -2060,6 +2393,8 @@ impl App {
         if ty == "C4Container" {
             self.repo.set(m, "kind", json!("etc"));
         }
+        // a cloud element starts with its icon (the constructors in aws, azure, gcp elements.js)
+        crate::cloud::init_model(&mut self.repo, m);
         // a state machine starts with one region (uml-factory.js:606-626)
         if ty == "UMLStateMachine" {
             self.repo.create("UMLRegion", &[], Some((m, "regions")));
@@ -2068,6 +2403,16 @@ impl App {
     }
 
     pub fn add_diagram(&mut self, parent: Option<Eid>, ty: &str) -> Eid {
+        // a BPMN diagram goes in a BPMN root element or activity, else in a new process (bpmn-factory.js:28-57)
+        if ty == "BPMNDiagram" {
+            let d = self.add_bpmn_diagram(parent);
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
+        if crate::sysml::is_diagram(ty) {
+            return self.add_sysml_diagram(parent, ty);
+        }
         let target = match parent {
             Some(p) if self.repo.kind_of(p, "UMLPackage") || self.repo.ty(p) == "Project" || self.repo.kind_of(p, "UMLClassifier") => p,
             // an activity diagram added on an activity goes in it (uml-factory.js:574)
@@ -2164,6 +2509,22 @@ impl App {
             let d = self.repo.create(ty, &[("name", json!(name))], Some((target, "ownedElements")));
             let f = views::create_frame_view(&mut self.repo, d, Some(d), R { x: 8.0, y: 8.0, w: 692.0, h: 592.0 });
             self.apply_view_defaults(f);
+            self.open_diagram(d);
+            self.reveal(d);
+            return d;
+        }
+        // a cloud diagram goes in the element it is added to; right under the project, in a new
+        // "AWSModel1" (diagramFn, aws-factory.js:32-75, azure-factory.js, gcp-factory.js)
+        if let Some(model_ty) = crate::cloud::model_of(ty) {
+            let target = parent.filter(|p| self.repo.alive(*p) && !self.repo.kind_of(*p, "Diagram")).unwrap_or(self.repo.root);
+            let name = self.new_name(target, ty);
+            let holder = if self.repo.ty(target) == "Project" {
+                let mname = self.new_name(target, model_ty);
+                self.repo.create(model_ty, &[("name", json!(mname))], Some((target, "ownedElements")))
+            } else {
+                target
+            };
+            let d = self.repo.create(ty, &[("name", json!(name))], Some((holder, "ownedElements")));
             self.open_diagram(d);
             self.reveal(d);
             return d;
@@ -2424,6 +2785,10 @@ impl App {
                 if dangling(v, "model") || (needs_model && !r.has(v, "model") && crate::meta::known(ty)) {
                     return true;
                 }
+                // a communication message without the connector it rides on (diagram-manager.js:523-530)
+                if ty == "UMLCommMessageView" && (r.refd(v, "hostEdge").is_none() || dangling(v, "hostEdge")) {
+                    return true;
+                }
                 // a free line has no ends to lose
                 if views::is_edge(r, v) && !views::is_freeline(r, v) {
                     if r.refd(v, "tail").is_none() || r.refd(v, "head").is_none() || dangling(v, "tail") || dangling(v, "head") {
@@ -2564,7 +2929,10 @@ impl App {
         match views.len() {
             0 => self.toast("No diagrams to show"),
             1 => self.show_view(views[0]),
-            _ => self.diagram_picker = Some((views, None)),
+            _ => {
+                let items: Vec<Eid> = views.iter().filter_map(|v| self.repo.parent(*v)).collect();
+                self.list_picker = Some(crate::dialogs::ListPicker { title: "Select Diagram to show".into(), items, chosen: None, action: crate::dialogs::ListAction::ShowView(views) });
+            }
         }
     }
 
@@ -2598,6 +2966,7 @@ impl App {
 
     pub fn focus_element(&mut self, e: Eid) {
         self.focus = Some(e);
+        self.tree_cleared = false;
         self.selection = match self.diagram {
             Some(d) => self.repo.list(d, "ownedViews").into_iter().filter(|v| self.repo.refd(*v, "model") == Some(e)).take(1).collect(),
             None => vec![],
@@ -2619,9 +2988,13 @@ impl App {
         self.change(|a| {
             for e in edges {
                 a.repo.set(e, "lineStyle", json!(style));
+                // oblique and curved lines keep their bend points, as do lines that are already
+                // rectilinear; a slanted line made rectilinear has each segment squared
+                // (EdgeView.recalcPoints, core.js:2978-3007)
                 let pts = views::points_of(&a.repo, e);
-                if pts.len() > 2 {
-                    a.repo.set(e, "points", json!(views::format_points(&[pts[0], pts[pts.len() - 1]])));
+                let square = pts.windows(2).all(|w| (w[0].x - w[1].x).abs() < 0.5 || (w[0].y - w[1].y).abs() < 0.5);
+                if views::rectilinear(style) && !square {
+                    a.repo.set(e, "points", json!(views::format_points(&views::oblique_to_rectilinear(&pts))));
                 }
             }
         });

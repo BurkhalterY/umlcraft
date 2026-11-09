@@ -3,7 +3,7 @@
 
 use crate::app::App;
 use crate::model::Eid;
-use egui::{Align2, Vec2};
+use egui::Vec2;
 use serde_json::json;
 
 pub const KINDS: [&str; 5] = ["string", "reference", "boolean", "number", "enum"];
@@ -189,7 +189,7 @@ impl App {
         let rows = self.tag_rows(e);
         let mut close = false;
         let title = format!("Tag Editor - {}", self.repo.name(e));
-        egui::Window::new(title).id(egui::Id::new("tag-editor")).collapsible(false).resizable(false).anchor(Align2::CENTER_CENTER, Vec2::ZERO).show(ctx, |ui| {
+        crate::dialogs::dialog(ctx, "tag-editor", &title, |ui| {
             ui.set_min_width(380.0);
             egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
                 if rows.is_empty() {
@@ -253,10 +253,8 @@ impl App {
                 let can_delete = matches!(self.tag_row, Some(Row::Tag(_)));
                 if ui.add_enabled(can_delete, egui::Button::new("Delete")).clicked() {
                     if let Some(Row::Tag(t)) = self.tag_row.clone() {
-                        let yes = self.screenshot.is_some()
-                            || rfd::MessageDialog::new().set_title("Tag Editor").set_description("Delete this tag?").set_buttons(rfd::MessageButtons::YesNo).show()
-                                == rfd::MessageDialogResult::Yes;
-                        if yes {
+                        // a confirmation box (tag-editor-dialog.js:221)
+                        if self.confirm("Delete this tag?") {
                             self.change(|a| a.repo.detach(t));
                             self.tag_row = None;
                         }
@@ -281,7 +279,7 @@ impl App {
             return;
         }
         let (mut ok, mut cancel, mut pick) = (false, false, false);
-        egui::Window::new("Tag").collapsible(false).resizable(false).order(egui::Order::Foreground).anchor(Align2::CENTER_CENTER, Vec2::new(30.0, 30.0)).show(ctx, |ui| {
+        crate::dialogs::dialog(ctx, "tag", "Tag", |ui| {
             egui::Grid::new("tag-grid").num_columns(2).spacing([10.0, 6.0]).show(ui, |ui| {
                 ui.label("Name");
                 ui.add_enabled(!ed.slot, egui::TextEdit::singleline(&mut ed.name).desired_width(200.0));

@@ -24,20 +24,22 @@ pub fn default_path() -> Option<PathBuf> {
 pub struct Prefs {
     pub path: Option<PathBuf>,
     pub values: Map<String, Value>,
-    /// What was last written, to write only on change.
-    written: String,
+    /// The file as this window last read or wrote it, to write only on change and to keep what
+    /// other windows wrote meanwhile.
+    base: Map<String, Value>,
+}
+
+fn read_map(path: &Option<PathBuf>) -> Option<Map<String, Value>> {
+    path.as_ref()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .and_then(|v| v.as_object().cloned())
 }
 
 impl Prefs {
     pub fn load(path: Option<PathBuf>) -> Prefs {
-        let values = path
-            .as_ref()
-            .and_then(|p| std::fs::read_to_string(p).ok())
-            .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-            .and_then(|v| v.as_object().cloned())
-            .unwrap_or_default();
-        let written = Value::Object(values.clone()).to_string();
-        Prefs { path, values, written }
+        let values = read_map(&path).unwrap_or_default();
+        Prefs { path, base: values.clone(), values }
     }
 
     pub fn get(&self, key: &str) -> Option<&Value> {
@@ -52,22 +54,36 @@ impl Prefs {
         self.values.insert(key.to_string(), v);
     }
 
-    /// Write the file when something changed (and there is a file).
+    /// Write the file when something changed (and there is a file). Every window is its own process
+    /// and they share this file, as StarUML's windows share one localStorage: only the keys this
+    /// window changed are written over the file as it is now, so what another window wrote stays.
     pub fn flush(&mut self) {
-        let text = Value::Object(self.values.clone()).to_string();
-        if text == self.written {
+        let changed: Vec<String> = self.values.keys().chain(self.base.keys()).filter(|k| self.values.get(*k) != self.base.get(*k)).cloned().collect();
+        if changed.is_empty() {
             return;
         }
-        let Some(p) = &self.path else {
-            self.written = text;
+        let Some(p) = self.path.clone() else {
+            self.base = self.values.clone();
             return;
         };
+        let mut merged = read_map(&self.path).unwrap_or_else(|| self.base.clone());
+        for k in changed {
+            match self.values.get(&k) {
+                Some(v) => {
+                    merged.insert(k, v.clone());
+                }
+                None => {
+                    merged.remove(&k);
+                }
+            }
+        }
         if let Some(dir) = p.parent() {
             let _ = std::fs::create_dir_all(dir);
         }
-        let pretty = serde_json::to_string_pretty(&Value::Object(self.values.clone())).unwrap_or_default();
-        if std::fs::write(p, pretty).is_ok() {
-            self.written = text;
+        let pretty = serde_json::to_string_pretty(&Value::Object(merged.clone())).unwrap_or_default();
+        if std::fs::write(&p, pretty).is_ok() {
+            self.values = merged.clone();
+            self.base = merged;
         }
     }
 }
@@ -94,6 +110,7 @@ impl App {
         self.show_thumbnails = p.bool("view.diagramThumbnails.visibility", false);
         self.show_minimap = p.bool("view.minimap.visibility", true);
         self.show_markdown = p.bool("view.markdown.visibility", false);
+        crate::cloud::set_icon_dir(p.get(crate::cloud::ICON_FOLDER_PREF).and_then(|v| v.as_str()).map(PathBuf::from));
         for (id, _) in crate::splitter::PANELS {
             if let Some(s) = p.get(&format!("_viewState.{id}.size")).and_then(|v| v.as_f64()) {
                 self.panel_sizes.insert(id.to_string(), s as f32);
@@ -196,12 +213,65 @@ impl App {
 pub enum Kind {
     Header,
     Check,
-    Number,
-    Text,
     Color,
     LineStyle,
     StereotypeDisplay,
     Theme,
+    /// A folder path, typed or chosen with Browse…
+    Folder,
+    /// A font face: an editable field plus a list of the faces UMLCraft knows (preference-dialog.js:113-130).
+    Font,
+    /// A number typed or picked from a list, kept as an integer (preference-dialog.js:46-75).
+    Combo,
+}
+
+/// The choices of a combo preference (resources/default/preferences/default.json).
+fn combo_options(key: &str) -> &'static [i64] {
+    match key {
+        "view.fontSize" => &[8, 9, 10, 11, 12, 13, 14, 16, 20, 24, 28, 32],
+        "diagramEditor.gridSize" => &[2, 4, 6, 8, 10, 12, 14, 16, 18, 20],
+        _ => &[],
+    }
+}
+
+/// The line under a preference's name (the `description` of the preference schemas): the General
+/// ones by key, the per-kind ones as "<Setting> of <kind>." under their section header.
+pub fn description(key: &str, label: &str, header: &str) -> String {
+    let fixed = match key {
+        "general.working-file" => "Load the latest working file automatically when app launch",
+        "general.auto-backup" => "Backup working model automatically",
+        "theme.default" => "Default theme of UI.",
+        "view.font" => "Default font face of view elements.",
+        "view.fontSize" => "Default font size of view elements.",
+        "view.fillColor" => "Default fill color of view elements.",
+        "view.lineColor" => "Default line color of view elements.",
+        "view.fontColor" => "Default font color of view elements.",
+        "view.lineStyle" => "Default line style of edge-type view elements.",
+        "view.showShadow" => "Default showing shadow of view elements.",
+        "diagramEditor.showGrid" => "Show grid on diagram editor.",
+        "diagramEditor.snapToGrid" => "Snap to grid on diagram editor.",
+        "diagramEditor.gridSize" => "Default size (width and height) of grid.",
+        "diagramEditor.backgroundColor" => "Background color of diagram editor.",
+        "diagramEditor.gridColor" => "Grid color of diagram editor.",
+        "validation.validateModel" => "Validate model asynchronously when opening or saving files.",
+        _ => "",
+    };
+    if !fixed.is_empty() {
+        return fixed.to_string();
+    }
+    if key.ends_with(".stereotypeDisplay") {
+        return format!("Default stereotype display of {header}.");
+    }
+    // "Fill Color" of Class -> "Fill color of Class."
+    let mut words = label.split(' ');
+    let first = words.next().unwrap_or("");
+    let rest: Vec<String> = words.map(|w| w.to_lowercase()).collect();
+    let mut s = first.to_string();
+    for w in rest {
+        s.push(' ');
+        s.push_str(&w);
+    }
+    format!("{s} of {header}.")
 }
 
 /// The preferences UMLCraft uses, by section, with StarUML's keys, labels and defaults
@@ -213,8 +283,8 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("General", "general.auto-backup", "Auto backup", Kind::Check, json!(true)),
         ("General", "theme.default", "Default Theme", Kind::Theme, json!("dark")),
         ("General", "", "View", Kind::Header, Value::Null),
-        ("General", "view.font", "Font Face", Kind::Text, json!("Arial")),
-        ("General", "view.fontSize", "Font Size", Kind::Number, json!(13)),
+        ("General", "view.font", "Font Face", Kind::Font, json!("Arial")),
+        ("General", "view.fontSize", "Font Size", Kind::Combo, json!(13)),
         ("General", "view.fillColor", "Fill Color", Kind::Color, json!("#ffffff")),
         ("General", "view.lineColor", "Line Color", Kind::Color, json!("#000000")),
         ("General", "view.fontColor", "Font Color", Kind::Color, json!("#000000")),
@@ -223,12 +293,23 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
         ("General", "", "Diagram Editor", Kind::Header, Value::Null),
         ("General", "diagramEditor.showGrid", "Show Grid", Kind::Check, json!(true)),
         ("General", "diagramEditor.snapToGrid", "Snap to Grid", Kind::Check, json!(true)),
-        ("General", "diagramEditor.gridSize", "Grid Size", Kind::Number, json!(8)),
+        ("General", "diagramEditor.gridSize", "Grid Size", Kind::Combo, json!(8)),
         ("General", "diagramEditor.backgroundColor", "Background Color", Kind::Color, json!("#ffffff")),
         ("General", "diagramEditor.gridColor", "Grid Color", Kind::Color, json!("#e0e0e0")),
         ("General", "", "Validation", Kind::Header, Value::Null),
         ("General", "validation.validateModel", "Validate Model", Kind::Check, json!(true)),
+        // UMLCraft's own: where the AWS, Azure and GCP icons are read from, as they are not bundled
+        // (docs/features/8-beyond-staruml.md)
+        ("General", "", "Cloud Icons", Kind::Header, Value::Null),
+        ("General", crate::cloud::ICON_FOLDER_PREF, "Cloud Icon Folder", Kind::Folder, json!("")),
     ];
+    // the cloud diagrams' line styles (aws/preferences/aws.json)
+    v.push(("AWS", "", "Arrow", Kind::Header, Value::Null));
+    v.push(("AWS", "aws.arrow.lineStyle", "Line Style", Kind::LineStyle, json!(2)));
+    v.push(("Azure", "", "Arrow", Kind::Header, Value::Null));
+    v.push(("Azure", "azure.arrow.lineStyle", "Line Style", Kind::LineStyle, json!(2)));
+    v.push(("GCP", "", "Path", Kind::Header, Value::Null));
+    v.push(("GCP", "gcp.path.lineStyle", "Line Style", Kind::LineStyle, json!(0)));
     // per element kind: fill colour (null = the general one), stereotype display and compartments
     let kinds: [(&str, &str, Option<(&str, bool, bool, Option<bool>)>); 29] = [
         ("Package", "package", None),
@@ -281,6 +362,18 @@ pub fn items() -> Vec<(&'static str, &'static str, &'static str, Kind, Value)> {
     }
     v.push(("C4 Model", "", "Relationship", Kind::Header, Value::Null));
     v.push(("C4 Model", "c4.relationship.lineStyle", "Line Style", Kind::LineStyle, json!(1)));
+    // BPMN (bpmn/preferences/bpmn.json): the boxes' fill colours and the flows' line styles
+    for (label, id) in [("Activity", "activity"), ("Event", "event"), ("Message", "message"), ("Gateway", "gateway"), ("Data Object", "dataobject"), ("Conversation", "conversation")] {
+        let key: &'static str = Box::leak(format!("bpmn.{id}.fillColor").into_boxed_str());
+        v.push(("BPMN", "", label, Kind::Header, Value::Null));
+        v.push(("BPMN", key, "Fill Color", Kind::Color, json!("#ffffff")));
+    }
+    for (label, id) in [("Sequence Flow", "sequence-flow"), ("Message Flow", "message-flow"), ("Conversation Link", "conversation-link")] {
+        let key: &'static str = Box::leak(format!("bpmn.{id}.lineStyle").into_boxed_str());
+        v.push(("BPMN", "", label, Kind::Header, Value::Null));
+        v.push(("BPMN", key, "Line Style", Kind::LineStyle, json!(2)));
+    }
+    v.extend(crate::sysml::preferences());
     // ER diagrams (erd/preferences/erd.json)
     v.push(("ERD", "", "Entity", Kind::Header, Value::Null));
     v.push(("ERD", "erd.entity.fillColor", "Fill Color", Kind::Color, Value::Null));
@@ -404,7 +497,9 @@ impl App {
             Some("C4SoftwareSystem") => Some("c4.software-system.fillColor"),
             Some("C4Container") => Some("c4.container.fillColor"),
             Some("C4Component") => Some("c4.component.fillColor"),
-            _ => None,
+            // a BPMN box's own fill colour (the BPMN view constructors, bpmn/elements.js:970-2500)
+            Some(_) if ty.starts_with("BPMN") => crate::bpmn::fill_pref(&ty),
+            _ => crate::sysml::fill_pref(&ty),
         };
         if let Some(p) = own.map(|k| self.pref(k)).filter(|p| p.is_string()) {
             fill = p;
@@ -431,6 +526,12 @@ impl App {
                 "MMEdgeView" => Some("mindmap.edge.lineStyle"),
                 "ERDRelationshipView" => Some("erd.relationship.lineStyle"),
                 "C4RelationshipView" => Some("c4.relationship.lineStyle"),
+                "BPMNSequenceFlowView" => Some("bpmn.sequence-flow.lineStyle"),
+                "BPMNMessageFlowView" => Some("bpmn.message-flow.lineStyle"),
+                "BPMNConversationLinkView" => Some("bpmn.conversation-link.lineStyle"),
+                "AWSArrowView" => Some("aws.arrow.lineStyle"),
+                "AzureConnectorView" => Some("azure.arrow.lineStyle"),
+                "GCPPathView" => Some("gcp.path.lineStyle"),
                 _ => None,
             };
             let own = key.and_then(|k| self.pref(k).as_i64()).filter(|s| *s != 0);
@@ -444,11 +545,19 @@ impl App {
                 }
             }
         }
+        // a SysML block view's suppressed compartments (preferences/sysml.json)
+        for (field, key) in crate::sysml::suppress_prefs(&ty) {
+            let p = self.pref(key);
+            if !p.is_null() {
+                sets.push((field, p));
+            }
+        }
         for (field, value) in sets {
             if crate::meta::order_of(&ty, field).is_some() {
                 self.repo.set(v, field, value);
             }
         }
+        self.apply_color_vars(v);
     }
 
     /// File > Preferences: sections on the left, their settings on the right; every change applies at
@@ -461,19 +570,24 @@ impl App {
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && !egui::Popup::is_any_open(ctx) {
             open = false;
         }
-        egui::Window::new("Preferences").open(&mut open).collapsible(false).resizable(true).default_size([620.0, 460.0]).anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO).show(ctx, |ui| {
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
+        crate::dialogs::dialog(ctx, "preferences", "Preferences", |ui| {
+            // a fixed 620×440 body, as the window it replaces had
+            ui.allocate_ui_with_layout(egui::Vec2::new(620.0, 440.0), egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                ui.set_min_size(egui::Vec2::new(620.0, 440.0));
+                // the notations', then the languages' code generation and reverse options, scrolled
+                egui::ScrollArea::vertical().id_salt("prefs-sections").max_height(440.0).show(ui, |ui| ui.vertical(|ui| {
                     ui.set_width(120.0);
-                    for s in ["General", "C4 Model", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "UML"] {
+                    let langs = crate::codegen::pref_sections();
+                    for s in ["General", "AWS", "Azure", "BPMN", "C4 Model", "GCP", "Data Flow Diagram", "ERD", "Flowchart", "Mindmap", "SysML", "UML"].into_iter().chain(langs) {
                         if ui.selectable_label(section == s, s).clicked() {
                             pick = Some(s.to_string());
                         }
                     }
-                });
+                }));
                 ui.separator();
                 egui::ScrollArea::vertical().max_height(420.0).show(ui, |ui| ui.vertical(|ui| {
                     egui::Grid::new("prefs-grid").num_columns(2).spacing([16.0, 6.0]).show(ui, |ui| {
+                        let mut header = "";
                         for (sec, key, label, kind, def) in items() {
                             if sec != section {
                                 continue;
@@ -481,9 +595,15 @@ impl App {
                             if kind == Kind::Header {
                                 ui.label(egui::RichText::new(label).strong());
                                 ui.end_row();
+                                header = label;
                                 continue;
                             }
-                            ui.label(label);
+                            // the name, with its description under it (preference-dialog-item-*.html)
+                            ui.vertical(|ui| {
+                                ui.set_width(230.0);
+                                ui.label(label);
+                                ui.label(egui::RichText::new(description(key, label, header)).small().weak());
+                            });
                             let cur = self.prefs.get(key).cloned().unwrap_or(def.clone());
                             if let Some(new) = pref_widget(ui, key, kind, &cur) {
                                 self.prefs.set(key, new);
@@ -491,6 +611,7 @@ impl App {
                             ui.end_row();
                         }
                     });
+                    crate::codegen::prefs_section_ui(ui, &mut self.prefs, &section);
                     ui.add_space(8.0);
                     if ui.button("Restore Default Settings").clicked() {
                         for (sec, key, ..) in items() {
@@ -498,13 +619,22 @@ impl App {
                                 self.prefs.values.remove(key);
                             }
                         }
+                        crate::codegen::restore_defaults(&mut self.prefs, &section);
                     }
                 }));
+            });
+            ui.allocate_ui_with_layout(egui::Vec2::new(620.0, 24.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let close = ui.button("Close");
+                crate::ui::focus_primary(ui, &close);
+                if close.clicked() {
+                    open = false;
+                }
             });
         });
         // Show Grid and Snap to Grid are the same settings as the View menu's
         self.show_grid = self.pref("diagramEditor.showGrid").as_bool().unwrap_or(true);
         self.snap = self.pref("diagramEditor.snapToGrid").as_bool().unwrap_or(true);
+        crate::cloud::set_icon_dir(self.pref(crate::cloud::ICON_FOLDER_PREF).as_str().map(PathBuf::from));
         self.prefs_open = if open { Some(pick.unwrap_or(section)) } else { None };
     }
 }
@@ -515,13 +645,38 @@ fn pref_widget(ui: &mut egui::Ui, key: &str, kind: Kind, cur: &Value) -> Option<
             let mut b = cur.as_bool().unwrap_or(false);
             ui.checkbox(&mut b, "").changed().then(|| json!(b))
         }
-        Kind::Number => {
-            let mut n = cur.as_f64().unwrap_or(0.0);
-            ui.add(egui::DragValue::new(&mut n).range(1.0..=200.0).speed(0.2)).changed().then(|| json!(n.round() as i64))
-        }
-        Kind::Text => {
+        Kind::Font => {
             let mut t = cur.as_str().unwrap_or("").to_string();
-            ui.add(egui::TextEdit::singleline(&mut t).desired_width(160.0)).changed().then(|| json!(t))
+            let mut out = None;
+            ui.horizontal(|ui| {
+                if ui.add(egui::TextEdit::singleline(&mut t).desired_width(110.0)).changed() {
+                    out = Some(json!(t));
+                }
+                if let Some(f) = crate::style::font_face_menu(ui, key) {
+                    out = Some(json!(f));
+                }
+            });
+            out
+        }
+        Kind::Combo => {
+            // typed text is kept as an integer, as the default is a number
+            let mut t = cur.as_i64().map(|n| n.to_string()).unwrap_or_default();
+            let mut out = None;
+            ui.horizontal(|ui| {
+                if ui.add(egui::TextEdit::singleline(&mut t).desired_width(48.0)).changed() {
+                    if let Ok(n) = t.trim().parse::<i64>() {
+                        out = Some(json!(n));
+                    }
+                }
+                egui::ComboBox::from_id_salt(("combo", key)).selected_text("").width(20.0).show_ui(ui, |ui| {
+                    for n in combo_options(key) {
+                        if ui.selectable_label(cur.as_i64() == Some(*n), n.to_string()).clicked() {
+                            out = Some(json!(n));
+                        }
+                    }
+                });
+            });
+            out
         }
         Kind::Color => {
             let c = cur.as_str().map(|s| crate::render::parse_color(s, crate::render::Rgba(255, 255, 255, 255)));
@@ -532,7 +687,7 @@ fn pref_widget(ui: &mut egui::Ui, key: &str, kind: Kind, cur: &Value) -> Option<
                     out = Some(json!(crate::style::hex(crate::render::Rgba(col.r(), col.g(), col.b(), 255))));
                 }
                 // a per-kind colour can go back to "use the general colour"
-                if key.starts_with("uml.") && cur.is_string() && ui.small_button("Default").clicked() {
+                if key.starts_with("uml.") && cur.is_string() && ui.small_button("Use Default").clicked() {
                     out = Some(Value::Null);
                 }
             });
@@ -568,6 +723,21 @@ fn pref_widget(ui: &mut egui::Ui, key: &str, kind: Kind, cur: &Value) -> Option<
                 ui.selectable_value(&mut s, "light".to_string(), "Light");
             });
             (s != before).then(|| json!(s))
+        }
+        Kind::Folder => {
+            let mut t = cur.as_str().unwrap_or("").to_string();
+            let mut out = None;
+            ui.horizontal(|ui| {
+                if ui.add(egui::TextEdit::singleline(&mut t).desired_width(220.0)).changed() {
+                    out = Some(json!(t.clone()));
+                }
+                if ui.button("Browse…").clicked() {
+                    if let Some(p) = rfd::FileDialog::new().set_title("Cloud Icon Folder").pick_folder() {
+                        out = Some(json!(p.display().to_string()));
+                    }
+                }
+            });
+            out
         }
         Kind::Header => None,
     }
@@ -621,7 +791,7 @@ impl App {
         let Some(repo) = loaded else { return false };
         self.set_project(repo, None);
         self.modified = true;
-        self.toast("App was unexpectedly terminated. Auto backup file has loaded.");
+        self.toast_error("App was unexpectedly terminated. Auto backup file has loaded.");
         true
     }
 

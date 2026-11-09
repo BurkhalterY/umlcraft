@@ -28,33 +28,6 @@ pub struct Command {
     pub key: &'static str,
 }
 
-/// A shortcut as the platform shows it (keymap-manager.js:75-152): on macOS concatenated symbols
-/// (Ctrl, the command key, becomes ⌘; Shift ⇧; Alt ⌥; arrows and Backspace as symbols), elsewhere
-/// "Ctrl+Shift+X" with arrows as symbols.
-pub fn shortcut_label(key: &str, mac: bool) -> String {
-    let arrow = |k: &str| match k {
-        "Up" => "↑".to_string(),
-        "Down" => "↓".to_string(),
-        "Left" => "←".to_string(),
-        "Right" => "→".to_string(),
-        "Backspace" if mac => "⌫".to_string(),
-        _ => k.to_string(),
-    };
-    let parts: Vec<&str> = key.split('+').filter(|p| !p.is_empty()).collect();
-    if !mac {
-        return parts.iter().map(|p| arrow(p)).collect::<Vec<_>>().join("+");
-    }
-    parts
-        .iter()
-        .map(|p| match *p {
-            "Ctrl" | "Cmd" => "⌘".to_string(),
-            "Shift" => "⇧".to_string(),
-            "Alt" => "⌥".to_string(),
-            k => arrow(k),
-        })
-        .collect()
-}
-
 const fn c(id: &'static str, name: &'static str, key: &'static str) -> Command {
     Command { id, name, key }
 }
@@ -65,6 +38,7 @@ pub const COMMANDS: &[Command] = &[
     c("project:open", "Open...", "Ctrl+O"),
     c("project:save", "Save", "Ctrl+S"),
     c("project:save-as", "Save As...", "Ctrl+Shift+S"),
+    c("project:export-image", "Export Image...", ""),
     c("project:export-diagram-to-png", "Export Diagram As PNG...", ""),
     c("project:export-diagram-to-jpeg", "Export Diagram As JPEG...", ""),
     c("project:export-diagram-to-svg", "Export Diagram As SVG...", ""),
@@ -107,6 +81,15 @@ pub const COMMANDS: &[Command] = &[
     c("format:suppress-literals", "Suppress Literals", "Ctrl+Shift+T"),
     // Format › Suppress Columns on ER entities (erd/keymaps/erd.json, erd-commands.js:183)
     c("erd:suppress-columns", "ERD: Suppress Columns", "Ctrl+Shift+U"),
+    // SysML's compartment toggles (sysml-commands.js:361-368)
+    c("format:suppress-property-values", "SysML: Suppress Property Values", ""),
+    c("format:suppress-constraints", "SysML: Suppress Constraints", ""),
+    c("format:suppress-parts", "SysML: Suppress Parts", ""),
+    c("format:suppress-ports", "SysML: Suppress Ports", ""),
+    c("format:suppress-references", "SysML: Suppress References", ""),
+    c("format:suppress-values", "SysML: Suppress Values", ""),
+    c("format:suppress-properties", "SysML: Suppress Properties", ""),
+    c("format:suppress-flow-properties", "SysML: Suppress Flow Properties", ""),
     c("alignment:send-to-back", "Send To Back", ""),
     c("alignment:bring-to-front", "Bring To Front", ""),
     c("alignment:align-left", "Align Left", ""),
@@ -161,6 +144,7 @@ pub const COMMANDS: &[Command] = &[
     c("view:editors", "Editors", "Ctrl+6"),
     c("uml:apply-profile.uml-standard", "Apply UML Standard Profile (v2)", ""),
     c("help:documentation", "Documentation", ""),
+    c("help:forum", "Forum", ""),
     c("help:release-notes", "Release Notes", ""),
     c("help:about", "About UMLCraft", ""),
 ];
@@ -234,6 +218,9 @@ impl App {
             ("format:show-namespace", "showNamespace"), ("format:show-property", "showProperty"), ("format:show-type", "showType"), ("format:show-multiplicity", "showMultiplicity"), ("format:show-operation-signature", "showOperationSignature"), ("format:show-diagram-name", "showDiagramName"),
             ("format:suppress-attributes", "suppressAttributes"), ("format:suppress-operations", "suppressOperations"), ("format:suppress-receptions", "suppressReceptions"), ("format:suppress-literals", "suppressLiterals"),
             ("erd:suppress-columns", "suppressColumns"),
+            ("format:suppress-property-values", "suppressPropertyValues"), ("format:suppress-constraints", "suppressConstraints"), ("format:suppress-parts", "suppressParts"),
+            ("format:suppress-ports", "suppressPorts"), ("format:suppress-references", "suppressReferences"), ("format:suppress-values", "suppressValues"),
+            ("format:suppress-properties", "suppressProperties"), ("format:suppress-flow-properties", "suppressFlowProperties"),
         ];
         if let Some((_, f)) = toggles.iter().find(|t| t.0 == id) {
             self.toggle_flag(f);
@@ -251,19 +238,14 @@ impl App {
         }
         match id {
             "application:new" => self.cmd_new(&ms),
-            "project:open" => {
-                if self.confirm_discard(&ms) {
-                    if let Some(p) = rfd::FileDialog::new().set_title("Open Model").add_filter("Models", &["mdj"]).add_filter("All Files", &["*"]).pick_file() {
-                        self.open_path(p);
-                    }
-                }
-            }
+            "project:open" => self.open_dialog(),
             "project:save" => {
                 self.save(&ms);
             }
             "project:save-as" => {
                 self.save_as(&ms);
             }
+            "project:export-image" => self.open_export_image(),
             "project:export-diagram-to-png" => self.export_current(ctx, Format::Png),
             "project:export-diagram-to-jpeg" => self.export_current(ctx, Format::Jpeg),
             "project:export-diagram-to-svg" => self.export_current(ctx, Format::Svg),
@@ -338,8 +320,24 @@ impl App {
             "view:editors" => self.show_editors = !self.show_editors,
             "help:documentation" => ctx.open_url(egui::OpenUrl::new_tab(crate::ui::DOCS_URL)),
             "help:release-notes" => ctx.open_url(egui::OpenUrl::new_tab(crate::ui::RELEASES_URL)),
+            "help:forum" => ctx.open_url(egui::OpenUrl::new_tab(crate::ui::FORUM_URL)),
+            // the window commands (application.js:241-258, default-commands.js:81-93, 345-347)
+            "project:close" | "application:quit" => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            "application:reload" => {
+                crate::window::request_relaunch();
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
             "help:about" => self.about_open = true,
             "uml:apply-profile.uml-standard" => self.apply_standard_profile(),
+            "view:command-palette" => self.open_palette(Mode::Commands),
+            "find:find" => self.open_find(),
+            // Format › Stereotype Display (uml/keymaps/uml.json)
+            s if s.starts_with("format:stereotype-") => {
+                let v = &s["format:stereotype-".len()..];
+                if let Some((value, _)) = crate::style::STEREOTYPE_DISPLAYS.into_iter().find(|d| d.0 == v) {
+                    self.set_stereotype_display(value);
+                }
+            }
             _ => {}
         }
     }
@@ -353,7 +351,7 @@ impl App {
             Mode::Find => "Find models, views and diagrams...",
         };
         let rows: Vec<(String, String, Option<Hit>, Option<&'static str>)> = match pal.mode {
-            Mode::Commands => matching(&pal.query).into_iter().map(|c| (c.name.to_string(), shortcut_label(c.key, cfg!(target_os = "macos")), None, Some(c.id))).collect(),
+            Mode::Commands => matching(&pal.query).into_iter().map(|c| (c.name.to_string(), self.accel(c.id), None, Some(c.id))).collect(),
             Mode::Find => self
                 .find_hits(&pal.query)
                 .into_iter()

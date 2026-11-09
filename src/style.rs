@@ -28,6 +28,45 @@ pub struct ColorDialog {
     pub field: &'static str,
     pub color: Rgba,
     pub text: String,
+    /// The colour variable chosen (StarUML 8's palette, or typed as `$name`); OK writes it in place
+    /// of the colour.
+    pub var: Option<String>,
+}
+
+impl ColorDialog {
+    /// Take what the hex field holds: `#rrggbb`, `#rrggbbaa` or a variable name.
+    pub fn take_text(&mut self) {
+        let t = self.text.trim();
+        if crate::colorvars::is_var(t) {
+            if let Some(c) = crate::colorvars::resolve(t, crate::colorvars::dark()) {
+                self.color = c;
+                self.var = Some(t.to_ascii_lowercase());
+            }
+        } else if let Some(c) = parse_hex(t) {
+            self.color = c;
+            self.var = None;
+        }
+    }
+
+    /// A click on a swatch of the variables palette. A project drawn with variables gets the variable;
+    /// any other gets its light-theme colour as `#rrggbb`, so that StarUML 7 still draws it (UMLCraft
+    /// rule; typing the name writes the variable all the same).
+    pub fn pick_var(&mut self, name: &str, project_vars: bool) {
+        if project_vars {
+            self.color = crate::colorvars::resolve(name, crate::colorvars::dark()).unwrap_or(self.color);
+            self.var = Some(name.to_string());
+            self.text = name.to_string();
+        } else {
+            self.color = crate::colorvars::resolve(name, false).unwrap_or(self.color);
+            self.var = None;
+            self.text = hex(self.color);
+        }
+    }
+
+    /// The value OK writes.
+    pub fn value(&self) -> String {
+        self.var.clone().unwrap_or_else(|| hex(self.color))
+    }
 }
 
 /// The Color dialog's preset palette: 16 columns, a grey ramp then four shades of 16 hues
@@ -80,7 +119,31 @@ impl App {
         }
         let def = if field == "fillColor" { Rgba(255, 255, 255, 255) } else { Rgba(0, 0, 0, 255) };
         let color = self.color_state(field).unwrap_or(def);
-        self.color_dialog = Some(ColorDialog { field, color, text: hex(color) });
+        let var = self.color_text(field).filter(|t| crate::colorvars::is_var(t));
+        let text = var.clone().unwrap_or_else(|| hex(color));
+        self.color_dialog = Some(ColorDialog { field, color, text, var });
+    }
+
+    /// The colour value every selected view shares, as written (a variable stays a variable).
+    pub fn color_text(&self, field: &str) -> Option<String> {
+        let vs = self.color_views(field);
+        let first = self.repo.str(*vs.first()?, field);
+        vs.iter().all(|v| self.repo.str(*v, field) == first).then_some(first)
+    }
+
+    /// The Color dialog's OK: write its value (a colour or a variable) to every selected view that has
+    /// the field, as one undo step, unless they all hold it already.
+    pub fn apply_color_dialog(&mut self, d: &ColorDialog) {
+        let value = d.value();
+        let vs = self.color_views(d.field);
+        if vs.is_empty() || self.color_text(d.field).as_deref() == Some(value.as_str()) {
+            return;
+        }
+        self.change(|a| {
+            for v in vs {
+                a.repo.set(v, d.field, json!(value));
+            }
+        });
     }
 
     /// The selected views that have this colour field.
@@ -121,6 +184,25 @@ impl App {
 
 /// Font sizes offered by the Style editor and the Font dialog (style-editor-view.html).
 pub const SIZES: [f64; 14] = [8.0, 9.0, 10.0, 11.0, 12.0, 13.0, 14.0, 16.0, 18.0, 20.0, 24.0, 28.0, 36.0, 42.0];
+
+/// The font faces the Style editor, the Font dialog and Preferences list: the names of the fonts the
+/// original loads from resources/fonts (its "default" fallback faces aside), sorted
+/// (font-manager.js; style-editor-view.js:795-805; dialog-manager.js:535-541). UMLCraft stores the
+/// chosen name; diagrams are drawn with the Arial-compatible face whatever it is.
+pub const FONT_FACES: [&str; 12] = ["Arial", "Courier", "Courier New", "Gloria Hallelujah", "Helvetica", "Inter", "Lato", "Roboto", "Source Code Pro", "Source Sans Pro", "Times", "Times New Roman"];
+
+/// The drop-down beside a font face field: picking a face returns it, to copy into the field.
+pub fn font_face_menu(ui: &mut egui::Ui, id: &str) -> Option<String> {
+    let mut out = None;
+    egui::ComboBox::from_id_salt(("font-faces", id)).selected_text("").width(20.0).show_ui(ui, |ui| {
+        for f in FONT_FACES {
+            if ui.selectable_label(false, f).clicked() {
+                out = Some(f.to_string());
+            }
+        }
+    });
+    out
+}
 
 impl App {
     fn font_views(&self) -> Vec<Eid> {

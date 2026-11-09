@@ -53,7 +53,8 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
         "UMLGate" => "gate",
         "UMLSequenceDiagram" => "diagram",
         // a flowchart element's icon is its type (the shapes are drawn by key)
-        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") || t.starts_with("WF") => crate::meta::static_name(t),
+        t if t.starts_with("FC") || t.starts_with("DFD") || t.starts_with("MM") || t.starts_with("ERD") || t.starts_with("C4") || t.starts_with("WF") || t.starts_with("BPMN") || crate::cloud::element_kind(t).is_some() || crate::cloud::is_diagram(t) || crate::cloud::edge_view_of(t).is_some() => crate::meta::static_name(t),
+        t if t.starts_with("SysML") => crate::sysml::icon_key(t),
         "UMLTransition" => "dependency",
         // activities: the action by its kind, nodes by their marks (elements.js:3176-3210)
         "UMLAction" => match r.str(e, "kind").as_str() {
@@ -94,6 +95,36 @@ pub fn key_for(r: &Repo, e: Eid) -> &'static str {
     }
 }
 
+/// The small icon SVG of the element's stereotype, if it has one: shown instead of the element's
+/// own icon in the explorer and the other trees (UMLModelElement.getNodeIcon, elements.js:500-511;
+/// loadStereotypeIcons, uml/main.js:104-123, which rejects an SVG containing `'`).
+pub fn stereotype_small_icon(r: &Repo, e: Eid) -> Option<String> {
+    let st = r.refd(e, "stereotype").filter(|s| r.alive(*s) && r.ty(*s) == "UMLStereotype")?;
+    let icon = r.child(st, "icon")?;
+    let svg = r.str(icon, "smallIcon");
+    let svg = svg.trim();
+    (!svg.is_empty() && !svg.contains('\'')).then(|| svg.to_string())
+}
+
+/// Draw an element's tree icon: its stereotype's small icon when there is one, else its own icon.
+pub fn draw_for(p: &Painter, rect: Rect, r: &Repo, e: Eid) {
+    if let Some(svg) = stereotype_small_icon(r, e) {
+        let ctx = p.ctx().clone();
+        let id = egui::Id::new(("stereotype-small-icon", svg.len(), svg.get(..64).unwrap_or(""), svg.get(svg.len().saturating_sub(64)..).unwrap_or("")));
+        let tex = ctx.data_mut(|d| d.get_temp::<Option<egui::TextureHandle>>(id)).unwrap_or_else(|| {
+            let url = format!("data:image/svg+xml;base64,{}", crate::picture::base64_encode(svg.as_bytes()));
+            let t = crate::picture::decode(&url).map(|img| ctx.load_texture("stereotype-icon", egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()), egui::TextureOptions::LINEAR));
+            ctx.data_mut(|d| d.insert_temp(id, t.clone()));
+            t
+        });
+        if let Some(t) = tex {
+            p.image(t.id(), rect, Rect::from_min_max(egui::Pos2::ZERO, egui::Pos2::new(1.0, 1.0)), egui::Color32::WHITE);
+            return;
+        }
+    }
+    draw(p, rect, key_for(r, e));
+}
+
 #[allow(non_snake_case)]
 pub fn draw(p: &Painter, rect: Rect, key: &str) {
     // monochrome icons take the theme's text colour
@@ -117,6 +148,10 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
     let folder = |c: Color32| line(&[(1.5, 3.5), (6.5, 3.5), (7.5, 5.0), (14.5, 5.0), (14.5, 13.5), (1.5, 13.5), (1.5, 3.5)], c);
     let arrow_up = |c: Color32| line(&[(5.0, 5.5), (8.0, 2.5), (11.0, 5.5)], c);
     let triangle_up = |c: Color32| line(&[(8.0, 2.0), (11.5, 6.5), (4.5, 6.5), (8.0, 2.0)], c);
+    // BPMN elements and tools (bpmn_draw.rs)
+    if crate::bpmn_draw::icon(p, rect, key, Y, G, B) {
+        return;
+    }
     match key {
         "project" => {
             line(&[(8.0, 1.5), (13.5, 4.5), (13.5, 11.5), (8.0, 14.5), (2.5, 11.5), (2.5, 4.5), (8.0, 1.5)], RED);
@@ -381,7 +416,72 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
             p.circle_filled(at(8.0, 8.0), 4.0 * s, Y);
         }
         "gate" => rect_at(5.0, 5.0, 6.0, 6.0, Y),
+        // cloud elements, by what they are: a cloud for a model (green for its diagram), a box for a
+        // group or zone, a rounded square for an icon, a dot for a callout, an arrow for a line
+        k if crate::cloud::element_kind(k).is_some() || crate::cloud::is_diagram(k) || crate::cloud::edge_view_of(k).is_some() => {
+            let cloud = |c: Color32| {
+                p.circle_stroke(at(5.5, 9.0), 3.0 * s, st(c));
+                p.circle_stroke(at(9.0, 7.0), 3.8 * s, st(c));
+                p.circle_stroke(at(12.0, 10.0), 2.5 * s, st(c));
+                line(&[(3.0, 12.5), (13.0, 12.5)], c);
+            };
+            if crate::cloud::is_diagram(k) {
+                cloud(G);
+            } else if crate::cloud::edge_view_of(k).is_some() {
+                line(&[(2.0, 13.0), (13.0, 3.0)], B);
+                line(&[(8.5, 3.5), (13.0, 3.0), (12.5, 7.5)], B);
+            } else if k.ends_with("Model") {
+                cloud(Y);
+            } else if k.ends_with("Callout") {
+                p.circle_filled(at(8.0, 8.0), 5.0 * s, Y);
+            } else if k.ends_with("Group") || k.ends_with("Zone") {
+                dashed(&[(1.5, 2.5), (14.5, 2.5), (14.5, 13.5), (1.5, 13.5), (1.5, 2.5)], Y);
+                rect_at(1.5, 2.5, 4.0, 4.0, Y);
+            } else {
+                p.rect_stroke(Rect::from_min_size(at(3.0, 3.0), Vec2::new(10.0 * s, 10.0 * s)), (2.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+                line(&[(5.5, 8.0), (10.5, 8.0)], Y);
+            }
+        }
         // C4 elements
+        // SysML elements: a requirement is a box with text lines under its name; a block a box with its
+        // compartment lines and a heavy top; a constraint property a rounded box
+        "SysMLRequirement" => {
+            rect_at(2.0, 2.5, 12.0, 11.0, Y);
+            line(&[(2.0, 6.0), (14.0, 6.0)], Y);
+            line(&[(4.5, 8.5), (11.5, 8.5)], Y);
+            line(&[(4.5, 11.0), (9.5, 11.0)], Y);
+        }
+        "SysMLBlock" => {
+            rect_at(2.0, 2.5, 12.0, 11.0, Y);
+            line(&[(2.0, 3.5), (14.0, 3.5)], Y);
+            line(&[(2.0, 7.0), (14.0, 7.0)], Y);
+            line(&[(2.0, 10.0), (14.0, 10.0)], Y);
+        }
+        "SysMLConstraintBlock" => {
+            rect_at(2.0, 2.5, 12.0, 11.0, Y);
+            line(&[(2.0, 6.0), (14.0, 6.0)], Y);
+            line(&[(5.0, 9.5), (7.0, 9.5)], Y);
+            line(&[(9.0, 9.5), (11.0, 9.5)], Y);
+            line(&[(10.0, 8.5), (10.0, 10.5)], Y);
+        }
+        "SysMLConstraintProperty" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(13.0 * s, 9.0 * s)), (2.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+        }
+        "SysMLConstraintParameter" => {
+            p.rect_stroke(Rect::from_min_size(at(1.5, 3.5), Vec2::new(10.0 * s, 9.0 * s)), (2.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
+            rect_at(9.0, 6.0, 5.0, 5.0, Y);
+        }
+        "SysMLInternalBlockDiagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            rect_at(3.5, 5.0, 4.0, 4.0, G);
+            rect_at(9.0, 8.0, 4.0, 4.0, G);
+            line(&[(7.5, 7.0), (9.0, 10.0)], G);
+        }
+        "SysMLRequirementDiagram" => {
+            rect_at(1.5, 1.5, 13.0, 13.0, G);
+            rect_at(4.0, 4.0, 8.0, 8.0, G);
+            line(&[(4.0, 6.5), (12.0, 6.5)], G);
+        }
         "C4Model" => {
             rect_at(1.5, 1.5, 13.0, 13.0, Y);
             p.rect_stroke(Rect::from_min_size(at(4.0, 4.0), Vec2::new(8.0 * s, 8.0 * s)), (1.5 * s) as f32, st(Y), egui::StrokeKind::Middle);
@@ -760,6 +860,30 @@ pub fn draw(p: &Painter, rect: Rect, key: &str) {
         "image" => {
             rect_at(2.0, 3.0, 12.0, 10.0, W);
             line(&[(2.0, 11.0), (6.0, 7.0), (9.0, 10.0), (11.0, 8.0), (14.0, 11.0)], W);
+        }
+        // the Markdown mark: an M and a down arrow in a frame
+        "markdown" => {
+            rect_at(1.0, 3.5, 14.0, 9.0, W);
+            line(&[(3.5, 10.0), (3.5, 6.0), (5.5, 8.0), (7.5, 6.0), (7.5, 10.0)], W);
+            line(&[(11.0, 6.0), (11.0, 10.0)], W);
+            line(&[(9.5, 8.5), (11.0, 10.0), (12.5, 8.5)], W);
+        }
+        // UMLCraft's own drawings for the panel buttons: a frame with three small pages, a frame
+        // with a viewport in its corner, and two boxes joined by a line
+        "thumbnails" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, W);
+            for x in [3.0, 6.75, 10.5] {
+                rect_at(x, 9.0, 2.5, 3.0, W);
+            }
+        }
+        "minimap" => {
+            rect_at(1.5, 2.5, 13.0, 11.0, W);
+            rect_at(8.0, 8.0, 5.0, 4.0, W);
+        }
+        "relationships" => {
+            rect_at(1.5, 2.0, 5.0, 4.0, W);
+            rect_at(9.5, 10.0, 5.0, 4.0, W);
+            line(&[(4.0, 6.0), (4.0, 12.0), (9.5, 12.0)], W);
         }
         _ => rect_at(3.0, 3.0, 10.0, 10.0, W),
     }
