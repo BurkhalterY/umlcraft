@@ -137,7 +137,7 @@ jobs:
     name: macOS universal
     needs: version
     if: needs.version.outputs.version != ''
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       VERSION: ${{ needs.version.outputs.version }}
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
