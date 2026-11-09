@@ -22,8 +22,9 @@ export function Start({ index }: { index: number }) {
         </>
       }
     >
-      <div className="grid gap-px border-t border-line bg-line md:grid-cols-[1.4fr_1fr]">
-        <div className="bg-bg-sunken p-6 md:p-10">
+      {/* minmax(0, …) columns, so the long commands scroll inside the terminal instead of widening the page */}
+      <div className="grid grid-cols-1 gap-px border-t border-line bg-line md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+        <div className="min-w-0 bg-bg-sunken p-6 md:p-10">
           <div className="flex items-center justify-between">
             <p className="label text-faint">Terminal</p>
             <CopyButton text={BUILD_COMMANDS.join("\n")} />
